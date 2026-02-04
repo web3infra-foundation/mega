@@ -299,7 +299,7 @@ const CLDetailPage: PageWithLayout<any> = () => {
           )}
           <div>
             <TabLayout>
-              {tab === 'check' && clDetail?.id && <Checks cl={clDetail.id} />}
+              {tab === 'check' && clDetail?.id && <Checks cl={clDetail.id} path={(clDetail as any)?.path} />}
               {tab === 'conversation' && (
                 <ConversationTab
                   detailIsLoading={detailIsLoading}
