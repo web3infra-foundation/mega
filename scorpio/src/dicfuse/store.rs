@@ -725,6 +725,14 @@ pub struct DirItem {
     last_sync: Option<Instant>,
 }
 
+/// Path lookup status for dicfuse path resolution.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PathLookupStatus {
+    Found(u64),
+    ParentNotLoaded { parent_path: String },
+    NotFound,
+}
+
 pub struct DictionaryStore {
     inodes: Arc<Mutex<HashMap<u64, Arc<DicItem>>>>,
     // dirs: Arc<Mutex<HashMap<String, DirItem>>>, //save all the dirs.
@@ -765,6 +773,16 @@ pub struct DictionaryStore {
 
 #[allow(unused)]
 impl DictionaryStore {
+    fn normalize_user_path(path: &str) -> String {
+        if path.is_empty() {
+            "/".to_string()
+        } else if path.starts_with('/') {
+            path.to_string()
+        } else {
+            format!("/{path}")
+        }
+    }
+
     pub async fn new() -> Self {
         let tree_store = TreeStorage::new().expect("Failed to create TreeStorage");
         let store_dir = config::store_path().to_string();
@@ -1280,7 +1298,22 @@ impl DictionaryStore {
         let item_path = path.to_string();
         let mut path = GPath::from(path.to_string());
         let name = path.pop();
-        let parent = self.get_by_path(&path.to_string()).await?;
+        let parent_path = path.to_string();
+        let parent = match self.get_by_path(&parent_path).await {
+            Ok(p) => p,
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                if let Ok(PathLookupStatus::ParentNotLoaded { parent_path }) =
+                    self.lookup_path_status(&parent_path).await
+                {
+                    return Err(io::Error::new(
+                        io::ErrorKind::NotFound,
+                        format!("parent directory not loaded: {parent_path}"),
+                    ));
+                }
+                return Err(e);
+            }
+            Err(e) => return Err(e),
+        };
         let name = match name {
             Some(n) => n,
             None => return Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid path")),
@@ -1502,12 +1535,17 @@ impl DictionaryStore {
     }
 
     pub async fn get_by_path(&self, path: &str) -> Result<StorageItem, io::Error> {
-        let inode = if path.is_empty() || path == "/" {
+        let normalized = if path.is_empty() || path == "/" {
+            String::new()
+        } else {
+            GPath::from(path.to_string()).to_string()
+        };
+        let inode = if normalized.is_empty() {
             1
         } else {
             let binding = self.radix_trie.lock().await;
             *binding
-                .get(path)
+                .get(&normalized)
                 .ok_or(io::Error::new(io::ErrorKind::NotFound, "path not found"))?
         };
 
@@ -1525,6 +1563,69 @@ impl DictionaryStore {
         };
 
         Ok(inode)
+    }
+
+    /// Look up a path and return whether it exists, is missing, or blocked by an unloaded parent.
+    pub async fn lookup_path_status(&self, path: &str) -> Result<PathLookupStatus, io::Error> {
+        let normalized = if path.is_empty() || path == "/" {
+            String::new()
+        } else {
+            GPath::from(path.to_string()).to_string()
+        };
+        if normalized.is_empty() {
+            return Ok(PathLookupStatus::Found(1));
+        }
+
+        if let Some(inode) = self.radix_trie.lock().await.get(&normalized).copied() {
+            return Ok(PathLookupStatus::Found(inode));
+        }
+
+        let user_path = Self::normalize_user_path(path);
+        let parts: Vec<&str> = user_path
+            .trim_start_matches('/')
+            .split('/')
+            .filter(|p| !p.is_empty())
+            .collect();
+
+        if parts.is_empty() {
+            return Ok(PathLookupStatus::Found(1));
+        }
+
+        let trie = self.radix_trie.lock().await;
+        let mut ancestor_key: Option<String> = None;
+        let mut ancestor_inode: Option<u64> = None;
+        for i in (1..parts.len()).rev() {
+            let key = parts[..i].join("/");
+            if let Some(inode) = trie.get(&key) {
+                ancestor_key = Some(key);
+                ancestor_inode = Some(*inode);
+                break;
+            }
+        }
+        drop(trie);
+
+        if let (Some(key), Some(inode)) = (ancestor_key, ancestor_inode) {
+            let ancestor_user_path = if key.is_empty() {
+                "/".to_string()
+            } else {
+                format!("/{key}")
+            };
+            if let Ok(item) = self.persistent_path_store.get_item(inode) {
+                if item.is_dir() {
+                    match self.dirs.get(&ancestor_user_path) {
+                        Some(dir) if dir.loaded => {}
+                        _ => {
+                            return Ok(PathLookupStatus::ParentNotLoaded {
+                                parent_path: ancestor_user_path,
+                            })
+                        }
+                    }
+                }
+            }
+            return Ok(PathLookupStatus::NotFound);
+        }
+
+        Ok(PathLookupStatus::NotFound)
     }
 
     pub async fn do_readdir(
@@ -2578,8 +2679,9 @@ pub async fn watch_dir_path(store: Arc<DictionaryStore>, path: &str) {
     update_dir(store, path.to_string()).await;
 }
 
-/// Test-only helper methods for DictionaryStore
-#[cfg(test)]
+/// Test helper methods for DictionaryStore.
+///
+/// These helpers are intentionally lightweight and do not perform any network calls.
 impl DictionaryStore {
     /// Insert a mock item for testing purposes.
     /// This allows tests to set up the internal state without network calls.
@@ -2707,6 +2809,64 @@ mod tests {
             store.get_persisted_file_content(2).unwrap(),
             b"abcdef".to_vec()
         );
+    }
+
+    #[tokio::test]
+    async fn test_lookup_path_status_found() {
+        use tempfile::tempdir;
+
+        let tmp = tempdir().unwrap();
+        let store = DictionaryStore::new_with_store_path(tmp.path().to_str().unwrap()).await;
+
+        store.insert_mock_item(1, 0, "", true).await;
+        store.insert_mock_item(2, 1, "repo", true).await;
+        store.insert_mock_item(3, 2, "a", true).await;
+
+        let status = store.lookup_path_status("/repo/a").await.unwrap();
+        assert!(matches!(status, PathLookupStatus::Found(3)));
+    }
+
+    #[tokio::test]
+    async fn test_lookup_path_status_parent_not_loaded() {
+        use tempfile::tempdir;
+
+        let tmp = tempdir().unwrap();
+        let store = DictionaryStore::new_with_store_path(tmp.path().to_str().unwrap()).await;
+
+        store.insert_mock_item(1, 0, "", true).await;
+        store.insert_mock_item(2, 1, "repo", true).await;
+
+        ensure_dir_tracked(&store.dirs, "/repo");
+        if let Some(mut dir) = store.dirs.get_mut("/repo") {
+            dir.loaded = false;
+        }
+
+        let status = store.lookup_path_status("/repo/a/b").await.unwrap();
+        assert_eq!(
+            status,
+            PathLookupStatus::ParentNotLoaded {
+                parent_path: "/repo".to_string()
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn test_lookup_path_status_not_found() {
+        use tempfile::tempdir;
+
+        let tmp = tempdir().unwrap();
+        let store = DictionaryStore::new_with_store_path(tmp.path().to_str().unwrap()).await;
+
+        store.insert_mock_item(1, 0, "", true).await;
+        store.insert_mock_item(2, 1, "repo", true).await;
+
+        ensure_dir_tracked(&store.dirs, "/repo");
+        if let Some(mut dir) = store.dirs.get_mut("/repo") {
+            dir.loaded = true;
+        }
+
+        let status = store.lookup_path_status("/repo/missing").await.unwrap();
+        assert_eq!(status, PathLookupStatus::NotFound);
     }
 
     /// Helper function to create a DictionaryStore with base_path for testing.
