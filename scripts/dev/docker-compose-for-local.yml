@@ -23,6 +23,11 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
 
   # ---------------------------------------------------------------------------
   # Core Infra: Redis
@@ -41,6 +46,11 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
 
   # ---------------------------------------------------------------------------
   # Core Infra: MySQL (for Campsite API)
@@ -62,12 +72,17 @@ services:
       test:
         [
           "CMD-SHELL",
-          "mysqladmin ping -h localhost -u root -p${MYSQL_ROOT_PASSWORD:-mysqladmin} || exit 1",
+          "export MYSQL_PWD=${MYSQL_ROOT_PASSWORD:-mysqladmin}; mysqladmin ping -h localhost -u root || exit 1",
         ]
       interval: 5s
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
 
   # ---------------------------------------------------------------------------
   # Core Infra: RustFS (S3-compatible object storage)
@@ -180,6 +195,11 @@ services:
       timeout: 5s
       retries: 10
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
     networks:
       default:
         aliases:
@@ -267,6 +287,11 @@ services:
       timeout: 5s
       retries: 10
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
     networks:
       default:
         aliases:
@@ -362,6 +387,11 @@ services:
       timeout: 5s
       retries: 10
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
 
   # ---------------------------------------------------------------------------
   # Gateway: Nginx (Reverse Proxy)

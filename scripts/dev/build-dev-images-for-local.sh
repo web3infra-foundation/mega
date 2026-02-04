@@ -67,12 +67,26 @@ else
     REPO_ROOT=""
 fi
 
-# Get git hash
-if ! command -v git &> /dev/null; then
-    printf "${RED}[ERROR]${NC} git is not installed.\n"
+# Validate Repo Root
+if [ -z "$REPO_ROOT" ]; then
+    printf "${RED}[ERROR]${NC} Could not determine repository root. Please run this script from within the git repository.\n"
     exit 1
 fi
-GIT_HASH=$(git rev-parse --short HEAD)
+
+# Get git hash
+if ! command -v git &> /dev/null; then
+    printf "${RED}[ERROR]${NC} git is not installed. Please install git to proceed.\n"
+    exit 1
+fi
+
+# Ensure we are in a git repository
+if ! git -C "$REPO_ROOT" rev-parse --is-inside-work-tree &> /dev/null; then
+    printf "${RED}[ERROR]${NC} $REPO_ROOT is not a valid git repository.\n"
+    exit 1
+fi
+
+GIT_HASH=$(git -C "$REPO_ROOT" rev-parse --short HEAD)
+printf "${GREEN}[INFO]${NC} Detected Git Hash: %s\n" "${GIT_HASH}"
 
 # Image configurations (ordered for consistent build order)
 declare -a IMAGE_ORDER=("mono-engine" "orion-server" "orion-client" "mega-ui")

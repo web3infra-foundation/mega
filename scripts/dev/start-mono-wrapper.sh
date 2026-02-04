@@ -27,18 +27,18 @@ done
 # Fix config.toml if it exists
 if [ -f "$CONFIG_FILE" ]; then
     # Replace localhost:9000 with rustfs:9000 in all sections
-    sed -i 's|endpoint_url = "http://localhost:9000"|endpoint_url = "http://rustfs:9000"|g' "$CONFIG_FILE" || true
-    sed -i 's|endpoint_url = "http://127.0.0.1:9000"|endpoint_url = "http://rustfs:9000"|g' "$CONFIG_FILE" || true
+    sed -i 's|endpoint_url = "http://localhost:9000"|endpoint_url = "http://rustfs:9000"|g' "$CONFIG_FILE"
+    sed -i 's|endpoint_url = "http://127.0.0.1:9000"|endpoint_url = "http://rustfs:9000"|g' "$CONFIG_FILE"
     
     # Fix access_key_id if it's empty (in [object_storage.s3] section)
     sed -i '/\[object_storage\.s3\]/,/^\[/ {
         s|^access_key_id = ""|access_key_id = "'"${ACCESS_KEY}"'"|
-    }' "$CONFIG_FILE" || true
+    }' "$CONFIG_FILE"
     
     # Fix secret_access_key if it's empty (in [object_storage.s3] section)
     sed -i '/\[object_storage\.s3\]/,/^\[/ {
         s|^secret_access_key = ""|secret_access_key = "'"${SECRET_KEY}"'"|
-    }' "$CONFIG_FILE" || true
+    }' "$CONFIG_FILE"
     
     # Fix in [lfs.s3] section if it exists
     sed -i '/\[lfs\.s3\]/,/^\[/ {
@@ -46,9 +46,9 @@ if [ -f "$CONFIG_FILE" ]; then
         s|endpoint_url = "http://127.0.0.1:9000"|endpoint_url = "http://rustfs:9000"|g
         s|^access_key_id = ""|access_key_id = "'"${ACCESS_KEY}"'"|
         s|^secret_access_key = ""|secret_access_key = "'"${SECRET_KEY}"'"|
-    }' "$CONFIG_FILE" || true
+    }' "$CONFIG_FILE"
     
-    echo "Fixed S3 configuration in $CONFIG_FILE (endpoint: rustfs:9000, access_key: ${ACCESS_KEY}, bucket: ${BUCKET_NAME})"
+    echo "Fixed S3 configuration in $CONFIG_FILE (endpoint: rustfs:9000, bucket: ${BUCKET_NAME})"
 fi
 
 # Execute the original start script
