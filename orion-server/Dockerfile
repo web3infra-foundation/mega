@@ -6,7 +6,7 @@ WORKDIR /app
 # ────── Stage 1: Planner ──────
 FROM chef AS planner
 
-COPY Cargo.toml Cargo.lock ./
+COPY Cargo.toml ./
 COPY api-model/Cargo.toml api-model/
 COPY ceres/Cargo.toml ceres/
 COPY common/Cargo.toml common/

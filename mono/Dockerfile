@@ -1,6 +1,6 @@
 # ---------- planner stage ----------
 # This stage analyzes the Cargo workspace and produces a dependency recipe.
-# The recipe will change ONLY when Cargo.toml / Cargo.lock changes.
+# The recipe will change ONLY when Cargo.toml changes.
 FROM rust:1.93.0-bookworm AS chef
 
 WORKDIR /opt/mega
@@ -8,7 +8,7 @@ WORKDIR /opt/mega
 # Install cargo-chef, a tool to cache Rust dependencies efficiently
 RUN cargo install cargo-chef --version 0.1.73
 
-COPY Cargo.toml Cargo.lock ./
+COPY Cargo.toml ./
 COPY api-model/Cargo.toml api-model/
 COPY ceres/Cargo.toml ceres/
 COPY common/Cargo.toml common/
