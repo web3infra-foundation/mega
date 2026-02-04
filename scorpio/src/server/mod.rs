@@ -72,7 +72,24 @@ pub async fn mount_filesystem<F: Filesystem + std::marker::Sync + Send + 'static
     //let logfs = LoggingFileSystem::new(fs);
 
     let mount_path: OsString = OsString::from(mountpoint);
-
+    let path = std::path::Path::new(&mount_path);
+    if !path.exists() {
+        if let Err(e) = std::fs::create_dir_all(path) {
+            panic!("failed to create mountpoint: {}", e);
+        }
+    }
+    if !path.exists() {
+        panic!("mountpoint does not exist");
+    }
+    if !path.is_dir() {
+        panic!("mountpoint is not a directory");
+    }
+    let has_entries = std::fs::read_dir(path)
+        .map(|mut it| it.next().is_some())
+        .unwrap_or(true);
+    if has_entries {
+        panic!("mountpoint is not empty or is inaccessible");
+    }
     let uid = unsafe { libc::getuid() };
     let gid = unsafe { libc::getgid() };
 

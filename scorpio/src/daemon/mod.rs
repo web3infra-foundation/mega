@@ -107,6 +107,64 @@ struct ScoState {
     manager: Arc<Mutex<ScorpioManager>>,      // Shared workspace manager
     tasks: Arc<DashMap<String, MountStatus>>, // Thread-safe storage for async mount tasks
 }
+
+/// Resolve a mount request to an inode and whether it should be treated as a temporary mount.
+///
+/// - If the path exists, returns its inode and `temp_mount=false`.
+/// - If the path doesn't exist and this is a temp mount request (buck2), creates a temp point.
+/// - If the path doesn't exist and this is a normal mount, returns a descriptive error.
+async fn resolve_mount_inode(
+    state: &ScoState,
+    req: &MountRequest,
+    mono_path: &str,
+) -> Result<(u64, bool), String> {
+    let temp_request = req.cl.is_none();
+
+    match state.fuse.get_inode(mono_path).await {
+        Ok(inode) => Ok((inode, false)),
+        Err(_) => {
+            if temp_request {
+                let inode = match state.fuse.dic.store.add_temp_point(mono_path).await {
+                    Ok(inode) => inode,
+                    Err(e) => {
+                        if e.kind() == std::io::ErrorKind::NotFound {
+                            if let Ok(crate::dicfuse::store::PathLookupStatus::ParentNotLoaded {
+                                parent_path,
+                            }) = state.fuse.dic.store.lookup_path_status(mono_path).await
+                            {
+                                return Err(format!(
+                                    "Temp mount parent directory not loaded in dicfuse: {mono_path} (parent: {parent_path})"
+                                ));
+                            }
+                        }
+                        return Err(format!("Failed to add temp point for {mono_path}: {e}"));
+                    }
+                };
+                return Ok((inode, true));
+            }
+
+            let status = state
+                .fuse
+                .dic
+                .store
+                .lookup_path_status(mono_path)
+                .await
+                .map_err(|e| format!("Mount path lookup failed in dicfuse: {mono_path}: {e}"))?;
+
+            match status {
+                crate::dicfuse::store::PathLookupStatus::Found(inode) => Ok((inode, false)),
+                crate::dicfuse::store::PathLookupStatus::ParentNotLoaded { parent_path } => Err(
+                    format!(
+                        "Mount parent directory not loaded in dicfuse: {mono_path} (parent: {parent_path})"
+                    ),
+                ),
+                crate::dicfuse::store::PathLookupStatus::NotFound => Err(format!(
+                    "Mount path not found in dicfuse: {mono_path}"
+                )),
+            }
+        }
+    }
+}
 #[allow(unused)]
 pub async fn daemon_main(
     fuse: Arc<MegaFuse>,
@@ -230,27 +288,8 @@ async fn perform_mount_task(state: ScoState, req: MountRequest) -> Result<MountI
         GPath::from(req.path.clone()).to_string()
     };
 
-    // Determine if this is a temporary mount for buck2 workflow
-    let mut temp_mount = false;
-
-    // Try to get existing inode, or create temporary point if path doesn't exist
-    let inode = match state.fuse.get_inode(&mono_path).await {
-        Ok(a) => a,
-        Err(_) => {
-            // If there is no CL (change list) specified, this is considered a "temporary mount"
-            // (e.g., for buck2 workflows or ephemeral mounts). For CL mounts, we do not set
-            // temp_mount, as those are expected to be persistent or managed differently.
-            // The temp_mount flag is used later to determine cleanup and lifecycle behavior.
-            temp_mount = req.cl.is_none();
-            state
-                .fuse
-                .dic
-                .store
-                .add_temp_point(&mono_path)
-                .await
-                .map_err(|e| format!("Failed to add temp point: {e}"))?
-        }
-    };
+    // Resolve inode and determine temp mount behavior
+    let (inode, temp_mount) = resolve_mount_inode(&state, &req, &mono_path).await?;
 
     // Check if the target is already mounted to prevent conflicts
     if state.fuse.is_mount(inode).await {
@@ -466,4 +505,94 @@ async fn update_config_handler(
         status: "success".to_string(),
         config: config_info,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use tempfile::tempdir;
+
+    use super::*;
+    use crate::dicfuse::Dicfuse;
+
+    async fn make_state() -> ScoState {
+        let tmp = tempdir().unwrap();
+        let dic = Dicfuse::new_with_store_path(tmp.path().to_str().unwrap()).await;
+        let mut fuse = MegaFuse::new().await;
+        fuse.dic = Arc::new(dic);
+
+        ScoState {
+            fuse: Arc::new(fuse),
+            manager: Arc::new(Mutex::new(ScorpioManager { works: vec![] })),
+            tasks: Arc::new(DashMap::new()),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_resolve_mount_inode_found_path() {
+        let state = make_state().await;
+        state.fuse.dic.store.insert_mock_item(1, 0, "", true).await;
+        state
+            .fuse
+            .dic
+            .store
+            .insert_mock_item(2, 1, "repo", true)
+            .await;
+
+        let req = MountRequest {
+            path: "/repo".to_string(),
+            cl: None,
+        };
+        let (inode, temp_mount) = resolve_mount_inode(&state, &req, "repo").await.unwrap();
+        assert_eq!(inode, 2);
+        assert!(!temp_mount);
+    }
+
+    #[tokio::test]
+    async fn test_resolve_mount_inode_temp_mount() {
+        let state = make_state().await;
+        state.fuse.dic.store.insert_mock_item(1, 0, "", true).await;
+        state
+            .fuse
+            .dic
+            .store
+            .insert_mock_item(2, 1, "repo", true)
+            .await;
+
+        let req = MountRequest {
+            path: "/repo/tmp".to_string(),
+            cl: None,
+        };
+        let (inode, temp_mount) = resolve_mount_inode(&state, &req, "repo/tmp").await.unwrap();
+        assert!(temp_mount);
+        let inode_check = state
+            .fuse
+            .dic
+            .store
+            .get_inode_from_path("repo/tmp")
+            .await
+            .unwrap();
+        assert_eq!(inode, inode_check);
+    }
+
+    #[tokio::test]
+    async fn test_resolve_mount_inode_not_found_normal_mount() {
+        let state = make_state().await;
+        state.fuse.dic.store.insert_mock_item(1, 0, "", true).await;
+        state
+            .fuse
+            .dic
+            .store
+            .insert_mock_item(2, 1, "repo", true)
+            .await;
+
+        let req = MountRequest {
+            path: "/repo/missing".to_string(),
+            cl: Some("cl123".to_string()),
+        };
+        let err = resolve_mount_inode(&state, &req, "repo/missing_cl123")
+            .await
+            .unwrap_err();
+        assert!(err.contains("Mount path not found in dicfuse"));
+        assert!(err.contains("repo/missing_cl123"));
+    }
 }
