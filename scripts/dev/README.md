@@ -53,13 +53,26 @@ The local environment uses virtual domains under `gitmono.local`. Add the follow
 127.0.0.1 app.gitmono.local git.gitmono.local api.gitmono.local auth.gitmono.local orion.gitmono.local
 ```
 
-### 3. Configure Environment
+### 3. Configure & Initialize Environment
 
-Copy the example environment file and customize it if needed.
+**Recommended Method: Automated Setup**
+
+Use the initialization script to automatically setup `.env`, generate secure secrets, build images, and start services:
 
 ```bash
-cp scripts/dev/.env.example scripts/dev/.env
+./scripts/dev/init-dev-env.sh
 ```
+
+**Alternative: Manual Configuration**
+
+If you prefer to configure manually:
+
+1. Copy the example environment file:
+   ```bash
+   cp scripts/dev/.env.example scripts/dev/.env
+   ```
+2. Edit `.env` to customize variables.
+
 The main configurable environment variables include:
 
 - **Database Configuration**:
@@ -84,7 +97,11 @@ The main configurable environment variables include:
 
 **Note:** The `.env` file is configured to use local images by default.
 
-### 4. Start Services
+### 4. Start Services (Manual)
+
+If you used the `init-dev-env.sh` script, your services are already running.
+
+If you are setting up manually or restarting services:
 
 Use Docker Compose to start the environment.
 
