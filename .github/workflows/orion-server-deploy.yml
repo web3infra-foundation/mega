@@ -24,7 +24,6 @@ concurrency:
 
 jobs:
   build-push-single-arch:
-    if: ${{ github.repository == 'web3infra-foundation/mega' }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
