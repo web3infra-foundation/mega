@@ -3057,6 +3057,19 @@ export type AdminListResponse = {
   admins: string[]
 }
 
+export type AnchorResponse = {
+  anchor_commit_sha: string
+  /** @format int64 */
+  anchor_id: number
+  context_after: string
+  context_before: string
+  diff_side: DiffSide
+  file_path: string
+  normalized_content: string
+  /** @format int32 */
+  original_line_number: number
+}
+
 export type AssigneeUpdatePayload = {
   assignees: string[]
   /** @format int64 */
@@ -3124,6 +3137,13 @@ export type BlameResult = {
   total_lines: number
 }
 
+/** Optional build parameters */
+export type BuildParams = {
+  /** Specific Buck build target (e.g., "//path/to:target") */
+  build_target?: string | null
+  [key: string]: any
+}
+
 export type CLDetailRes = {
   assignees: string[]
   conversations: ConversationItem[]
@@ -3172,13 +3192,35 @@ export type CloneRepoPayload = {
   repo: string
 }
 
+export type CodeReviewResponse = {
+  files: FileReviewResponse[]
+  link: string
+}
+
+export type CommentReplyRequest = {
+  content: string
+  /** @format int64 */
+  parent_comment_id: number
+}
+
+export type CommentReviewResponse = {
+  /** @format int64 */
+  comment_id: number
+  content?: string | null
+  created_at: string
+  /** @format int64 */
+  parent_id?: number | null
+  updated_at: string
+  user_name: string
+}
+
 export type CommitBindingResponse = {
   username?: string | null
 }
 
 export type CommitFilesChangedPage = {
   commit: CommitSummary
-  page: CommonPageDiffItem
+  page: CommonPageDiffItemSchema
 }
 
 export type CommitHistoryParams = {
@@ -3210,7 +3252,7 @@ export type CommonPage = {
   total: number
 }
 
-export type CommonPageDiffItem = {
+export type CommonPageDiffItemSchema = {
   items: {
     data: string
     path: string
@@ -3285,6 +3327,30 @@ export type CommonResultCLDetailRes = {
   req_result: boolean
 }
 
+export type CommonResultCodeReviewResponse = {
+  data?: {
+    files: FileReviewResponse[]
+    link: string
+  }
+  err_message: string
+  req_result: boolean
+}
+
+export type CommonResultCommentReviewResponse = {
+  data?: {
+    /** @format int64 */
+    comment_id: number
+    content?: string | null
+    created_at: string
+    /** @format int64 */
+    parent_id?: number | null
+    updated_at: string
+    user_name: string
+  }
+  err_message: string
+  req_result: boolean
+}
+
 export type CommonResultCommitBindingResponse = {
   data?: {
     username?: string | null
@@ -3296,7 +3362,7 @@ export type CommonResultCommitBindingResponse = {
 export type CommonResultCommitFilesChangedPage = {
   data?: {
     commit: CommitSummary
-    page: CommonPageDiffItem
+    page: CommonPageDiffItemSchema
   }
   err_message: string
   req_result: boolean
@@ -3388,6 +3454,38 @@ export type CommonResultCommonPageLabelItem = {
   req_result: boolean
 }
 
+export type CommonResultCommonPageTriggerResponse = {
+  data?: {
+    items: {
+      /** @format int64 */
+      cl_id?: number | null
+      cl_link?: string | null
+      commit_hash: string
+      /** @format int64 */
+      id: number
+      /** @format int64 */
+      original_trigger_id?: number | null
+      params?: any
+      ref_name?: string | null
+      ref_type?: string | null
+      repo_path: string
+      task_id?: string | null
+      trigger_source: string
+      trigger_type: string
+      /** @format date-time */
+      triggered_at: string
+      triggered_by?: string | null
+    }[]
+    /**
+     * @format int64
+     * @min 0
+     */
+    total: number
+  }
+  err_message: string
+  req_result: boolean
+}
+
 export type CommonResultCompleteResponse = {
   /**
    * Response for upload completion
@@ -3434,7 +3532,7 @@ export type CommonResultDeleteTagResponse = {
   req_result: boolean
 }
 
-export type CommonResultDiffItem = {
+export type CommonResultDiffItemSchema = {
   data?: {
     data: string
     path: string
@@ -3477,7 +3575,7 @@ export type CommonResultFileUploadResponse = {
 
 export type CommonResultFilesChangedPage = {
   data?: {
-    page: CommonPageDiffItem
+    page: CommonPageDiffItemSchema
   }
   err_message: string
   req_result: boolean
@@ -3674,10 +3772,62 @@ export type CommonResultTagResponse = {
   req_result: boolean
 }
 
+export type CommonResultThreadReviewResponse = {
+  data?: {
+    anchor: AnchorResponse
+    comments: CommentReviewResponse[]
+    created_at: string
+    position: PositionResponse
+    status: ThreadStatus
+    /** @format int64 */
+    thread_id: number
+    updated_at: string
+  }
+  err_message: string
+  req_result: boolean
+}
+
+export type CommonResultThreadStatusResponse = {
+  data?: {
+    link: string
+    status: ThreadStatus
+    /** @format int64 */
+    thread_id: number
+  }
+  err_message: string
+  req_result: boolean
+}
+
 export type CommonResultTreeResponse = {
   data?: {
     file_tree: Record<string, FileTreeItem>
     tree_items: TreeBriefItem[]
+  }
+  err_message: string
+  req_result: boolean
+}
+
+export type CommonResultTriggerResponse = {
+  /** Trigger detail response (new RESTful API) */
+  data?: {
+    /** @format int64 */
+    cl_id?: number | null
+    cl_link?: string | null
+    commit_hash: string
+    /** @format int64 */
+    id: number
+    /** @format int64 */
+    original_trigger_id?: number | null
+    params?: any
+    ref_name?: string | null
+    ref_type?: string | null
+    repo_path: string
+    task_id?: string | null
+    trigger_source: string
+    trigger_type: string
+    /** @format date-time */
+    triggered_at: string
+    triggered_by?: string | null
   }
   err_message: string
   req_result: boolean
@@ -3969,6 +4119,13 @@ export type CreateTagRequest = {
   target?: string | null
 }
 
+/** Create trigger request (new RESTful API) */
+export type CreateTriggerRequest = {
+  params?: null | BuildParams
+  ref_name?: string | null
+  repo_path: string
+}
+
 /** Delete tag response */
 export type DeleteTagResponse = {
   /** Deleted tag name */
@@ -3977,7 +4134,7 @@ export type DeleteTagResponse = {
   message: string
 }
 
-export type DiffItem = {
+export type DiffItemSchema = {
   data: string
   path: string
 }
@@ -3990,6 +4147,11 @@ export type DiffPreviewPayload = {
   path: string
   /** Optional refs (commit SHA or tag); empty/default means current HEAD */
   refs?: string
+}
+
+export enum DiffSide {
+  Deletions = 'Deletions',
+  Additions = 'Additions'
 }
 
 /** Request body for saving an edited file with conflict detection. */
@@ -4026,6 +4188,11 @@ export enum FailureType {
   Timeout = 'Timeout'
 }
 
+export type FileReviewResponse = {
+  file_path: string
+  threads: ThreadReviewResponse[]
+}
+
 /** File that needs to be uploaded */
 export type FileToUpload = {
   /** File path */
@@ -4055,7 +4222,7 @@ export type FileUploadResponse = {
 }
 
 export type FilesChangedPage = {
-  page: CommonPageDiffItem
+  page: CommonPageDiffItemSchema
 }
 
 export type GpgKey = {
@@ -4072,6 +4239,18 @@ export enum GpgStatus {
   Verified = 'Verified',
   Unverified = 'Unverified',
   NoSignature = 'NoSignature'
+}
+
+export type InitializeCommentRequest = {
+  anchor_commit_sha: string
+  content: string
+  context_after: string
+  context_before: string
+  diff_side: DiffSide
+  file_path: string
+  normalized_content: string
+  /** @format int32 */
+  original_line_number: number
 }
 
 export type IsAdminResponse = {
@@ -4176,6 +4355,28 @@ export type ListToken = {
   /** @format int64 */
   id: number
   token: string
+}
+
+/** Query parameters for listing triggers (Google-style API) */
+export type ListTriggersParams = {
+  /**
+   * Filter by time range end (ISO 8601 format)
+   * @format date-time
+   */
+  end_time?: string | null
+  /** Filter by repository path */
+  repo_path?: string | null
+  /**
+   * Filter by time range start (ISO 8601 format)
+   * @format date-time
+   */
+  start_time?: string | null
+  /** Filter by trigger source (user, system, service) */
+  trigger_source?: string | null
+  /** Filter by trigger type (git_push, manual, retry, webhook, schedule) */
+  trigger_type?: string | null
+  /** Filter by who triggered (username) */
+  triggered_by?: string | null
 }
 
 /** LFS lock information */
@@ -4340,6 +4541,31 @@ export type PageParamsListPayload = {
   pagination: Pagination
 }
 
+export type PageParamsListTriggersParams = {
+  /** Query parameters for listing triggers (Google-style API) */
+  additional: {
+    /**
+     * Filter by time range end (ISO 8601 format)
+     * @format date-time
+     */
+    end_time?: string | null
+    /** Filter by repository path */
+    repo_path?: string | null
+    /**
+     * Filter by time range start (ISO 8601 format)
+     * @format date-time
+     */
+    start_time?: string | null
+    /** Filter by trigger source (user, system, service) */
+    trigger_source?: string | null
+    /** Filter by trigger type (git_push, manual, retry, webhook, schedule) */
+    trigger_type?: string | null
+    /** Filter by who triggered (username) */
+    triggered_by?: string | null
+  }
+  pagination: Pagination
+}
+
 export type PageParamsString = {
   additional: string
   pagination: Pagination
@@ -4356,6 +4582,27 @@ export type Pagination = {
    * @min 0
    */
   per_page: number
+}
+
+export type PositionResponse = {
+  /** @format int64 */
+  anchor_id: number
+  commit_sha: string
+  /** @format int32 */
+  confidence: number
+  /** @format int32 */
+  line_number: number
+  /** @format int64 */
+  position_id: number
+  position_status: PositionStatus
+}
+
+export enum PositionStatus {
+  Exact = 'Exact',
+  Shifted = 'Shifted',
+  PendingReanchor = 'PendingReanchor',
+  Ambiguous = 'Ambiguous',
+  NotFound = 'NotFound'
 }
 
 /** Error details for API */
@@ -4563,6 +4810,29 @@ export type TagResponse = {
   tagger: string
 }
 
+export type ThreadReviewResponse = {
+  anchor: AnchorResponse
+  comments: CommentReviewResponse[]
+  created_at: string
+  position: PositionResponse
+  status: ThreadStatus
+  /** @format int64 */
+  thread_id: number
+  updated_at: string
+}
+
+export enum ThreadStatus {
+  Open = 'Open',
+  Resolved = 'Resolved'
+}
+
+export type ThreadStatusResponse = {
+  link: string
+  status: ThreadStatus
+  /** @format int64 */
+  thread_id: number
+}
+
 export enum TransferMode {
   Basic = 'basic',
   Multipart = 'multipart',
@@ -4594,6 +4864,28 @@ export type TreeResponse = {
   tree_items: TreeBriefItem[]
 }
 
+/** Trigger detail response (new RESTful API) */
+export type TriggerResponse = {
+  /** @format int64 */
+  cl_id?: number | null
+  cl_link?: string | null
+  commit_hash: string
+  /** @format int64 */
+  id: number
+  /** @format int64 */
+  original_trigger_id?: number | null
+  params?: any
+  ref_name?: string | null
+  ref_type?: string | null
+  repo_path: string
+  task_id?: string | null
+  trigger_source: string
+  trigger_type: string
+  /** @format date-time */
+  triggered_at: string
+  triggered_by?: string | null
+}
+
 /** Request to unlock a file */
 export type UnlockRequest = {
   force?: boolean | null
@@ -4616,6 +4908,10 @@ export type UpdateBranchStatusRes = {
 
 export type UpdateClStatusPayload = {
   status: string
+}
+
+export type UpdateCommentRequest = {
+  content: string
 }
 
 export type UpdateCommitBindingRequest = {
@@ -4718,37 +5014,22 @@ export enum CoreWorkerStatus {
   Lost = 'Lost'
 }
 
-/** Log segment read result */
-export type LogSegment = {
-  /** build id / log file name */
-  build_id: string
-  /** UTF-8 (lossy) decoded data slice */
-  data: string
-  /** Whether we reached end of file */
-  eof: boolean
-  /**
-   * Total file size in bytes
-   * @format int64
-   * @min 0
-   */
-  file_size: number
-  /**
-   * Bytes actually read
-   * @min 0
-   */
+/** Error response for log-related APIs. */
+export type LogErrorResponse = {
+  message: string
+}
+
+/** Log lines response for history reads. */
+export type LogLinesResponse = {
+  data: string[]
+  /** @min 0 */
   len: number
-  /**
-   * Next offset (offset + len)
-   * @format int64
-   * @min 0
-   */
-  next_offset: number
-  /**
-   * Requested starting offset
-   * @format int64
-   * @min 0
-   */
-  offset: number
+}
+
+/** Supported read modes for log APIs. */
+export enum LogReadMode {
+  Full = 'full',
+  Segment = 'segment'
 }
 
 export type OrionClientInfo = {
@@ -4814,12 +5095,22 @@ export type StatusProjectRelativePath =
       Removed: string
     }
 
+/** Log lines response for target reads. */
+export type TargetLogLinesResponse = {
+  build_id: string
+  data: string[]
+  /** @min 0 */
+  len: number
+}
+
+/** Query parameters for target log APIs. */
 export type TargetLogQuery = {
   /** @min 0 */
   limit?: number | null
   /** @min 0 */
   offset?: number | null
-  type?: string
+  /** Supported read modes for log APIs. */
+  type?: LogReadMode
 }
 
 export enum TargetState {
@@ -4839,6 +5130,17 @@ export type TargetWithBuilds = {
   start_at?: string | null
   state: TargetState
   target_path: string
+}
+
+/** Query parameters for task history log APIs. */
+export type TaskHistoryQuery = {
+  build_id: string
+  /** @min 0 */
+  end?: number | null
+  repo: string
+  /** @min 0 */
+  start?: number | null
+  task_id: string
 }
 
 /** Task information including current status */
@@ -6089,6 +6391,22 @@ export type PostApiClUpdateBranchData = CommonResultString
 
 export type GetApiClUpdateStatusData = CommonResultUpdateBranchStatusRes
 
+export type DeleteApiCodeReviewCommentByCommentIdData = CommonResultString
+
+export type DeleteApiCodeReviewThreadByThreadIdData = CommonResultString
+
+export type PostApiCodeReviewUpdateData = CommonResultCommentReviewResponse
+
+export type PostApiCodeReviewCommentInitData = CommonResultThreadReviewResponse
+
+export type GetApiCodeReviewCommentsData = CommonResultCodeReviewResponse
+
+export type PostApiCodeReviewCommentReplyData = CommonResultCommentReviewResponse
+
+export type PostApiCodeReviewReopenData = CommonResultThreadStatusResponse
+
+export type PostApiCodeReviewResolveData = CommonResultThreadStatusResponse
+
 export type PostApiCommitsHistoryData = CommonResultCommonPageCommitSummary
 
 export type PutApiCommitsBindingData = CommonResultCommitBindingResponse
@@ -6121,7 +6439,7 @@ export type PostApiConversationReactionsData = CommonResultString
 
 export type PostApiCreateEntryData = CommonResultString
 
-export type PostApiEditDiffPreviewData = CommonResultDiffItem
+export type PostApiEditDiffPreviewData = CommonResultDiffItemSchema
 
 export type PostApiEditSaveData = CommonResultEditFileResult
 
@@ -6276,6 +6594,14 @@ export type GetApiTreePathCanCloneParams = {
 
 export type GetApiTreePathCanCloneData = CommonResultBool
 
+export type PostApiTriggersData = CommonResultTriggerResponse
+
+export type PostApiTriggersListData = CommonResultCommonPageTriggerResponse
+
+export type GetApiTriggersByIdData = CommonResultTriggerResponse
+
+export type PostApiTriggersRetryData = CommonResultTriggerResponse
+
 export type PostApiUserSshData = CommonResultString
 
 export type GetApiUserSshListData = CommonResultVecListSSHKey
@@ -6311,7 +6637,9 @@ export type GetTargetsLogsParams = {
   targetId: string
 }
 
-export type GetTargetsLogsData = any
+export type GetTargetsLogsData = TargetLogLinesResponse
+
+export type GetTargetsLogsError = LogErrorResponse
 
 export type PostTaskData = any
 
@@ -6336,7 +6664,9 @@ export type GetTaskHistoryOutputParams = {
   end?: number
 }
 
-export type GetTaskHistoryOutputData = any
+export type GetTaskHistoryOutputData = LogLinesResponse
+
+export type GetTaskHistoryOutputError = LogErrorResponse
 
 export type GetTaskOutputByIdData = any
 
@@ -15444,6 +15774,197 @@ It's for local testing purposes.
     /**
      * No description
      *
+     * @tags Code Review
+     * @name DeleteApiCodeReviewCommentByCommentId
+     * @summary Delete a code review comment
+     * @request DELETE:/api/v1/code_review/comment/{comment_id}
+     */
+    deleteApiCodeReviewCommentByCommentId: () => {
+      const base = 'DELETE:/api/v1/code_review/comment/{comment_id}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<DeleteApiCodeReviewCommentByCommentIdData>([base]),
+        requestKey: (commentId: number) =>
+          dataTaggedQueryKey<DeleteApiCodeReviewCommentByCommentIdData>([base, commentId]),
+        request: (commentId: number, params: RequestParams = {}) =>
+          this.request<DeleteApiCodeReviewCommentByCommentIdData>({
+            path: `/api/v1/code_review/comment/${commentId}`,
+            method: 'DELETE',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Code Review
+     * @name DeleteApiCodeReviewThreadByThreadId
+     * @summary Delete a code review thread and its comments
+     * @request DELETE:/api/v1/code_review/thread/{thread_id}
+     */
+    deleteApiCodeReviewThreadByThreadId: () => {
+      const base = 'DELETE:/api/v1/code_review/thread/{thread_id}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<DeleteApiCodeReviewThreadByThreadIdData>([base]),
+        requestKey: (threadId: number) => dataTaggedQueryKey<DeleteApiCodeReviewThreadByThreadIdData>([base, threadId]),
+        request: (threadId: number, params: RequestParams = {}) =>
+          this.request<DeleteApiCodeReviewThreadByThreadIdData>({
+            path: `/api/v1/code_review/thread/${threadId}`,
+            method: 'DELETE',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Code Review
+     * @name PostApiCodeReviewUpdate
+     * @summary Update a code review comment
+     * @request POST:/api/v1/code_review/{comment_id}/update
+     */
+    postApiCodeReviewUpdate: () => {
+      const base = 'POST:/api/v1/code_review/{comment_id}/update' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiCodeReviewUpdateData>([base]),
+        requestKey: (commentId: number) => dataTaggedQueryKey<PostApiCodeReviewUpdateData>([base, commentId]),
+        request: (commentId: number, data: UpdateCommentRequest, params: RequestParams = {}) =>
+          this.request<PostApiCodeReviewUpdateData>({
+            path: `/api/v1/code_review/${commentId}/update`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Code Review
+     * @name PostApiCodeReviewCommentInit
+     * @summary Initialize a code review comment in a new thread
+     * @request POST:/api/v1/code_review/{link}/comment/init
+     */
+    postApiCodeReviewCommentInit: () => {
+      const base = 'POST:/api/v1/code_review/{link}/comment/init' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiCodeReviewCommentInitData>([base]),
+        requestKey: (link: string) => dataTaggedQueryKey<PostApiCodeReviewCommentInitData>([base, link]),
+        request: (link: string, data: InitializeCommentRequest, params: RequestParams = {}) =>
+          this.request<PostApiCodeReviewCommentInitData>({
+            path: `/api/v1/code_review/${link}/comment/init`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Code Review
+     * @name GetApiCodeReviewComments
+     * @summary List code review comments
+     * @request GET:/api/v1/code_review/{link}/comments
+     */
+    getApiCodeReviewComments: () => {
+      const base = 'GET:/api/v1/code_review/{link}/comments' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiCodeReviewCommentsData>([base]),
+        requestKey: (link: string) => dataTaggedQueryKey<GetApiCodeReviewCommentsData>([base, link]),
+        request: (link: string, params: RequestParams = {}) =>
+          this.request<GetApiCodeReviewCommentsData>({
+            path: `/api/v1/code_review/${link}/comments`,
+            method: 'GET',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Code Review
+     * @name PostApiCodeReviewCommentReply
+     * @summary Reply to a code review comment
+     * @request POST:/api/v1/code_review/{thread_id}/comment/reply
+     */
+    postApiCodeReviewCommentReply: () => {
+      const base = 'POST:/api/v1/code_review/{thread_id}/comment/reply' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiCodeReviewCommentReplyData>([base]),
+        requestKey: (threadId: number) => dataTaggedQueryKey<PostApiCodeReviewCommentReplyData>([base, threadId]),
+        request: (threadId: number, data: CommentReplyRequest, params: RequestParams = {}) =>
+          this.request<PostApiCodeReviewCommentReplyData>({
+            path: `/api/v1/code_review/${threadId}/comment/reply`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Code Review
+     * @name PostApiCodeReviewReopen
+     * @summary Reopen a code review thread
+     * @request POST:/api/v1/code_review/{thread_id}/reopen
+     */
+    postApiCodeReviewReopen: () => {
+      const base = 'POST:/api/v1/code_review/{thread_id}/reopen' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiCodeReviewReopenData>([base]),
+        requestKey: (threadId: number) => dataTaggedQueryKey<PostApiCodeReviewReopenData>([base, threadId]),
+        request: (threadId: number, params: RequestParams = {}) =>
+          this.request<PostApiCodeReviewReopenData>({
+            path: `/api/v1/code_review/${threadId}/reopen`,
+            method: 'POST',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Code Review
+     * @name PostApiCodeReviewResolve
+     * @summary Resolve a code review thread
+     * @request POST:/api/v1/code_review/{thread_id}/resolve
+     */
+    postApiCodeReviewResolve: () => {
+      const base = 'POST:/api/v1/code_review/{thread_id}/resolve' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiCodeReviewResolveData>([base]),
+        requestKey: (threadId: number) => dataTaggedQueryKey<PostApiCodeReviewResolveData>([base, threadId]),
+        request: (threadId: number, params: RequestParams = {}) =>
+          this.request<PostApiCodeReviewResolveData>({
+            path: `/api/v1/code_review/${threadId}/resolve`,
+            method: 'POST',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
      * @tags Code Preview
      * @name PostApiCommitsHistory
      * @summary List commit history with optional refs, path filter, author filter, and pagination.
@@ -16889,6 +17410,102 @@ It's for local testing purposes.
             path: `/api/v1/tree/path-can-clone`,
             method: 'GET',
             query: query,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * @description Creates a new build trigger with automatic ref resolution. Supports branch names, tag names, commit hashes, or CL links. Defaults to "main" branch if no ref is specified.
+     *
+     * @tags Build Trigger
+     * @name PostApiTriggers
+     * @summary Create a new build trigger
+     * @request POST:/api/v1/triggers
+     */
+    postApiTriggers: () => {
+      const base = 'POST:/api/v1/triggers' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiTriggersData>([base]),
+        requestKey: () => dataTaggedQueryKey<PostApiTriggersData>([base]),
+        request: (data: CreateTriggerRequest, params: RequestParams = {}) =>
+          this.request<PostApiTriggersData>({
+            path: `/api/v1/triggers`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * @description Returns build triggers with pagination and optional filters. Supports filtering by repository, trigger type, source, user, and time range. This endpoint follows the project's standard Google-style API pattern: - Uses POST method for complex query parameters - Accepts PageParams with pagination and filter parameters - Returns CommonPage with items and total count
+     *
+     * @tags Build Trigger
+     * @name PostApiTriggersList
+     * @summary List build triggers with filters
+     * @request POST:/api/v1/triggers/list
+     */
+    postApiTriggersList: () => {
+      const base = 'POST:/api/v1/triggers/list' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiTriggersListData>([base]),
+        requestKey: () => dataTaggedQueryKey<PostApiTriggersListData>([base]),
+        request: (data: PageParamsListTriggersParams, params: RequestParams = {}) =>
+          this.request<PostApiTriggersListData>({
+            path: `/api/v1/triggers/list`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * @description Returns complete details about a specific trigger including: - Trigger metadata (type, source, time) - Repository and commit information - Ref information (branch/tag name if applicable) - Build parameters
+     *
+     * @tags Build Trigger
+     * @name GetApiTriggersById
+     * @summary Get a specific build trigger by ID
+     * @request GET:/api/v1/triggers/{id}
+     */
+    getApiTriggersById: () => {
+      const base = 'GET:/api/v1/triggers/{id}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiTriggersByIdData>([base]),
+        requestKey: (id: number) => dataTaggedQueryKey<GetApiTriggersByIdData>([base, id]),
+        request: (id: number, params: RequestParams = {}) =>
+          this.request<GetApiTriggersByIdData>({
+            path: `/api/v1/triggers/${id}`,
+            method: 'GET',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * @description Creates a new trigger that retries a previous build. The new trigger will use the same repository, commit, and parameters as the original trigger.
+     *
+     * @tags Build Trigger
+     * @name PostApiTriggersRetry
+     * @summary Retry a specific build trigger
+     * @request POST:/api/v1/triggers/{id}/retry
+     */
+    postApiTriggersRetry: () => {
+      const base = 'POST:/api/v1/triggers/{id}/retry' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiTriggersRetryData>([base]),
+        requestKey: (id: number) => dataTaggedQueryKey<PostApiTriggersRetryData>([base, id]),
+        request: (id: number, params: RequestParams = {}) =>
+          this.request<PostApiTriggersRetryData>({
+            path: `/api/v1/triggers/${id}/retry`,
+            method: 'POST',
             ...params
           })
       }
