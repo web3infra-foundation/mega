@@ -2,19 +2,22 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type ChangeTypes, type FileDiffMetadata } from '@pierre/diffs'
 import { FileDiff as PierreFileDiff } from '@pierre/diffs/react'
 import { useTheme } from 'next-themes'
+import { useRouter } from 'next/router'
 import { Virtuoso } from 'react-virtuoso'
 
-import { CommonPageDiffItem, CommonResultVecMuiTreeNode } from '@gitmono/types'
+import { CommonPageDiffItemSchema, CommonResultCodeReviewResponse, CommonResultVecMuiTreeNode } from '@gitmono/types'
 import { LoadingSpinner } from '@gitmono/ui'
 import { ExpandIcon, SparklesIcon } from '@gitmono/ui/Icons'
 import { cn } from '@gitmono/ui/src/utils'
 
 import FileTree from '@/components/DiffView/TreeView/FileTree'
 
+import { CommentForm, CommentThread, HoverButton, useComments } from './comment'
+import { useGetComments } from './hooks/useGetComments'
 import { DiffItem, generateParsedFiles, parsedDiffs } from './parsedDiffs'
 
 interface FileDiffProps {
-  fileChangeData: CommonPageDiffItem
+  fileChangeData: CommonPageDiffItemSchema
   fileChangeIsLoading: boolean
   treeData: CommonResultVecMuiTreeNode['data']
   treeIsLoading: boolean
@@ -22,6 +25,120 @@ interface FileDiffProps {
   hasMoreData: boolean
   isBlockingLoading: boolean
   onLoadMore: () => void
+}
+
+function SingleFileDiffView({
+  filePath,
+  fileDiffMetadata,
+  changeType,
+  isBinary,
+  hasContent,
+  clLink,
+  commentsData
+}: {
+  filePath: string
+  fileDiffMetadata: FileDiffMetadata | null
+  changeType: ChangeTypes | null
+  isBinary: boolean
+  hasContent: boolean
+  clLink: string
+  commentsData?: CommonResultCodeReviewResponse
+}) {
+  const { resolvedTheme } = useTheme()
+
+  const {
+    annotations,
+    selectedRange,
+    handleLineSelectionEnd,
+    addCommentAtLine,
+    handleSubmitComment,
+    handleCancelComment
+  } = useComments(filePath, commentsData?.data)
+
+  const getChangeTypeMessage = (changeType: ChangeTypes | null): string | null => {
+    switch (changeType) {
+      case 'new':
+        return 'This file was added.'
+      case 'deleted':
+        return 'This file was deleted.'
+      case 'rename-pure':
+        return 'This file was renamed.'
+      case 'rename-changed':
+        return 'This file was renamed and modified.'
+      default:
+        return null
+    }
+  }
+
+  const message = getChangeTypeMessage(changeType)
+
+  if (fileDiffMetadata && hasContent) {
+    return (
+      <PierreFileDiff
+        fileDiff={fileDiffMetadata}
+        lineAnnotations={annotations}
+        selectedLines={selectedRange}
+        renderAnnotation={(annotation) =>
+          annotation.metadata ? (
+            <CommentThread thread={annotation.metadata} clLink={clLink} />
+          ) : (
+            <CommentForm
+              side={annotation.side}
+              lineNumber={annotation.lineNumber}
+              filePath={filePath}
+              fileDiff={fileDiffMetadata}
+              selectedRange={selectedRange}
+              clLink={clLink}
+              onSubmit={handleSubmitComment}
+              onCancel={handleCancelComment}
+            />
+          )
+        }
+        renderHoverUtility={(getHoveredLine) => (
+          <HoverButton getHoveredLine={getHoveredLine} onAddComment={addCommentAtLine} />
+        )}
+        options={{
+          theme: resolvedTheme === 'dark' ? 'min-dark' : 'min-light',
+          diffStyle: 'unified',
+          diffIndicators: 'classic',
+          overflow: 'wrap',
+          disableFileHeader: true,
+          enableLineSelection: true,
+          enableHoverUtility: true,
+          onLineSelectionEnd: handleLineSelectionEnd,
+          unsafeCSS: `
+              ::-webkit-scrollbar { display: none !important; }
+              code { padding: 0 !important; }
+            `
+        }}
+        style={{ '--diffs-font-size': '14px' } as React.CSSProperties}
+      />
+    )
+  }
+
+  if (isBinary) {
+    return (
+      <div className='p-4 text-center'>
+        <div className='text-primary'>Binary file</div>
+        {message && <div className='text-secondary mt-1 text-sm'>{message}</div>}
+      </div>
+    )
+  }
+
+  if (message) {
+    return (
+      <div className='p-4 text-center'>
+        <div className='text-primary'>Load Diff</div>
+        <div className='text-secondary mt-1 text-sm'>{message}</div>
+      </div>
+    )
+  }
+
+  if (!hasContent) {
+    return <div className='text-tertiary p-4 text-center'>No content change</div>
+  }
+
+  return null
 }
 
 export default function FileDiff({
@@ -35,7 +152,11 @@ export default function FileDiff({
   onLoadMore
 }: FileDiffProps) {
   const virtuosoRef = useRef<any>(null)
-  const { resolvedTheme } = useTheme()
+  const router = useRouter()
+  const { link } = router.query
+  const clLink = typeof link === 'string' ? link : ''
+
+  const { data: commentsData } = useGetComments(clLink)
 
   const [pageDataMap, setPageDataMap] = useState<Map<number, DiffItem[]>>(new Map())
 
@@ -102,81 +223,6 @@ export default function FileDiff({
     setExpandedMap(Object.fromEntries(diffFiles.map((f) => [f.path, false])))
   }, [diffFiles])
 
-  const getChangeTypeMessage = (changeType: ChangeTypes | null): string | null => {
-    switch (changeType) {
-      case 'new':
-        return 'This file was added.'
-      case 'deleted':
-        return 'This file was deleted.'
-      case 'rename-pure':
-        return 'This file was renamed.'
-      case 'rename-changed':
-        return 'This file was renamed and modified.'
-      default:
-        return null
-    }
-  }
-
-  const RenderDiffView = ({
-    fileDiffMetadata,
-    changeType,
-    isBinary,
-    hasContent
-  }: {
-    fileDiffMetadata: FileDiffMetadata | null
-    changeType: ChangeTypes | null
-    isBinary: boolean
-    hasContent: boolean
-  }) => {
-    const message = getChangeTypeMessage(changeType)
-
-    if (fileDiffMetadata && hasContent) {
-      return (
-        <PierreFileDiff
-          fileDiff={fileDiffMetadata}
-          options={{
-            theme: resolvedTheme === 'dark' ? 'min-dark' : 'min-light',
-            diffStyle: 'unified',
-            diffIndicators: 'classic',
-            overflow: 'wrap',
-            disableFileHeader: true,
-            unsafeCSS: `
-                :host { overflow-x: hidden !important; }
-                * { overflow-x: hidden !important; }
-                ::-webkit-scrollbar { display: none !important; }
-                code { padding: 0 !important; }
-              `
-          }}
-          style={{ '--diffs-font-size': '14px' } as React.CSSProperties}
-        />
-      )
-    }
-
-    if (isBinary) {
-      return (
-        <div className='p-4 text-center'>
-          <div className='text-primary'>Binary file</div>
-          {message && <div className='text-secondary mt-1 text-sm'>{message}</div>}
-        </div>
-      )
-    }
-
-    if (message) {
-      return (
-        <div className='p-4 text-center'>
-          <div className='text-primary'>Load Diff</div>
-          <div className='text-secondary mt-1 text-sm'>{message}</div>
-        </div>
-      )
-    }
-
-    if (!hasContent) {
-      return <div className='text-tertiary p-4 text-center'>No content change</div>
-    }
-
-    return null
-  }
-
   const DiffItemComponent = (index: number) => {
     const { file, fileDiffMetadata, stats, changeType, isBinary, hasContent } = parsedFiles[index]
     const isExpanded = expandedMap[file.path]
@@ -211,11 +257,14 @@ export default function FileDiff({
 
         <div className='copyable-text'>
           {isExpanded && (
-            <RenderDiffView
+            <SingleFileDiffView
+              filePath={file.path}
               fileDiffMetadata={fileDiffMetadata}
               changeType={changeType}
               isBinary={isBinary}
               hasContent={hasContent}
+              clLink={clLink}
+              commentsData={commentsData}
             />
           )}
         </div>

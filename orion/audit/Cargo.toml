@@ -3,6 +3,10 @@ name = "audit"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "audit"
+path = "src/lib.rs"
+
 [dependencies]
 anyhow = "1.0"
 clap = {version = "4.1.4", features = ["derive"]}

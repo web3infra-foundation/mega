@@ -3,6 +3,10 @@ name = "index"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "index"
+path = "src/lib.rs"
+
 [dependencies]
 syn = { workspace = true, features = ["full"] }
 anyhow = { workspace = true }
@@ -19,7 +23,7 @@ qdrant-client = { workspace = true }
 walkdir = { workspace = true }
 tokio-stream = { version = "0.1", features = ["full"] }
 dagrs = { workspace = true }
-observatory = { workspace = true }
+observatory = { path = '../../observatory' }
 flate2 = { workspace = true }
 tar = { workspace = true }
 dotenv = { workspace = true }

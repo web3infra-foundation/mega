@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useAtom } from 'jotai'
 import { atomFamily } from 'jotai/utils'
 
-import { CommonPageDiffItem, FilesChangedPage } from '@gitmono/types'
+import { CommonPageDiffItemSchema, FilesChangedPage } from '@gitmono/types'
 
 import { atomWithWebStorage } from '@/utils/atomWithWebStorage'
 import { legacyApiClient } from '@/utils/queryClient'
@@ -44,7 +44,7 @@ export const useGetClFileChanged = (
     enabled: !!link
   })
 
-  const fileChanged: CommonPageDiffItem = useMemo(() => {
+  const fileChanged: CommonPageDiffItemSchema = useMemo(() => {
     if (data) {
       setFileChanged(data)
     }

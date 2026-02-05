@@ -6,7 +6,7 @@ import { useAtom } from 'jotai'
 import { useRouter } from 'next/router'
 import toast from 'react-hot-toast'
 
-import { CommitSummary, CommonPageDiffItem, CommonResultVecMuiTreeNode, DiffItem } from '@gitmono/types'
+import { CommitSummary, CommonPageDiffItemSchema, CommonResultVecMuiTreeNode, DiffItemSchema } from '@gitmono/types'
 import { LoadingSpinner } from '@gitmono/ui'
 
 import { formatAssignees } from '@/components/CodeView/CommitsView'
@@ -19,7 +19,7 @@ import { usePostCommitsFilesChanged } from '@/hooks/commits/usePostCommitsFilesC
 
 interface CommitDetailData {
   commit: CommitSummary
-  diffs: DiffItem[]
+  diffs: DiffItemSchema[]
 }
 
 export const CommitsDetailView: React.FC = () => {
@@ -50,11 +50,11 @@ export const CommitsDetailView: React.FC = () => {
     if (!filesChangedRes?.data) return undefined
     return {
       commit: filesChangedRes.data.commit,
-      diffs: filesChangedRes.data.page.items as DiffItem[]
+      diffs: filesChangedRes.data.page.items as DiffItemSchema[]
     }
   }, [filesChangedRes])
 
-  const fileChangeData: CommonPageDiffItem | undefined = useMemo(() => {
+  const fileChangeData: CommonPageDiffItemSchema | undefined = useMemo(() => {
     if (!commitsDetail?.diffs) return undefined
 
     return {

@@ -1,7 +1,7 @@
 //! Integration tests for Mega ChangeList (CL) merge and update-branch operations
 //!
 //! These tests run inside a QEMU/KVM virtual machine using the qlean crate,
-//! testing the complete CL lifecycle: creation, merge, update-branch, and verification.
+//! with PostgreSQL and Redis running in Docker containers inside the VM.
 //!
 //! ## Prerequisites
 //!
@@ -18,19 +18,25 @@
 //! ## Running the Test
 //!
 //! ```bash
-//! # Build mono binary
-//! cargo build --release -p mono
-//!
 //! # Run test (note the --ignored flag)
+//! # No need to build mono - binary is extracted from ECR image
 //! cargo test -p mono --test cl_merge_integration -- --ignored --nocapture
+//!
+//! # Override the default ECR image (optional)
+//! MEGA_ECR_IMAGE=public.ecr.aws/m8q5m4u3/mega:mono-0.1.0-pre-release-amd64 \
+//!   cargo test -p mono --test cl_merge_integration -- --ignored --nocapture
 //! ```
 //!
 //! ## Test Design
 //!
-//! This test enables HTTP authentication (`enable_http_auth = true`) to ensure that:
-//! - Each user has their own CL (one CL per user per path)
-//! - CL-1 and CL-2 created by different users are distinct
-//! - The test can verify the complete multi-user CL workflow
+//! This test uses Docker containers for PostgreSQL and Redis inside the VM,
+//! and extracts the mono binary from the ECR image (mono-0.1.0-pre-release-amd64).
+//! This provides:
+//! - Faster startup time compared to apt-get installation
+//! - Easier configuration and cleanup
+//! - Better resource isolation
+//! - Consistency with production/demo environment (reusing docker-compose.demo.yml)
+//! - No need to build mono locally (uses production image)
 //!
 //! Test users and their tokens are defined as constants (TEST_TOKEN_A, TEST_TOKEN_B)
 //! and inserted directly into the database during setup for simplicity.
@@ -52,6 +58,13 @@ const POSTGRES_USER: &str = "mega";
 const POSTGRES_PASSWORD: &str = "mega";
 const POSTGRES_DB: &str = "mono";
 
+// ECR mono image
+const MEGA_ECR_IMAGE_DEFAULT: &str = "public.ecr.aws/m8q5m4u3/mega:mono-0.1.0-pre-release-amd64";
+
+fn get_mega_ecr_image() -> String {
+    std::env::var("MEGA_ECR_IMAGE").unwrap_or_else(|_| MEGA_ECR_IMAGE_DEFAULT.to_string())
+}
+
 // Timing constants for test operations
 const CL_CREATE_WAIT_SECS: u64 = 1; // Wait time after CL creation
 const POST_MERGE_WAIT_SECS: u64 = 2; // Wait time after merge operation
@@ -67,6 +80,13 @@ const TEST_USER_B_EMAIL: &str = "user_b@test.com";
 // Test user tokens (constant values for testing)
 const TEST_TOKEN_A: &str = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
 const TEST_TOKEN_B: &str = "b2c3d4e5-f6a7-8901-bcde-f12345678901";
+
+// Docker service names (must match docker-compose.demo.yml)
+const POSTGRES_CONTAINER: &str = "mega-demo-postgres";
+const REDIS_CONTAINER: &str = "mega-demo-redis";
+const DOCKER_COMPOSE_FILE: &str = "/tmp/docker-compose.yml";
+// Path to compose file on host (relative to workspace root)
+const DOCKER_COMPOSE_HOST_PATH: &str = "docker/demo/docker-compose.demo.yml";
 
 fn tracing_subscriber_init() {
     static INIT: Once = Once::new();
@@ -119,6 +139,74 @@ async fn exec_check(vm: &mut qlean::Machine, cmd: &str) -> Result<String> {
     Ok(String::from_utf8_lossy(&result.stdout).to_string())
 }
 
+/// Generic retry helper with success predicate
+///
+/// Repeatedly executes a command until it satisfies the predicate or max retries are reached.
+async fn retry_until<F>(
+    vm: &mut qlean::Machine,
+    cmd: &str,
+    success_predicate: F,
+    service_name: &str,
+    max_retries: u32,
+    delay_secs: u64,
+) -> Result<()>
+where
+    F: Fn(&str) -> bool,
+{
+    let mut retries = 0;
+    let mut last_error: Option<String> = None;
+    let mut last_output: Option<String> = None;
+
+    loop {
+        match exec_check(vm, cmd).await {
+            Ok(output) => {
+                if success_predicate(&output) {
+                    tracing::info!("{} is ready.", service_name);
+                    return Ok(());
+                }
+                // Log non-matching successful output at debug level
+                tracing::debug!(
+                    "{} check attempt {}/{}: predicate not met, output: {}",
+                    service_name,
+                    retries + 1,
+                    max_retries,
+                    output.trim()
+                );
+                last_output = Some(output);
+            }
+            Err(e) => {
+                // Log command failure at debug level
+                tracing::debug!(
+                    "{} check attempt {}/{} failed: {}",
+                    service_name,
+                    retries + 1,
+                    max_retries,
+                    e
+                );
+                last_error = Some(e.to_string());
+            }
+        }
+
+        retries += 1;
+        if retries >= max_retries {
+            let mut msg = format!(
+                "{} did not become ready after {} seconds",
+                service_name,
+                (max_retries as u64) * delay_secs
+            );
+            if let Some(err) = &last_error {
+                msg.push_str(&format!("\nLast error: {}", err));
+            }
+            if let Some(output) = &last_output {
+                msg.push_str(&format!("\nLast output: {}", output.trim()));
+            }
+            anyhow::bail!(msg);
+        }
+
+        tokio::time::sleep(Duration::from_secs(delay_secs)).await;
+    }
+}
+
 /// Wait for Mega API to be ready by polling the status endpoint
 async fn wait_for_mega_service(vm: &mut qlean::Machine, timeout_secs: u64) -> Result<()> {
     let start = std::time::Instant::now();
@@ -158,73 +246,130 @@ async fn wait_for_mega_service(vm: &mut qlean::Machine, timeout_secs: u64) -> Re
     }
 }
 
-/// Setup PostgreSQL in VM
-async fn setup_postgres(vm: &mut qlean::Machine) -> Result<()> {
-    tracing::info!("Installing PostgreSQL...");
+/// Install Docker in the VM
+async fn install_docker(vm: &mut qlean::Machine) -> Result<()> {
+    tracing::info!("Installing Docker in VM...");
+
+    // Update package list
     exec_check(vm, "apt-get update -qq").await?;
+
+    // Install prerequisites
     exec_check(
         vm,
-        "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq postgresql curl jq git",
+        "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+            ca-certificates \
+            curl \
+            gnupg \
+            lsb-release",
     )
     .await?;
 
-    tracing::info!("Starting PostgreSQL...");
-    exec_check(vm, "service postgresql start").await?;
-    tokio::time::sleep(Duration::from_secs(DB_OP_WAIT_SECS)).await;
-
-    tracing::info!("Configuring PostgreSQL...");
+    // Add Docker's official GPG key
+    exec_check(vm, "install -m 0755 -d /etc/apt/keyrings").await?;
 
     exec_check(
         vm,
+        "curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg",
+    )
+    .await?;
+
+    exec_check(vm, "chmod a+r /etc/apt/keyrings/docker.gpg").await?;
+
+    // Set up Docker repository
+    exec_check(
+        vm,
+        "echo \"deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+            https://download.docker.com/linux/debian $(. /etc/os-release && echo $VERSION_CODENAME) stable\" \
+            > /etc/apt/sources.list.d/docker.list",
+    )
+    .await?;
+
+    // Update package list again
+    exec_check(vm, "apt-get update -qq").await?;
+
+    // Install Docker Engine
+    exec_check(
+        vm,
+        "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+            docker-ce \
+            docker-ce-cli \
+            containerd.io \
+            docker-compose-plugin",
+    )
+    .await?;
+
+    // Start Docker service
+    exec_check(vm, "service docker start").await?;
+
+    // Verify Docker is running
+    exec_check(vm, "docker info > /dev/null").await?;
+
+    tracing::info!("Docker installed and started successfully.");
+
+    // Upload docker-compose.demo.yml to VM
+    tracing::info!("Uploading docker-compose.demo.yml to VM...");
+    let host_compose_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join(DOCKER_COMPOSE_HOST_PATH);
+
+    // Try to read compose file from host
+    let content = std::fs::read_to_string(&host_compose_path).with_context(|| {
+        format!(
+            "Failed to read docker-compose.demo.yml from {}",
+            host_compose_path.display()
+        )
+    })?;
+
+    vm.write(Path::new(DOCKER_COMPOSE_FILE), content.as_bytes())
+        .await?;
+
+    tracing::info!(
+        "Uploaded docker-compose.demo.yml from {} to {}",
+        host_compose_path.display(),
+        DOCKER_COMPOSE_FILE
+    );
+
+    Ok(())
+}
+
+/// Setup PostgreSQL using Docker in VM
+async fn setup_postgres(vm: &mut qlean::Machine) -> Result<()> {
+    tracing::info!("Setting up PostgreSQL using Docker (from docker-compose.demo.yml)...");
+
+    // Start PostgreSQL container using uploaded compose file
+    // Override environment variables to use test credentials instead of compose defaults
+    tracing::info!("Starting PostgreSQL container with test credentials...");
+    exec_check(
+        vm,
         &format!(
-            "su - postgres -c \"psql -c \\\"DROP DATABASE IF EXISTS {};\\\"\"",
-            POSTGRES_DB
+            "POSTGRES_USER={} POSTGRES_PASSWORD={} POSTGRES_DB_MONO={} docker compose -f {} up -d postgres",
+            POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, DOCKER_COMPOSE_FILE
         ),
     )
     .await?;
 
-    exec_check(
+    // Wait for PostgreSQL to be ready using retry helper
+    tracing::info!("Waiting for PostgreSQL to be ready...");
+    retry_until(
         vm,
         &format!(
-            "su - postgres -c \"psql -c \\\"DROP USER IF EXISTS {};\\\"\"",
-            POSTGRES_USER
+            "docker exec {} pg_isready -U {}",
+            POSTGRES_CONTAINER, POSTGRES_USER
         ),
-    )
-    .await?;
-
-    exec_check(
-        vm,
-        &format!(
-            "su - postgres -c \"psql -c \\\"CREATE USER {} WITH PASSWORD '{}';\\\"\"",
-            POSTGRES_USER, POSTGRES_PASSWORD
-        ),
-    )
-    .await?;
-
-    exec_check(
-        vm,
-        &format!(
-            "su - postgres -c \"psql -c \\\"CREATE DATABASE {};\\\"\"",
-            POSTGRES_DB
-        ),
-    )
-    .await?;
-
-    exec_check(
-        vm,
-        &format!(
-            "su - postgres -c \"psql -c \\\"GRANT ALL PRIVILEGES ON DATABASE {} TO {};\\\"\"",
-            POSTGRES_DB, POSTGRES_USER
-        ),
+        |output| output.contains("accepting connections"),
+        "PostgreSQL",
+        30,
+        2,
     )
     .await?;
 
     // Grant schema permissions for PostgreSQL 15+
+    tracing::info!("Configuring PostgreSQL permissions...");
     exec_check(
         vm,
         &format!(
-            "su - postgres -c \"psql -d {} -c \\\"GRANT ALL ON SCHEMA public TO {};\\\"\"",
-            POSTGRES_DB, POSTGRES_USER
+            "docker exec {} psql -U {} -d {} -c \"GRANT ALL ON SCHEMA public TO {};\"",
+            POSTGRES_CONTAINER, POSTGRES_USER, POSTGRES_DB, POSTGRES_USER
         ),
     )
     .await?;
@@ -232,8 +377,8 @@ async fn setup_postgres(vm: &mut qlean::Machine) -> Result<()> {
     exec_check(
         vm,
         &format!(
-            "su - postgres -c \"psql -d {} -c \\\"GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO {};\\\"\"",
-            POSTGRES_DB, POSTGRES_USER
+            "docker exec {} psql -U {} -d {} -c \"GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO {};\"",
+            POSTGRES_CONTAINER, POSTGRES_USER, POSTGRES_DB, POSTGRES_USER
         ),
     )
     .await?;
@@ -241,36 +386,41 @@ async fn setup_postgres(vm: &mut qlean::Machine) -> Result<()> {
     exec_check(
         vm,
         &format!(
-            "su - postgres -c \"psql -d {} -c \\\"ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO {};\\\"\"",
-            POSTGRES_DB, POSTGRES_USER
+            "docker exec {} psql -U {} -d {} -c \"ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO {};\"",
+            POSTGRES_CONTAINER, POSTGRES_USER, POSTGRES_DB, POSTGRES_USER
         ),
     )
     .await?;
 
-    exec_check(
-        vm,
-        "echo 'host all all 127.0.0.1/32 md5' >> /etc/postgresql/*/main/pg_hba.conf",
-    )
-    .await?;
-
-    exec_check(vm, "service postgresql restart").await?;
     tokio::time::sleep(Duration::from_secs(DB_OP_WAIT_SECS)).await;
 
     tracing::info!("PostgreSQL setup complete.");
     Ok(())
 }
 
-/// Setup Redis in VM
+/// Setup Redis using Docker in VM
 async fn setup_redis(vm: &mut qlean::Machine) -> Result<()> {
-    tracing::info!("Installing Redis...");
+    tracing::info!("Setting up Redis using Docker (from docker-compose.demo.yml)...");
+
+    // Start Redis container using the uploaded compose file
+    tracing::info!("Starting Redis container...");
     exec_check(
         vm,
-        "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq redis-server",
+        &format!("docker compose -f {} up -d redis", DOCKER_COMPOSE_FILE),
     )
     .await?;
 
-    tracing::info!("Starting Redis...");
-    exec_check(vm, "redis-server --daemonize yes").await?;
+    // Wait for Redis to be ready using retry helper
+    tracing::info!("Waiting for Redis to be ready...");
+    retry_until(
+        vm,
+        &format!("docker exec {} redis-cli ping", REDIS_CONTAINER),
+        |output| output.trim() == "PONG",
+        "Redis",
+        15,
+        2,
+    )
+    .await?;
 
     tokio::time::sleep(Duration::from_secs(1)).await;
 
@@ -288,14 +438,14 @@ async fn setup_test_users(vm: &mut qlean::Machine) -> Result<()> {
     // Insert constant tokens into database with random IDs
     tracing::info!("  Creating token for {}", TEST_USER_A);
     exec_check(vm, &format!(
-        "PGPASSWORD={} psql -h 127.0.0.1 -U {} -d {} -c \"INSERT INTO access_token (id, username, token, created_at) VALUES (floor(random() * 1000000000000)::bigint, '{}', '{}', NOW());\"",
-        POSTGRES_PASSWORD, POSTGRES_USER, POSTGRES_DB, TEST_USER_A, TEST_TOKEN_A
+        "docker exec {} psql -U {} -d {} -c \"INSERT INTO access_token (id, username, token, created_at) VALUES (floor(random() * 1000000000000)::bigint, '{}', '{}', NOW());\"",
+        POSTGRES_CONTAINER, POSTGRES_USER, POSTGRES_DB, TEST_USER_A, TEST_TOKEN_A
     )).await?;
 
     tracing::info!("  Creating token for {}", TEST_USER_B);
     exec_check(vm, &format!(
-        "PGPASSWORD={} psql -h 127.0.0.1 -U {} -d {} -c \"INSERT INTO access_token (id, username, token, created_at) VALUES (floor(random() * 1000000000000)::bigint, '{}', '{}', NOW());\"",
-        POSTGRES_PASSWORD, POSTGRES_USER, POSTGRES_DB, TEST_USER_B, TEST_TOKEN_B
+        "docker exec {} psql -U {} -d {} -c \"INSERT INTO access_token (id, username, token, created_at) VALUES (floor(random() * 1000000000000)::bigint, '{}', '{}', NOW());\"",
+        POSTGRES_CONTAINER, POSTGRES_USER, POSTGRES_DB, TEST_USER_B, TEST_TOKEN_B
     )).await?;
 
     tracing::info!("Test users and tokens setup complete.");
@@ -303,7 +453,15 @@ async fn setup_test_users(vm: &mut qlean::Machine) -> Result<()> {
 }
 
 /// Setup and start Mega service
-async fn setup_mega_service(vm: &mut qlean::Machine, mono_binary: &Path) -> Result<()> {
+async fn setup_mega_service(vm: &mut qlean::Machine) -> Result<()> {
+    // Clean up any existing directories from previous test runs
+    tracing::info!("Cleaning up existing Mega directories from previous runs...");
+    exec_check(
+        vm,
+        "rm -rf /tmp/mega /tmp/mono /tmp/repo_* 2>/dev/null || true",
+    )
+    .await?;
+
     tracing::info!("Creating Mega directories...");
     exec_check(vm, "mkdir -p /tmp/mega/cache").await?;
     exec_check(vm, "mkdir -p /tmp/mega/logs").await?;
@@ -313,10 +471,27 @@ async fn setup_mega_service(vm: &mut qlean::Machine, mono_binary: &Path) -> Resu
     exec_check(vm, "mkdir -p /root/.local/share").await?;
     exec_check(vm, "mkdir -p /root/.local/share/mega/etc").await?;
 
-    tracing::info!("Uploading Mega binary...");
-    vm.upload(mono_binary, Path::new("/usr/local/bin/mono"))
-        .await?;
+    tracing::info!("Pulling mono image from ECR...");
+    let ecr_image = get_mega_ecr_image();
+    exec_check(vm, &format!("docker pull {}", ecr_image)).await?;
+
+    tracing::info!("Extracting mono binary from ECR image...");
+    exec_check(
+        vm,
+        &format!(
+            "docker run --rm -v /usr/local/bin:/output {} cp /usr/local/bin/mono /output/",
+            ecr_image
+        ),
+    )
+    .await?;
     exec_check(vm, "chmod +x /usr/local/bin/mono").await?;
+
+    // Install curl, jq, git (needed for test execution)
+    exec_check(
+        vm,
+        "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq curl jq git",
+    )
+    .await?;
 
     let config_content = format!(
         r#"base_dir = "/tmp/mega"
@@ -865,73 +1040,20 @@ async fn test_cl_merge_and_update_branch(vm: &mut qlean::Machine) -> Result<()> 
     Ok(())
 }
 
-/// Get path to mono binary (supports both debug and release builds)
-///
-/// Priority order:
-/// 1. MONO_BINARY_PATH environment variable (explicit override)
-/// 2. ../target/release/mono (release build in workspace root)
-/// 3. ../target/debug/mono (debug build in workspace root)
-/// 4. Relative to current workspace (fallback)
-fn get_mono_binary_path() -> Result<PathBuf> {
-    // Priority 1: Check environment variable first
-    if let Ok(env_path) = std::env::var("MONO_BINARY_PATH") {
-        let path = PathBuf::from(env_path);
-        if path.exists() {
-            tracing::info!("Using mono binary from MONO_BINARY_PATH: {:?}", path);
-            return Ok(path);
-        }
-        anyhow::bail!("MONO_BINARY_PATH is set but file not found: {:?}", path);
-    }
-
-    // Priority 2 & 3: Look in workspace root (go up from mono/ to mega/)
-    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").context("CARGO_MANIFEST_DIR not set")?;
-
-    let workspace_root = PathBuf::from(&manifest_dir)
-        .parent()
-        .map(|p| p.to_path_buf());
-
-    let target_dir = workspace_root
-        .map(|p| p.join("target"))
-        .unwrap_or_else(|| PathBuf::from("../target"));
-
-    let release_path = target_dir.join("release/mono");
-    let debug_path = target_dir.join("debug/mono");
-
-    if release_path.exists() {
-        tracing::info!("Using release binary at {:?}", release_path);
-        return Ok(release_path);
-    }
-
-    if debug_path.exists() {
-        tracing::info!("Using debug binary at {:?}", debug_path);
-        return Ok(debug_path);
-    }
-
-    anyhow::bail!(
-        "Mono binary not found. \
-        Please build it with: \
-        \n  cd .. && cargo build --release -p mono \
-        \nOr set MONO_BINARY_PATH environment variable. \
-        \nSearched paths: {:?} and {:?}",
-        release_path,
-        debug_path
-    );
-}
-
 #[tokio::test]
 #[ignore] // Skip in CI - requires libguestfs-tools and QEMU/KVM
-async fn test_cl_merge_and_update_branch_integration() -> Result<()> {
+async fn test_cl_merge_and_update_branch_docker_integration() -> Result<()> {
     tracing_subscriber_init();
 
-    let binary_path = get_mono_binary_path()?;
-    tracing::info!("Using mono binary at {:?}", binary_path);
+    let ecr_image = get_mega_ecr_image();
+    tracing::info!("Using mono binary from ECR image: {}", ecr_image);
 
     tracing::info!("Creating VM image...");
     let image = create_image(Distro::Debian, "debian-13-generic-amd64").await?;
     let config = MachineConfig {
         core: 2,
         mem: 2048,
-        disk: Some(10),
+        disk: Some(15), // Larger disk to accommodate Docker and containers
         clear: true,
     };
 
@@ -939,16 +1061,19 @@ async fn test_cl_merge_and_update_branch_integration() -> Result<()> {
         Box::pin(async move {
             tracing::info!("============================================================");
             tracing::info!("Mega CL Integration Test Suite");
-            tracing::info!("Environment: QEMU/KVM Virtual Machine");
+            tracing::info!("Environment: QEMU/KVM Virtual Machine with Docker");
             tracing::info!("============================================================");
             tracing::info!("");
 
             tracing::info!("Setting up test environment...");
+            install_docker(vm)
+                .await
+                .context("Docker installation failed")?;
             setup_postgres(vm)
                 .await
                 .context("PostgreSQL setup failed")?;
             setup_redis(vm).await.context("Redis setup failed")?;
-            setup_mega_service(vm, &binary_path)
+            setup_mega_service(vm)
                 .await
                 .context("Mega service setup failed")?;
             setup_test_users(vm)
@@ -963,6 +1088,18 @@ async fn test_cl_merge_and_update_branch_integration() -> Result<()> {
 
             // Run test scenarios
             test_cl_merge_and_update_branch(vm).await?;
+
+            // Cleanup: Stop and remove Docker containers
+            tracing::info!("Cleaning up Docker containers...");
+            exec_check(
+                vm,
+                &format!(
+                    "docker compose -f {} stop postgres redis && docker compose -f {} rm -f postgres redis",
+                    DOCKER_COMPOSE_FILE, DOCKER_COMPOSE_FILE
+                ),
+            )
+            .await
+            .ok(); // Don't fail if cleanup fails
 
             tracing::info!("");
             tracing::info!("============================================================");

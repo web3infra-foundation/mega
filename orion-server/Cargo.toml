@@ -1,11 +1,17 @@
 [package]
 name = "orion-server"
 version = "0.1.0"
-edition = "2024"
+edition.workspace = true
+
+
+[[bin]]
+name = "orion-server"
+path = "src/main.rs"
+
 
 [dependencies]
 orion = { workspace = true }
-common = { workspace = true}
+common = { workspace = true }
 io-orbit = { workspace = true }
 api-model = { workspace = true }
 
@@ -38,8 +44,6 @@ chrono = { workspace = true, features = ["serde"] }
 reqwest.workspace = true
 anyhow = { workspace = true }
 async-trait = { workspace = true }
-aws-sdk-s3 = { workspace = true }
-aws-config = { workspace = true }
 once_cell = { workspace = true }
 
 [dev-dependencies]

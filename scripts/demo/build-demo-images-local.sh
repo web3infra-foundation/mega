@@ -54,12 +54,12 @@ if [ -z "${TARGET_PLATFORMS:-}" ]; then
         *)
             # Default to arm64 for compatibility (e.g., macOS Apple Silicon)
             TARGET_PLATFORMS="linux/arm64"
-            echo -e "\033[1;33m[WARN]\033[0m Unknown machine architecture: ${MACHINE_ARCH}, defaulting to ${TARGET_PLATFORMS}"
+            printf "\033[1;33m[WARN]\033[0m Unknown machine architecture: %s, defaulting to %s\n" "${MACHINE_ARCH}" "${TARGET_PLATFORMS}"
             ;;
     esac
-    echo -e "\033[0;32m[INFO]\033[0m Auto-detected platform: ${TARGET_PLATFORMS} (machine: ${MACHINE_ARCH})"
+    printf "\033[0;32m[INFO]\033[0m Auto-detected platform: %s (machine: %s)\n" "${TARGET_PLATFORMS}" "${MACHINE_ARCH}"
 else
-    echo -e "\033[0;32m[INFO]\033[0m Using explicit TARGET_PLATFORMS: ${TARGET_PLATFORMS}"
+    printf "\033[0;32m[INFO]\033[0m Using explicit TARGET_PLATFORMS: %s\n" "${TARGET_PLATFORMS}"
 fi
 
 # Get script directory and repo root
@@ -77,29 +77,42 @@ fi
 
 # Image configurations (ordered for consistent build order)
 declare -a IMAGE_ORDER=("mono-engine" "orion-server" "orion-client" "mega-ui")
-declare -A IMAGES
-IMAGES[mono-engine]="mono/Dockerfile:."
-IMAGES[mega-ui]="moon/apps/web/Dockerfile:moon"
-IMAGES[orion-server]="orion-server/Dockerfile:."
-IMAGES[orion-client]="orion/Dockerfile:."
+get_image_config() {
+    case "$1" in
+        "mono-engine") echo "mono/Dockerfile:." ;;
+        "mega-ui") echo "moon/apps/web/Dockerfile:moon" ;;
+        "orion-server") echo "orion-server/Dockerfile:." ;;
+        "orion-client") echo "orion/Dockerfile:." ;;
+    esac
+}
 
-declare -A TAGS
-TAGS[mono-engine]="mono-0.1.0-pre-release"
-TAGS[mega-ui]="mega-ui-demo-0.1.0-pre-release"
-TAGS[orion-server]="orion-server-0.1.0-pre-release"
-TAGS[orion-client]="orion-client-0.1.0-pre-release"
+get_image_tag() {
+    case "$1" in
+        "mono-engine") echo "mono-0.1.0-pre-release" ;;
+        "mega-ui") echo "mega-ui-demo-0.1.0-pre-release" ;;
+        "orion-server") echo "orion-server-0.1.0-pre-release" ;;
+        "orion-client") echo "orion-client-0.1.0-pre-release" ;;
+    esac
+}
+
+is_valid_image() {
+    case "$1" in
+        "mono-engine"|"mega-ui"|"orion-server"|"orion-client") return 0 ;;
+        *) return 1 ;;
+    esac
+}
 
 # Functions
 log_info() {
-    echo -e "${GREEN}[INFO]${NC} $1"
+    printf "${GREEN}[INFO]${NC} %s\n" "$1"
 }
 
 log_warn() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
+    printf "${YELLOW}[WARN]${NC} %s\n" "$1"
 }
 
 log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
+    printf "${RED}[ERROR]${NC} %s\n" "$1"
 }
 
 check_prerequisites() {
@@ -223,9 +236,10 @@ login_ecr() {
 
 build_and_push() {
     local image_name=$1
-    local dockerfile_path=$(echo "${IMAGES[$image_name]}" | cut -d':' -f1)
-    local build_context=$(echo "${IMAGES[$image_name]}" | cut -d':' -f2)
-    local image_tag="${TAGS[$image_name]}"
+    local config=$(get_image_config "$image_name")
+    local dockerfile_path=$(echo "$config" | cut -d':' -f1)
+    local build_context=$(echo "$config" | cut -d':' -f2)
+    local image_tag=$(get_image_tag "$image_name")
     
     # Validate single platform build (local script only supports single platform)
     # Check if TARGET_PLATFORMS contains comma (multiple platforms)
@@ -341,7 +355,9 @@ build_and_push() {
     fi
 
     # Add cache arguments
-    build_args+=("${cache_from_args[@]}")
+    if [ ${#cache_from_args[@]} -gt 0 ]; then
+        build_args+=("${cache_from_args[@]}")
+    fi
     
     # Add cache-to (inline cache is always useful)
     build_args+=(--cache-to type=inline)
@@ -453,7 +469,7 @@ main() {
     # Build specific image or all images
     if [ ${#args[@]} -eq 1 ]; then
         local image_name="${args[0]}"
-        if [[ -v IMAGES[$image_name] ]]; then
+        if is_valid_image "$image_name"; then
             if build_and_push "$image_name"; then
                 log_info "Done!"
                 exit 0

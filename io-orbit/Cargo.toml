@@ -1,7 +1,12 @@
 [package]
 name = "io-orbit"
 version = "0.1.0"
-edition = "2024"
+edition.workspace = true
+
+[lib]
+name = "io_orbit"
+path = "src/lib.rs"
+
 
 [dependencies]
 common = { workspace = true }
@@ -15,4 +20,4 @@ thiserror = { workspace = true }
 reqwest = { workspace = true }
 tokio = { workspace = true, features = ["time"] }
 serde = { workspace = true }
-serde_json = { workspace = true}
+serde_json = { workspace = true }

@@ -8,7 +8,10 @@ pub use config as c;
 use config::{Source, ValueKind, builder::DefaultState};
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::utils;
+use crate::errors::MegaError;
+
+pub mod loader;
+pub mod template;
 
 /// Retrieves the base directory path for Mega
 ///
@@ -98,7 +101,7 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn new(path: &str) -> Result<Self, ConfigError> {
+    pub fn new(path: &str) -> Result<Self, MegaError> {
         let builder = c::Config::builder()
             .add_source(c::File::new(path, FileFormat::Toml))
             .add_source(
@@ -114,7 +117,7 @@ impl Config {
 
         let config = variable_placeholder_substitute(builder);
 
-        Config::from_config(config)
+        Ok(Config::from_config(config)?)
     }
 
     pub fn mock() -> Self {
@@ -170,39 +173,6 @@ impl Config {
 
     pub fn enable_http_auth(&self) -> bool {
         self.authentication.enable_http_auth
-    }
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        let base_dir = mega_base();
-        std::fs::create_dir_all(&base_dir).unwrap();
-
-        let bin_name = utils::get_current_bin_name();
-        let default_config = match bin_name.as_str() {
-            "mono" => include_str!("../../config/config.toml"),
-            &_ => todo!(),
-        };
-        let default_config = default_config
-            .lines()
-            .map(|line| {
-                if line.starts_with("base_dir ") {
-                    format!("base_dir = {base_dir:?}")
-                } else {
-                    line.to_string()
-                }
-            })
-            .collect::<Vec<String>>()
-            .join("\n");
-
-        // default config path: $MEGA_BASE_DIR/etc/config.toml
-        // ensure the directory exists
-        std::fs::create_dir_all(base_dir.join("etc")).unwrap();
-        let config_path = base_dir.join("etc").join("config.toml");
-        std::fs::write(&config_path, default_config).unwrap();
-        eprintln!("create default config.toml in {:?}", &config_path);
-
-        Config::new(config_path.to_str().unwrap()).unwrap()
     }
 }
 

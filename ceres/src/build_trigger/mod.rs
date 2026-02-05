@@ -14,6 +14,7 @@ mod manual_handler;
 mod model;
 mod ref_resolver;
 mod retry_handler;
+mod web_edit_handler;
 
 // Export all models from the single model file
 pub use model::*;
@@ -24,6 +25,7 @@ use git_push_handler::GitPushHandler;
 use manual_handler::ManualHandler;
 use retry_handler::RetryHandler;
 pub use service::BuildTriggerService;
+use web_edit_handler::WebEditHandler;
 
 /// Trait for handling different types of build triggers.
 #[async_trait]
@@ -63,6 +65,10 @@ impl TriggerRegistry {
             git_object_cache.clone(),
         )));
         registry.register(Box::new(RetryHandler::new(
+            storage.clone(),
+            git_object_cache.clone(),
+        )));
+        registry.register(Box::new(WebEditHandler::new(
             storage.clone(),
             git_object_cache.clone(),
         )));
