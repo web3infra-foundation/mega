@@ -14,12 +14,14 @@ pub struct BuildTriggerStorage {
 }
 
 impl BuildTriggerStorage {
-    /// Insert a new build trigger
+    /// Insert a new build trigger with optional task_id.
+    /// When task_id is provided, inserts a complete record in one operation.
     pub async fn insert(
         &self,
         trigger_type: String,
         trigger_source: String,
         trigger_payload: serde_json::Value,
+        task_id: Option<uuid::Uuid>,
     ) -> Result<build_triggers::Model, MegaError> {
         let now = chrono::Utc::now().naive_utc();
 
@@ -29,7 +31,7 @@ impl BuildTriggerStorage {
             trigger_source: ActiveValue::Set(trigger_source),
             trigger_payload: ActiveValue::Set(trigger_payload),
             trigger_time: ActiveValue::Set(now),
-            task_id: ActiveValue::NotSet,
+            task_id: ActiveValue::Set(task_id),
             updated_at: ActiveValue::Set(now),
         };
 
@@ -169,7 +171,7 @@ mod tests {
 
         let inserted = storage
             .build_trigger_storage()
-            .insert("git_push".to_string(), "user".to_string(), payload)
+            .insert("git_push".to_string(), "user".to_string(), payload, None)
             .await
             .unwrap();
 
@@ -183,6 +185,42 @@ mod tests {
         assert_eq!(retrieved.id, inserted.id);
         assert_eq!(retrieved.trigger_type, "git_push");
         assert_eq!(retrieved.trigger_source, "user");
+    }
+
+    #[tokio::test]
+    async fn test_insert_with_task_id() {
+        let temp_dir = tempdir().unwrap();
+        let storage = test_storage(temp_dir.path()).await;
+
+        let payload = serde_json::json!({
+            "type": "manual",
+            "repo": "/test",
+            "commit_hash": "abc123",
+            "cl_link": "test_link",
+            "builds": []
+        });
+
+        let task_id = uuid::Uuid::new_v4();
+
+        let inserted = storage
+            .build_trigger_storage()
+            .insert(
+                "manual".to_string(),
+                "user".to_string(),
+                payload,
+                Some(task_id),
+            )
+            .await
+            .unwrap();
+
+        let retrieved = storage
+            .build_trigger_storage()
+            .get_by_id(inserted.id)
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(retrieved.task_id, Some(task_id));
     }
 
     #[tokio::test]
@@ -201,7 +239,12 @@ mod tests {
         for _ in 0..3 {
             storage
                 .build_trigger_storage()
-                .insert("manual".to_string(), "user".to_string(), payload.clone())
+                .insert(
+                    "manual".to_string(),
+                    "user".to_string(),
+                    payload.clone(),
+                    None,
+                )
                 .await
                 .unwrap();
         }
@@ -229,7 +272,7 @@ mod tests {
 
             storage
                 .build_trigger_storage()
-                .insert("manual".to_string(), "user".to_string(), payload)
+                .insert("manual".to_string(), "user".to_string(), payload, None)
                 .await
                 .unwrap();
         }
