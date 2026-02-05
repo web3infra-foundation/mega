@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-and-deploy:
+  build:
     if: ${{ github.repository == 'web3infra-foundation/mega' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -44,6 +44,11 @@ jobs:
           file target/release/orion || true
           file target/release/scorpio || true
 
+  deploy:
+    if: ${{ github.repository == 'web3infra-foundation/mega' }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
       - name: Upload binaries via rsync
         uses: burnett01/rsync-deployments@master
         with:
