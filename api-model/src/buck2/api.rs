@@ -15,7 +15,7 @@ use crate::buck2::{status::Status, types::ProjectRelativePath};
 
 /// Parameters required to build a task.
 #[allow(dead_code)]
-#[derive(Debug)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct TaskBuildRequest {
     /// The repository base path
     pub repo: String,
