@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::buck2::types::{ProjectRelativePath, Status, TaskPhase};
+use crate::buck2::{status::Status, types::{ProjectRelativePath, TaskPhase}};
 
 /// Message protocol for WebSocket communication between worker and server.
 #[allow(dead_code)]

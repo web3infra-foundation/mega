@@ -9,8 +9,9 @@
 //! - Used by both server and mono crates only
 
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
-use crate::buck2::types::{ProjectRelativePath, Status};
+use crate::buck2::{status::Status, types::ProjectRelativePath};
 
 /// Parameters required to build a task.
 #[allow(dead_code)]
@@ -21,6 +22,24 @@ pub struct TaskBuildRequest {
     /// The change list link (URL)
     pub cl_link: String,
     /// The list of file diff changes
+    pub changes: Vec<Status<ProjectRelativePath>>,
+    /// Buck2 target path (e.g. //app:server). Optional for backward compatibility.
+    #[serde(default, alias = "targets_path")]
+    pub targets: Option<Vec<String>>,
+}
+
+impl TaskBuildRequest {
+    pub fn targets(&self) -> Vec<String> {
+        self.targets.clone().unwrap_or_default()
+    }
+}
+
+/// Request structure for Retry a build
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct RetryBuildRequest {
+    pub build_id: String,
+    pub cl_link: String,
+    pub cl: i64,
     pub changes: Vec<Status<ProjectRelativePath>>,
 }
 

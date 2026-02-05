@@ -1,8 +1,6 @@
 use std::{ops::ControlFlow, time::Duration};
 
 use futures_util::{SinkExt, StreamExt};
-use serde::{Deserialize, Serialize};
-use td_util_buck::types::ProjectRelativePath;
 use tokio::{
     net::TcpStream,
     sync::{
@@ -13,60 +11,12 @@ use tokio::{
 use tokio_tungstenite::{
     MaybeTlsStream, WebSocketStream, connect_async, tungstenite::protocol::Message,
 };
-use utoipa::ToSchema;
+use api_model::buck2::{api::TaskBuildRequest, ws::WSMessage};
 use uuid::Uuid;
 
 use crate::{
-    api::{BuildRequest, buck_build},
-    repo::sapling::status::Status,
+    api::{buck_build},
 };
-
-/// Task phase when in buck2 build
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
-pub enum TaskPhase {
-    DownloadingSource,
-    RunningBuild,
-}
-
-/// Message protocol for WebSocket communication between worker and server.
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(tag = "type")]
-pub enum WSMessage {
-    // Worker -> Server messages
-    Register {
-        id: String,
-        hostname: String,
-        orion_version: String,
-    },
-    Heartbeat,
-    // Sent when a task is in the build process and its execution phase changes.
-    TaskPhaseUpdate {
-        id: String,
-        phase: TaskPhase,
-    },
-    TaskAck {
-        id: String,
-        success: bool,
-        message: String,
-    },
-    BuildOutput {
-        id: String,
-        output: String,
-    },
-    BuildComplete {
-        id: String,
-        success: bool,
-        exit_code: Option<i32>,
-        message: String,
-    },
-    // Server -> Worker messages
-    Task {
-        id: String,
-        repo: String,
-        cl_link: String,
-        changes: Vec<Status<ProjectRelativePath>>,
-    },
-}
 
 /// Manages persistent WebSocket connection with automatic reconnection.
 ///
@@ -221,7 +171,7 @@ async fn process_server_message(
                         WSMessage::Task {
                             id,
                             repo,
-                            cl_link: cl,
+                            cl_link,
                             changes,
                         } => {
                             tracing::info!("Received task: id={}", id);
@@ -240,7 +190,7 @@ async fn process_server_message(
 
                                 let build_result = buck_build(
                                     task_id_uuid,
-                                    BuildRequest { repo, cl, changes },
+                                    TaskBuildRequest { repo, cl_link, changes },
                                     sender.clone(),
                                 )
                                 .await;

@@ -5,8 +5,6 @@ use super::sea_orm_active_enums::ThreadStatusEnum;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use super::sea_orm_active_enums::ThreadStatusEnum;
-
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "mega_code_review_thread")]
 pub struct Model {

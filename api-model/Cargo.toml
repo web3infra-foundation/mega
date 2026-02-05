@@ -12,3 +12,6 @@ path = "src/lib.rs"
 [dependencies]
 serde = { workspace = true, features = ["derive"] }
 utoipa = { workspace = true }
+anyhow = {workspace = true}
+thiserror = {workspace = true}
+parse_display = {workspace = true}

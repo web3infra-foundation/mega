@@ -13,16 +13,18 @@ use td_util::{command::spawn, file_io::file_writer};
 use td_util_buck::{
     cells::CellInfo,
     run::{Buck2, targets_arguments},
-    targets::Targets,
-    types::{ProjectRelativePath, TargetLabel},
+    targets::Targets, types::TargetLabel,
 };
 use tokio::{io::AsyncBufReadExt, process::Command, sync::mpsc::UnboundedSender, time::Duration};
 
 // Import complete Error trait for better error handling
 use crate::repo::changes::Changes;
 use crate::{
-    repo::{diff, sapling::status::Status},
-    ws::{TaskPhase, WSMessage},
+    repo::{diff},
+};
+use api_model::buck2::{
+    types::{ProjectRelativePath, Status, TaskPhase},
+    ws::WSMessage,
 };
 
 fn scorpio_base_url() -> String {
@@ -664,7 +666,7 @@ pub async fn build(
                 .unwrap_or_else(|| anyhow!("Error getting build targets: mount point missing"));
             let error_msg = err.to_string();
             if sender
-                .send(WSMessage::BuildOutput {
+                .send(WSMessage::TaskBuildOutput {
                     id: id.clone(),
                     output: error_msg.clone(),
                 })
@@ -719,7 +721,7 @@ pub async fn build(
                 result = stdout_reader.next_line() => {
                     match result {
                         Ok(Some(line)) => {
-                            if sender.send(WSMessage::BuildOutput { id: id.clone(), output: line }).is_err() {
+                            if sender.send(WSMessage::TaskBuildOutput { id: id.clone(), output: line }).is_err() {
                                 child.kill().await?;
                                 return Err("WebSocket connection lost during build.".into());
                             }
@@ -734,7 +736,7 @@ pub async fn build(
                 result = stderr_reader.next_line() => {
                     match result {
                         Ok(Some(line)) => {
-                            if sender.send(WSMessage::BuildOutput { id: id.clone(), output: line }).is_err() {
+                            if sender.send(WSMessage::TaskBuildOutput { id: id.clone(), output: line }).is_err() {
                                 child.kill().await?;
                                 return Err("WebSocket connection lost during build.".into());
                             }

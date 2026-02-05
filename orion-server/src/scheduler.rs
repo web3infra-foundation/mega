@@ -45,20 +45,6 @@ impl BuildRequest {
     }
 }
 
-/// Pending task waiting for dispatch
-/// TODO: Used to called PendingTask
-#[derive(Debug, Clone)]
-pub struct PendingBuildEvent {
-    pub build_event_id: Uuid,
-    pub task_id: Uuid,
-    pub cl_link: String,
-    pub repo: String,
-    pub target_id: Option<Uuid>,
-    pub target_path: Option<String>,
-    pub changes: Vec<Status<ProjectRelativePath>>,
-    pub retry_count: i32,
-    pub created_at: Instant,
-}
 
 /// Task queue configuration
 #[derive(Debug, Clone)]
@@ -151,22 +137,54 @@ pub struct TaskQueueStats {
     pub oldest_task_age_seconds: Option<u64>,
 }
 
-/// Information about an active build task
-#[derive(Clone)]
-#[allow(dead_code)]
-pub struct BuildInfo {
-    pub task_id: String,
-    pub build_id: String,
+/// Mandatory Information for building a task
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct BuildEventPayload {
+    pub build_event_id: Uuid,
+    pub task_id: Uuid,
     pub cl_link: String,
     pub repo: String,
-    // pub target_id: String,
-    // TODO: remove if not used
-    // pub target_path: String,
-    pub start_at: DateTimeUtc,
-    pub changes: Vec<Status<ProjectRelativePath>>,
-    pub _worker_id: String,
-    pub auto_retry_judger: AutoRetryJudger,
     pub retry_count: i32,
+}
+
+/// Pending task waiting for dispatch
+#[derive(Debug, Clone)]
+pub struct PendingBuildEvent {
+    pub event_payload: BuildEventPayload,
+    pub target_id: Option<Uuid>,
+    pub target_path: Option<String>,
+    pub changes: Vec<Status<ProjectRelativePath>>,
+    pub created_at: Instant,
+}
+
+/// Information for an active model
+#[derive(Clone)]
+pub struct BuildInfo {
+    pub event_payload: BuildEventPayload,
+    pub target_id: Uuid,
+    pub target_path: String,
+    pub changes: Vec<Status<ProjectRelativePath>>,
+    pub started_at: DateTimeUtc,
+    pub auto_retry_judger: AutoRetryJudger,
+    pub _worker_id: String,
+}
+
+impl BuildEventPayload {
+    pub fn new(
+        build_event_id: Uuid,
+        task_id: Uuid,
+        cl_link: String,
+        repo: String,
+        retry_count: i32,
+    ) -> Self {
+        Self {
+            build_event_id,
+            task_id,
+            cl_link,
+            repo,
+            retry_count,
+        }
+    }
 }
 
 /// Status of a worker node
@@ -303,17 +321,20 @@ impl TaskScheduler {
             .ensure_target(task_id, &target_path)
             .await
             .map_err(|e| e.to_string())?;
+        let event = BuildEventPayload::new(
+            build_event_id,
+            task_id,
+            cl_link.to_string(),
+            repo.clone(),
+            retry_count,
+        );
 
         let pending_build_event = PendingBuildEvent {
-            task_id,
-            cl_link: cl_link.to_string(),
-            build_event_id,
+            event_payload: event,
             target_id: None,
             target_path: None,
             changes: changes,
             created_at: Instant::now(),
-            repo,
-            retry_count,
         };
 
         {
@@ -417,17 +438,13 @@ impl TaskScheduler {
 
         // Create build information
         let build_info = BuildInfo {
-            task_id: pending_build_event.task_id.to_string(),
-            build_id: pending_build_event.build_event_id.to_string(),
-            cl_link: pending_build_event.cl_link.clone(),
-            // target_id: pending_build_event.target_id.to_string(),
-            // target_path: pending_build_event.target_path.clone(),
-            repo: pending_build_event.repo.clone(),
-            start_at,
+            event_payload: pending_build_event.event_payload.clone(),
             changes: pending_build_event.changes.clone(),
+            target_id: pending_build_event.target_id.map_or_else(|| "".to_string(), |id| id.to_string()),
+            target_path: pending_build_event.target_path.clone().unwrap_or_else(|| "".to_string()),
             _worker_id: chosen_id.clone(),
             auto_retry_judger: AutoRetryJudger::new(),
-            retry_count: pending_build_event.retry_count,
+            started_at: start_at_tz,
         };
 
         // Insert build record (fail fast if insertion fails)
@@ -608,29 +625,36 @@ mod tests {
         let config = TaskQueueConfig::default();
         let mut queue = TaskQueue::new(config);
 
+        let build_event1 = BuildEventPayload::new(
+            Uuid::now_v7(),
+            Uuid::now_v7(),
+            "test_cl_link".to_string(),
+            "test/repo".to_string(),
+            0,
+        );
+
         // Create test tasks
         let task1 = PendingBuildEvent {
-            task_id: Uuid::now_v7(),
-            build_event_id: Uuid::now_v7(),
+            event_payload: build_event1.clone(),
             target_id: Some(Uuid::now_v7()),
             target_path: Some("//app:server".to_string()),
             changes: vec![],
             created_at: Instant::now(),
-            repo: "/test/repo".to_string(),
-            cl_link: "test".to_string(),
-            retry_count: 0,
         };
 
+        let build_event2 = BuildEventPayload::new(
+            Uuid::now_v7(),
+            Uuid::now_v7(),
+            "test_cl_link_2".to_string(),
+            "test2/repo".to_string(),
+            0,
+        );
         let task2 = PendingBuildEvent {
-            task_id: Uuid::now_v7(),
-            build_event_id: Uuid::now_v7(),
+            event_payload: build_event2.clone(),
             target_id: Some(Uuid::now_v7()),
             target_path: Some("//app:server2".to_string()),
             changes: vec![],
             created_at: Instant::now(),
-            repo: "/test2/repo".to_string(),
-            cl_link: "test".to_string(),
-            retry_count: 0,
         };
 
         // Test FIFO behavior
@@ -656,16 +680,19 @@ mod tests {
         };
         let mut queue = TaskQueue::new(config);
 
+        let build_event = BuildEventPayload::new(
+            Uuid::now_v7(),
+            Uuid::now_v7(),
+            "test_cl_link".to_string(),
+            "test/repo".to_string(),
+            0,
+        );
         let task = PendingBuildEvent {
-            task_id: Uuid::now_v7(),
-            build_event_id: Uuid::now_v7(),
+            event_payload: build_event.clone(),
             target_id: Some(Uuid::now_v7()),
             target_path: Some("//app:server".to_string()),
             changes: vec![],
             created_at: Instant::now(),
-            repo: "/test/repo".to_string(),
-            cl_link: "test".to_string(),
-            retry_count: 0,
         };
 
         // Fill queue to capacity

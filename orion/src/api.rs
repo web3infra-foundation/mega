@@ -1,34 +1,35 @@
-use serde::Serialize;
-use td_util_buck::types::ProjectRelativePath;
-use tokio::sync::mpsc::UnboundedSender;
-use uuid::Uuid;
+// use api_model::buck2::{api::{TaskBuildRequest, TaskBuildResult}, types::Status, ws::WSMessage};
+// use serde::Serialize;
+// use td_util_buck::types::ProjectRelativePath;
+// use tokio::sync::mpsc::UnboundedSender;
+// use uuid::Uuid;
 
-use crate::{buck_controller, repo::sapling::status::Status, ws::WSMessage};
+// use crate::{buck_controller};
 
-/// Parameters required to execute a buck build operation.
-#[derive(Debug)]
-pub struct BuildRequest {
-    /// Monorepo mount path (Buck2 project root or subdirectory)
-    pub repo: String,
-    /// Change List identifier for context
-    pub cl: String,
-    /// Commit changes
-    pub changes: Vec<Status<ProjectRelativePath>>,
-}
+// /// Parameters required to execute a buck build operation.
+// #[derive(Debug)]
+// pub struct BuildRequest {
+//     /// Monorepo mount path (Buck2 project root or subdirectory)
+//     pub repo: String,
+//     /// Change List identifier for context
+//     pub cl: String,
+//     /// Commit changes
+//     pub changes: Vec<Status<ProjectRelativePath>>,
+// }
 
-/// Result of a build operation containing status and metadata.
-#[derive(Debug, Serialize)]
-pub struct BuildResult {
-    /// Whether the build operation was successful
-    pub success: bool,
-    /// Unique identifier for the build task
-    pub id: String,
-    /// Process exit code (None if not yet completed)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub exit_code: Option<i32>,
-    /// Human-readable status or error message
-    pub message: String,
-}
+// /// Result of a build operation containing status and metadata.
+// #[derive(Debug, Serialize)]
+// pub struct BuildResult {
+//     /// Whether the build operation was successful
+//     pub success: bool,
+//     /// Unique identifier for the build task
+//     pub id: String,
+//     /// Process exit code (None if not yet completed)
+//     #[serde(skip_serializing_if = "Option::is_none")]
+//     pub exit_code: Option<i32>,
+//     /// Human-readable status or error message
+//     pub message: String,
+// }
 
 /// Initiates an asynchronous buck build process.
 ///
@@ -44,9 +45,9 @@ pub struct BuildResult {
 /// Immediate acknowledgment that the build task has been queued and started
 pub async fn buck_build(
     id: Uuid,
-    req: BuildRequest,
+    req: TaskBuildRequest,
     sender: UnboundedSender<WSMessage>,
-) -> BuildResult {
+) -> TaskBuildResult {
     let id_str = id.to_string();
     tracing::info!("[Task {}] Received build request.", id_str);
 
@@ -56,7 +57,7 @@ pub async fn buck_build(
         let build_result = match buck_controller::build(
             id_str.clone(),
             req.repo,
-            req.cl,
+            req.cl_link,
             sender.clone(),
             req.changes,
         )
@@ -97,7 +98,7 @@ pub async fn buck_build(
         };
 
         // Send build completion notification via WebSocket
-        let complete_msg = WSMessage::BuildComplete {
+        let complete_msg = WSMessage::TaskBuildComplete {
             id: build_result.id,
             success: build_result.success,
             exit_code: build_result.exit_code,
@@ -114,7 +115,7 @@ pub async fn buck_build(
 
     // Return immediate acknowledgment of task acceptance
     // WARN: exit_code and can_auto_retry is invalid data
-    BuildResult {
+    TaskBuildResult {
         success: true,
         id: id.to_string(),
         exit_code: None,

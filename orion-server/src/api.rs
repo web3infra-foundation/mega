@@ -5,7 +5,7 @@ use std::{
 
 use anyhow::Result;
 use api_model::buck2::{
-        api::TaskBuildRequest,
+        api::{RetryBuildRequest, TaskBuildRequest},
         types::{
             LogErrorResponse, LogEvent, LogLinesResponse, LogReadMode, ProjectRelativePath, Status, TargetLogLinesResponse, TargetLogQuery, TaskHistoryQuery
         },
@@ -42,61 +42,60 @@ use crate::{
     auto_retry::AutoRetryJudger,
     log::log_service::LogService,
     model::{
-        builds, targets,
-        targets::{TargetState, TargetWithBuilds},
+        builds, targets::{self, TargetState, TargetWithBuilds},
         tasks,
     },
     orion_common::model::{CommonPage, PageParams},
     scheduler::{
-        self, BuildInfo, BuildRequest, TaskQueueStats, TaskScheduler, WorkerInfo, WorkerStatus,
+        self, BuildEventPayload, BuildInfo, BuildRequest, TaskQueueStats, TaskScheduler, WorkerInfo, WorkerStatus
     },
 };
 
 const RETRY_COUNT_MAX: i32 = 3;
 
-#[derive(Debug, Serialize, Default, ToSchema)]
-struct BuildResult {
-    build_id: String,
-    status: String,
-    message: String,
-}
+// #[derive(Debug, Serialize, Default, ToSchema)]
+// struct BuildResult {
+//     build_id: String,
+//     status: String,
+//     message: String,
+// }
 
-#[derive(Debug, Serialize, Default, ToSchema)]
-struct TaskResponse {
-    task_id: String,
-    results: Vec<BuildResult>,
-}
+// #[derive(Debug, Serialize, Default, ToSchema)]
+// struct TaskResponse {
+//     task_id: String,
+//     results: Vec<BuildResult>,
+// }
 
-/// Enumeration of possible task statuses
-#[derive(Debug, Serialize, Default, ToSchema, Clone)]
-pub enum TaskStatusEnum {
-    /// Task is queued and waiting to be assigned to a worker
-    Pending,
-    Building,
-    Interrupted, // Task was interrupted, exit code is None
-    Failed,
-    Completed,
-    #[default]
-    NotFound,
-}
+// /// Enumeration of possible task statuses
+// #[derive(Debug, Serialize, Default, ToSchema, Clone)]
+// pub enum TaskStatusEnum {
+//     /// Task is queued and waiting to be assigned to a worker
+//     Pending,
+//     Building,
+//     Interrupted, // Task was interrupted, exit code is None
+//     Failed,
+//     Completed,
+//     #[default]
+//     NotFound,
+// }
 
-/// Request structure for creating a task
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct TaskRequest {
-    #[serde(rename = "repo", alias = "mount_path", alias = "path")]
-    pub repo: String,
-    pub cl_link: String,
-    pub cl: i64,
-    pub builds: Vec<scheduler::BuildRequest>,
-}
-/// Request structure for Retry a build
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-pub struct RetryBuildRequest {
-    pub build_id: String,
-    pub cl_link: String,
-    pub cl: i64,
-    pub build: scheduler::BuildRequest,
-}
+// /// Request structure for creating a task
+// #[derive(Debug, Clone, Deserialize, ToSchema)]
+// pub struct TaskRequest {
+//     #[serde(rename = "repo", alias = "mount_path", alias = "path")]
+//     pub repo: String,
+//     pub cl_link: String,
+//     pub cl: i64,
+//     pub builds: Vec<scheduler::BuildRequest>,
+// }
+// /// Request structure for Retry a build
+// #[derive(Debug, Clone, Deserialize, ToSchema)]
+// pub struct RetryBuildRequest {
+//     pub build_id: String,
+//     pub cl_link: String,
+//     pub cl: i64,
+//     pub build: scheduler::BuildRequest,
+// }
 
 /// Shared application state containing worker connections, database, and active builds
 #[derive(Clone)]
@@ -611,18 +610,23 @@ async fn handle_immediate_task_dispatch(
         tracing::error!("Failed to update target state to Building: {}", e);
     }
 
+    let event = BuildEventPayload::new(
+        build_event_id,
+        task_id,
+        cl_link.to_string(),
+        repo.to_string(),
+        0,
+    );
+
     // Create build information structure
     let build_info = BuildInfo {
-        task_id: task_id.to_string(),
-        build_id: build_event_id.to_string(),
-        target_id: target_model.id.to_string(),
-        repo: repo.to_string(),
+        event_payload: event.clone(),
         changes: changes.clone(),
-        start_at,
-        cl_link: cl_link.to_string(),
+        target_id: target_model.id,
+        target_path: target_model.path.clone(),
         _worker_id: chosen_id.clone(),
         auto_retry_judger: AutoRetryJudger::new(),
-        retry_count: 0,
+        started_at: start_at,
     };
 
     // Use the model's insert_build method for direct insertion
@@ -1625,9 +1629,8 @@ pub async fn build_retry_handler(
                 new_build_id,
                 build.task_id,
                 &req.cl_link,
-                build_req,
                 build.repo.clone(),
-                req.cl,
+                req.changes,
                 retry_count,
             )
             .await
@@ -1682,6 +1685,7 @@ pub async fn build_retry_handler(
     }
 }
 
+// TODO: replace with new build 
 async fn immediate_work(
     state: &AppState,
     build_id: Uuid,
@@ -1700,22 +1704,26 @@ async fn immediate_work(
 
     let start_at = chrono::Utc::now();
     // Create build information
+
+    let event = BuildEventPayload::new(
+        build.id, 
+        build.task_id, 
+        req.cl_link.clone(), 
+        build.repo.clone(), 
+        retry_count
+    );
     let build_info = BuildInfo {
-        task_id: build.task_id.to_string(),
-        build_id: build.id.to_string(),
+        event_payload: event,
         target_id: target.id.to_string(),
         target_path: target.target_path.clone(),
-        repo: build.repo.to_string(),
         changes: req.build.changes.clone(),
-        start_at,
-        cl: req.cl.to_string(),
         _worker_id: chosen_id.clone(),
         auto_retry_judger: AutoRetryJudger::new(),
-        retry_count,
+        started_at: start_at,
     };
 
     // Send build to worker
-    let msg: WSMessage = WSMessage::Task {
+    let msg = TaskBuildRequest {
         id: build.id.to_string(),
         repo: build.repo.to_string(),
         changes: req.build.changes.clone(),
