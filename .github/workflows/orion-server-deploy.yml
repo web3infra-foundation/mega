@@ -70,7 +70,6 @@ jobs:
   manifest:
     needs: build-push-single-arch
     runs-on: ubuntu-latest
-    if: ${{ github.repository == 'web3infra-foundation/mega' }}
     permissions:
       contents: read
     steps:
