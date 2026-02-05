@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CheckIcon, ChevronDownIcon, ChevronRightIcon, XIcon } from '@primer/octicons-react'
+import { CheckIcon, ChevronDownIcon, FileDirectoryIcon, XIcon } from '@primer/octicons-react'
 import { format } from 'date-fns'
 import { useAtom } from 'jotai'
 
@@ -23,100 +23,256 @@ const formatDateTime = (isoDate: string): string => {
   }
 }
 
-export const mocks = [
-  {
-    arguments: '--env=prod --force',
-    build_id: '0198b32b-6ede-7be2-99dc-aee8c7ef358d',
-    end_at: '2025-08-13T16:20:00Z',
-    exit_code: 0,
-    cl: 'CL-125',
-    output_file: 'output_build_20250813001.zip',
-    repo_name: 'frontend-webapp',
-    start_at: '2025-08-13T16:15:00Z',
-    target: 'production'
-  },
-  {
-    arguments: '--env=dev --skip-tests',
-    build_id: 'BUILD_20250813002',
-    end_at: '2025-08-13T17:05:00Z',
-    exit_code: 1,
-    cl: 'CL-126',
-    output_file: 'output_build_20250813002.zip',
-    repo_name: 'backend-service',
-    start_at: '2025-08-13T16:50:00Z',
-    target: 'development'
-  },
-  {
-    arguments: '--env=test',
-    build_id: 'BUILD_20250813003',
-    end_at: '2025-08-13T18:30:00Z',
-    exit_code: 0,
-    cl: 'CL-127',
-    output_file: 'output_build_20250813003.zip',
-    repo_name: 'data-processor',
-    start_at: '2025-08-13T18:10:00Z',
-    target: 'testing'
-  }
-]
-
 type LogStatus = 'idle' | 'loading' | 'success' | 'empty' | 'error'
 
-export const Task = ({ list, logStatus }: { list: TaskInfoDTO; logStatus: Record<string, LogStatus> }) => {
-  const [extend, setExtend] = useState(false)
-
-  // list = mocks
+/**
+ * Tree Root Component - Top level node showing the path
+ */
+export const TreeRoot = ({
+  path,
+  tasks,
+  logStatus
+}: {
+  path?: string
+  tasks: TaskInfoDTO[]
+  logStatus: Record<string, LogStatus>
+}) => {
+  const [isExpanded, setIsExpanded] = useState(true)
 
   return (
-    <>
+    <div className='select-none'>
       <div
-        onClick={() => setExtend(!extend)}
-        className='border-primary bg-primary flex w-full cursor-pointer items-center gap-4 border border-t-0 pl-4'
+        onClick={() => setIsExpanded(!isExpanded)}
+        className='group flex w-full cursor-pointer items-center gap-2.5 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-transparent px-3 py-3 transition-all hover:from-blue-100 hover:to-blue-50 dark:border-gray-700 dark:from-blue-900/20 dark:hover:from-blue-900/30 dark:hover:to-blue-900/10'
       >
-        {extend ? <ChevronRightIcon size={16} /> : <ChevronDownIcon size={16} />}
-        <div className='flex flex-col justify-center'>
-          <span className='text-primary font-weight fz-[14px]'>{list.task_name}</span>
-          <span className='text-tertiary fz-[12px] font-light'>{formatDateTime(list.created_at)}</span>
+        <div className='flex items-center gap-2'>
+          <div
+            className='transition-transform duration-200'
+            style={{ transform: isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)' }}
+          >
+            <ChevronDownIcon size={16} className='text-gray-600 dark:text-gray-400' />
+          </div>
+          <FileDirectoryIcon size={16} className='text-blue-600 dark:text-blue-400' />
         </div>
-        {/* {extend && list} */}
+        <span className='text-sm font-semibold text-gray-800 dark:text-gray-200'>{path || 'Project Root'}</span>
+        <span className='ml-auto rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'>
+          {tasks.length} {tasks.length === 1 ? 'build' : 'builds'}
+        </span>
       </div>
-      {!extend && list && (
-        <div className='fz-[14px] border-b pl-4 font-medium'>
-          {list.build_list.map((i) => (
-            <TaskItem key={i.id} build={i} logStatus={logStatus[i.id]} />
+      {isExpanded && (
+        <div className='bg-gray-50/50 dark:bg-gray-900/20'>
+          {tasks.map((t, index) => (
+            <Task key={t.task_id} list={t} logStatus={logStatus} isLast={index === tasks.length - 1} />
           ))}
         </div>
       )}
-    </>
+    </div>
   )
 }
 
-export const TaskItem = ({ build, logStatus }: { build: BuildDTO; logStatus?: LogStatus }) => {
-  // const [statusMap] = useAtom(statusMapAtom)
+/**
+ * Task Component - Second level showing task name and builds
+ */
+export const Task = ({
+  list,
+  logStatus,
+  isLast
+}: {
+  list: TaskInfoDTO
+  logStatus: Record<string, LogStatus>
+  isLast?: boolean
+}) => {
+  const [isExpanded, setIsExpanded] = useState(false)
 
-  const [_, setBuildId] = useAtom(buildIdAtom)
-  const handleClick = (build_id: string) => {
-    // 此处建立连接
-    // setLoading(true)
-    setBuildId(build_id)
-    // if (eventSourcesRef.current[build_id]) return
-    // setEventSource(build_id)
+  // Extract filename from output_file path (from first target's first build)
+  const getFileName = () => {
+    if (!list.targets || list.targets.length === 0) return list.task_name || 'Unnamed Task'
+
+    const firstTarget = list.targets[0] as any
+
+    if (!firstTarget.builds || firstTarget.builds.length === 0) return list.task_name || 'Unnamed Task'
+
+    const firstBuild = firstTarget.builds[0]
+
+    if (!firstBuild.output_file) return list.task_name || 'Unnamed Task'
+
+    const parts = firstBuild.output_file.split('/')
+
+    return parts[parts.length - 1] || 'Unnamed Task'
   }
 
-  const isHighlighted = logStatus === 'success'
-  const textColor = isHighlighted ? 'text-[#0969da]' : 'text-[#59636e]'
+  // Get overall task status from targets with styled badge
+  const getTaskStatus = () => {
+    if (!list.targets || list.targets.length === 0) return null
+
+    const states = list.targets.map((t) => t.state)
+
+    // If any target failed, show failed
+    if (states.some((s) => s === 'Failed')) {
+      return {
+        status: 'Failed',
+        icon: <XIcon size={14} className='text-red-600 dark:text-red-400' />,
+        badgeClass: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+      }
+    }
+
+    // If any target interrupted, show interrupted
+    if (states.some((s) => s === 'Interrupted')) {
+      return {
+        status: 'Interrupted',
+        icon: <XIcon size={14} className='text-orange-600 dark:text-orange-400' />,
+        badgeClass: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300'
+      }
+    }
+
+    // If any target is building, show building
+    if (states.some((s) => s === 'Building')) {
+      return {
+        status: 'Building',
+        icon: <LoadingSpinner />,
+        badgeClass: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
+      }
+    }
+
+    // If any target is pending, show pending
+    if (states.some((s) => s === 'Pending')) {
+      return {
+        status: 'Pending',
+        icon: <LoadingSpinner />,
+        badgeClass: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300'
+      }
+    }
+
+    // If all completed, show completed
+    if (states.every((s) => s === 'Completed')) {
+      return {
+        status: 'Completed',
+        icon: <CheckIcon size={14} className='text-green-700 dark:text-green-400' />,
+        badgeClass: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+      }
+    }
+
+    return null
+  }
+
+  const taskStatus = getTaskStatus()
+  const fileName = getFileName()
 
   return (
-    <>
+    <div className={`relative ${!isLast ? 'border-b border-gray-200 dark:border-gray-700' : ''}`}>
+      {/* Vertical line connector */}
+      <div className='absolute left-6 top-0 h-full w-px bg-gray-300 dark:bg-gray-600' />
+
+      <div
+        onClick={() => setIsExpanded(!isExpanded)}
+        className='group relative flex w-full cursor-pointer items-center gap-3 bg-white px-3 py-2.5 transition-all hover:bg-gray-100 dark:bg-gray-800/50 dark:hover:bg-gray-700/50'
+      >
+        {/* Horizontal line connector */}
+        <div className='absolute left-6 top-1/2 h-px w-3 bg-gray-300 dark:bg-gray-600' />
+
+        <div className='relative z-10 ml-6 flex items-center gap-2'>
+          <div
+            className='transition-transform duration-200'
+            style={{ transform: isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)' }}
+          >
+            <ChevronDownIcon size={14} className='text-gray-500 dark:text-gray-400' />
+          </div>
+        </div>
+
+        <div className='flex flex-1 flex-col gap-0.5'>
+          <span className='text-sm font-medium text-gray-800 dark:text-gray-200'>{fileName}</span>
+          <span className='text-xs text-gray-500 dark:text-gray-400'>{formatDateTime(list.created_at)}</span>
+        </div>
+
+        {taskStatus && (
+          <div className='flex items-center gap-2'>
+            {taskStatus.icon}
+            <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${taskStatus.badgeClass}`}>
+              {taskStatus.status}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {isExpanded && list && (
+        <div className='bg-gray-50 dark:bg-gray-900/30'>
+          {list.build_list.map((i, index) => (
+            <TaskItem key={i.id} build={i} logStatus={logStatus[i.id]} isLast={index === list.build_list.length - 1} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * TaskItem Component - Third level showing individual builds
+ */
+export const TaskItem = ({
+  build,
+  logStatus,
+  isLast
+}: {
+  build: BuildDTO
+  logStatus?: LogStatus
+  isLast?: boolean
+}) => {
+  const [buildId, setBuildId] = useAtom(buildIdAtom)
+
+  const handleClick = (build_id: string) => {
+    setBuildId(build_id)
+  }
+
+  const isSelected = buildId === build.id
+  const isHighlighted = logStatus === 'success'
+
+  let bgClass = 'bg-white dark:bg-gray-800/30'
+  let textColor = 'text-gray-600 dark:text-gray-400'
+  let borderColor = 'border-gray-300 dark:border-gray-600'
+
+  if (isSelected) {
+    bgClass = 'bg-blue-50 dark:bg-blue-900/20'
+    textColor = 'text-blue-700 dark:text-blue-300'
+    borderColor = 'border-blue-400 dark:border-blue-500'
+  } else if (isHighlighted) {
+    textColor = 'text-blue-600 dark:text-blue-400'
+  }
+
+  return (
+    <div className='relative'>
+      {/* Vertical line connector */}
+      <div className={`absolute left-6 top-0 ${isLast ? 'h-1/2' : 'h-full'} w-px bg-gray-300 dark:bg-gray-600`} />
+
       <div
         onClick={() => handleClick(build.id)}
-        className='!fz-[14px] flex !h-[37px] items-center gap-2'
-        key={build.id}
+        className={`group relative flex h-10 cursor-pointer items-center gap-3 px-3 transition-all hover:bg-gray-100 dark:hover:bg-gray-700/30 ${bgClass}`}
       >
-        {/* {identifyStatus(statusMap.get(build.id)?.status || Status.NotFound)} */}
-        {identifyStatus(build.status || Status.NotFound)}
-        <span className={`hover:text-primary cursor-pointer ${textColor}`}>{build.id}</span>
+        {/* Horizontal line connector */}
+        <div className={`absolute left-6 top-1/2 h-px w-6 ${borderColor}`} />
+
+        {/* Status dot */}
+        <div
+          className={`relative z-10 ml-12 flex h-2 w-2 items-center justify-center rounded-full ${borderColor} border-2 bg-white dark:bg-gray-800`}
+        >
+          {isSelected && <div className='h-1 w-1 rounded-full bg-blue-500' />}
+        </div>
+
+        <div className='flex items-center gap-2'>
+          {identifyStatus(build.status || Status.NotFound)}
+          <span
+            className={`font-mono text-sm transition-colors ${textColor} group-hover:text-blue-600 dark:group-hover:text-blue-400`}
+          >
+            {build.id}
+          </span>
+        </div>
+
+        {isSelected && (
+          <div className='ml-auto'>
+            <div className='h-1.5 w-1.5 animate-pulse rounded-full bg-blue-500' />
+          </div>
+        )}
       </div>
-    </>
+    </div>
   )
 }
 

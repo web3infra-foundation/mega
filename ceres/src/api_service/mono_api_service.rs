@@ -45,8 +45,10 @@ use std::{
 
 use api_model::common::Pagination;
 use async_trait::async_trait;
+use bellatrix::Bellatrix;
 use bytes::Bytes;
 use callisto::{
+    entity_ext::generate_link,
     mega_cl, mega_refs, mega_tag, mega_tree,
     sea_orm_active_enums::{ConvTypeEnum, MergeStatusEnum, QueueFailureTypeEnum, QueueStatusEnum},
 };
@@ -89,13 +91,14 @@ use crate::{
         ApiHandler, buck_tree_builder::BuckCommitBuilder, cache::GitObjectCache,
         state::ProtocolApiState, tree_ops,
     },
+    build_trigger::BuildTriggerService,
     model::{
         buck::{
             CompletePayload, CompleteResponse, DEFAULT_MODE, FileChange,
             FileToUpload as ApiFileToUpload, ManifestPayload, ManifestResponse,
         },
         change_list::{ClDiffFile, UpdateBranchStatusRes},
-        git::{CreateEntryInfo, EditFilePayload, EditFileResult},
+        git::{CreateEntryInfo, EditCLMode, EditFilePayload, EditFileResult},
         tag::TagInfo,
         third_party::{ThirdPartyClient, ThirdPartyRepoTrait},
     },
@@ -135,6 +138,14 @@ pub struct TreeUpdateResult {
 pub struct RefUpdate {
     path: String,
     tree_id: ObjectHash,
+}
+
+struct ApplyChangeContext<'a> {
+    components: &'a [String],
+    chain_paths: &'a [PathBuf],
+    chain_trees: &'a [Tree],
+    tree_cache: &'a mut HashMap<PathBuf, Tree>,
+    new_trees: &'a mut HashMap<ObjectHash, Tree>,
 }
 
 /// `MonoServiceLogic` is a helper struct for `MonoApiService` containing stateless logic.
@@ -398,15 +409,34 @@ impl ApiHandler for MonoApiService {
             .apply_update_result(&result, &payload.commit_message, None)
             .await?;
 
+        let username = payload
+            .author_username
+            .clone()
+            .unwrap_or("Anonymous".to_string());
+
+        let cl = self
+            .find_or_create_cl_for_edit(
+                payload.mode,
+                &new_commit_id,
+                &payload.commit_message,
+                &payload.path,
+                &username,
+            )
+            .await?;
         self.storage
             .mono_service
             .save_blobs(&new_commit_id, vec![new_blob.clone()])
             .await?;
 
+        if !payload.skip_build {
+            self.trigger_build_for_cl(&cl.link).await?;
+        }
+
         Ok(EditFileResult {
             commit_id: new_commit_id,
             new_oid: new_blob.id.to_string(),
             path: payload.path,
+            cl_link: Some(cl.link),
         })
     }
 
@@ -1027,6 +1057,145 @@ impl MonoApiService {
         }
     }
 
+    async fn create_new_cl(
+        &self,
+        repo_path: &str,
+        commit_message: &str,
+        to_hash: &str,
+        username: &str,
+    ) -> Result<mega_cl::Model, GitError> {
+        let cl_link = generate_link();
+
+        let from_hash = self
+            .storage
+            .mono_storage()
+            .get_main_ref(repo_path)
+            .await?
+            .ok_or_else(|| MegaError::Other("Main ref not found".to_string()))?
+            .ref_commit_hash;
+
+        // Create and return a new CL model
+        let cl = self
+            .storage
+            .cl_storage()
+            .new_cl_model(
+                repo_path,
+                &cl_link,
+                commit_message,
+                &from_hash,
+                to_hash,
+                username,
+            )
+            .await
+            .map_err(|e| GitError::CustomError(format!("Failed to create CL: {}", e)))?;
+
+        Ok(cl)
+    }
+
+    /// Finds or creates a Change List (CL) for file edits.
+    /// This method determines whether to create a new CL or reuse an existing one based on the
+    /// [`EditCLMode`] passed in `mode`. For example, `EditCLMode::ForceCreate` will always create
+    /// a new CL, while `EditCLMode::TryReuse` will attempt to find an open CL for the given user
+    /// and path and only create a new one if none exists.
+    ///
+    /// # Arguments
+    /// * `mode` - Controls whether to force creation of a new CL (`ForceCreate`) or try to reuse an
+    ///   existing open CL for the user and path when possible (`TryReuse`).
+    /// * `to_hash` - The commit hash representing the new state after the edit.
+    /// * `commit_message` - The message describing the changes made in the CL.
+    /// * `file_path` - The path of the file being edited.
+    /// * `username` - The username of the user performing the edit.
+    ///
+    /// # Returns
+    /// A `Result` containing the `mega_cl::Model` representing the found or created CL on success,
+    /// or a `GitError` on failure.
+    async fn find_or_create_cl_for_edit(
+        &self,
+        mode: EditCLMode,
+        to_hash: &str,
+        commit_message: &str,
+        file_path: &str,
+        username: &str,
+    ) -> Result<mega_cl::Model, GitError> {
+        let path = PathBuf::from(file_path);
+        let repo_path = path
+            .parent()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|| "/".to_string());
+
+        let storage = self.storage.cl_storage();
+        match mode {
+            EditCLMode::ForceCreate => {
+                self.create_new_cl(&repo_path, commit_message, to_hash, username)
+                    .await
+            }
+            EditCLMode::TryReuse(None) => {
+                if let Some(existing_cl) =
+                    storage
+                        .get_open_cl_by_path(&repo_path, username)
+                        .await
+                        .map_err(|e| GitError::CustomError(format!("Failed to fetch CL: {}", e)))?
+                {
+                    storage
+                        .update_cl_to_hash(existing_cl.clone(), to_hash)
+                        .await?;
+                    Ok(existing_cl)
+                } else {
+                    self.create_new_cl(&repo_path, commit_message, to_hash, username)
+                        .await
+                }
+            }
+            EditCLMode::TryReuse(Some(link)) => {
+                match self.storage.cl_storage().get_cl(&link).await {
+                    Ok(Some(model)) => {
+                        storage.update_cl_to_hash(model.clone(), to_hash).await?;
+                        Ok(model)
+                    }
+                    _ => {
+                        self.create_new_cl(&repo_path, commit_message, to_hash, username)
+                            .await
+                    }
+                }
+            }
+        }
+    }
+
+    /// Triggers a build for the specified Change List (CL).
+    /// It spawns a background task to handle the build process, ensuring that the main application flow remains responsive.
+    /// # Arguments
+    /// * `cl_link` - The unique identifier (link) of the CL for which the build is to be triggered.
+    ///
+    /// # Returns
+    /// A `Result` indicating success or failure. Returns `Ok(())` if the build was successfully triggered,
+    /// or a `GitError` if an error occurred during the process.
+    async fn trigger_build_for_cl(&self, cl_link: &str) -> Result<(), GitError> {
+        let config = self.storage.config();
+        let bellatrix = Bellatrix::new(config.build.clone());
+        let cl = self
+            .storage
+            .cl_storage()
+            .get_cl(cl_link)
+            .await
+            .map_err(|e| GitError::CustomError(format!("Failed to get CL: {}", e)))?
+            .ok_or_else(|| GitError::CustomError("CL not found".to_string()))?;
+
+        let storage = self.storage.clone();
+        let git_cache = self.git_object_cache.clone();
+
+        // Spawn a background task to handle the build process
+        tokio::spawn(async move {
+            let _ = BuildTriggerService::build_by_context(
+                storage,
+                git_cache,
+                Arc::new(bellatrix),
+                cl.into(),
+            )
+            .await;
+        });
+
+        Ok(())
+    }
+
     async fn create_annotated_tag_mono(
         &self,
         repo_path: Option<String>,
@@ -1318,7 +1487,7 @@ impl MonoApiService {
             };
 
             // Build chain of trees from root to parent, using updated cache when available
-            let mut components: Vec<String> = parent_path
+            let components: Vec<String> = parent_path
                 .components()
                 .filter_map(|c| match c {
                     std::path::Component::RootDir => None,
@@ -1335,13 +1504,12 @@ impl MonoApiService {
             ];
 
             let mut cursor = PathBuf::from("/");
-            for comp in &components {
-                cursor = cursor.join(comp);
+            let mut missing_components: Option<Vec<String>> = None;
+            for (idx, comp) in components.iter().enumerate() {
                 let parent_tree = chain_trees
                     .last()
                     .ok_or_else(|| GitError::CustomError("Empty tree chain".to_string()))?;
 
-                // Try to find existing child directory; if missing, create an empty tree placeholder
                 let maybe_child = parent_tree.tree_items.iter().find(|it| it.name == *comp);
                 let child_tree = if let Some(child_item) = maybe_child {
                     if child_item.mode != TreeItemMode::Tree {
@@ -1357,6 +1525,7 @@ impl MonoApiService {
                             comp
                         )));
                     }
+                    cursor = cursor.join(comp);
                     let child_hash = child_item.id;
                     if let Some(cached) = tree_cache.get(&cursor) {
                         cached.clone()
@@ -1381,24 +1550,28 @@ impl MonoApiService {
                         Tree::from_mega_model(model)
                     }
                 } else {
-                    // Absent in target head: create an empty directory tree and continue
-                    let empty = Tree::from_tree_items(Vec::new())
-                        .map_err(|e| GitError::CustomError(e.to_string()))?;
-                    // Cache the newly created empty directory so subsequent diffs within
-                    // the same path chain reuse the same tree instance.
-                    debug!(
-                        cl_link = %cl.link,
-                        path_component = %comp,
-                        cursor = %cursor.to_string_lossy(),
-                        "apply_changes: synthesize missing directory"
-                    );
-                    tree_cache.insert(cursor.clone(), empty.clone());
-                    new_trees.insert(empty.id, empty.clone());
-                    empty
+                    missing_components = Some(components[idx..].to_vec());
+                    break;
                 };
 
                 chain_paths.push(cursor.clone());
                 chain_trees.push(child_tree);
+            }
+
+            if let Some(missing) = missing_components {
+                let mut ctx = ApplyChangeContext {
+                    components: &components,
+                    chain_paths: &chain_paths,
+                    chain_trees: &chain_trees,
+                    tree_cache: &mut tree_cache,
+                    new_trees: &mut new_trees,
+                };
+                if let Some(updated_root) =
+                    Self::apply_missing_path_update(&cl.link, missing, op, file_name, &mut ctx)?
+                {
+                    root_tree = updated_root;
+                }
+                continue;
             }
 
             let parent_dir_abs = cursor.clone();
@@ -1427,7 +1600,7 @@ impl MonoApiService {
                 }
             }
 
-            let mut updated_tree =
+            let updated_tree =
                 Tree::from_tree_items(items).map_err(|e| GitError::CustomError(e.to_string()))?;
             // If parent tree id did not change (no-op), skip propagation for this diff.
             if updated_tree.id == parent_tree.id {
@@ -1440,54 +1613,23 @@ impl MonoApiService {
                 );
                 continue;
             }
-            tree_cache.insert(parent_dir_abs, updated_tree.clone());
-            new_trees.insert(updated_tree.id, updated_tree.clone());
+            Self::record_tree(
+                parent_dir_abs,
+                &updated_tree,
+                &mut tree_cache,
+                &mut new_trees,
+            );
 
             // Propagate updated hashes up to root
-            components.reverse();
-            for (idx, comp) in components.iter().enumerate() {
-                let parent_index = chain_trees
-                    .len()
-                    .checked_sub(idx + 1)
-                    .ok_or_else(|| GitError::CustomError("Tree chain underflow".to_string()))?;
-
-                let mut parent_tree = chain_trees[parent_index].clone();
-                let mut parent_items = parent_tree.tree_items.clone();
-                if let Some(pos) = parent_items.iter().position(|it| it.name == *comp) {
-                    parent_items[pos].id = updated_tree.id;
-                } else {
-                    // Missing entry: create a new directory item pointing to updated child
-                    parent_items.push(TreeItem::new(
-                        TreeItemMode::Tree,
-                        updated_tree.id,
-                        comp.clone(),
-                    ));
-                    // Keep deterministic ordering
-                    parent_items.sort_by(|a, b| a.name.cmp(&b.name));
-                    debug!(
-                        cl_link = %cl.link,
-                        parent_path = %chain_paths
-                            .get(parent_index)
-                            .map(|p| p.to_string_lossy().to_string())
-                            .unwrap_or_else(|| "<missing>".into()),
-                        created_entry = %comp,
-                        "apply_changes: inserted missing parent entry"
-                    );
-                }
-
-                parent_tree = Tree::from_tree_items(parent_items)
-                    .map_err(|e| GitError::CustomError(e.to_string()))?;
-
-                let parent_path_idx = chain_paths.get(parent_index).cloned().ok_or_else(|| {
-                    GitError::CustomError("Tree path chain underflow".to_string())
-                })?;
-                tree_cache.insert(parent_path_idx.clone(), parent_tree.clone());
-                new_trees.insert(parent_tree.id, parent_tree.clone());
-                updated_tree = parent_tree;
-            }
-
-            // After propagation, updated_tree is the new root
-            root_tree = updated_tree;
+            root_tree = Self::propagate_up(
+                &cl.link,
+                updated_tree,
+                &components,
+                &chain_paths,
+                &chain_trees,
+                &mut tree_cache,
+                &mut new_trees,
+            )?;
         }
 
         let result = TreeUpdateResult {
@@ -1510,6 +1652,205 @@ impl MonoApiService {
             })?),
         )
         .await
+    }
+
+    fn apply_missing_path_update(
+        cl_link: &str,
+        missing: Vec<String>,
+        op: Option<ObjectHash>,
+        file_name: &str,
+        ctx: &mut ApplyChangeContext<'_>,
+    ) -> Result<Option<Tree>, GitError> {
+        debug_assert!(
+            !missing.iter().any(|c| c == file_name),
+            "missing path components should not include file name"
+        );
+        if op.is_none() {
+            debug!(
+                cl_link,
+                missing_path = %missing.join("/"),
+                "apply_changes: delete on missing path (no-op)"
+            );
+            return Ok(None);
+        }
+
+        let new_hash = op.ok_or_else(|| {
+            GitError::CustomError("Missing blob hash for new/modified file".to_string())
+        })?;
+
+        if missing.is_empty() {
+            // No missing directories: update directly under the last existing parent.
+            let parent_path = ctx.chain_paths.last().cloned().unwrap_or_else(PathBuf::new);
+            let parent_tree = ctx
+                .chain_trees
+                .last()
+                .cloned()
+                .ok_or_else(|| GitError::CustomError("Root tree missing".to_string()))?;
+            let updated_tree = Self::update_parent_tree(
+                cl_link,
+                &parent_tree,
+                file_name,
+                TreeItemMode::Blob,
+                new_hash,
+                None,
+            )?;
+            Self::record_tree(parent_path, &updated_tree, ctx.tree_cache, ctx.new_trees);
+
+            return Ok(Some(Self::propagate_up(
+                cl_link,
+                updated_tree,
+                ctx.components,
+                ctx.chain_paths,
+                ctx.chain_trees,
+                ctx.tree_cache,
+                ctx.new_trees,
+            )?));
+        }
+
+        // Build missing subtree from leaf (parent dir) upward without empty trees.
+        let file_item = TreeItem::new(TreeItemMode::Blob, new_hash, file_name.to_string());
+        let mut updated_tree = Tree::from_tree_items(vec![file_item])
+            .map_err(|e| GitError::CustomError(e.to_string()))?;
+
+        let mut missing_paths: Vec<PathBuf> = Vec::new();
+        let mut base = ctx.chain_paths.last().cloned().unwrap_or_else(PathBuf::new);
+        for comp in &missing {
+            base = base.join(comp);
+            missing_paths.push(base.clone());
+        }
+
+        if let Some(parent_path) = missing_paths.last() {
+            Self::record_tree(
+                parent_path.clone(),
+                &updated_tree,
+                ctx.tree_cache,
+                ctx.new_trees,
+            );
+        } else {
+            Self::record_tree(PathBuf::new(), &updated_tree, ctx.tree_cache, ctx.new_trees);
+        }
+
+        for (child_name, path) in missing
+            .iter()
+            .rev()
+            .skip(1)
+            .zip(missing_paths.iter().rev().skip(1))
+        {
+            let wrapper = Tree::from_tree_items(vec![TreeItem::new(
+                TreeItemMode::Tree,
+                updated_tree.id,
+                child_name.clone(),
+            )])
+            .map_err(|e| GitError::CustomError(e.to_string()))?;
+            updated_tree = wrapper;
+            Self::record_tree(path.clone(), &updated_tree, ctx.tree_cache, ctx.new_trees);
+        }
+
+        // Attach the newly built subtree to the last existing parent.
+        let parent_tree = ctx
+            .chain_trees
+            .last()
+            .cloned()
+            .ok_or_else(|| GitError::CustomError("Root tree missing".to_string()))?;
+        let attach_name = missing
+            .first()
+            .ok_or_else(|| GitError::CustomError("Missing component chain empty".to_string()))?;
+        updated_tree = Self::update_parent_tree(
+            cl_link,
+            &parent_tree,
+            attach_name,
+            TreeItemMode::Tree,
+            updated_tree.id,
+            None,
+        )?;
+        let parent_path = ctx.chain_paths.last().cloned().unwrap_or_else(PathBuf::new);
+        Self::record_tree(parent_path, &updated_tree, ctx.tree_cache, ctx.new_trees);
+
+        Ok(Some(Self::propagate_up(
+            cl_link,
+            updated_tree,
+            ctx.components,
+            ctx.chain_paths,
+            ctx.chain_trees,
+            ctx.tree_cache,
+            ctx.new_trees,
+        )?))
+    }
+
+    fn update_parent_tree(
+        cl_link: &str,
+        parent_tree: &Tree,
+        name: &str,
+        mode: TreeItemMode,
+        id: ObjectHash,
+        debug_parent_path: Option<&PathBuf>,
+    ) -> Result<Tree, GitError> {
+        let mut parent_items = parent_tree.tree_items.clone();
+        if let Some(pos) = parent_items.iter().position(|it| it.name == name) {
+            parent_items[pos].id = id;
+        } else {
+            parent_items.push(TreeItem::new(mode, id, name.to_string()));
+            parent_items.sort_by(|a, b| a.name.cmp(&b.name));
+            if let Some(path) = debug_parent_path {
+                debug!(
+                    cl_link,
+                    parent_path = %path.to_string_lossy(),
+                    created_entry = %name,
+                    "apply_changes: inserted missing parent entry"
+                );
+            }
+        }
+
+        Tree::from_tree_items(parent_items).map_err(|e| GitError::CustomError(e.to_string()))
+    }
+
+    fn record_tree(
+        path: PathBuf,
+        tree: &Tree,
+        tree_cache: &mut HashMap<PathBuf, Tree>,
+        new_trees: &mut HashMap<ObjectHash, Tree>,
+    ) {
+        tree_cache.insert(path, tree.clone());
+        new_trees.insert(tree.id, tree.clone());
+    }
+
+    fn propagate_up(
+        cl_link: &str,
+        mut updated_tree: Tree,
+        components: &[String],
+        chain_paths: &[PathBuf],
+        chain_trees: &[Tree],
+        tree_cache: &mut HashMap<PathBuf, Tree>,
+        new_trees: &mut HashMap<ObjectHash, Tree>,
+    ) -> Result<Tree, GitError> {
+        debug_assert!(
+            components.len() >= chain_trees.len().saturating_sub(1),
+            "components length must cover parent chain"
+        );
+
+        for parent_index in (0..chain_trees.len().saturating_sub(1)).rev() {
+            let comp = components
+                .get(parent_index)
+                .ok_or_else(|| GitError::CustomError("Tree path chain underflow".to_string()))?;
+
+            let parent_tree = Self::update_parent_tree(
+                cl_link,
+                &chain_trees[parent_index],
+                comp,
+                TreeItemMode::Tree,
+                updated_tree.id,
+                chain_paths.get(parent_index),
+            )?;
+
+            let parent_path_idx = chain_paths
+                .get(parent_index)
+                .cloned()
+                .ok_or_else(|| GitError::CustomError("Tree path chain underflow".to_string()))?;
+            Self::record_tree(parent_path_idx, &parent_tree, tree_cache, new_trees);
+            updated_tree = parent_tree;
+        }
+
+        Ok(updated_tree)
     }
 
     /// Merges a CL without checking for conflicts.

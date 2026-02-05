@@ -3,6 +3,10 @@ name = "td_util"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "td_util"
+path = "src/lib.rs"
+
 [dependencies]
 anyhow = "1.0"
 argfile = "0.1.5"

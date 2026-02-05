@@ -74,6 +74,46 @@ TARGET_PLATFORMS=linux/amd64 ./scripts/demo/build-demo-images-local.sh
 
 **Note:** This script only supports single-platform builds. Multiple platforms are not supported.
 
+## Windows Usage
+
+For Windows users, a batch script `build-demo-images-local.bat` is provided with the same functionality as the Bash script.
+
+### Basic Usage
+
+Build all images locally (default behavior):
+```cmd
+.\scripts\demo\build-demo-images-local.bat
+```
+
+Build a specific image:
+```cmd
+.\scripts\demo\build-demo-images-local.bat mono-engine
+```
+
+### Pushing to AWS ECR
+
+Build and push all images to AWS ECR:
+```cmd
+.\scripts\demo\build-demo-images-local.bat --push
+```
+
+Build and push a specific image:
+```cmd
+.\scripts\demo\build-demo-images-local.bat mono-engine --push
+```
+
+### Platform Detection
+
+The script automatically detects your machine architecture (AMD64 or ARM64) based on `%PROCESSOR_ARCHITECTURE%`.
+Note that since Windows builds use Docker Desktop to run Linux containers, the default `TARGET_PLATFORMS` is `linux/amd64` (for standard x64 machines) or `linux/arm64`.
+
+To override, set the `TARGET_PLATFORMS` environment variable:
+
+```cmd
+set TARGET_PLATFORMS=linux/amd64
+.\scripts\demo\build-demo-images-local.bat
+```
+
 ## Available Images
 
 | Image Name | Dockerfile Path | Build Context | Tag |

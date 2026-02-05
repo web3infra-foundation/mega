@@ -1,7 +1,11 @@
 [package]
 name = "vault"
 version = "0.1.0"
-edition = "2024"
+edition.workspace = true
+
+[lib]
+name = "vault"
+path = "src/lib.rs"
 
 [dependencies]
 jupiter = { workspace = true }

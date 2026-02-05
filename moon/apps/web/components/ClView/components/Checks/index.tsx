@@ -10,15 +10,15 @@ import { fetchHTTPLog } from '@/hooks/SSE/useGetHTTPLog'
 
 import { useTaskSSE } from '../../hook/useSSM'
 import { statusMapAtom } from './cpns/store'
-import { Task } from './cpns/Task'
+import { TreeRoot } from './cpns/Task'
 
 type LogStatus = 'idle' | 'loading' | 'success' | 'empty' | 'error'
 
 const MIN_LEFT_WIDTH = 200
 const MAX_LEFT_WIDTH_PERCENT = 0.7
-const DEFAULT_LEFT_WIDTH_PERCENT = 0.4
+const DEFAULT_LEFT_WIDTH_PERCENT = 0.3
 
-const Checks = ({ cl }: { cl: number }) => {
+const Checks = ({ cl, path }: { cl: number; path?: string }) => {
   const [buildid, setBuildId] = useAtom(buildIdAtom)
   const { logsMap, setEventSource, eventSourcesRef, setLogsMap } = useTaskSSE()
   const [statusMap, _setStatusMap] = useAtom(statusMapAtom)
@@ -362,11 +362,9 @@ const Checks = ({ cl }: { cl: number }) => {
           <div
             ref={leftPanelRef}
             className='border-primary h-full overflow-y-auto border-r'
-            style={{ width: leftWidth ?? '40%', flexShrink: 0 }}
+            style={{ width: leftWidth ?? '30%', flexShrink: 0 }}
           >
-            {validTasks.map((t) => (
-              <Task key={t.task_id} list={t} logStatus={logStatus} />
-            ))}
+            <TreeRoot path={path} tasks={validTasks} logStatus={logStatus} />
           </div>
           {/* Resizer handle */}
           <div

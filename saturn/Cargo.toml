@@ -1,7 +1,12 @@
 [package]
 name = "saturn"
 version = "0.1.0"
-edition = "2024"
+edition.workspace = true
+
+
+[lib]
+name = "saturn"
+path = "src/lib.rs"
 
 [dependencies]
 serde = { workspace = true }

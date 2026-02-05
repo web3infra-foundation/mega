@@ -190,7 +190,7 @@ async fn process_server_message(
 
                                 let build_result = buck_build(
                                     task_id_uuid,
-                                    TaskBuildRequest { repo, cl_link, changes },
+                                    TaskBuildRequest { repo, cl_link, changes, None},
                                     sender.clone(),
                                 )
                                 .await;

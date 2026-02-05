@@ -52,3 +52,6 @@ monobean/resources/lib
 orion-server/test_targets.sh
 orion-server/test-artifacts/
 orion-server/docker-compose.override.yml
+
+# local dev environment
+/scripts/dev/.env

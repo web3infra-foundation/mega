@@ -224,6 +224,20 @@ impl ClStorage {
         to_hash: &str,
         username: &str,
     ) -> Result<String, MegaError> {
+        self.new_cl_model(path, link, title, from_hash, to_hash, username)
+            .await
+            .map(|res| res.link)
+    }
+
+    pub async fn new_cl_model(
+        &self,
+        path: &str,
+        link: &str,
+        title: &str,
+        from_hash: &str,
+        to_hash: &str,
+        username: &str,
+    ) -> Result<mega_cl::Model, MegaError> {
         let model = mega_cl::Model::new(
             path.to_owned(),
             title.to_owned(),
@@ -236,7 +250,7 @@ impl ClStorage {
             .into_active_model()
             .insert(self.get_connection())
             .await?;
-        Ok(res.link)
+        Ok(res)
     }
 
     /// Create a new CL with Draft status (for Buck upload)

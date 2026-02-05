@@ -13,7 +13,8 @@
 use glob::{MatchOptions, Pattern};
 use itertools::{Either, Itertools};
 
-use crate::types::{Glob, GlobInclusion, ProjectRelativePath};
+use crate::types::{Glob, GlobInclusion};
+use api_model::buck2::types::ProjectRelativePath;
 
 pub struct GlobSpec {
     include: GlobSet,

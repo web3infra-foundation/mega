@@ -1,5 +1,6 @@
 use std::{collections::HashMap, fmt};
 
+use callisto::mega_cl;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -12,6 +13,7 @@ pub enum BuildTriggerType {
     Retry,
     Webhook,
     Schedule,
+    WebEdit,
 }
 
 impl fmt::Display for BuildTriggerType {
@@ -22,6 +24,7 @@ impl fmt::Display for BuildTriggerType {
             BuildTriggerType::Retry => "retry",
             BuildTriggerType::Webhook => "webhook",
             BuildTriggerType::Schedule => "schedule",
+            BuildTriggerType::WebEdit => "webedit",
         };
         write!(f, "{}", s)
     }
@@ -144,6 +147,19 @@ pub struct SchedulePayload {
     pub cl_id: Option<i64>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebEditPayload {
+    pub repo: String,
+    pub from_hash: String,
+    pub commit_hash: String,
+    pub cl_link: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cl_id: Option<i64>,
+    pub builds: serde_json::Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub triggered_by: Option<String>,
+}
+
 /// Trigger payload - stores context specific to each trigger type
 /// This enum is serialized to JSON and stored in database's trigger_payload column
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -154,6 +170,7 @@ pub enum BuildTriggerPayload {
     Retry(RetryPayload),
     Webhook(WebhookPayload),
     Schedule(SchedulePayload),
+    WebEdit(WebEditPayload),
 }
 
 impl BuildTriggerPayload {
@@ -164,6 +181,7 @@ impl BuildTriggerPayload {
             BuildTriggerPayload::Retry(p) => &p.repo,
             BuildTriggerPayload::Webhook(p) => &p.repo,
             BuildTriggerPayload::Schedule(p) => &p.repo,
+            BuildTriggerPayload::WebEdit(p) => &p.repo,
         }
     }
 
@@ -174,6 +192,7 @@ impl BuildTriggerPayload {
             BuildTriggerPayload::Retry(p) => &p.commit_hash,
             BuildTriggerPayload::Webhook(p) => &p.commit_hash,
             BuildTriggerPayload::Schedule(p) => &p.commit_hash,
+            BuildTriggerPayload::WebEdit(p) => &p.commit_hash,
         }
     }
 
@@ -184,6 +203,7 @@ impl BuildTriggerPayload {
             BuildTriggerPayload::Retry(p) => &p.cl_link,
             BuildTriggerPayload::Webhook(p) => &p.cl_link,
             BuildTriggerPayload::Schedule(p) => &p.cl_link,
+            BuildTriggerPayload::WebEdit(p) => &p.cl_link,
         }
     }
 
@@ -194,6 +214,7 @@ impl BuildTriggerPayload {
             BuildTriggerPayload::Retry(p) => p.cl_id,
             BuildTriggerPayload::Webhook(p) => p.cl_id,
             BuildTriggerPayload::Schedule(p) => p.cl_id,
+            BuildTriggerPayload::WebEdit(p) => p.cl_id,
         }
     }
 
@@ -204,6 +225,7 @@ impl BuildTriggerPayload {
             BuildTriggerPayload::Retry(p) => Some(&p.triggered_by),
             BuildTriggerPayload::Webhook(_) => None,
             BuildTriggerPayload::Schedule(_) => None,
+            BuildTriggerPayload::WebEdit(p) => p.triggered_by.as_deref(),
         }
     }
 
@@ -214,6 +236,7 @@ impl BuildTriggerPayload {
             BuildTriggerPayload::Retry(p) => &p.from_hash,
             BuildTriggerPayload::Webhook(_) => "",
             BuildTriggerPayload::Schedule(_) => "",
+            BuildTriggerPayload::WebEdit(p) => &p.from_hash,
         }
     }
 }
@@ -346,6 +369,25 @@ impl TriggerContext {
             cl_id,
             params: None,
             original_trigger_id: Some(original_trigger_id),
+            ref_name: None,
+            ref_type: None,
+        }
+    }
+}
+
+impl From<mega_cl::Model> for TriggerContext {
+    fn from(cl: mega_cl::Model) -> Self {
+        TriggerContext {
+            trigger_type: BuildTriggerType::WebEdit,
+            trigger_source: TriggerSource::User,
+            triggered_by: Some(cl.username),
+            repo_path: cl.path,
+            from_hash: cl.from_hash,
+            commit_hash: cl.to_hash,
+            cl_link: Some(cl.link),
+            cl_id: Some(cl.id),
+            params: None,
+            original_trigger_id: None,
             ref_name: None,
             ref_type: None,
         }
