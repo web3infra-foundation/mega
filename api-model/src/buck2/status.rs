@@ -11,9 +11,10 @@
 use std::{fs, path::Path};
 
 use anyhow::Context as _;
-pub use crate::buck2::types::ProjectRelativePath;
 use thiserror::Error;
 use utoipa::ToSchema;
+
+pub use crate::buck2::types::ProjectRelativePath;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, serde::Serialize, serde::Deserialize, ToSchema)]
 pub enum Status<Path> {

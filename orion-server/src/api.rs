@@ -5,12 +5,13 @@ use std::{
 
 use anyhow::Result;
 use api_model::buck2::{
-        api::{RetryBuildRequest, TaskBuildRequest},
-        types::{
-            LogErrorResponse, LogEvent, LogLinesResponse, LogReadMode, ProjectRelativePath, Status, TargetLogLinesResponse, TargetLogQuery, TaskHistoryQuery
-        },
-        ws::WSMessage,
-    };
+    api::{RetryBuildRequest, TaskBuildRequest},
+    types::{
+        LogErrorResponse, LogEvent, LogLinesResponse, LogReadMode, ProjectRelativePath, Status,
+        TargetLogLinesResponse, TargetLogQuery, TaskHistoryQuery,
+    },
+    ws::WSMessage,
+};
 use axum::{
     Json, Router,
     extract::{
@@ -42,12 +43,14 @@ use crate::{
     auto_retry::AutoRetryJudger,
     log::log_service::LogService,
     model::{
-        builds, targets::{self, TargetState, TargetWithBuilds},
+        builds,
+        targets::{self, TargetState, TargetWithBuilds},
         tasks,
     },
     orion_common::model::{CommonPage, PageParams},
     scheduler::{
-        self, BuildEventPayload, BuildInfo, BuildRequest, TaskQueueStats, TaskScheduler, WorkerInfo, WorkerStatus
+        self, BuildEventPayload, BuildInfo, BuildRequest, TaskQueueStats, TaskScheduler,
+        WorkerInfo, WorkerStatus,
     },
 };
 
@@ -1685,7 +1688,7 @@ pub async fn build_retry_handler(
     }
 }
 
-// TODO: replace with new build 
+// TODO: replace with new build
 async fn immediate_work(
     state: &AppState,
     build_id: Uuid,
@@ -1706,11 +1709,11 @@ async fn immediate_work(
     // Create build information
 
     let event = BuildEventPayload::new(
-        build.id, 
-        build.task_id, 
-        req.cl_link.clone(), 
-        build.repo.clone(), 
-        retry_count
+        build.id,
+        build.task_id,
+        req.cl_link.clone(),
+        build.repo.clone(),
+        retry_count,
     );
     let build_info = BuildInfo {
         event_payload: event,

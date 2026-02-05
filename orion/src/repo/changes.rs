@@ -16,7 +16,6 @@ use td_util_buck::{
     cells::CellInfo,
     types::{CellPath, Package},
 };
-use ProjectRelativePath;
 
 #[derive(Default, Debug)]
 pub struct Changes {
@@ -92,7 +91,9 @@ impl Changes {
 }
 #[cfg(test)]
 mod tests {
-    use td_util_buck::types::{CellPath, ProjectRelativePath};
+    use api_model::buck2::types::ProjectRelativePath;
+    use td_util_buck::types::CellPath;
+
     use super::*;
 
     #[test]

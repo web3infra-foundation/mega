@@ -439,8 +439,13 @@ impl TaskScheduler {
         let build_info = BuildInfo {
             event_payload: pending_build_event.event_payload.clone(),
             changes: pending_build_event.changes.clone(),
-            target_id: pending_build_event.target_id.map_or_else(|| Uuid::nil(), |id| id),
-            target_path: pending_build_event.target_path.clone().unwrap_or_else(|| "".to_string()),
+            target_id: pending_build_event
+                .target_id
+                .map_or_else(|| Uuid::nil(), |id| id),
+            target_path: pending_build_event
+                .target_path
+                .clone()
+                .unwrap_or_else(|| "".to_string()),
             _worker_id: chosen_id.clone(),
             auto_retry_judger: AutoRetryJudger::new(),
             started_at: start_at,

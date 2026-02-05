@@ -1,5 +1,6 @@
 use std::{ops::ControlFlow, time::Duration};
 
+use api_model::buck2::{api::TaskBuildRequest, ws::WSMessage};
 use futures_util::{SinkExt, StreamExt};
 use tokio::{
     net::TcpStream,
@@ -11,12 +12,9 @@ use tokio::{
 use tokio_tungstenite::{
     MaybeTlsStream, WebSocketStream, connect_async, tungstenite::protocol::Message,
 };
-use api_model::buck2::{api::TaskBuildRequest, ws::WSMessage};
 use uuid::Uuid;
 
-use crate::{
-    api::{buck_build},
-};
+use crate::api::buck_build;
 
 /// Manages persistent WebSocket connection with automatic reconnection.
 ///
@@ -190,7 +188,12 @@ async fn process_server_message(
 
                                 let build_result = buck_build(
                                     task_id_uuid,
-                                    TaskBuildRequest { repo, cl_link, changes, None},
+                                    TaskBuildRequest {
+                                        repo,
+                                        cl_link,
+                                        changes,
+                                        None,
+                                    },
                                     sender.clone(),
                                 )
                                 .await;

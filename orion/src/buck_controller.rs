@@ -7,25 +7,24 @@ use std::{
 };
 
 use anyhow::anyhow;
+use api_model::buck2::{
+    types::{ProjectRelativePath, Status, TaskPhase},
+    ws::WSMessage,
+};
 use once_cell::sync::Lazy;
 use serde_json::{Value, json};
 use td_util::{command::spawn, file_io::file_writer};
 use td_util_buck::{
     cells::CellInfo,
     run::{Buck2, targets_arguments},
-    targets::Targets, types::TargetLabel,
+    targets::Targets,
+    types::TargetLabel,
 };
 use tokio::{io::AsyncBufReadExt, process::Command, sync::mpsc::UnboundedSender, time::Duration};
 
 // Import complete Error trait for better error handling
 use crate::repo::changes::Changes;
-use crate::{
-    repo::{diff},
-};
-use api_model::buck2::{
-    types::{ProjectRelativePath, Status, TaskPhase},
-    ws::WSMessage,
-};
+use crate::repo::diff;
 
 fn scorpio_base_url() -> String {
     crate::scorpio_api::base_url()

@@ -1,5 +1,4 @@
 /// User-defined build event, should be changed later in migration to fit
-
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 

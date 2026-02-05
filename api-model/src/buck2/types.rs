@@ -1,8 +1,8 @@
 //! Types related to Buck2 build system.
 
+use parse_display::Display;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use parse_display::Display;
 
 /// Task phase when in buck2 build
 #[allow(dead_code)]

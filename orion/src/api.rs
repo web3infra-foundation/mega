@@ -1,10 +1,11 @@
-// use api_model::buck2::{api::{TaskBuildRequest, TaskBuildResult}, types::Status, ws::WSMessage};
-// use serde::Serialize;
-// use td_util_buck::types::ProjectRelativePath;
-// use tokio::sync::mpsc::UnboundedSender;
-// use uuid::Uuid;
+use api_model::buck2::{
+    api::{TaskBuildRequest, TaskBuildResult},
+    ws::WSMessage,
+};
+use tokio::sync::mpsc::UnboundedSender;
+use uuid::Uuid;
 
-// use crate::{buck_controller};
+use crate::buck_controller;
 
 // /// Parameters required to execute a buck build operation.
 // #[derive(Debug)]
@@ -78,7 +79,7 @@ pub async fn buck_build(
                     message,
                     status.code()
                 );
-                BuildResult {
+                TaskBuildResult {
                     success: status.success(),
                     id: id_str.clone(),
                     exit_code: status.code(),
@@ -88,7 +89,7 @@ pub async fn buck_build(
             Err(e) => {
                 let error_msg = format!("Build execution failed: {e}");
                 tracing::error!("[Task {}] {}", id_str, error_msg);
-                BuildResult {
+                TaskBuildResult {
                     success: false,
                     id: id_str.clone(),
                     exit_code: None,
