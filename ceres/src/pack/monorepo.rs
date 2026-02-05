@@ -1054,13 +1054,16 @@ impl MonoRepo {
                 triggered_by: self.username.clone(),
             };
 
-            let _trigger_id = BuildTriggerService::handle_git_push_event(
+            if let Err(e) = BuildTriggerService::handle_git_push_event(
                 self.storage.clone(),
                 self.git_object_cache.clone(),
                 self.bellatrix.clone(),
                 event,
             )
-            .await?;
+            .await
+            {
+                tracing::error!("Failed to trigger CI pipeline: {}", e);
+            }
         }
 
         let check_reg = CheckerRegistry::new(self.storage.clone().into(), self.username());
