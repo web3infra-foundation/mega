@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use api_model::common::{CommonPage, CommonResult, PageParams};
 use axum::{
     Json,
@@ -323,12 +321,10 @@ async fn cl_files_list(
     let new_files = stg.get_commit_blobs(&cl.to_hash).await?;
     let cl_diff_files = stg.cl_files_list(old_files, new_files.clone()).await?; // TODO
 
-    let cl_base = PathBuf::from(cl.path);
     let res = cl_diff_files
         .into_iter()
         .map(|m| {
-            let mut item: ClFilesRes = m.into();
-            item.path = cl_base.join(item.path).to_string_lossy().to_string();
+            let item: ClFilesRes = m.into();
             item
         })
         .collect::<Vec<ClFilesRes>>();
