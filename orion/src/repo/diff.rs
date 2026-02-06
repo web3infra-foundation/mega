@@ -664,17 +664,17 @@ fn annotate_terminal_nodes(
 #[cfg(test)]
 mod tests {
 
+    use api_model::buck2::{status::Status, types::ProjectRelativePath};
     use itertools::Itertools;
     use td_util::prelude::*;
     use td_util_buck::{
         cells::CellInfo,
         labels::Labels,
         targets::{BuckImport, TargetsEntry},
-        types::{PackageValues, ProjectRelativePath, TargetHash, TargetPattern},
+        types::{PackageValues, TargetHash, TargetPattern},
     };
 
     use super::*;
-    use crate::repo::sapling::status::Status;
 
     fn basic_changes() -> Changes {
         Changes::testing(&[Status::Modified(CellPath::new("foo//irrelevant_file"))])
