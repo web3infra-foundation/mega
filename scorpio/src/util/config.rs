@@ -18,12 +18,44 @@ const DEFAULT_LOAD_DIR_DEPTH: usize = 3;
 const DEFAULT_FETCH_FILE_THREAD: usize = 10;
 const DEFAULT_ANTARES_SUBDIR: &str = "antares";
 const DEFAULT_DICFUSE_IMPORT_CONCURRENCY: usize = 4;
+
+// Dicfuse timeout/cache defaults are tuned for interactive usage.
+// Antares uses a separate set of build-oriented defaults below.
+//
+// TODO(perf):
+// - Re-tune TTL/timeout defaults from production lookup metrics.
+// - Split timeout knobs by request class (tree listing vs blob fetch).
+// - Support per-mount overrides instead of process-global defaults.
+
+/// Directory refresh TTL for base Dicfuse mounts.
 const DEFAULT_DICFUSE_DIR_SYNC_TTL_SECS: u64 = 5;
+
+/// Kernel entry TTL for base Dicfuse mounts.
+const DEFAULT_DICFUSE_REPLY_TTL_SECS: u64 = 2;
+
+/// Per-request timeout for directory listing RPCs.
+const DEFAULT_DICFUSE_FETCH_DIR_TIMEOUT_SECS: u64 = 10;
+
+/// TCP connect timeout for Dicfuse HTTP requests.
+const DEFAULT_DICFUSE_CONNECT_TIMEOUT_SECS: u64 = 3;
+
+/// Retry count for transient directory listing failures.
+const DEFAULT_DICFUSE_FETCH_DIR_MAX_RETRIES: u32 = 3;
+
 const DEFAULT_DICFUSE_OPEN_BUFF_MAX_BYTES: u64 = 256 * 1024 * 1024; // 256MiB
 const DEFAULT_DICFUSE_OPEN_BUFF_MAX_FILES: usize = 4096;
 
-// Antares defaults: optimized for build lowerdir stability and resource predictability.
-const DEFAULT_ANTARES_LOAD_DIR_DEPTH: usize = 0; // disable deep prewarm; rely on lazy per-dir loads
+// Antares mounts are primarily used by build workloads.
+
+/// Preload directory depth for Antares mounts.
+const DEFAULT_ANTARES_LOAD_DIR_DEPTH: usize = 3;
+
+/// Directory refresh TTL for Antares mounts.
+const DEFAULT_ANTARES_DICFUSE_DIR_SYNC_TTL_SECS: u64 = 120;
+
+/// Kernel entry TTL for Antares mounts.
+const DEFAULT_ANTARES_DICFUSE_REPLY_TTL_SECS: u64 = 60;
+
 const DEFAULT_ANTARES_DICFUSE_OPEN_BUFF_MAX_BYTES: u64 = 64 * 1024 * 1024; // 64MiB
 const DEFAULT_ANTARES_DICFUSE_OPEN_BUFF_MAX_FILES: usize = 1024;
 
@@ -271,6 +303,22 @@ fn get_config() -> &'static ScorpioConfig {
             "dicfuse_dir_sync_ttl_secs".to_string(),
             DEFAULT_DICFUSE_DIR_SYNC_TTL_SECS.to_string(),
         );
+        config.insert(
+            "dicfuse_reply_ttl_secs".to_string(),
+            DEFAULT_DICFUSE_REPLY_TTL_SECS.to_string(),
+        );
+        config.insert(
+            "dicfuse_fetch_dir_timeout_secs".to_string(),
+            DEFAULT_DICFUSE_FETCH_DIR_TIMEOUT_SECS.to_string(),
+        );
+        config.insert(
+            "dicfuse_connect_timeout_secs".to_string(),
+            DEFAULT_DICFUSE_CONNECT_TIMEOUT_SECS.to_string(),
+        );
+        config.insert(
+            "dicfuse_fetch_dir_max_retries".to_string(),
+            DEFAULT_DICFUSE_FETCH_DIR_MAX_RETRIES.to_string(),
+        );
         config.insert("dicfuse_stat_mode".to_string(), "accurate".to_string());
         config.insert(
             "dicfuse_open_buff_max_bytes".to_string(),
@@ -297,7 +345,11 @@ fn get_config() -> &'static ScorpioConfig {
         );
         config.insert(
             "antares_dicfuse_dir_sync_ttl_secs".to_string(),
-            DEFAULT_DICFUSE_DIR_SYNC_TTL_SECS.to_string(),
+            DEFAULT_ANTARES_DICFUSE_DIR_SYNC_TTL_SECS.to_string(),
+        );
+        config.insert(
+            "antares_dicfuse_reply_ttl_secs".to_string(),
+            DEFAULT_ANTARES_DICFUSE_REPLY_TTL_SECS.to_string(),
         );
         // Antares defaults under base_path/antares
         config.insert(
@@ -461,6 +513,38 @@ pub fn dicfuse_dir_sync_ttl_secs() -> u64 {
         .unwrap_or(DEFAULT_DICFUSE_DIR_SYNC_TTL_SECS)
 }
 
+pub fn dicfuse_reply_ttl_secs() -> u64 {
+    get_config()
+        .config
+        .get("dicfuse_reply_ttl_secs")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(DEFAULT_DICFUSE_REPLY_TTL_SECS)
+}
+
+pub fn dicfuse_fetch_dir_timeout_secs() -> u64 {
+    get_config()
+        .config
+        .get("dicfuse_fetch_dir_timeout_secs")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(DEFAULT_DICFUSE_FETCH_DIR_TIMEOUT_SECS)
+}
+
+pub fn dicfuse_connect_timeout_secs() -> u64 {
+    get_config()
+        .config
+        .get("dicfuse_connect_timeout_secs")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(DEFAULT_DICFUSE_CONNECT_TIMEOUT_SECS)
+}
+
+pub fn dicfuse_fetch_dir_max_retries() -> u32 {
+    get_config()
+        .config
+        .get("dicfuse_fetch_dir_max_retries")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(DEFAULT_DICFUSE_FETCH_DIR_MAX_RETRIES)
+}
+
 pub fn dicfuse_stat_mode() -> DicfuseStatMode {
     parse_stat_mode(
         get_config().config.get("dicfuse_stat_mode"),
@@ -497,7 +581,15 @@ pub fn antares_dicfuse_dir_sync_ttl_secs() -> u64 {
         .config
         .get("antares_dicfuse_dir_sync_ttl_secs")
         .and_then(|s| s.parse().ok())
-        .unwrap_or(DEFAULT_DICFUSE_DIR_SYNC_TTL_SECS)
+        .unwrap_or(DEFAULT_ANTARES_DICFUSE_DIR_SYNC_TTL_SECS)
+}
+
+pub fn antares_dicfuse_reply_ttl_secs() -> u64 {
+    get_config()
+        .config
+        .get("antares_dicfuse_reply_ttl_secs")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(DEFAULT_ANTARES_DICFUSE_REPLY_TTL_SECS)
 }
 
 pub fn antares_dicfuse_stat_mode() -> DicfuseStatMode {
