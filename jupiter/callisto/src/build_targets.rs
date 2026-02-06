@@ -4,7 +4,7 @@ use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
-#[sea_orm(table_name = "targets_refactor")]
+#[sea_orm(table_name = "build_targets")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
@@ -18,18 +18,18 @@ pub struct Model {
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
     #[sea_orm(
-        belongs_to = "super::tasks_refactor::Entity",
+        belongs_to = "super::orion_tasks::Entity",
         from = "Column::TaskId",
-        to = "super::tasks_refactor::Column::Id",
+        to = "super::orion_tasks::Column::Id",
         on_update = "Cascade",
         on_delete = "Cascade"
     )]
-    TasksRefactor,
+    OrionTasks,
 }
 
-impl Related<super::tasks_refactor::Entity> for Entity {
+impl Related<super::orion_tasks::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::TasksRefactor.def()
+        Relation::OrionTasks.def()
     }
 }
 
