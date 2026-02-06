@@ -1,6 +1,5 @@
 use std::{
     error::Error,
-    hash::{Hash, Hasher},
     io::BufReader,
     path::{Path, PathBuf},
     process::{ExitStatus, Stdio},
@@ -579,9 +578,8 @@ fn buck2_isolation_dir_base() -> (PathBuf, bool) {
 
 /// Derive a stable per-mount buck2 isolation directory and ensure it exists.
 fn buck2_isolation_dir(repo_path: &Path) -> anyhow::Result<PathBuf> {
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    repo_path.hash(&mut hasher);
-    let suffix = format!("{:x}", hasher.finish());
+    let digest = ring::digest::digest(&ring::digest::SHA256, repo_path.to_string_lossy().as_bytes());
+    let suffix = &hex::encode(digest.as_ref())[..16];
     let (base, from_env) = buck2_isolation_dir_base();
     let mut path = base.join(format!("buck2-isolation-{suffix}"));
     if let Err(err) = std::fs::create_dir_all(&path) {
@@ -610,9 +608,10 @@ fn get_repo_targets(file_name: &str, repo_path: &Path) -> anyhow::Result<Targets
         .ok_or_else(|| anyhow!("Invalid isolation dir path: {isolation_dir:?}"))?
         .to_string();
 
+    preheat(repo_path)?;
+
     for attempt in 1..=MAX_ATTEMPTS {
         tracing::debug!("Get targets for repo {repo_path:?} (attempt {attempt}/{MAX_ATTEMPTS})");
-        preheat(repo_path)?;
         let mut command = std::process::Command::new("buck2");
         command
             .args(targets_arguments())
@@ -872,13 +871,13 @@ pub async fn build(
         mount_guard_old_repo.ok_or("Old repo mount guard missing after target discovery")?;
 
     let build_result = async {
-        let isolation_dir = buck2_isolation_dir(Path::new(&mount_point))
-            .ok()
-            .and_then(|path| path.to_str().map(|value| value.to_string()));
+        let isolation_dir = buck2_isolation_dir(Path::new(&mount_point))?;
+        let isolation_dir = isolation_dir
+            .to_str()
+            .ok_or_else(|| anyhow!("Invalid isolation dir path: {isolation_dir:?}"))?
+            .to_string();
         let mut cmd = Command::new("buck2");
-        if let Some(ref isolation_dir) = isolation_dir {
-            cmd.args(["--isolation-dir", isolation_dir]);
-        }
+        cmd.args(["--isolation-dir", &isolation_dir]);
         let cmd = cmd
             .arg("build")
             .args(&targets)

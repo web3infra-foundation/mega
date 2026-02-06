@@ -119,6 +119,9 @@ impl Filesystem for Dicfuse {
                     );
                 }
                 Err(_) => {
+                    // The spawned task continues running in the background even if this handle
+                    // is later dropped (cache-hit path). This is intentional: the refresh will
+                    // populate the cache for subsequent lookups.
                     refresh_timed_out = true;
                     refresh_handle = Some(handle);
                 }

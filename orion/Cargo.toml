@@ -33,3 +33,5 @@ wiremock = "0.6.5"
 serial_test = { workspace = true }
 tempfile = { workspace = true }
 common = { path = "../common" }
+ring = "0.17.14"
+hex = { workspace = true }

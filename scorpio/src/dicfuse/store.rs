@@ -218,6 +218,7 @@ impl From<reqwest::Error> for DictionaryError {
 // Get Mega dictionary tree from server
 #[allow(unused)]
 async fn fetch_tree(path: &str) -> Result<ApiResponse, DictionaryError> {
+    // NOTE: Timeout values are captured once on first use and cannot be changed at runtime.
     static CLIENT: Lazy<Client> = Lazy::new(|| {
         Client::builder()
             .timeout(Duration::from_secs(config::dicfuse_fetch_dir_timeout_secs()))
@@ -259,6 +260,7 @@ async fn fetch_file(oid: &str) -> io::Result<Vec<u8>> {
     let start = Instant::now();
     let file_blob_endpoint = config::file_blob_endpoint();
     let url = format!("{file_blob_endpoint}/{oid}");
+    // NOTE: Timeout values are captured once on first use and cannot be changed at runtime.
     static CLIENT: Lazy<Client> = Lazy::new(|| {
         Client::builder()
             .timeout(Duration::from_secs(30)) // 30 second timeout for file downloads (files may be large)
@@ -396,6 +398,7 @@ async fn fetch_file_size(oid: &str) -> Option<u64> {
 
     let file_blob_endpoint = config::file_blob_endpoint();
     let url = format!("{file_blob_endpoint}/{oid}");
+    // NOTE: Timeout values are captured once on first use and cannot be changed at runtime.
     static CLIENT: Lazy<Client> = Lazy::new(|| {
         Client::builder()
             .timeout(Duration::from_secs(10))
@@ -459,6 +462,7 @@ async fn fetch_file_size(oid: &str) -> Option<u64> {
 
 async fn fetch_dir(path: &str) -> Result<ApiResponseExt, DictionaryError> {
     let start = Instant::now();
+    // NOTE: Timeout values are captured once on first use and cannot be changed at runtime.
     static CLIENT: Lazy<Client> = Lazy::new(|| {
         Client::builder()
             .timeout(Duration::from_secs(config::dicfuse_fetch_dir_timeout_secs()))
@@ -636,6 +640,7 @@ async fn fetch_dir(path: &str) -> Result<ApiResponseExt, DictionaryError> {
 /// Get the directory hash from the server
 async fn fetch_get_dir_hash(path: &str) -> Result<ApiResponseExt, DictionaryError> {
     let start = Instant::now();
+    // NOTE: Timeout values are captured once on first use and cannot be changed at runtime.
     static CLIENT: Lazy<Client> = Lazy::new(|| {
         Client::builder()
             .timeout(Duration::from_secs(10)) // 10 second timeout for network requests
