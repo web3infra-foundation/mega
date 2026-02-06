@@ -1,3 +1,30 @@
+//! # Build Trigger Service
+//!
+//! Central entry point for all CI/CD build triggers within the Mega system.
+//! All modules requiring a build (e.g., Git Push, Web IDE, API) must route their
+//! requests through this service.
+//!
+//! ## Common Usage Scenarios
+//!
+//! ### 1. Code Push (Git Flow)
+//! When a user pushes code via Git, use:
+//! `service.trigger_for_git_push(event)`
+//!
+//! ### 2. Web IDE / Change List (CL Flow)
+//! For creating or editing files via the web interface:
+//! - If you have the CL link: `service.trigger_for_cl(cl_link)`
+//! - If you have the CL model: `service.trigger_for_cl_model(cl)`
+//!
+//! ### 3. Administrative / Manual Ops
+//! For UI-driven manual triggers or retries:
+//! - Manual: `service.create_manual_trigger(...)`
+//! - Retry: `service.retry_trigger(...)`
+//!
+//! ## Architecture Note
+//! This service acts as a Facade, encapsulating internal logic such as change
+//! calculation and Orion integration. External callers should only interact
+//! with this service and never touch `TriggerRegistry` or `TriggerContext` directly.
+
 use std::sync::Arc;
 
 use api_model::common::Pagination;
@@ -16,7 +43,7 @@ use crate::{
     },
 };
 
-/// Service for handling build trigger operations
+/// Service for orchestrating build trigger operations from various sources.
 pub struct BuildTriggerService {
     storage: Storage,
     registry: TriggerRegistry,
@@ -37,8 +64,12 @@ impl BuildTriggerService {
         }
     }
 
+    pub fn is_enabled(&self) -> bool {
+        self.bellatrix.enable_build()
+    }
+
     fn check_build_enabled(&self) -> Result<(), MegaError> {
-        if !self.bellatrix.enable_build() {
+        if !self.is_enabled() {
             return Err(MegaError::Other(
                 "[code:503] Build system is not enabled".to_string(),
             ));
@@ -46,16 +77,14 @@ impl BuildTriggerService {
         Ok(())
     }
 
-    pub async fn handle_git_push_event(
-        storage: Storage,
-        git_cache: Arc<GitObjectCache>,
-        bellatrix: Arc<Bellatrix>,
+    /// Triggers a build based on a Git push event.
+    pub async fn trigger_for_git_push(
+        &self,
         event: GitPushEvent,
     ) -> Result<Option<i64>, MegaError> {
-        if !bellatrix.enable_build() {
+        if !self.is_enabled() {
             return Ok(None);
         }
-        let registry = TriggerRegistry::new(storage, git_cache, bellatrix);
 
         let context = TriggerContext::from_git_push(
             event.repo_path,
@@ -66,26 +95,41 @@ impl BuildTriggerService {
             event.triggered_by,
         );
 
-        let id = registry.trigger_build(context).await?;
+        let id = self.registry.trigger_build(context).await?;
         Ok(Some(id))
     }
 
-    pub async fn build_by_context(
-        storage: Storage,
-        git_cache: Arc<GitObjectCache>,
-        bellatrix: Arc<Bellatrix>,
-        context: TriggerContext,
-    ) -> Result<Option<i64>, MegaError> {
-        if !bellatrix.enable_build() {
+    /// Triggers a build for an existing CL using its unique link.
+    pub async fn trigger_for_cl(&self, cl_link: &str) -> Result<Option<i64>, MegaError> {
+        if !self.is_enabled() {
             return Ok(None);
         }
-        let registry = TriggerRegistry::new(storage, git_cache, bellatrix);
+        let cl = self
+            .storage
+            .cl_storage()
+            .get_cl(cl_link)
+            .await?
+            .ok_or_else(|| MegaError::Other(format!("[code:404] CL not found: {}", cl_link)))?;
 
-        let id = registry.trigger_build(context).await?;
+        let context: TriggerContext = cl.into();
+        let id = self.registry.trigger_build(context).await?;
         Ok(Some(id))
     }
 
-    /// Create a manual trigger (complete workflow)
+    /// Triggers a build using an existing CL model to avoid redundant DB lookups.
+    pub async fn trigger_for_cl_model(
+        &self,
+        cl: callisto::mega_cl::Model,
+    ) -> Result<Option<i64>, MegaError> {
+        if !self.is_enabled() {
+            return Ok(None);
+        }
+        let context: TriggerContext = cl.into();
+        let id = self.registry.trigger_build(context).await?;
+        Ok(Some(id))
+    }
+
+    /// Facilitates a manual build trigger, including reference resolution.
     pub async fn create_manual_trigger(
         &self,
         repo_path: String,
@@ -95,7 +139,6 @@ impl BuildTriggerService {
     ) -> Result<TriggerResponse, MegaError> {
         self.check_build_enabled()?;
 
-        // 1. Resolve reference
         let ref_resolver = RefResolver::new(self.storage.clone());
         let resolved = ref_resolver
             .resolve(ref_name.as_deref())
@@ -105,7 +148,6 @@ impl BuildTriggerService {
                 MegaError::Other(format!("[code:404] Reference not found: {}", ref_str))
             })?;
 
-        // 2. Build context
         let mut context = TriggerContext::from_manual(
             repo_path,
             resolved.commit_hash.clone(),
@@ -115,20 +157,56 @@ impl BuildTriggerService {
         context.ref_name = Some(resolved.ref_name.clone());
         context.ref_type = Some(resolved.ref_type.as_str().to_string());
 
-        // 3. Create trigger
         let trigger_id = self.registry.trigger_build(context).await?;
-
-        // 4. Get and return response
         self.get_trigger_response(trigger_id).await
     }
 
-    /// Get trigger details
+    /// Creates a new trigger entry based on an existing build history.
+    pub async fn retry_trigger(
+        &self,
+        original_trigger_id: i64,
+        triggered_by: String,
+    ) -> Result<TriggerResponse, MegaError> {
+        self.check_build_enabled()?;
+
+        let original_trigger = self
+            .storage
+            .build_trigger_storage()
+            .get_by_id(original_trigger_id)
+            .await?
+            .ok_or_else(|| {
+                MegaError::Other(format!(
+                    "[code:404] Trigger not found: {}",
+                    original_trigger_id
+                ))
+            })?;
+
+        let trigger_record = TriggerRecord::from_db_model(original_trigger);
+        let payload = trigger_record
+            .parse_payload()
+            .map_err(|e| MegaError::Other(format!("Failed to parse payload: {}", e)))?;
+
+        let context = TriggerContext::from_retry(
+            payload.repo_path().to_string(),
+            payload.from_hash().to_string(),
+            payload.commit_hash().to_string(),
+            Some(payload.cl_link().to_string()),
+            payload.cl_id(),
+            Some(triggered_by),
+            original_trigger_id,
+        );
+
+        let new_trigger_id = self.registry.trigger_build(context).await?;
+        self.get_trigger_response(new_trigger_id).await
+    }
+
+    /// Retrieves detailed status and information of a specific trigger.
     pub async fn get_trigger(&self, trigger_id: i64) -> Result<TriggerResponse, MegaError> {
         self.check_build_enabled()?;
         self.get_trigger_response(trigger_id).await
     }
 
-    /// List triggers with filters and pagination
+    /// Returns a list of triggers with support for filtering and pagination.
     pub async fn list_triggers(
         &self,
         params: ListTriggersParams,
@@ -154,52 +232,16 @@ impl BuildTriggerService {
         Ok((responses, total as i64))
     }
 
-    /// Retry a previous build trigger
-    pub async fn retry_trigger(
+    /// Low-level interface for direct build triggering via context.
+    #[allow(dead_code)]
+    pub(crate) async fn trigger_with_context(
         &self,
-        original_trigger_id: i64,
-        triggered_by: String,
-    ) -> Result<TriggerResponse, MegaError> {
+        context: TriggerContext,
+    ) -> Result<i64, MegaError> {
         self.check_build_enabled()?;
-
-        // 1. Get original trigger
-        let original_trigger = self
-            .storage
-            .build_trigger_storage()
-            .get_by_id(original_trigger_id)
-            .await?
-            .ok_or_else(|| {
-                MegaError::Other(format!(
-                    "[code:404] Trigger not found: {}",
-                    original_trigger_id
-                ))
-            })?;
-
-        // 2. Parse payload
-        let trigger_record = TriggerRecord::from_db_model(original_trigger);
-        let payload = trigger_record
-            .parse_payload()
-            .map_err(|e| MegaError::Other(format!("Failed to parse payload: {}", e)))?;
-
-        // 3. Construct retry context
-        let context = TriggerContext::from_retry(
-            payload.repo_path().to_string(),
-            payload.from_hash().to_string(),
-            payload.commit_hash().to_string(),
-            Some(payload.cl_link().to_string()),
-            payload.cl_id(),
-            Some(triggered_by),
-            original_trigger_id,
-        );
-
-        // 4. Create new trigger
-        let new_trigger_id = self.registry.trigger_build(context).await?;
-
-        // 5. Get and return response
-        self.get_trigger_response(new_trigger_id).await
+        self.registry.trigger_build(context).await
     }
 
-    /// Internal helper method: get trigger response
     async fn get_trigger_response(&self, trigger_id: i64) -> Result<TriggerResponse, MegaError> {
         let model = self
             .storage
