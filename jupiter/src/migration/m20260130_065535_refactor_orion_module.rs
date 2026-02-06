@@ -6,37 +6,23 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        // Drop Builds, BuildEvents, Tasks, Targets
-        manager
-            .drop_table(Table::drop().table(Builds::Table).if_exists().to_owned())
-            .await?;
-        manager
-            .drop_table(
-                Table::drop()
-                    .table(BuildEvents::Table)
-                    .if_exists()
-                    .to_owned(),
-            )
-            .await?;
-        manager
-            .drop_table(Table::drop().table(Targets::Table).if_exists().to_owned())
-            .await?;
-        manager
-            .drop_table(Table::drop().table(Tasks::Table).if_exists().to_owned())
-            .await?;
-
-        // Create Tasks
+        // Create OrionTasks
         manager
             .create_table(
                 Table::create()
-                    .table(Tasks::Table)
+                    .table(OrionTasks::Table)
                     .if_not_exists()
-                    .col(ColumnDef::new(Tasks::Id).uuid().not_null().primary_key())
-                    .col(ColumnDef::new(Tasks::Changes).json_binary().not_null())
-                    .col(ColumnDef::new(Tasks::RepoName).string().not_null())
-                    .col(ColumnDef::new(Tasks::CL).string().not_null())
                     .col(
-                        ColumnDef::new(Tasks::CreatedAt)
+                        ColumnDef::new(OrionTasks::Id)
+                            .uuid()
+                            .not_null()
+                            .primary_key(),
+                    )
+                    .col(ColumnDef::new(OrionTasks::Changes).json_binary().not_null())
+                    .col(ColumnDef::new(OrionTasks::RepoName).string().not_null())
+                    .col(ColumnDef::new(OrionTasks::CL).string().not_null())
+                    .col(
+                        ColumnDef::new(OrionTasks::CreatedAt)
                             .timestamp_with_time_zone()
                             .default(Expr::current_timestamp())
                             .not_null(),
@@ -78,7 +64,7 @@ impl MigrationTrait for Migration {
                     .foreign_key(
                         ForeignKey::create()
                             .from(BuildEvents::Table, BuildEvents::TaskId)
-                            .to(Tasks::Table, Tasks::Id)
+                            .to(OrionTasks::Table, OrionTasks::Id)
                             .on_delete(ForeignKeyAction::Cascade)
                             .on_update(ForeignKeyAction::Cascade),
                     )
@@ -86,20 +72,25 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
-        // Create Targets
+        // Create BuildTargets
         manager
             .create_table(
                 Table::create()
-                    .table(Targets::Table)
+                    .table(BuildTargets::Table)
                     .if_not_exists()
-                    .col(ColumnDef::new(Targets::Id).uuid().not_null().primary_key())
-                    .col(ColumnDef::new(Targets::TaskId).uuid().not_null())
-                    .col(ColumnDef::new(Targets::Path).json_binary().not_null())
-                    .col(ColumnDef::new(Targets::TargetState).text().not_null())
+                    .col(
+                        ColumnDef::new(BuildTargets::Id)
+                            .uuid()
+                            .not_null()
+                            .primary_key(),
+                    )
+                    .col(ColumnDef::new(BuildTargets::TaskId).uuid().not_null())
+                    .col(ColumnDef::new(BuildTargets::Path).json_binary().not_null())
+                    .col(ColumnDef::new(BuildTargets::TargetState).text().not_null())
                     .foreign_key(
                         ForeignKey::create()
-                            .from(Targets::Table, Targets::TaskId)
-                            .to(Tasks::Table, Tasks::Id)
+                            .from(BuildTargets::Table, BuildTargets::TaskId)
+                            .to(OrionTasks::Table, OrionTasks::Id)
                             .on_delete(ForeignKeyAction::Cascade)
                             .on_update(ForeignKeyAction::Cascade),
                     )
@@ -120,28 +111,50 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
-                    .name("idx_targets_task_id")
-                    .table(Targets::Table)
-                    .col(Targets::TaskId)
+                    .name("idx_build_targets_task_id")
+                    .table(BuildTargets::Table)
+                    .col(BuildTargets::TaskId)
                     .to_owned(),
             )
             .await?;
 
         Ok(())
     }
-    async fn down(&self, _: &SchemaManager) -> Result<(), DbErr> {
-        // Replace the sample below with your own migration scripts
-        todo!();
+
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        // Drop indexes created in `up`
+        manager
+            .drop_index(
+                Index::drop()
+                    .name("idx_build_targets_task_id")
+                    .table(BuildTargets::Table)
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .drop_index(
+                Index::drop()
+                    .name("idx_build_events_task_id")
+                    .table(BuildEvents::Table)
+                    .to_owned(),
+            )
+            .await?;
+        // Drop tables created in `up` (children before parent)
+        manager
+            .drop_table(Table::drop().table(BuildTargets::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(BuildEvents::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(OrionTasks::Table).to_owned())
+            .await?;
+        Ok(())
     }
 }
 
 #[derive(DeriveIden)]
-enum Builds {
-    Table,
-}
-
-#[derive(DeriveIden)]
-enum Tasks {
+enum OrionTasks {
     Table,
     Id,
     Changes,
@@ -163,7 +176,7 @@ enum BuildEvents {
 }
 
 #[derive(DeriveIden)]
-enum Targets {
+enum BuildTargets {
     Table,
     Id,
     TaskId,

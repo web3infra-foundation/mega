@@ -23,8 +23,8 @@ impl Bellatrix {
         self.build_config.enable_build
     }
 
-    pub async fn on_post_receive(&self, req: OrionBuildRequest) -> anyhow::Result<()> {
-        self.orion.trigger_build(req).await?;
-        Ok(())
+    pub async fn on_post_receive(&self, req: OrionBuildRequest) -> anyhow::Result<String> {
+        let task_id = self.orion.trigger_build(req).await?;
+        Ok(task_id)
     }
 }

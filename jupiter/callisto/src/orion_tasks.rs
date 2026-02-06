@@ -4,7 +4,7 @@ use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
-#[sea_orm(table_name = "tasks")]
+#[sea_orm(table_name = "orion_tasks")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
@@ -19,8 +19,8 @@ pub struct Model {
 pub enum Relation {
     #[sea_orm(has_many = "super::build_events::Entity")]
     BuildEvents,
-    #[sea_orm(has_many = "super::targets::Entity")]
-    Targets,
+    #[sea_orm(has_many = "super::build_targets::Entity")]
+    BuildTargets,
 }
 
 impl Related<super::build_events::Entity> for Entity {
@@ -29,9 +29,9 @@ impl Related<super::build_events::Entity> for Entity {
     }
 }
 
-impl Related<super::targets::Entity> for Entity {
+impl Related<super::build_targets::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::Targets.def()
+        Relation::BuildTargets.def()
     }
 }
 
