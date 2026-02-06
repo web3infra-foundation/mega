@@ -5,12 +5,14 @@ use rfuse3::{
     FileType, Timestamp,
 };
 
+/// Placeholder TTL for default entries.
+/// Callers (Dicfuse::get_stat / get_stat_fast / readdirplus) always override
+/// this with the mount-appropriate value via `Dicfuse::reply_ttl()`.
+const DEFAULT_ENTRY_TTL: Duration = Duration::ZERO;
+
 pub fn default_file_entry(inode: u64) -> ReplyEntry {
-    // Short TTL to surface changes quickly in debugging/interactive scenarios.
-    // TODO: Consider making TTL configurable or increasing to 30-60 seconds for production.
-    // Current 2-second TTL causes frequent kernel attribute lookups which may impact performance.
     ReplyEntry {
-        ttl: Duration::new(2, 0),
+        ttl: DEFAULT_ENTRY_TTL,
         attr: FileAttr {
             ino: inode,
             size: 0,
@@ -31,11 +33,8 @@ pub fn default_file_entry(inode: u64) -> ReplyEntry {
 }
 
 pub fn default_dic_entry(inode: u64) -> ReplyEntry {
-    // Short TTL to surface changes quickly in debugging/interactive scenarios.
-    // TODO: Consider making TTL configurable or increasing to 30-60 seconds for production.
-    // Current 2-second TTL causes frequent kernel attribute lookups which may impact performance.
     ReplyEntry {
-        ttl: Duration::new(2, 0),
+        ttl: DEFAULT_ENTRY_TTL,
         attr: FileAttr {
             ino: inode,
             size: 0,
