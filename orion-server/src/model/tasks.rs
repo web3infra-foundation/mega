@@ -82,7 +82,7 @@ impl Model {
     /// Insert a task directly into the database
     pub async fn insert_task(
         task_id: Uuid,
-        cl_link: String,
+        cl_id: i64,
         task_name: Option<String>,
         template: Option<Json>,
         created_at: DateTimeWithTimeZone,

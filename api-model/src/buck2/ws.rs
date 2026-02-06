@@ -13,15 +13,15 @@ use crate::buck2::{
 #[serde(tag = "type")]
 pub enum WSMessage {
     // Server -> Worker messages
-    Task {
-        id: String,
+    TaskBuild {
+        build_id: String,
         repo: String,
         cl_link: String,
         changes: Vec<Status<ProjectRelativePath>>,
     },
 
-    TaskWithTargets {
-        id: String,
+    TaskBuildWithTargets {
+        build_id: String,
         repo: String,
         cl_link: String,
         // targets: Vec<Target>,
@@ -38,23 +38,23 @@ pub enum WSMessage {
     Heartbeat,
 
     TaskPhaseUpdate {
-        id: String,
+        build_id: String,
         phase: TaskPhase,
     },
 
     TaskAck {
-        id: String,
+        build_id: String,
         success: bool,
         message: String,
     },
 
     TaskBuildOutput {
-        id: String,
+        build_id: String,
         output: String,
     },
 
     TaskBuildComplete {
-        id: String,
+        build_id: String,
         success: bool,
         exit_code: Option<i32>,
         message: String,

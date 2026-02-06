@@ -1,6 +1,5 @@
-use api_model::buck2::{
-    api::TaskBuildResult, status::Status, types::ProjectRelativePath, ws::WSMessage,
-};
+use api_model::buck2::{status::Status, types::ProjectRelativePath, ws::WSMessage};
+use serde::Serialize;
 use tokio::sync::mpsc::UnboundedSender;
 use uuid::Uuid;
 
@@ -17,19 +16,19 @@ use crate::buck_controller;
 //     pub changes: Vec<Status<ProjectRelativePath>>,
 // }
 
-// /// Result of a build operation containing status and metadata.
-// #[derive(Debug, Serialize)]
-// pub struct BuildResult {
-//     /// Whether the build operation was successful
-//     pub success: bool,
-//     /// Unique identifier for the build task
-//     pub id: String,
-//     /// Process exit code (None if not yet completed)
-//     #[serde(skip_serializing_if = "Option::is_none")]
-//     pub exit_code: Option<i32>,
-//     /// Human-readable status or error message
-//     pub message: String,
-// }
+/// Result of a build operation containing status and metadata.
+#[derive(Debug, Serialize)]
+pub struct BuildResult {
+    /// Whether the build operation was successful
+    pub success: bool,
+    /// Unique identifier for the build task
+    pub build_id: String,
+    /// Process exit code (None if not yet completed)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exit_code: Option<i32>,
+    /// Human-readable status or error message
+    pub message: String,
+}
 
 /// Initiates an asynchronous buck build process.
 ///
@@ -49,7 +48,7 @@ pub async fn buck_build(
     repo: String,
     changes: Vec<Status<ProjectRelativePath>>,
     sender: UnboundedSender<WSMessage>,
-) -> TaskBuildResult {
+) -> BuildResult {
     let id_str = id.to_string();
     tracing::info!("[Task {}] Received build request.", id_str);
 
@@ -75,9 +74,9 @@ pub async fn buck_build(
                         message,
                         status.code()
                     );
-                    TaskBuildResult {
+                    BuildResult {
                         success: status.success(),
-                        id: id_str.clone(),
+                        build_id: id_str.clone(),
                         exit_code: status.code(),
                         message,
                     }
@@ -85,9 +84,9 @@ pub async fn buck_build(
                 Err(e) => {
                     let error_msg = format!("Build execution failed: {e}");
                     tracing::error!("[Task {}] {}", id_str, error_msg);
-                    TaskBuildResult {
+                    BuildResult {
                         success: false,
-                        id: id_str.clone(),
+                        build_id: id_str.clone(),
                         exit_code: None,
                         message: error_msg,
                     }
@@ -96,7 +95,7 @@ pub async fn buck_build(
 
         // Send build completion notification via WebSocket
         let complete_msg = WSMessage::TaskBuildComplete {
-            id: build_result.id,
+            build_id: build_result.build_id,
             success: build_result.success,
             exit_code: build_result.exit_code,
             message: build_result.message,
@@ -112,9 +111,9 @@ pub async fn buck_build(
 
     // Return immediate acknowledgment of task acceptance
     // WARN: exit_code and can_auto_retry is invalid data
-    TaskBuildResult {
+    BuildResult {
         success: true,
-        id: id.to_string(),
+        build_id: id.to_string(),
         exit_code: None,
         message: "Build task has been accepted and started.".to_string(),
     }

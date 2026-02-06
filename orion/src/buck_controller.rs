@@ -62,7 +62,7 @@ pub async fn mount_fs(
     // is slow, we use a generous 2-hour timeout here. This can be tuned later.
     if let (Some(sender), Some(build_id)) = (&sender, &build_id)
         && let Err(err) = sender.send(WSMessage::TaskPhaseUpdate {
-            id: build_id.clone(),
+            build_id: build_id.clone(),
             phase: TaskPhase::DownloadingSource,
         })
     {
@@ -667,7 +667,7 @@ pub async fn build(
             let error_msg = err.to_string();
             if sender
                 .send(WSMessage::TaskBuildOutput {
-                    id: id.clone(),
+                    build_id: id.clone(),
                     output: error_msg.clone(),
                 })
                 .is_err()
@@ -704,7 +704,7 @@ pub async fn build(
         let mut child = cmd.spawn()?;
 
         if let Err(e) = sender.send(WSMessage::TaskPhaseUpdate {
-            id: id.clone(),
+            build_id: id.clone(),
             phase: TaskPhase::RunningBuild,
         }) {
             tracing::error!("Failed to send RunningBuild phase update: {}", e);
@@ -721,7 +721,7 @@ pub async fn build(
                 result = stdout_reader.next_line() => {
                     match result {
                         Ok(Some(line)) => {
-                            if sender.send(WSMessage::TaskBuildOutput { id: id.clone(), output: line }).is_err() {
+                            if sender.send(WSMessage::TaskBuildOutput { build_id: id.clone(), output: line }).is_err() {
                                 child.kill().await?;
                                 return Err("WebSocket connection lost during build.".into());
                             }
@@ -736,7 +736,7 @@ pub async fn build(
                 result = stderr_reader.next_line() => {
                     match result {
                         Ok(Some(line)) => {
-                            if sender.send(WSMessage::TaskBuildOutput { id: id.clone(), output: line }).is_err() {
+                            if sender.send(WSMessage::TaskBuildOutput { build_id: id.clone(), output: line }).is_err() {
                                 child.kill().await?;
                                 return Err("WebSocket connection lost during build.".into());
                             }

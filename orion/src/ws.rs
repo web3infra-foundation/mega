@@ -166,20 +166,20 @@ async fn process_server_message(
                 Ok(ws_msg) => {
                     tracing::info!("Received message from server: {:?}", ws_msg);
                     match ws_msg {
-                        WSMessage::Task {
-                            id,
+                        WSMessage::TaskBuild {
+                            build_id,
                             repo,
                             cl_link,
                             changes,
                         } => {
-                            tracing::info!("Received task: id={}", id);
+                            tracing::info!("Received task: id={}", build_id);
                             tokio::spawn(async move {
-                                let task_id_uuid = match Uuid::parse_str(&id) {
+                                let task_id_uuid = match Uuid::parse_str(&build_id) {
                                     Ok(uuid) => uuid,
                                     Err(e) => {
                                         tracing::error!(
                                             "Failed to parse task id '{}' as Uuid: {}. Aborting task.",
-                                            id,
+                                            build_id,
                                             e
                                         );
                                         return;
@@ -196,7 +196,7 @@ async fn process_server_message(
                                 .await;
 
                                 if let Err(e) = sender.send(WSMessage::TaskAck {
-                                    id,
+                                    build_id,
                                     success: build_result.success,
                                     message: build_result.message.clone(),
                                 }) {

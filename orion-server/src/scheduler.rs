@@ -5,12 +5,12 @@ use std::{
 };
 
 use api_model::buck2::{
-    types::{ProjectRelativePath, Status},
+    status::Status,
+    types::{ProjectRelativePath, TaskPhase},
     ws::WSMessage,
 };
 use chrono::FixedOffset;
 use dashmap::DashMap;
-use orion::ws::{TaskPhase, WSMessage};
 use rand::Rng;
 use sea_orm::{ActiveModelTrait, ActiveValue::Set, DatabaseConnection, prelude::DateTimeUtc};
 use serde::{Deserialize, Serialize};
@@ -36,6 +36,7 @@ pub struct BuildRequest {
 }
 
 impl BuildRequest {
+    #[allow(dead_code)]
     /// Return requested target path; fallback to "//..." for backward compatibility.
     pub fn target_path(&self) -> String {
         self.target
@@ -137,7 +138,7 @@ pub struct TaskQueueStats {
 }
 
 /// Mandatory Information for building a task
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BuildEventPayload {
     pub build_event_id: Uuid,
     pub task_id: Uuid,
@@ -191,8 +192,8 @@ impl BuildEventPayload {
 pub enum WorkerStatus {
     Idle,
     Busy {
-        // Contains task ID when busy
-        task_id: String,
+        // Cont ains build ID when busy
+        build_id: String,
         // Show task phase when needed
         phase: Option<TaskPhase>,
     },
@@ -290,6 +291,7 @@ impl TaskScheduler {
         cl_link: &str,
         repo: String,
         changes: Vec<Status<ProjectRelativePath>>,
+        target_path: Option<String>,
         retry_count: i32,
     ) -> Result<Uuid, String> {
         let build_event_id = Uuid::now_v7();
@@ -300,6 +302,7 @@ impl TaskScheduler {
             cl_link,
             repo,
             changes,
+            target_path.unwrap_or_default(),
             retry_count,
         )
         .await?;
@@ -316,6 +319,7 @@ impl TaskScheduler {
         cl_link: &str,
         repo: String,
         changes: Vec<Status<ProjectRelativePath>>,
+        target_path: String,
         retry_count: i32,
     ) -> Result<(), String> {
         // TODO: replace with the new target model
@@ -334,8 +338,8 @@ impl TaskScheduler {
         let pending_build_event = PendingBuildEvent {
             event_payload: event,
             target_id: target_model.id.into(),
-            target_path: None,
-            changes: changes,
+            target_path: target_path.into(),
+            changes,
             created_at: Instant::now(),
         };
 
@@ -444,11 +448,8 @@ impl TaskScheduler {
             changes: pending_build_event.changes.clone(),
             target_id: pending_build_event
                 .target_id
-                .map_or_else(|| Uuid::nil(), |id| id),
-            target_path: pending_build_event
-                .target_path
-                .clone()
-                .unwrap_or_else(|| "".to_string()),
+                .map_or_else(Uuid::nil, |id| id),
+            target_path: pending_build_event.target_path.clone().unwrap_or_default(),
             _worker_id: chosen_id.clone(),
             auto_retry_judger: AutoRetryJudger::new(),
             started_at: start_at,
@@ -456,20 +457,20 @@ impl TaskScheduler {
 
         // Insert build record (fail fast if insertion fails)
         if let Err(e) = (builds::ActiveModel {
-            id: Set(pending_build_event.build_event_id),
-            task_id: Set(pending_build_event.task_id),
+            id: Set(pending_build_event.event_payload.build_event_id),
+            task_id: Set(pending_build_event.event_payload.task_id),
             // target_id: Set(pending_build_event.target_id),
             target_id: Set(Uuid::nil()),
             exit_code: Set(None),
             start_at: Set(start_at_tz),
             end_at: Set(None),
-            repo: Set(build_info.repo.clone()),
+            repo: Set(build_info.event_payload.repo.clone()),
             args: Set(None),
             output_file: Set(format!(
                 "{}/{}/{}.log",
-                pending_build_event.task_id,
-                LogService::last_segment(&pending_build_event.repo),
-                pending_build_event.build_event_id
+                pending_build_event.event_payload.task_id,
+                LogService::last_segment(&pending_build_event.event_payload.repo),
+                pending_build_event.event_payload.build_event_id
             )),
             created_at: Set(start_at_tz),
             retry_count: Set(0),
@@ -479,23 +480,23 @@ impl TaskScheduler {
         {
             tracing::error!(
                 "Failed to insert build {} for task {}: {}",
-                pending_build_event.build_event_id,
-                pending_build_event.task_id,
+                pending_build_event.event_payload.build_event_id,
+                pending_build_event.event_payload.task_id,
                 e
             );
             return Err(format!(
                 "Failed to insert build {}",
-                pending_build_event.build_event_id
+                pending_build_event.event_payload.build_event_id
             ));
         }
 
         println!("insert build");
 
         // Create WebSocket message
-        let msg = WSMessage::Task {
-            id: pending_build_event.build_event_id.to_string(),
-            repo: pending_build_event.repo,
-            cl_link: pending_build_event.cl_link.to_string(),
+        let msg = WSMessage::TaskBuild {
+            build_id: pending_build_event.event_payload.build_event_id.to_string(),
+            repo: pending_build_event.event_payload.repo,
+            cl_link: pending_build_event.event_payload.cl_link.to_string(),
             changes: pending_build_event.changes.clone(),
         };
 
@@ -506,7 +507,9 @@ impl TaskScheduler {
                 if let Err(e) = targets::update_state(
                     &self.conn,
                     //TODO: update target_id here
-                    pending_build_event.target_id.unwrap_or_else(|| Uuid::nil()),
+                    pending_build_event
+                        .target_id
+                        .map_or_else(Uuid::nil, |id| id),
                     TargetState::Building,
                     Some(start_at_tz),
                     None,
@@ -518,15 +521,17 @@ impl TaskScheduler {
                 }
 
                 worker.status = WorkerStatus::Busy {
-                    task_id: pending_build_event.build_event_id.to_string(),
+                    build_id: pending_build_event.event_payload.build_event_id.to_string(),
                     phase: None,
                 };
-                self.active_builds
-                    .insert(pending_build_event.build_event_id.to_string(), build_info);
+                self.active_builds.insert(
+                    pending_build_event.event_payload.build_event_id.to_string(),
+                    build_info,
+                );
                 tracing::info!(
                     "Queued task {}/{} dispatched to worker {}",
-                    pending_build_event.task_id,
-                    pending_build_event.build_event_id,
+                    pending_build_event.event_payload.task_id,
+                    pending_build_event.event_payload.build_event_id,
                     chosen_id
                 );
                 Ok(())
@@ -535,7 +540,9 @@ impl TaskScheduler {
                 let _ = targets::update_state(
                     &self.conn,
                     // TODO: update target_id here
-                    pending_build_event.target_id.unwrap_or_else(|| Uuid::nil()),
+                    pending_build_event
+                        .target_id
+                        .map_or_else(Uuid::nil, |id| id),
                     TargetState::Pending,
                     Some(start_at_tz),
                     None,
@@ -600,9 +607,9 @@ impl TaskScheduler {
                     for task in expired_tasks {
                         tracing::debug!(
                             "Expired build: {}/{} ({})",
-                            task.task_id,
-                            task.build_event_id,
-                            task.repo
+                            task.event_payload.task_id,
+                            task.event_payload.build_event_id,
+                            task.event_payload.repo
                         );
                     }
                 }
@@ -668,12 +675,18 @@ mod tests {
         assert!(queue.enqueue(task2.clone()).is_ok());
 
         let dequeued1 = queue.dequeue().unwrap();
-        assert_eq!(dequeued1.build_event_id, task1.build_event_id);
-        assert_eq!(dequeued1.repo, "/test/repo");
+        assert_eq!(
+            dequeued1.event_payload.build_event_id,
+            task1.event_payload.build_event_id
+        );
+        assert_eq!(dequeued1.event_payload.repo, "/test/repo");
 
         let dequeued2 = queue.dequeue().unwrap();
-        assert_eq!(dequeued2.build_event_id, task2.build_event_id);
-        assert_eq!(dequeued2.repo, "/test2/repo");
+        assert_eq!(
+            dequeued2.event_payload.build_event_id,
+            task2.event_payload.build_event_id
+        );
+        assert_eq!(dequeued2.event_payload.repo, "/test2/repo");
     }
 
     /// Test queue capacity limit
