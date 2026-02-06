@@ -454,7 +454,10 @@ fn preheat_shallow(repo_path: &Path, max_depth: usize) -> anyhow::Result<()> {
             let file_type = match entry.file_type() {
                 Ok(file_type) => file_type,
                 Err(err) => {
-                    tracing::warn!("Preheat shallow file_type failed for {:?}: {err}", entry.path());
+                    tracing::warn!(
+                        "Preheat shallow file_type failed for {:?}: {err}",
+                        entry.path()
+                    );
                     continue;
                 }
             };
@@ -564,12 +567,12 @@ fn buck2_isolation_dir_base() -> (PathBuf, bool) {
         return (path, true);
     }
 
-    if let Some(config) = build_config() {
-        if let Some(path) = config.orion_buck2_isolation_dir_base.as_ref() {
-            let trimmed = path.trim();
-            if !trimmed.is_empty() {
-                return (PathBuf::from(trimmed), true);
-            }
+    if let Some(config) = build_config()
+        && let Some(path) = config.orion_buck2_isolation_dir_base.as_ref()
+    {
+        let trimmed = path.trim();
+        if !trimmed.is_empty() {
+            return (PathBuf::from(trimmed), true);
         }
     }
 
@@ -578,7 +581,10 @@ fn buck2_isolation_dir_base() -> (PathBuf, bool) {
 
 /// Derive a stable per-mount buck2 isolation directory and ensure it exists.
 fn buck2_isolation_dir(repo_path: &Path) -> anyhow::Result<PathBuf> {
-    let digest = ring::digest::digest(&ring::digest::SHA256, repo_path.to_string_lossy().as_bytes());
+    let digest = ring::digest::digest(
+        &ring::digest::SHA256,
+        repo_path.to_string_lossy().as_bytes(),
+    );
     let suffix = &hex::encode(digest.as_ref())[..16];
     let (base, from_env) = buck2_isolation_dir_base();
     let mut path = base.join(format!("buck2-isolation-{suffix}"));
@@ -592,7 +598,9 @@ fn buck2_isolation_dir(repo_path: &Path) -> anyhow::Result<PathBuf> {
             std::fs::create_dir_all(&path)
                 .map_err(|err| anyhow!("Failed to create buck2 isolation dir {path:?}: {err}"))?;
         } else {
-            return Err(anyhow!("Failed to create buck2 isolation dir {path:?}: {err}"));
+            return Err(anyhow!(
+                "Failed to create buck2 isolation dir {path:?}: {err}"
+            ));
         }
     }
     Ok(path)
@@ -777,20 +785,21 @@ pub async fn build(
     sender: UnboundedSender<WSMessage>,
     changes: Vec<Status<ProjectRelativePath>>,
 ) -> Result<ExitStatus, Box<dyn Error + Send + Sync>> {
-    tracing::info!("[Task {}] Building in repo /", id);
+    tracing::info!("[Task {}] Building in repo {}", id, repo);
 
     // Handle empty cl string as None to mount the base repo without a CL layer.
     let cl_trimmed = cl.trim();
     let cl_arg = (!cl_trimmed.is_empty()).then_some(cl_trimmed);
 
-    // We will analyze the whole repo
-    let repo_path = "/".to_string();
-    // Used to change ProjectRelativePath relative to root
-    let repo_prefix = repo.strip_prefix("/").unwrap_or(&repo);
-    let changes: Vec<Status<ProjectRelativePath>> = changes
-        .into_iter()
-        .map(|p| p.into_map(|rp| ProjectRelativePath::new(repo_prefix).join(rp.as_str())))
-        .collect();
+    // Mount the entire monorepo root so all cells/toolchains are available,
+    // but run buck2 from the specific sub-project directory.
+    let mount_path = "/".to_string();
+    // `repo_prefix` is the relative path from monorepo root to the buck2 project.
+    // e.g., repo="/project/git-internal/git-internal" → repo_prefix="project/git-internal/git-internal"
+    let repo_prefix = repo.strip_prefix('/').unwrap_or(&repo);
+
+    // Changes are already relative to the sub-project (buck2 project root).
+    // Do NOT prefix them with repo_prefix — buck2 runs from the sub-project dir.
 
     const MAX_TARGETS_ATTEMPTS: usize = 2;
     let mut mount_point = None;
@@ -803,12 +812,12 @@ pub async fn build(
         // We should also mount the repo before cl, for build target analyzing.
         let id_for_old_repo = format!("{id}-old-{attempt}");
         let (old_repo_mount_point, mount_id_old_repo) =
-            mount_antares_fs(&id_for_old_repo, &repo_path, None).await?;
+            mount_antares_fs(&id_for_old_repo, &mount_path, None).await?;
         let guard_old_repo = MountGuard::new(mount_id_old_repo, id_for_old_repo);
 
         let id_for_repo = format!("{id}-{attempt}");
         let (repo_mount_point, mount_id) =
-            mount_antares_fs(&id_for_repo, &repo_path, cl_arg).await?;
+            mount_antares_fs(&id_for_repo, &mount_path, cl_arg).await?;
         let guard = MountGuard::new(mount_id.clone(), id_for_repo);
 
         tracing::info!(
@@ -818,7 +827,17 @@ pub async fn build(
             MAX_TARGETS_ATTEMPTS
         );
 
-        match get_build_targets(&old_repo_mount_point, &repo_mount_point, changes.clone()).await {
+        // Resolve the sub-project paths within each mount for buck2.
+        let old_project_root = PathBuf::from(&old_repo_mount_point).join(repo_prefix);
+        let new_project_root = PathBuf::from(&repo_mount_point).join(repo_prefix);
+
+        match get_build_targets(
+            old_project_root.to_str().unwrap_or(&old_repo_mount_point),
+            new_project_root.to_str().unwrap_or(&repo_mount_point),
+            changes.clone(),
+        )
+        .await
+        {
             Ok(found_targets) => {
                 mount_point = Some(repo_mount_point);
                 mount_guard = Some(guard);
@@ -871,7 +890,10 @@ pub async fn build(
         mount_guard_old_repo.ok_or("Old repo mount guard missing after target discovery")?;
 
     let build_result = async {
-        let isolation_dir = buck2_isolation_dir(Path::new(&mount_point))?;
+        // Run buck2 build from the sub-project directory, not the monorepo root.
+        // This ensures buck2 uses the sub-project's .buckconfig and PACKAGE files.
+        let project_root = PathBuf::from(&mount_point).join(repo_prefix);
+        let isolation_dir = buck2_isolation_dir(&project_root)?;
         let isolation_dir = isolation_dir
             .to_str()
             .ok_or_else(|| anyhow!("Invalid isolation dir path: {isolation_dir:?}"))?
@@ -887,7 +909,7 @@ pub async fn build(
             // with the selected platform (e.g., macOS-only crates on Linux builders).
             .arg("--skip-incompatible-targets")
             .arg("--verbose=2")
-            .current_dir(mount_point)
+            .current_dir(&project_root)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 

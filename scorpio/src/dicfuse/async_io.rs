@@ -1,8 +1,4 @@
-use std::{
-    ffi::OsStr,
-    num::NonZeroU32,
-    time::Duration,
-};
+use std::{ffi::OsStr, num::NonZeroU32, time::Duration};
 
 use bytes::Bytes;
 use futures::stream::iter;

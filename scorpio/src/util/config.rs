@@ -491,21 +491,61 @@ pub fn antares_state_file() -> &'static str {
     &get_config().config["antares_state_file"]
 }
 
-config_accessor!(load_dir_depth, "load_dir_depth", usize, DEFAULT_LOAD_DIR_DEPTH);
+config_accessor!(
+    load_dir_depth,
+    "load_dir_depth",
+    usize,
+    DEFAULT_LOAD_DIR_DEPTH
+);
 
-config_accessor!(fetch_file_thread, "fetch_file_thread", usize, DEFAULT_FETCH_FILE_THREAD);
+config_accessor!(
+    fetch_file_thread,
+    "fetch_file_thread",
+    usize,
+    DEFAULT_FETCH_FILE_THREAD
+);
 
-config_accessor!(dicfuse_import_concurrency, "dicfuse_import_concurrency", usize, DEFAULT_DICFUSE_IMPORT_CONCURRENCY);
+config_accessor!(
+    dicfuse_import_concurrency,
+    "dicfuse_import_concurrency",
+    usize,
+    DEFAULT_DICFUSE_IMPORT_CONCURRENCY
+);
 
-config_accessor!(dicfuse_dir_sync_ttl_secs, "dicfuse_dir_sync_ttl_secs", u64, DEFAULT_DICFUSE_DIR_SYNC_TTL_SECS);
+config_accessor!(
+    dicfuse_dir_sync_ttl_secs,
+    "dicfuse_dir_sync_ttl_secs",
+    u64,
+    DEFAULT_DICFUSE_DIR_SYNC_TTL_SECS
+);
 
-config_accessor!(dicfuse_reply_ttl_secs, "dicfuse_reply_ttl_secs", u64, DEFAULT_DICFUSE_REPLY_TTL_SECS);
+config_accessor!(
+    dicfuse_reply_ttl_secs,
+    "dicfuse_reply_ttl_secs",
+    u64,
+    DEFAULT_DICFUSE_REPLY_TTL_SECS
+);
 
-config_accessor!(dicfuse_fetch_dir_timeout_secs, "dicfuse_fetch_dir_timeout_secs", u64, DEFAULT_DICFUSE_FETCH_DIR_TIMEOUT_SECS);
+config_accessor!(
+    dicfuse_fetch_dir_timeout_secs,
+    "dicfuse_fetch_dir_timeout_secs",
+    u64,
+    DEFAULT_DICFUSE_FETCH_DIR_TIMEOUT_SECS
+);
 
-config_accessor!(dicfuse_connect_timeout_secs, "dicfuse_connect_timeout_secs", u64, DEFAULT_DICFUSE_CONNECT_TIMEOUT_SECS);
+config_accessor!(
+    dicfuse_connect_timeout_secs,
+    "dicfuse_connect_timeout_secs",
+    u64,
+    DEFAULT_DICFUSE_CONNECT_TIMEOUT_SECS
+);
 
-config_accessor!(dicfuse_fetch_dir_max_retries, "dicfuse_fetch_dir_max_retries", u32, DEFAULT_DICFUSE_FETCH_DIR_MAX_RETRIES);
+config_accessor!(
+    dicfuse_fetch_dir_max_retries,
+    "dicfuse_fetch_dir_max_retries",
+    u32,
+    DEFAULT_DICFUSE_FETCH_DIR_MAX_RETRIES
+);
 
 pub fn dicfuse_stat_mode() -> DicfuseStatMode {
     parse_stat_mode(
@@ -514,15 +554,40 @@ pub fn dicfuse_stat_mode() -> DicfuseStatMode {
     )
 }
 
-config_accessor!(dicfuse_open_buff_max_bytes, "dicfuse_open_buff_max_bytes", u64, DEFAULT_DICFUSE_OPEN_BUFF_MAX_BYTES);
+config_accessor!(
+    dicfuse_open_buff_max_bytes,
+    "dicfuse_open_buff_max_bytes",
+    u64,
+    DEFAULT_DICFUSE_OPEN_BUFF_MAX_BYTES
+);
 
-config_accessor!(dicfuse_open_buff_max_files, "dicfuse_open_buff_max_files", usize, DEFAULT_DICFUSE_OPEN_BUFF_MAX_FILES);
+config_accessor!(
+    dicfuse_open_buff_max_files,
+    "dicfuse_open_buff_max_files",
+    usize,
+    DEFAULT_DICFUSE_OPEN_BUFF_MAX_FILES
+);
 
-config_accessor!(antares_load_dir_depth, "antares_load_dir_depth", usize, DEFAULT_ANTARES_LOAD_DIR_DEPTH);
+config_accessor!(
+    antares_load_dir_depth,
+    "antares_load_dir_depth",
+    usize,
+    DEFAULT_ANTARES_LOAD_DIR_DEPTH
+);
 
-config_accessor!(antares_dicfuse_dir_sync_ttl_secs, "antares_dicfuse_dir_sync_ttl_secs", u64, DEFAULT_ANTARES_DICFUSE_DIR_SYNC_TTL_SECS);
+config_accessor!(
+    antares_dicfuse_dir_sync_ttl_secs,
+    "antares_dicfuse_dir_sync_ttl_secs",
+    u64,
+    DEFAULT_ANTARES_DICFUSE_DIR_SYNC_TTL_SECS
+);
 
-config_accessor!(antares_dicfuse_reply_ttl_secs, "antares_dicfuse_reply_ttl_secs", u64, DEFAULT_ANTARES_DICFUSE_REPLY_TTL_SECS);
+config_accessor!(
+    antares_dicfuse_reply_ttl_secs,
+    "antares_dicfuse_reply_ttl_secs",
+    u64,
+    DEFAULT_ANTARES_DICFUSE_REPLY_TTL_SECS
+);
 
 pub fn antares_dicfuse_stat_mode() -> DicfuseStatMode {
     parse_stat_mode(
@@ -531,9 +596,19 @@ pub fn antares_dicfuse_stat_mode() -> DicfuseStatMode {
     )
 }
 
-config_accessor!(antares_dicfuse_open_buff_max_bytes, "antares_dicfuse_open_buff_max_bytes", u64, DEFAULT_ANTARES_DICFUSE_OPEN_BUFF_MAX_BYTES);
+config_accessor!(
+    antares_dicfuse_open_buff_max_bytes,
+    "antares_dicfuse_open_buff_max_bytes",
+    u64,
+    DEFAULT_ANTARES_DICFUSE_OPEN_BUFF_MAX_BYTES
+);
 
-config_accessor!(antares_dicfuse_open_buff_max_files, "antares_dicfuse_open_buff_max_files", usize, DEFAULT_ANTARES_DICFUSE_OPEN_BUFF_MAX_FILES);
+config_accessor!(
+    antares_dicfuse_open_buff_max_files,
+    "antares_dicfuse_open_buff_max_files",
+    usize,
+    DEFAULT_ANTARES_DICFUSE_OPEN_BUFF_MAX_FILES
+);
 #[cfg(test)]
 mod tests {
     use super::*;
