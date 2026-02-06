@@ -1160,37 +1160,23 @@ impl MonoApiService {
         }
     }
 
-    /// Triggers a build for the specified Change List (CL).
-    /// It spawns a background task to handle the build process, ensuring that the main application flow remains responsive.
-    /// # Arguments
-    /// * `cl_link` - The unique identifier (link) of the CL for which the build is to be triggered.
+    /// Triggers a build for the specified CL in a background task.
     ///
-    /// # Returns
-    /// A `Result` indicating success or failure. Returns `Ok(())` if the build was successfully triggered,
-    /// or a `GitError` if an error occurred during the process.
+    /// This is a best-effort operation: the build runs asynchronously to keep the API responsive,
+    /// and any failures are logged but do not propagate to the caller.
     async fn trigger_build_for_cl(&self, cl_link: &str) -> Result<(), GitError> {
         let config = self.storage.config();
-        let bellatrix = Bellatrix::new(config.build.clone());
-        let cl = self
-            .storage
-            .cl_storage()
-            .get_cl(cl_link)
-            .await
-            .map_err(|e| GitError::CustomError(format!("Failed to get CL: {}", e)))?
-            .ok_or_else(|| GitError::CustomError("CL not found".to_string()))?;
-
+        let bellatrix = Arc::new(Bellatrix::new(config.build.clone()));
         let storage = self.storage.clone();
         let git_cache = self.git_object_cache.clone();
+        let cl_link = cl_link.to_string();
 
         // Spawn a background task to handle the build process
         tokio::spawn(async move {
-            let _ = BuildTriggerService::build_by_context(
-                storage,
-                git_cache,
-                Arc::new(bellatrix),
-                cl.into(),
-            )
-            .await;
+            let service = BuildTriggerService::new(storage, git_cache, bellatrix);
+            if let Err(e) = service.trigger_for_cl(&cl_link).await {
+                tracing::warn!("Build trigger failed for CL {}: {}", cl_link, e);
+            }
         });
 
         Ok(())
