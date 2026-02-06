@@ -13,16 +13,24 @@ pub struct Model {
     pub start_at: DateTimeWithTimeZone,
     pub end_at: Option<DateTimeWithTimeZone>,
     pub repo: String,
-    pub target: String,
     #[sea_orm(column_type = "JsonBinary", nullable)]
     pub args: Option<Json>,
     pub output_file: String,
     pub created_at: DateTimeWithTimeZone,
     pub retry_count: i32,
+    pub target_id: Uuid,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
+    #[sea_orm(
+        belongs_to = "super::targets::Entity",
+        from = "Column::TargetId",
+        to = "super::targets::Column::Id",
+        on_update = "NoAction",
+        on_delete = "Cascade"
+    )]
+    Targets,
     #[sea_orm(
         belongs_to = "super::tasks::Entity",
         from = "Column::TaskId",
@@ -31,6 +39,12 @@ pub enum Relation {
         on_delete = "Cascade"
     )]
     Tasks,
+}
+
+impl Related<super::targets::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Targets.def()
+    }
 }
 
 impl Related<super::tasks::Entity> for Entity {

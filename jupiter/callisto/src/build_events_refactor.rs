@@ -4,43 +4,33 @@ use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
-#[sea_orm(table_name = "targets")]
+#[sea_orm(table_name = "build_events_refactor")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
+    pub index: i32,
     pub task_id: Uuid,
-    pub target_path: String,
-    pub state: String,
+    pub exit_code: Option<i32>,
+    pub log_output_file: String,
     pub start_at: Option<DateTimeWithTimeZone>,
     pub end_at: Option<DateTimeWithTimeZone>,
-    #[sea_orm(column_type = "Text", nullable)]
-    pub error_summary: Option<String>,
-    pub created_at: DateTimeWithTimeZone,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
-    #[sea_orm(has_many = "super::builds::Entity")]
-    Builds,
     #[sea_orm(
-        belongs_to = "super::tasks::Entity",
+        belongs_to = "super::tasks_refactor::Entity",
         from = "Column::TaskId",
-        to = "super::tasks::Column::Id",
-        on_update = "NoAction",
+        to = "super::tasks_refactor::Column::Id",
+        on_update = "Cascade",
         on_delete = "Cascade"
     )]
-    Tasks,
+    TasksRefactor,
 }
 
-impl Related<super::builds::Entity> for Entity {
+impl Related<super::tasks_refactor::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::Builds.def()
-    }
-}
-
-impl Related<super::tasks::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Tasks.def()
+        Relation::TasksRefactor.def()
     }
 }
 

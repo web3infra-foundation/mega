@@ -4,34 +4,34 @@ use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
-#[sea_orm(table_name = "tasks")]
+#[sea_orm(table_name = "tasks_refactor")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
-    pub cl_id: i64,
-    pub task_name: Option<String>,
-    #[sea_orm(column_type = "JsonBinary", nullable)]
-    pub template: Option<Json>,
+    #[sea_orm(column_type = "JsonBinary")]
+    pub changes: Json,
+    pub repo_name: String,
+    pub cl: String,
     pub created_at: DateTimeWithTimeZone,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
-    #[sea_orm(has_many = "super::builds::Entity")]
-    Builds,
-    #[sea_orm(has_many = "super::targets::Entity")]
-    Targets,
+    #[sea_orm(has_many = "super::build_events_refactor::Entity")]
+    BuildEventsRefactor,
+    #[sea_orm(has_many = "super::targets_refactor::Entity")]
+    TargetsRefactor,
 }
 
-impl Related<super::builds::Entity> for Entity {
+impl Related<super::build_events_refactor::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::Builds.def()
+        Relation::BuildEventsRefactor.def()
     }
 }
 
-impl Related<super::targets::Entity> for Entity {
+impl Related<super::targets_refactor::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::Targets.def()
+        Relation::TargetsRefactor.def()
     }
 }
 
