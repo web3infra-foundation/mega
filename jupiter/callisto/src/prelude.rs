@@ -21,6 +21,5 @@ pub use super::{
     mega_refs::Entity as MegaRefs, mega_tag::Entity as MegaTag, mega_tree::Entity as MegaTree,
     merge_queue::Entity as MergeQueue, notes::Entity as Notes, orion_tasks::Entity as OrionTasks,
     path_check_configs::Entity as PathCheckConfigs, reactions::Entity as Reactions,
-    ssh_keys::Entity as SshKeys, targets::Entity as Targets, tasks::Entity as Tasks,
-    vault::Entity as Vault,
+    ssh_keys::Entity as SshKeys, vault::Entity as Vault,
 };
