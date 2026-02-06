@@ -1717,7 +1717,7 @@ async fn immediate_work(
     );
     let build_info = BuildInfo {
         event_payload: event,
-        target_id: target.id.to_string(),
+        target_id: target.id,
         target_path: target.target_path.clone(),
         changes: req.build.changes.clone(),
         _worker_id: chosen_id.clone(),
@@ -1726,12 +1726,13 @@ async fn immediate_work(
     };
 
     // Send build to worker
-    let msg = TaskBuildRequest {
+    let msg = WSMessage::Task {
         id: build.id.to_string(),
         repo: build.repo.to_string(),
         changes: req.build.changes.clone(),
         cl_link: req.cl_link.to_string(),
     };
+
     if let Some(mut worker) = state.scheduler.workers.get_mut(&chosen_id)
         && worker.sender.send(msg).is_ok()
     {

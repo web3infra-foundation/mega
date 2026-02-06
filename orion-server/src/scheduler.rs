@@ -270,6 +270,9 @@ impl TaskScheduler {
         }
     }
 
+    /// Ensure target exists for the given task and target path, return the target model
+    ///
+    /// Creates a new target if not exists
     pub async fn ensure_target(
         &self,
         task_id: Uuid,
@@ -330,7 +333,7 @@ impl TaskScheduler {
 
         let pending_build_event = PendingBuildEvent {
             event_payload: event,
-            target_id: None,
+            target_id: target_model.id.into(),
             target_path: None,
             changes: changes,
             created_at: Instant::now(),
@@ -456,7 +459,7 @@ impl TaskScheduler {
             id: Set(pending_build_event.build_event_id),
             task_id: Set(pending_build_event.task_id),
             // target_id: Set(pending_build_event.target_id),
-            target_id: Set(None),
+            target_id: Set(Uuid::nil()),
             exit_code: Set(None),
             start_at: Set(start_at_tz),
             end_at: Set(None),
@@ -503,8 +506,7 @@ impl TaskScheduler {
                 if let Err(e) = targets::update_state(
                     &self.conn,
                     //TODO: update target_id here
-                    // pending_task.target_id,
-                    0,
+                    pending_build_event.target_id.unwrap_or_else(|| Uuid::nil()),
                     TargetState::Building,
                     Some(start_at_tz),
                     None,
@@ -533,7 +535,7 @@ impl TaskScheduler {
                 let _ = targets::update_state(
                     &self.conn,
                     // TODO: update target_id here
-                    pending_build_event.target_id,
+                    pending_build_event.target_id.unwrap_or_else(|| Uuid::nil()),
                     TargetState::Pending,
                     Some(start_at_tz),
                     None,

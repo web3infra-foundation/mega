@@ -1,6 +1,5 @@
 use api_model::buck2::{
-    api::{TaskBuildRequest, TaskBuildResult},
-    ws::WSMessage,
+    api::TaskBuildResult, status::Status, types::ProjectRelativePath, ws::WSMessage,
 };
 use tokio::sync::mpsc::UnboundedSender;
 use uuid::Uuid;
@@ -46,7 +45,9 @@ use crate::buck_controller;
 /// Immediate acknowledgment that the build task has been queued and started
 pub async fn buck_build(
     id: Uuid,
-    req: TaskBuildRequest,
+    cl_link: String,
+    repo: String,
+    changes: Vec<Status<ProjectRelativePath>>,
     sender: UnboundedSender<WSMessage>,
 ) -> TaskBuildResult {
     let id_str = id.to_string();
@@ -55,48 +56,43 @@ pub async fn buck_build(
     // Spawn background task to handle the actual build process
     tokio::spawn(async move {
         // Execute the build operation via buck_controller
-        let build_result = match buck_controller::build(
-            id_str.clone(),
-            req.repo,
-            req.cl_link,
-            sender.clone(),
-            req.changes,
-        )
-        .await
-        {
-            Ok(status) => {
-                let message = format!(
-                    "Build {}",
-                    if status.success() {
-                        "succeeded"
-                    } else {
-                        "failed"
+        let build_result =
+            match buck_controller::build(id_str.clone(), repo, cl_link, sender.clone(), changes)
+                .await
+            {
+                Ok(status) => {
+                    let message = format!(
+                        "Build {}",
+                        if status.success() {
+                            "succeeded"
+                        } else {
+                            "failed"
+                        }
+                    );
+                    tracing::info!(
+                        "[Task {}] {}; Exit code: {:?}",
+                        id_str,
+                        message,
+                        status.code()
+                    );
+                    TaskBuildResult {
+                        success: status.success(),
+                        id: id_str.clone(),
+                        exit_code: status.code(),
+                        message,
                     }
-                );
-                tracing::info!(
-                    "[Task {}] {}; Exit code: {:?}",
-                    id_str,
-                    message,
-                    status.code()
-                );
-                TaskBuildResult {
-                    success: status.success(),
-                    id: id_str.clone(),
-                    exit_code: status.code(),
-                    message,
                 }
-            }
-            Err(e) => {
-                let error_msg = format!("Build execution failed: {e}");
-                tracing::error!("[Task {}] {}", id_str, error_msg);
-                TaskBuildResult {
-                    success: false,
-                    id: id_str.clone(),
-                    exit_code: None,
-                    message: error_msg,
+                Err(e) => {
+                    let error_msg = format!("Build execution failed: {e}");
+                    tracing::error!("[Task {}] {}", id_str, error_msg);
+                    TaskBuildResult {
+                        success: false,
+                        id: id_str.clone(),
+                        exit_code: None,
+                        message: error_msg,
+                    }
                 }
-            }
-        };
+            };
 
         // Send build completion notification via WebSocket
         let complete_msg = WSMessage::TaskBuildComplete {

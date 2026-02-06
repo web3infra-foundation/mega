@@ -15,7 +15,6 @@ use std::{ffi::OsStr, fmt, hash::Hash, str::FromStr};
 use parse_display::Display;
 use serde::{Deserialize, Serialize};
 use td_util::string::InternString;
-use utoipa::ToSchema;
 
 use crate::{cells::CellInfo, labels::Labels};
 

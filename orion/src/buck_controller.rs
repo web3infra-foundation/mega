@@ -8,7 +8,8 @@ use std::{
 
 use anyhow::anyhow;
 use api_model::buck2::{
-    types::{ProjectRelativePath, Status, TaskPhase},
+    status::Status,
+    types::{ProjectRelativePath, TaskPhase},
     ws::WSMessage,
 };
 use once_cell::sync::Lazy;
