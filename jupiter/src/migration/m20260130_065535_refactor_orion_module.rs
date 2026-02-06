@@ -35,7 +35,7 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
-        // Create BuildEventsRefacotr
+        // Create BuildEventsRefactor
         manager
             .create_table(
                 Table::create()
@@ -144,8 +144,36 @@ impl MigrationTrait for Migration {
 
         Ok(())
     }
-    async fn down(&self, _: &SchemaManager) -> Result<(), DbErr> {
-        todo!();
+
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        // Drop indexes created in `up`
+        manager
+            .drop_index(
+                Index::drop()
+                    .name("idx_targets_refactor_task_id")
+                    .table(TargetsRefactor::Table)
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .drop_index(
+                Index::drop()
+                    .name("idx_build_events_refactor_task_id")
+                    .table(BuildEventsRefactor::Table)
+                    .to_owned(),
+            )
+            .await?;
+        // Drop tables created in `up` (children before parent)
+        manager
+            .drop_table(Table::drop().table(TargetsRefactor::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(BuildEventsRefactor::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(TasksRefactor::Table).to_owned())
+            .await?;
+        Ok(())
     }
 }
 
