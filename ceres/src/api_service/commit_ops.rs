@@ -459,7 +459,7 @@ pub async fn traverse_history_commits<T: ApiHandler + ?Sized>(
 }
 
 /// Collect all blobs as (path, ObjectHash) pairs under a commit tree
-async fn collect_commit_blobs<T: ApiHandler + ?Sized>(
+pub async fn collect_commit_blobs<T: ApiHandler + ?Sized>(
     handler: &T,
     commit: &Commit,
 ) -> Result<Vec<(PathBuf, ObjectHash)>, GitError> {

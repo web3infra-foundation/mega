@@ -14,9 +14,8 @@ use async_recursion::async_recursion;
 use async_trait::async_trait;
 use bellatrix::Bellatrix;
 use callisto::{
-    entity_ext::generate_link,
-    mega_cl, mega_code_review_anchor, mega_commit, mega_refs,
-    sea_orm_active_enums::{ConvTypeEnum, PositionStatusEnum},
+    entity_ext::generate_link, mega_cl, mega_code_review_anchor, mega_commit, mega_refs,
+    sea_orm_active_enums::PositionStatusEnum,
 };
 use common::{
     errors::MegaError,
@@ -35,16 +34,13 @@ use git_internal::{
     },
 };
 use io_orbit::object_storage::MultiObjectByteStream;
-use jupiter::{
-    service::reviewer_service::ReviewerService, storage::Storage, utils::converter::FromMegaModel,
-};
+use jupiter::{storage::Storage, utils::converter::FromMegaModel};
 use tokio::sync::{RwLock, mpsc};
 use tokio_stream::wrappers::ReceiverStream;
 
 use crate::{
     api_service::{ApiHandler, cache::GitObjectCache, mono_api_service::MonoApiService, tree_ops},
-    build_trigger::{BuildTriggerService, GitPushEvent},
-    merge_checker::CheckerRegistry,
+    code_edit::{on_push::OnpushCodeEdit, utils::get_changed_files},
     model::change_list::{BuckFile, ClDiffFile},
     pack::RepoHandler,
     protocol::import_refs::{RefCommand, Refs},
@@ -155,10 +151,25 @@ impl RepoHandler for MonoRepo {
     }
 
     async fn post_receive_pack(&self) -> Result<(), MegaError> {
-        self.save_or_update_cl().await?;
+        let username = self.username();
+        let mono_api_service = self.into();
+        let editor = OnpushCodeEdit::from(self.path.to_str().unwrap(), &mono_api_service);
+        let cl = editor
+            .update_or_create_cl(&self.storage, &self.to_hash, &username)
+            .await?;
         self.traverses_tree_and_update_filepath().await?;
-        self.post_cl_operation().await?;
-        self.reanchor_code_review_threads().await?;
+        if self.bellatrix.enable_build() {
+            let _ = editor
+                .trigger_build_and_check(
+                    self.storage.clone(),
+                    self.git_object_cache.clone(),
+                    self.bellatrix.clone(),
+                    &cl,
+                    &username,
+                )
+                .await?;
+        }
+        self.reanchor_code_review_threads(&cl).await?;
         Ok(())
     }
 
@@ -572,58 +583,6 @@ impl MonoRepo {
         Ok(cl_link)
     }
 
-    async fn update_existing_cl(&self, cl: mega_cl::Model) -> Result<(), MegaError> {
-        let cl_stg = self.storage.cl_storage();
-        let comment_stg = self.storage.conversation_storage();
-
-        let from_same = cl.from_hash == self.from_hash;
-        let to_same = cl.to_hash == self.to_hash;
-
-        if from_same && to_same {
-            tracing::info!("repeat commit with cl: {}, do nothing", cl.id);
-            return Ok(());
-        }
-
-        if from_same {
-            let username = self.username();
-            let old_hash = &cl.to_hash[..6];
-            let new_hash = &self.to_hash[..6];
-
-            comment_stg
-                .add_conversation(
-                    &cl.link,
-                    &username,
-                    Some(format!(
-                        "{} updated the cl automatic from {} to {}",
-                        username, old_hash, new_hash
-                    )),
-                    ConvTypeEnum::ForcePush,
-                )
-                .await?;
-
-            cl_stg.update_cl_to_hash(cl, &self.to_hash).await?;
-        } else {
-            // Freeze CL base for Open CL: do NOT auto-update from_hash here.
-            // Only update to_hash to reflect latest edits, and prompt user to run Update Branch.
-            let username = self.username();
-            let old_base = &cl.from_hash[..6];
-            let new_target = &self.from_hash[..6];
-            comment_stg
-                .add_conversation(
-                    &cl.link,
-                    &username,
-                    Some(format!(
-                        "{} detected upstream changes (base {} → {}). Use Update Branch to sync.",
-                        username, old_base, new_target
-                    )),
-                    ConvTypeEnum::Comment,
-                )
-                .await?;
-            cl_stg.update_cl_to_hash(cl, &self.to_hash).await?;
-        }
-        Ok(())
-    }
-
     #[allow(dead_code)]
     async fn search_buck_under_cl(&self, cl_path: &Path) -> Result<Vec<BuckFile>, MegaError> {
         let mut res = vec![];
@@ -715,362 +674,6 @@ impl MonoRepo {
         self.username.clone().unwrap_or(String::from("Anonymous"))
     }
 
-    pub async fn save_or_update_cl(&self) -> Result<(), MegaError> {
-        let storage = self.storage.cl_storage();
-        let path_str = self.path.to_string_lossy();
-        let username = self.username();
-
-        let is_new_cl = match storage.get_open_cl_by_path(&path_str, &username).await? {
-            Some(cl) => {
-                self.update_existing_cl(cl).await?;
-                false
-            }
-            None => {
-                let link_guard = self.cl_link.read().await;
-                let cl_link = link_guard.as_ref().ok_or_else(|| {
-                    MegaError::Other(
-                        "CL link not available. This may occur if refs update failed.".to_string(),
-                    )
-                })?;
-
-                let commit_guard = self.current_commit.read().await;
-                let title = if let Some(commit) = commit_guard.as_ref() {
-                    commit.format_message()
-                } else {
-                    String::new()
-                };
-                storage
-                    .new_cl(
-                        &path_str,
-                        cl_link,
-                        &title,
-                        &self.from_hash,
-                        &self.to_hash,
-                        &username,
-                    )
-                    .await?;
-                true
-            }
-        };
-
-        // Auto-assign reviewers for new CL
-        if is_new_cl && let Err(e) = self.assign_system_reviewers().await {
-            tracing::warn!("Failed to assign Cedar reviewers: {}", e);
-        }
-
-        // Resync reviewers when existing CL updates policy files
-        if !is_new_cl && let Err(e) = self.resync_current_cl_reviewers_if_policy_changed().await {
-            tracing::warn!("Failed to resync Cedar reviewers: {}", e);
-        }
-
-        Ok(())
-    }
-
-    /// Resync reviewers when policy files are modified in an existing CL.
-    async fn resync_current_cl_reviewers_if_policy_changed(&self) -> Result<(), MegaError> {
-        let changed_files = self.get_changed_files().await?;
-
-        let link_guard = self.cl_link.read().await;
-        let cl_link = link_guard
-            .as_ref()
-            .ok_or_else(|| MegaError::Other("CL link not available".to_string()))?;
-
-        let policy_contents = self.collect_policy_contents(&changed_files).await;
-        if policy_contents.is_empty() {
-            return Ok(());
-        }
-
-        let reviewer_service = ReviewerService::from_storage(self.storage.reviewer_storage());
-        reviewer_service
-            .sync_system_reviewers(cl_link, &policy_contents, &changed_files)
-            .await?;
-
-        Ok(())
-    }
-
-    /// Get list of files changed between from_hash and to_hash commits.
-    /// Returns paths relative to the CL root directory with forward slashes.
-    async fn get_changed_files(&self) -> Result<Vec<String>, MegaError> {
-        let mono_api_service: MonoApiService = self.into();
-
-        let old_files = mono_api_service.get_commit_blobs(&self.from_hash).await?;
-        let new_files = mono_api_service.get_commit_blobs(&self.to_hash).await?;
-        let changed = mono_api_service.cl_files_list(old_files, new_files).await?;
-
-        // Normalize CL root path to use forward slashes
-        let cl_root = self.path.to_string_lossy().replace('\\', "/");
-        let cl_root_normalized = cl_root.trim_start_matches('/');
-
-        let file_paths: Vec<String> = changed
-            .iter()
-            .map(|f| {
-                let full_path = f.path().to_string_lossy().replace('\\', "/");
-                let full_path_normalized = full_path.trim_start_matches('/');
-
-                // Strip CL root prefix to get relative path
-                if let Some(rel) = full_path_normalized.strip_prefix(cl_root_normalized) {
-                    rel.trim_start_matches('/').to_string()
-                } else {
-                    full_path.to_string()
-                }
-            })
-            .collect();
-
-        Ok(file_paths)
-    }
-
-    /// Collect Cedar policy files from directories of all changed files.
-    /// Also collects policies from parent directories up to Monorepo root for inheritance.
-    /// Tries from_hash first for security, then falls back to to_hash for new directories.
-    /// Returns list of (policy_path, content) tuples, ordered from root to leaf.
-    async fn collect_policy_contents(&self, changed_files: &[String]) -> Vec<(PathBuf, String)> {
-        let mono_api_service: MonoApiService = self.into();
-        let mut all_policy_dirs: HashSet<PathBuf> = HashSet::new();
-
-        // Always include the CL root directory
-        all_policy_dirs.insert(PathBuf::new());
-
-        // Collect ancestor directories from all changed files
-        for file_path in changed_files {
-            let relative_path = file_path.trim_start_matches('/').replace('\\', "/");
-            let path = PathBuf::from(&relative_path);
-
-            let parent = path.parent().unwrap_or(std::path::Path::new(""));
-
-            // Skip .cedar directory itself, use its parent
-            let logical_parent = if parent.file_name().map(|n| n == ".cedar").unwrap_or(false) {
-                parent.parent().unwrap_or(std::path::Path::new(""))
-            } else {
-                parent
-            };
-
-            for ancestor in logical_parent.ancestors() {
-                let ancestor_str = ancestor.to_string_lossy();
-                if ancestor_str.contains(".cedar") {
-                    continue;
-                }
-                let normalized = PathBuf::from(ancestor_str.replace('\\', "/"));
-                all_policy_dirs.insert(normalized);
-            }
-        }
-
-        // Sort by depth for correct override semantics (root policies first)
-        let mut sorted_dirs: Vec<PathBuf> = all_policy_dirs.into_iter().collect();
-        sorted_dirs.sort_by_key(|p| p.components().count());
-
-        let mut policy_contents: Vec<(PathBuf, String)> = Vec::new();
-        let mut seen_policies: HashSet<String> = HashSet::new();
-
-        let self_path_str = self.path.to_string_lossy().replace('\\', "/");
-        let self_path_normalized = self_path_str.trim_start_matches('/');
-
-        // Step 1: Collect parent policies from Monorepo root down to CL directory
-        // This enables inheritance from e.g. /project/.cedar/policies.cedar
-        let parent_dirs = self.collect_parent_policy_dirs();
-
-        for parent_dir in parent_dirs {
-            // Use absolute path as key to avoid collision with CL-local policies
-            let absolute_policy_path = if parent_dir.is_empty() {
-                "/.cedar/policies.cedar".to_string()
-            } else {
-                format!("/{}/.cedar/policies.cedar", parent_dir)
-            };
-
-            if seen_policies.contains(&absolute_policy_path) {
-                continue;
-            }
-
-            // For parent policies, we use a rooted MonoApiService
-            if let Some(content) = self
-                .get_parent_policy_content(&mono_api_service, &parent_dir)
-                .await
-            {
-                seen_policies.insert(absolute_policy_path.clone());
-                policy_contents.push((PathBuf::from(&absolute_policy_path), content));
-            }
-        }
-
-        // Step 2: Collect policies within the CL directory
-        for dir in sorted_dirs {
-            let policy_relative_path = if dir.as_os_str().is_empty() {
-                ".cedar/policies.cedar".to_string()
-            } else {
-                let dir_str = dir.to_string_lossy().replace('\\', "/");
-                format!("{}/.cedar/policies.cedar", dir_str)
-            };
-
-            // Build absolute path for deduplication
-            let absolute_policy_path = if self_path_normalized.is_empty() {
-                format!("/{}", policy_relative_path)
-            } else {
-                format!("/{}/{}", self_path_normalized, policy_relative_path)
-            };
-
-            // Skip if already seen from parent collection
-            if seen_policies.contains(&absolute_policy_path) {
-                continue;
-            }
-
-            let lookup_path = PathBuf::from(&policy_relative_path);
-
-            // Fetch policy content: try from_hash for existing, fall back to to_hash for new
-            let content = if self.from_hash != ZERO_ID {
-                if let Ok(Some(content)) = mono_api_service
-                    .get_blob_as_string(lookup_path.clone(), Some(&self.from_hash))
-                    .await
-                {
-                    Some(content)
-                } else {
-                    mono_api_service
-                        .get_blob_as_string(lookup_path, Some(&self.to_hash))
-                        .await
-                        .ok()
-                        .flatten()
-                }
-            } else {
-                mono_api_service
-                    .get_blob_as_string(lookup_path, Some(&self.to_hash))
-                    .await
-                    .ok()
-                    .flatten()
-            };
-
-            if let Some(content) = content {
-                seen_policies.insert(absolute_policy_path.clone());
-                policy_contents.push((PathBuf::from(&absolute_policy_path), content));
-            }
-        }
-
-        policy_contents
-    }
-
-    /// Collect parent directory paths from Monorepo root to CL directory (exclusive).
-    fn collect_parent_policy_dirs(&self) -> Vec<String> {
-        let self_path_str = self.path.to_string_lossy().replace('\\', "/");
-        let self_path_normalized = self_path_str.trim_start_matches('/');
-
-        if self_path_normalized.is_empty() {
-            return vec![];
-        }
-
-        let mut parent_dirs = Vec::new();
-        let components: Vec<&str> = self_path_normalized.split('/').collect();
-
-        // Add root directory
-        parent_dirs.push(String::new());
-
-        // Add each parent level except the CL directory itself
-        let mut current_path = String::new();
-        for (i, component) in components.iter().enumerate() {
-            if i == components.len() - 1 {
-                break;
-            }
-            if current_path.is_empty() {
-                current_path = component.to_string();
-            } else {
-                current_path = format!("{}/{}", current_path, component);
-            }
-            parent_dirs.push(current_path.clone());
-        }
-
-        parent_dirs
-    }
-
-    /// Get policy content from a parent directory using storage directly.
-    async fn get_parent_policy_content(
-        &self,
-        _mono_api_service: &MonoApiService,
-        parent_dir: &str,
-    ) -> Option<String> {
-        let storage = self.storage.mono_storage();
-
-        // Get the main ref for the parent directory
-        let parent_path = if parent_dir.is_empty() {
-            "/".to_string()
-        } else {
-            format!("/{}", parent_dir)
-        };
-
-        let refs = storage.get_main_ref(&parent_path).await.ok()??;
-
-        // Create a temporary MonoApiService for the parent path
-        let parent_mono = MonoApiService {
-            storage: self.storage.clone(),
-            git_object_cache: self.git_object_cache.clone(),
-        };
-
-        // Look up .cedar/policies.cedar in the parent directory
-        let policy_path = PathBuf::from(".cedar/policies.cedar");
-        parent_mono
-            .get_blob_as_string(policy_path, Some(&refs.ref_commit_hash))
-            .await
-            .ok()
-            .flatten()
-    }
-
-    /// Auto-assign system required reviewers based on Cedar policy files.
-    async fn assign_system_reviewers(&self) -> Result<(), MegaError> {
-        let link_guard = self.cl_link.read().await;
-        let cl_link = link_guard
-            .as_ref()
-            .ok_or_else(|| MegaError::Other("CL link not available".to_string()))?;
-
-        let changed_files = self.get_changed_files().await?;
-        let policy_contents = self.collect_policy_contents(&changed_files).await;
-
-        if policy_contents.is_empty() {
-            return Ok(());
-        }
-
-        let reviewer_service = ReviewerService::from_storage(self.storage.reviewer_storage());
-        reviewer_service
-            .assign_system_reviewers(cl_link, &policy_contents, &changed_files)
-            .await?;
-
-        Ok(())
-    }
-
-    pub async fn post_cl_operation(&self) -> Result<(), MegaError> {
-        let link_guard = self.cl_link.read().await;
-        let link = link_guard.as_ref().ok_or_else(|| {
-            MegaError::Other(
-                "CL link not available. This may occur if refs update failed.".to_string(),
-            )
-        })?;
-        let cl_info = self
-            .storage
-            .cl_storage()
-            .get_cl(link)
-            .await?
-            .ok_or_else(|| MegaError::Other(format!("CL not found for link: {}", link)))?;
-
-        if self.bellatrix.enable_build() {
-            let event = GitPushEvent {
-                repo_path: cl_info.path.clone(),
-                from_hash: cl_info.from_hash.clone(),
-                commit_hash: cl_info.to_hash.clone(),
-                cl_link: cl_info.link.clone(),
-                cl_id: Some(cl_info.id),
-                triggered_by: self.username.clone(),
-            };
-
-            if let Err(e) = BuildTriggerService::handle_git_push_event(
-                self.storage.clone(),
-                self.git_object_cache.clone(),
-                self.bellatrix.clone(),
-                event,
-            )
-            .await
-            {
-                tracing::error!("Failed to trigger CI pipeline: {}", e);
-            }
-        }
-
-        let check_reg = CheckerRegistry::new(self.storage.clone().into(), self.username());
-        check_reg.run_checks(cl_info.clone().into()).await?;
-        Ok(())
-    }
-
     pub async fn get_commit_blobs(
         &self,
         commit_hash: &str,
@@ -1090,20 +693,17 @@ impl MonoRepo {
 
     // Mark code review threads whose anchors may be affected by this change as outdated.
     // These threads will require reanchoring to restore accurate code positions.
-    pub async fn reanchor_code_review_threads(&self) -> Result<(), MegaError> {
+    pub async fn reanchor_code_review_threads(&self, cl: &mega_cl::Model) -> Result<(), MegaError> {
         let mono_api_service: MonoApiService = self.into();
-        let link_guard = self.cl_link.read().await;
-        let cl_link = link_guard
-            .as_ref()
-            .ok_or_else(|| MegaError::Other("CL link not available".to_string()))?;
+        let cl_link = cl.link.clone();
 
         // Marks code review threads as outdated if their file paths
         // are affected by the latest change list.
-        let changed_files = self.get_changed_files().await?;
+        let changed_files = get_changed_files(&mono_api_service, cl).await?;
         let files_with_threads = self
             .storage
             .code_review_thread_storage()
-            .get_files_with_threads_by_link(cl_link)
+            .get_files_with_threads_by_link(&cl_link)
             .await?;
 
         let files_with_threads_set: HashSet<&String> = files_with_threads.iter().collect();
@@ -1159,6 +759,7 @@ impl MonoRepo {
         let reanchor_tasks: Vec<_> = pending_reanchor_threads
             .into_iter()
             .map(|thread| {
+                let cl_link = cl_link.clone();
                 let mono_api_service = Arc::clone(&mono_api_service);
                 let anchors_map = anchors_map.clone();
                 let to_hash = self.to_hash.clone();
@@ -1178,7 +779,7 @@ impl MonoRepo {
                     };
 
                     let (diff_content, _) = mono_api_service
-                        .paged_content_diff(cl_link, Pagination::default())
+                        .paged_content_diff(&cl_link, Pagination::default())
                         .await?;
 
                     let mut blob_cache: HashMap<String, String> = HashMap::new();
