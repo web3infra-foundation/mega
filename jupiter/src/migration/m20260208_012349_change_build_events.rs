@@ -7,6 +7,7 @@ pub struct Migration;
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // Drop BuildEvents
+        manager.drop_index(Index::drop().name("idx_build_events_task_id").to_owned()).await?;
         manager
             .drop_table(Table::drop().table(BuildEvents::Table).to_owned())
             .await?;
