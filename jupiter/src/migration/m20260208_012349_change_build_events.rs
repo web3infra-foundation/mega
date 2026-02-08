@@ -10,13 +10,19 @@ impl MigrationTrait for Migration {
         manager
             .drop_index(
                 Index::drop()
+                    .if_exists()
                     .name("idx_build_events_task_id")
                     .table(BuildEvents::Table)
                     .to_owned(),
             )
             .await?;
         manager
-            .drop_table(Table::drop().table(BuildEvents::Table).to_owned())
+            .drop_table(
+                Table::drop()
+                    .table(BuildEvents::Table)
+                    .if_exists()
+                    .to_owned(),
+            )
             .await?;
 
         // New BuildEvents
@@ -66,6 +72,7 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
+                    .if_not_exists()
                     .name("idx_build_events_task_id")
                     .table(BuildEvents::Table)
                     .col(BuildEvents::TaskId)
