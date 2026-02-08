@@ -6,64 +6,70 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        // Rename index to retry_count
+        // Drop BuildEvents
         manager
-            .alter_table(
-                Table::alter()
+            .drop_table(Table::drop().table(BuildEvents::Table).to_owned())
+            .await?;
+
+        // New BuildEvents
+        manager
+            .create_table(
+                Table::create()
                     .table(BuildEvents::Table)
-                    .rename_column(BuildEvents::Index, BuildEvents::RetryCount)
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(BuildEvents::Id)
+                            .uuid()
+                            .not_null()
+                            .primary_key(),
+                    )
+                    .col(ColumnDef::new(BuildEvents::TaskId).uuid().not_null())
+                    .col(ColumnDef::new(BuildEvents::RetryCount).integer().not_null())
+                    .col(ColumnDef::new(BuildEvents::ExitCode).integer().null())
+                    .col(ColumnDef::new(BuildEvents::Log).string().null())
+                    .col(
+                        ColumnDef::new(BuildEvents::LogOutputFile)
+                            .string()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(BuildEvents::StartAt)
+                            .timestamp_with_time_zone()
+                            .not_null()
+                            .default(Expr::current_timestamp()),
+                    )
+                    .col(
+                        ColumnDef::new(BuildEvents::EndAt)
+                            .timestamp_with_time_zone()
+                            .null(),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from(BuildEvents::Table, BuildEvents::TaskId)
+                            .to(OrionTasks::Table, OrionTasks::Id)
+                            .on_delete(ForeignKeyAction::Cascade)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
                     .to_owned(),
             )
             .await?;
 
-        // Add log
+        // Create indexes on foreign key columns for better join performance
         manager
-            .alter_table(
-                Table::alter()
+            .create_index(
+                Index::create()
+                    .name("idx_build_events_task_id")
                     .table(BuildEvents::Table)
-                    .add_column(ColumnDef::new(BuildEvents::Log).string().null())
+                    .col(BuildEvents::TaskId)
                     .to_owned(),
             )
             .await?;
 
-        // Change start_at to not null
-        manager
-            .alter_table(
-                Table::alter()
-                    .table(BuildEvents::Table)
-                    .modify_column(ColumnDef::new(BuildEvents::StartAt).not_null())
-                    .to_owned(),
-            )
-            .await?;
         Ok(())
     }
 
-    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        manager
-            .alter_table(
-                Table::alter()
-                    .table(BuildEvents::Table)
-                    .rename_column(BuildEvents::RetryCount, BuildEvents::Index)
-                    .to_owned(),
-            )
-            .await?;
-        manager
-            .alter_table(
-                Table::alter()
-                    .table(BuildEvents::Table)
-                    .drop_column(BuildEvents::Log)
-                    .to_owned(),
-            )
-            .await?;
-
-        manager
-            .alter_table(
-                Table::alter()
-                    .table(BuildEvents::Table)
-                    .modify_column(ColumnDef::new(BuildEvents::StartAt).null())
-                    .to_owned(),
-            )
-            .await?;
+    async fn down(&self, _: &SchemaManager) -> Result<(), DbErr> {
+        // Do not anything.
         Ok(())
     }
 }
@@ -71,8 +77,18 @@ impl MigrationTrait for Migration {
 #[derive(DeriveIden)]
 enum BuildEvents {
     Table,
-    Index,      // Need be renamed
-    RetryCount, // Need rename
-    Log,        // Need add
-    StartAt,    // Need change not null
+    Id,
+    TaskId,
+    RetryCount,
+    ExitCode,
+    Log,
+    LogOutputFile,
+    StartAt,
+    EndAt,
+}
+
+#[derive(DeriveIden)]
+enum OrionTasks {
+    Table,
+    Id,
 }
