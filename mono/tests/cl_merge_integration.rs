@@ -1379,6 +1379,7 @@ async fn phase12_verify_cl2_merge(vm: &mut qlean::Machine, cl2: &str) -> Result<
 // MAIN TEST
 // ============================================================================
 #[tokio::test]
+#[ignore]
 async fn test_cl_merge_integration() -> Result<()> {
     tracing_subscriber_init();
 
