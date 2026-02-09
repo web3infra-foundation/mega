@@ -164,6 +164,7 @@ pub struct BuildInfo {
     pub target_id: Uuid,
     pub target_path: String,
     pub changes: Vec<Status<ProjectRelativePath>>,
+    #[allow(dead_code)]
     pub started_at: DateTimeUtc,
     pub auto_retry_judger: AutoRetryJudger,
     pub _worker_id: String,
