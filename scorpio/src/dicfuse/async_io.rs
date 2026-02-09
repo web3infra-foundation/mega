@@ -1,4 +1,4 @@
-use std::{ffi::OsStr, num::NonZeroU32};
+use std::{ffi::OsStr, num::NonZeroU32, time::Duration};
 
 use bytes::Bytes;
 use futures::stream::iter;
@@ -66,25 +66,118 @@ impl Filesystem for Dicfuse {
 
     /// look up a directory entry by name and get its attributes.
     async fn lookup(&self, _req: Request, parent: Inode, name: &OsStr) -> Result<ReplyEntry> {
+        // Keep lookup mostly non-blocking: wait a short budget for directory refresh,
+        // then continue with best-effort cache lookup and only retry once on miss.
+        const LOOKUP_REFRESH_WAIT_BUDGET_MS: u64 = 20;
+        const LOOKUP_MISS_RETRY_WAIT_BUDGET_MS: u64 = 200;
+
         let store = self.store.clone();
-        if let Err(e) = store.ensure_dir_loaded(parent).await {
-            tracing::warn!(
-                "dicfuse: refresh parent inode {} before lookup failed: {}",
-                parent,
-                e
-            );
+
+        let mut refresh_handle = None;
+        let mut refresh_timed_out = false;
+
+        let refresh_needed = match store.dir_refresh_needed(parent) {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::warn!(
+                    "dicfuse: check dir refresh state for parent inode {} failed: {}",
+                    parent,
+                    e
+                );
+                true
+            }
+        };
+
+        if refresh_needed {
+            let store_for_refresh = store.clone();
+            let mut handle =
+                tokio::spawn(async move { store_for_refresh.ensure_dir_loaded(parent).await });
+
+            match tokio::time::timeout(
+                Duration::from_millis(LOOKUP_REFRESH_WAIT_BUDGET_MS),
+                &mut handle,
+            )
+            .await
+            {
+                Ok(Ok(Ok(()))) => {}
+                Ok(Ok(Err(e))) => {
+                    tracing::warn!(
+                        "dicfuse: refresh parent inode {} before lookup failed: {}",
+                        parent,
+                        e
+                    );
+                }
+                Ok(Err(e)) => {
+                    tracing::warn!(
+                        "dicfuse: refresh task join failed for parent inode {}: {}",
+                        parent,
+                        e
+                    );
+                }
+                Err(_) => {
+                    // The spawned task continues running in the background even if this handle
+                    // is later dropped (cache-hit path). This is intentional: the refresh will
+                    // populate the cache for subsequent lookups.
+                    refresh_timed_out = true;
+                    refresh_handle = Some(handle);
+                }
+            }
         }
+
         let mut ppath = store
             .find_path(parent)
             .await
             .ok_or_else(|| std::io::Error::from_raw_os_error(libc::ENODATA))?;
-
         ppath.push(name.to_string_lossy().into_owned());
-        let child = match store.get_by_path(&ppath.to_string()).await {
-            Ok(v) => v,
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Err(e.into()),
+        let child_path = ppath.to_string();
+
+        let mut child = match store.get_by_path(&child_path).await {
+            Ok(v) => Some(v),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
             Err(e) => return Err(e.into()),
         };
+
+        if child.is_none() && refresh_timed_out {
+            if let Some(handle) = refresh_handle.as_mut() {
+                match tokio::time::timeout(
+                    Duration::from_millis(LOOKUP_MISS_RETRY_WAIT_BUDGET_MS),
+                    handle,
+                )
+                .await
+                {
+                    Ok(Ok(Ok(()))) => {}
+                    Ok(Ok(Err(e))) => {
+                        tracing::warn!(
+                            "dicfuse: refresh parent inode {} after miss failed: {}",
+                            parent,
+                            e
+                        );
+                    }
+                    Ok(Err(e)) => {
+                        tracing::warn!(
+                            "dicfuse: refresh task join after miss failed for parent inode {}: {}",
+                            parent,
+                            e
+                        );
+                    }
+                    Err(_) => {}
+                }
+            }
+
+            child = match store.get_by_path(&child_path).await {
+                Ok(v) => Some(v),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+                Err(e) => return Err(e.into()),
+            };
+        }
+
+        let child = match child {
+            Some(v) => v,
+            None => {
+                return Err(std::io::Error::from_raw_os_error(libc::ENOENT).into());
+            }
+        };
+
         let re = self.get_stat(child).await;
         Ok(re)
     }
@@ -598,13 +691,17 @@ impl Filesystem for Dicfuse {
                 {
                     Ok((stat, ft)) => (stat, ft),
                     Err(_) => {
-                        tracing::warn!("get_stat/get_filetype timed out for item {} in readdirplus (Dicfuse may still be loading)", item_name);
+                        tracing::warn!(
+                            "get_stat/get_filetype timed out for item {} in readdirplus (Dicfuse may still be loading)",
+                            item_name
+                        );
                         // Use default entries to avoid blocking
                         // Try to determine if it's a directory by checking if we can get the item
-                        let default_entry = match self.store.get_inode(item.get_inode()).await {
+                        let mut default_entry = match self.store.get_inode(item.get_inode()).await {
                             Ok(i) if i.is_dir() => default_dic_entry(item.get_inode()),
                             _ => default_file_entry(item.get_inode()),
                         };
+                        default_entry.ttl = self.reply_ttl();
                         let default_ft = if default_entry.attr.kind == rfuse3::FileType::Directory {
                             rfuse3::FileType::Directory
                         } else {

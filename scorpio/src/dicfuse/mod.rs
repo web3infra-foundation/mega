@@ -9,6 +9,7 @@ mod tree_store;
 use std::{
     ffi::{OsStr, OsString},
     sync::Arc,
+    time::Duration,
 };
 
 pub use manager::DicfuseManager;
@@ -192,8 +193,7 @@ impl Layer for Dicfuse {
         stat.st_ctime = attr.ctime.sec;
         stat.st_ctime_nsec = attr.ctime.nsec.into();
 
-        // TTL of 2 seconds, consistent with other Dicfuse operations.
-        Ok((stat, std::time::Duration::from_secs(2)))
+        Ok((stat, self.reply_ttl()))
     }
 }
 
@@ -259,8 +259,19 @@ impl Dicfuse {
         self.store.base_path()
     }
 
+    pub(crate) fn reply_ttl(&self) -> Duration {
+        let is_subdir_mount = !(self.base_path().is_empty() || self.base_path() == "/");
+        let ttl_secs = if is_subdir_mount {
+            config::antares_dicfuse_reply_ttl_secs()
+        } else {
+            config::dicfuse_reply_ttl_secs()
+        };
+        Duration::from_secs(ttl_secs)
+    }
+
     pub async fn get_stat(&self, item: StorageItem) -> ReplyEntry {
         let mut e = item.get_stat();
+        e.ttl = self.reply_ttl();
         if item.is_dir() {
             e.attr.size = 0;
             return e;
@@ -279,6 +290,7 @@ impl Dicfuse {
     /// a later getattr/open triggers size discovery.
     pub async fn get_stat_fast(&self, item: StorageItem) -> ReplyEntry {
         let mut e = item.get_stat();
+        e.ttl = self.reply_ttl();
         if item.is_dir() {
             e.attr.size = 0;
             return e;
