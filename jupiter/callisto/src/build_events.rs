@@ -39,7 +39,7 @@ impl ActiveModelBehavior for ActiveModel {}
 
 #[allow(dead_code)]
 trait BuildModel {
-    /// Crete a new build event ActiveModel for database insertion
+    /// Create a new build event ActiveModel for database insertion
     fn create_build_event(
         build_event_id: Uuid,
         task_id: Uuid,

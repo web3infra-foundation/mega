@@ -471,8 +471,8 @@ pub async fn task_handler(
         let result: OrionBuildResult = handle_immediate_task_dispatch(
             state.clone(),
             task_id,
-            &req.cl_link,
             &req.repo,
+            &req.cl_link,
             req.changes.clone(),
             None,
         )
