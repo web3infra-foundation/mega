@@ -1965,7 +1965,6 @@ impl MonoApiService {
         let sorted_changed_files = edit_utils::cl_files_list(old_blobs.clone(), new_blobs.clone())
             .await
             .map_err(|e| GitError::CustomError(e.to_string()))?;
-        tracing::info!("sorted_changed_files = {:?}", sorted_changed_files);
 
         // ensure page_id is within bounds
         let start = (page_id.saturating_sub(1)) * per_page;
