@@ -647,8 +647,6 @@ pub struct BuildConfig {
     pub orion_server: String,
     #[serde(default)]
     pub orion_preheat_shallow_depth: usize,
-    #[serde(default)]
-    pub orion_buck2_isolation_dir_base: Option<String>,
 }
 
 /// Orion Server configuration (flat structure)

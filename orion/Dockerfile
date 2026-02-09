@@ -171,9 +171,7 @@ ENV PATH="/app/bin:/usr/local/bin:${PATH}" \
     RUST_LOG=info \
     # Scorpio defaults
     SCORPIO_STORE_PATH=/data/scorpio/store \
-    SCORPIO_WORKSPACE=/workspace/mount \
-    # Buck2 defaults
-    BUCK2_ISOLATION_DIR=/tmp/buck2-isolation
+    SCORPIO_WORKSPACE=/workspace/mount
 
 WORKDIR /workspace
 
