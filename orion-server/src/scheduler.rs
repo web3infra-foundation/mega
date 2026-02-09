@@ -446,9 +446,7 @@ impl TaskScheduler {
         let build_info = BuildInfo {
             event_payload: pending_build_event.event_payload.clone(),
             changes: pending_build_event.changes.clone(),
-            target_id: pending_build_event
-                .target_id
-                .unwrap_or(Uuid::nil()),
+            target_id: pending_build_event.target_id.unwrap_or(Uuid::nil()),
             target_path: pending_build_event.target_path.clone().unwrap_or_default(),
             _worker_id: chosen_id.clone(),
             auto_retry_judger: AutoRetryJudger::new(),
@@ -507,9 +505,7 @@ impl TaskScheduler {
                 if let Err(e) = targets::update_state(
                     &self.conn,
                     //TODO: update target_id here
-                    pending_build_event
-                        .target_id
-                        .unwrap_or(Uuid::nil()),
+                    pending_build_event.target_id.unwrap_or(Uuid::nil()),
                     TargetState::Building,
                     Some(start_at_tz),
                     None,
@@ -540,9 +536,7 @@ impl TaskScheduler {
                 let _ = targets::update_state(
                     &self.conn,
                     // TODO: update target_id here
-                    pending_build_event
-                        .target_id
-                        .unwrap_or(Uuid::nil()),
+                    pending_build_event.target_id.unwrap_or(Uuid::nil()),
                     TargetState::Pending,
                     Some(start_at_tz),
                     None,
