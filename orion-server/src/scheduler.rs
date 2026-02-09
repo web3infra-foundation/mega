@@ -448,7 +448,7 @@ impl TaskScheduler {
             changes: pending_build_event.changes.clone(),
             target_id: pending_build_event
                 .target_id
-                .map_or_else(Uuid::nil, |id| id),
+                .unwrap_or(Uuid::nil()),
             target_path: pending_build_event.target_path.clone().unwrap_or_default(),
             _worker_id: chosen_id.clone(),
             auto_retry_judger: AutoRetryJudger::new(),
@@ -509,7 +509,7 @@ impl TaskScheduler {
                     //TODO: update target_id here
                     pending_build_event
                         .target_id
-                        .map_or_else(Uuid::nil, |id| id),
+                        .unwrap_or(Uuid::nil()),
                     TargetState::Building,
                     Some(start_at_tz),
                     None,
@@ -542,7 +542,7 @@ impl TaskScheduler {
                     // TODO: update target_id here
                     pending_build_event
                         .target_id
-                        .map_or_else(Uuid::nil, |id| id),
+                        .unwrap_or(Uuid::nil()),
                     TargetState::Pending,
                     Some(start_at_tz),
                     None,

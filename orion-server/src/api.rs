@@ -615,7 +615,11 @@ async fn handle_immediate_task_dispatch(
             message: format!("Failed to insert builds into database: {}", err),
         };
     }
-    println!("insert build");
+    tracing::info!(
+        "Created build record in DB with ID {} for task {}",
+        build_id,
+        task_id
+    );
 
     // Create WebSocket message for the worker (use first build's args)
     let msg = WSMessage::TaskBuild {
