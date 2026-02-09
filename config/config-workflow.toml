@@ -85,10 +85,6 @@ orion_server = "https://orion.gitmega.com"
 # 0 means disabled.
 orion_preheat_shallow_depth = 0
 
-# Orion worker: base directory for buck2 --isolation-dir.
-# Empty means use the system temp directory.
-orion_buck2_isolation_dir_base = ""
-
 
 [pack]
 # The maximum memory used by decode
