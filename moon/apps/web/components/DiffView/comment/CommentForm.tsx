@@ -60,7 +60,7 @@ export function CommentForm({
   }, [selectedRange, lineNumber])
 
   const lineContext = useMemo(() => {
-    return getLineContext(fileDiff, side, startLine, endLine, 3)
+    return getLineContext(fileDiff, side, startLine, endLine, 1)
   }, [fileDiff, side, startLine, endLine])
 
   useEffect(() => {
