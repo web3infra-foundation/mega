@@ -174,6 +174,8 @@ impl Filesystem for Dicfuse {
         let child = match child {
             Some(v) => v,
             None => {
+                // TODO(perf): add short-lived negative lookup cache for ENOENT
+                // to avoid repeated misses for Buck2 probe paths.
                 return Err(std::io::Error::from_raw_os_error(libc::ENOENT).into());
             }
         };

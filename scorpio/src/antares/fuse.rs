@@ -6,7 +6,7 @@ use libfuse_fs::{
 };
 use tokio::task::JoinHandle;
 
-use crate::server::mount_filesystem;
+use crate::server::mount_filesystem_with_antares_cache;
 
 /// Antares union-fs wrapper: dicfuse lower + passthrough upper/CL.
 pub struct AntaresFuse {
@@ -94,7 +94,8 @@ impl AntaresFuse {
 
         let overlay = self.build_overlay().await?;
         let logfs = LoggingFileSystem::new(overlay);
-        let handle = mount_filesystem(logfs, self.mountpoint.as_os_str()).await;
+        let handle =
+            mount_filesystem_with_antares_cache(logfs, self.mountpoint.as_os_str(), true).await;
 
         // Spawn background task to run the FUSE session
         let fuse_task = tokio::spawn(async move {

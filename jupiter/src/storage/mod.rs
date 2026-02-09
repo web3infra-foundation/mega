@@ -151,7 +151,12 @@ impl Storage {
         let reviewer_storage = ClReviewerStorage { base: base.clone() };
         let merge_queue_storage = MergeQueueStorage::new(base.clone());
         let buck_storage = BuckStorage { base: base.clone() };
+
         let dynamic_sidebar_storage = DynamicSidebarStorage { base: base.clone() };
+        dynamic_sidebar_storage
+            .init_default_sidebars(&config.sidebar)
+            .await?;
+
         let code_review_comment_storage = CodeReviewCommentStorage { base: base.clone() };
         let code_review_thread_storage = CodeReviewThreadStorage { base: base.clone() };
         let build_trigger_storage = BuildTriggerStorage { base: base.clone() };

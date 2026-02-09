@@ -35,6 +35,7 @@ static PROJECT_ROOT: Lazy<String> =
     Lazy::new(|| std::env::var("BUCK_PROJECT_ROOT").expect("BUCK_PROJECT_ROOT must be set"));
 
 const MOUNT_TIMEOUT_SECS: u64 = 7200;
+const DEFAULT_PREHEAT_SHALLOW_DEPTH: usize = 3;
 static BUILD_CONFIG: Lazy<Option<BuildConfig>> = Lazy::new(load_build_config);
 
 /// Mounts filesystem via remote API for repository access.
@@ -411,6 +412,9 @@ async fn unmount_fs(repo: &str, cl: Option<&str>) -> Result<bool, Box<dyn Error 
 
 /// Buck2 targets stats every directory, which is slow on FUSE.
 /// We pre-warm metadata with `ls -lR` to reduce statx latency.
+/// TODO(perf): Replace this full-tree walk with a targeted preheat plan that
+/// only touches changed paths + ancestors and buck-critical files
+/// (PACKAGE/BUCK/.buckconfig) to avoid duplicated tree scans.
 /// TODO: Rewrite the targets logic in the monolith.
 fn preheat(repo_path: &Path) -> anyhow::Result<()> {
     let preheat_status = std::process::Command::new("ls")
@@ -485,7 +489,7 @@ fn preheat_shallow_depth() -> usize {
 
     build_config()
         .map(|config| config.orion_preheat_shallow_depth)
-        .unwrap_or(0)
+        .unwrap_or(DEFAULT_PREHEAT_SHALLOW_DEPTH)
 }
 
 fn parse_env_usize(key: &str) -> Option<usize> {
@@ -497,21 +501,6 @@ fn parse_env_usize(key: &str) -> Option<usize> {
                 None
             }
         },
-        Err(_) => None,
-    }
-}
-
-fn parse_env_path(key: &str) -> Option<PathBuf> {
-    match std::env::var(key) {
-        Ok(value) => {
-            let trimmed = value.trim();
-            if trimmed.is_empty() {
-                tracing::warn!("Empty {key} provided, ignoring.");
-                None
-            } else {
-                Some(PathBuf::from(trimmed))
-            }
-        }
         Err(_) => None,
     }
 }
@@ -558,52 +547,19 @@ fn resolve_config_path() -> Option<PathBuf> {
     None
 }
 
-fn buck2_isolation_dir_base() -> (PathBuf, bool) {
-    if let Some(path) = parse_env_path("ORION_BUCK2_ISOLATION_DIR_BASE") {
-        return (path, true);
-    }
-
-    if let Some(path) = parse_env_path("MEGA_BUILD__ORION_BUCK2_ISOLATION_DIR_BASE") {
-        return (path, true);
-    }
-
-    if let Some(config) = build_config()
-        && let Some(path) = config.orion_buck2_isolation_dir_base.as_ref()
-    {
-        let trimmed = path.trim();
-        if !trimmed.is_empty() {
-            return (PathBuf::from(trimmed), true);
-        }
-    }
-
-    (std::env::temp_dir(), false)
-}
-
-/// Derive a stable per-mount buck2 isolation directory and ensure it exists.
-fn buck2_isolation_dir(repo_path: &Path) -> anyhow::Result<PathBuf> {
+/// Derive a stable per-mount buck2 isolation directory name.
+///
+/// Buck2 `--isolation-dir` expects a plain directory **name** (no path
+/// separators).  Buck2 itself stores daemon state under
+/// `<project_root>/.buck2/<isolation_dir>/`, so we only need to return a
+/// unique name – not a full path.
+fn buck2_isolation_dir(repo_path: &Path) -> anyhow::Result<String> {
     let digest = ring::digest::digest(
         &ring::digest::SHA256,
         repo_path.to_string_lossy().as_bytes(),
     );
     let suffix = &hex::encode(digest.as_ref())[..16];
-    let (base, from_env) = buck2_isolation_dir_base();
-    let mut path = base.join(format!("buck2-isolation-{suffix}"));
-    if let Err(err) = std::fs::create_dir_all(&path) {
-        if from_env {
-            tracing::warn!(
-                "Failed to create buck2 isolation dir {path:?} from ORION_BUCK2_ISOLATION_DIR_BASE: {err}. Falling back to temp dir."
-            );
-            let fallback = std::env::temp_dir();
-            path = fallback.join(format!("buck2-isolation-{suffix}"));
-            std::fs::create_dir_all(&path)
-                .map_err(|err| anyhow!("Failed to create buck2 isolation dir {path:?}: {err}"))?;
-        } else {
-            return Err(anyhow!(
-                "Failed to create buck2 isolation dir {path:?}: {err}"
-            ));
-        }
-    }
-    Ok(path)
+    Ok(format!("buck2-isolation-{suffix}"))
 }
 
 /// Get target of a specific repo under tmp directory.
@@ -611,10 +567,6 @@ fn get_repo_targets(file_name: &str, repo_path: &Path) -> anyhow::Result<Targets
     const MAX_ATTEMPTS: usize = 2;
     let jsonl_path = PathBuf::from(repo_path).join(file_name);
     let isolation_dir = buck2_isolation_dir(repo_path)?;
-    let isolation_dir = isolation_dir
-        .to_str()
-        .ok_or_else(|| anyhow!("Invalid isolation dir path: {isolation_dir:?}"))?
-        .to_string();
 
     preheat(repo_path)?;
 
@@ -669,12 +621,7 @@ async fn get_build_targets(
 
     preheat_shallow(&mount_path, preheat_shallow_depth())?;
     let mut buck2 = Buck2::with_root("buck2".to_string(), mount_path.clone());
-    buck2.set_isolation_dir(
-        buck2_isolation_dir(&mount_path)?
-            .to_str()
-            .ok_or_else(|| anyhow!("Invalid isolation dir path: {mount_path:?}"))?
-            .to_string(),
-    );
+    buck2.set_isolation_dir(buck2_isolation_dir(&mount_path)?);
     let mut cells = CellInfo::parse(
         &buck2
             .cells()
@@ -894,10 +841,6 @@ pub async fn build(
         // This ensures buck2 uses the sub-project's .buckconfig and PACKAGE files.
         let project_root = PathBuf::from(&mount_point).join(repo_prefix);
         let isolation_dir = buck2_isolation_dir(&project_root)?;
-        let isolation_dir = isolation_dir
-            .to_str()
-            .ok_or_else(|| anyhow!("Invalid isolation dir path: {isolation_dir:?}"))?
-            .to_string();
         let mut cmd = Command::new("buck2");
         cmd.args(["--isolation-dir", &isolation_dir]);
         let cmd = cmd
