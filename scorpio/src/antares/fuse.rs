@@ -6,7 +6,7 @@ use libfuse_fs::{
 };
 use tokio::task::JoinHandle;
 
-use crate::server::{mount_filesystem, mount_filesystem_with_antares_cache};
+use crate::server::{mount_filesystem_with_antares_cache};
 
 /// Antares union-fs wrapper: dicfuse lower + passthrough upper/CL.
 pub struct AntaresFuse {
