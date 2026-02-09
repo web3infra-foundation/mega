@@ -415,11 +415,7 @@ impl ApiHandler for MonoApiService {
             .clone()
             .unwrap_or("Anonymous".to_string());
 
-        let editor = OneditCodeEdit::from(
-            repo_path,
-            &src_commit.id.to_string(),
-            &self,
-        );
+        let editor = OneditCodeEdit::from(repo_path, &src_commit.id.to_string(), &self);
         let cl = editor
             .find_or_create_cl_for_edit(
                 &self.storage,

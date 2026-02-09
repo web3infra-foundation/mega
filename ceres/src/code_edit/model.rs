@@ -199,6 +199,7 @@ impl<
     DR: Director<HD>,
 > CodeEditService<FMT, VT, AC, TCB, CK, HD, DR>
 {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         repo_path: &str,
         from_hash: &str,
@@ -278,7 +279,7 @@ impl<
                 repo_path,
                 &cl_link,
                 &dst_commit.format_message(),
-                &from_hash,
+                from_hash,
                 to_hash,
                 username,
             )

@@ -114,7 +114,6 @@ impl BuildTriggerService {
         Ok(Some(id))
     }
 
-
     /// Triggers a build for an existing CL using its unique link.
     pub async fn trigger_for_cl(&self, cl_link: &str) -> Result<Option<i64>, MegaError> {
         if !self.is_enabled() {
