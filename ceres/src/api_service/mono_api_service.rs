@@ -376,6 +376,7 @@ impl ApiHandler for MonoApiService {
     /// Save file edit in monorepo with optimistic concurrency check
     async fn save_file_edit(&self, payload: EditFilePayload) -> Result<EditFileResult, GitError> {
         let repo_path = "/";
+        let src_commit = edit_utils::get_repo_latest_commit(&self.storage, repo_path).await?;
         let file_path = PathBuf::from(&payload.path);
         let parent_path = file_path
             .parent()
@@ -414,7 +415,11 @@ impl ApiHandler for MonoApiService {
             .clone()
             .unwrap_or("Anonymous".to_string());
 
-        let editor = OneditCodeEdit::from(repo_path, &self);
+        let editor = OneditCodeEdit::from(
+            repo_path,
+            &src_commit.id.to_string(),
+            &self,
+        );
         let cl = editor
             .find_or_create_cl_for_edit(
                 &self.storage,

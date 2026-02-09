@@ -103,9 +103,10 @@ pub(crate) type OneditCodeEdit = model::CodeEditService<
 >;
 
 impl OneditCodeEdit {
-    pub fn from(repo_path: &str, handler: &MonoApiService) -> Self {
+    pub fn from(repo_path: &str, from_hash: &str, handler: &MonoApiService) -> Self {
         Self::new(
             repo_path,
+            from_hash,
             OneditFormator {},
             OneditVisitor {},
             OneditAcceptor {},
@@ -128,7 +129,7 @@ impl OneditCodeEdit {
         let repo_path = &self.repo_path;
         match mode {
             EditCLMode::ForceCreate => Ok(editor
-                .create_new_cl(storage, repo_path, to_hash, username)
+                .create_new_cl(storage, repo_path, &self.from_hash, to_hash, username)
                 .await?),
             EditCLMode::TryReuse(None) => {
                 if let Some(existing_cl) = storage
@@ -149,7 +150,7 @@ impl OneditCodeEdit {
                     Ok(existing_cl)
                 } else {
                     Ok(editor
-                        .create_new_cl(storage, repo_path, to_hash, username)
+                        .create_new_cl(storage, repo_path, &self.from_hash, to_hash, username)
                         .await?)
                 }
             }

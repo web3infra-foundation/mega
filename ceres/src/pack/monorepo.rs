@@ -153,9 +153,9 @@ impl RepoHandler for MonoRepo {
     async fn post_receive_pack(&self) -> Result<(), MegaError> {
         let username = self.username();
         let mono_api_service = self.into();
-        let editor = OnpushCodeEdit::from(self.path.to_str().unwrap(), &mono_api_service);
+        let editor = OnpushCodeEdit::from(self.path.to_str().unwrap(), &self.from_hash, &mono_api_service);
         let cl = editor
-            .update_or_create_cl(&self.storage, &self.to_hash, &username)
+            .update_or_create_cl(&self.storage, &self.from_hash, &self.to_hash, &username)
             .await?;
         self.traverses_tree_and_update_filepath().await?;
         if self.bellatrix.enable_build() {

@@ -147,6 +147,7 @@ where
     DR: Director<HD>,
 {
     pub repo_path: String,
+    pub from_hash: String,
     formator: FMT,
     clref_visitor: VT,
     clref_acceptor: AC,
@@ -200,6 +201,7 @@ impl<
 {
     pub fn new(
         repo_path: &str,
+        from_hash: &str,
         formator: FMT,
         clref_visitor: VT,
         clref_acceptor: AC,
@@ -209,6 +211,7 @@ impl<
     ) -> Self {
         Self {
             repo_path: repo_path.to_string(),
+            from_hash: from_hash.to_string(),
             formator,
             clref_visitor,
             clref_acceptor,
@@ -257,11 +260,11 @@ impl<
         &self,
         storage: &Storage,
         repo_path: &str,
+        from_hash: &str,
         to_hash: &str,
         username: &str,
     ) -> Result<mega_cl::Model, MegaError> {
         let cl_link = generate_link();
-        let src_commit = edit_utils::get_repo_latest_commit(storage, repo_path).await?;
         let dst_commit = Commit::from_mega_model(
             storage
                 .mono_storage()
@@ -269,12 +272,6 @@ impl<
                 .await?
                 .expect("invalid to_hash"),
         );
-        let from_hash = src_commit
-            .parent_commit_ids
-            .first()
-            .expect("new commit should have an unique parent commit")
-            .to_string();
-
         let cl = storage
             .cl_storage()
             .new_cl_model(
@@ -302,6 +299,7 @@ impl<
     pub async fn update_or_create_cl(
         &self,
         storage: &Storage,
+        from_hash: &str,
         to_hash: &str,
         username: &str,
     ) -> Result<mega_cl::Model, MegaError> {
@@ -317,7 +315,7 @@ impl<
                 Ok(cl)
             }
             None => Ok(self
-                .create_new_cl(storage, path_str, to_hash, username)
+                .create_new_cl(storage, path_str, from_hash, to_hash, username)
                 .await?),
         }
     }
