@@ -18,12 +18,44 @@ const DEFAULT_LOAD_DIR_DEPTH: usize = 3;
 const DEFAULT_FETCH_FILE_THREAD: usize = 10;
 const DEFAULT_ANTARES_SUBDIR: &str = "antares";
 const DEFAULT_DICFUSE_IMPORT_CONCURRENCY: usize = 4;
+
+// Dicfuse timeout/cache defaults are tuned for interactive usage.
+// Antares uses a separate set of build-oriented defaults below.
+//
+// TODO(perf):
+// - Re-tune TTL/timeout defaults from production lookup metrics.
+// - Split timeout knobs by request class (tree listing vs blob fetch).
+// - Support per-mount overrides instead of process-global defaults.
+
+/// Directory refresh TTL for base Dicfuse mounts.
 const DEFAULT_DICFUSE_DIR_SYNC_TTL_SECS: u64 = 5;
+
+/// Kernel entry TTL for base Dicfuse mounts.
+const DEFAULT_DICFUSE_REPLY_TTL_SECS: u64 = 2;
+
+/// Per-request timeout for directory listing RPCs.
+const DEFAULT_DICFUSE_FETCH_DIR_TIMEOUT_SECS: u64 = 10;
+
+/// TCP connect timeout for Dicfuse HTTP requests.
+const DEFAULT_DICFUSE_CONNECT_TIMEOUT_SECS: u64 = 3;
+
+/// Retry count for transient directory listing failures.
+const DEFAULT_DICFUSE_FETCH_DIR_MAX_RETRIES: u32 = 3;
+
 const DEFAULT_DICFUSE_OPEN_BUFF_MAX_BYTES: u64 = 256 * 1024 * 1024; // 256MiB
 const DEFAULT_DICFUSE_OPEN_BUFF_MAX_FILES: usize = 4096;
 
-// Antares defaults: optimized for build lowerdir stability and resource predictability.
-const DEFAULT_ANTARES_LOAD_DIR_DEPTH: usize = 0; // disable deep prewarm; rely on lazy per-dir loads
+// Antares mounts are primarily used by build workloads.
+
+/// Preload directory depth for Antares mounts.
+const DEFAULT_ANTARES_LOAD_DIR_DEPTH: usize = 3;
+
+/// Directory refresh TTL for Antares mounts.
+const DEFAULT_ANTARES_DICFUSE_DIR_SYNC_TTL_SECS: u64 = 120;
+
+/// Kernel entry TTL for Antares mounts.
+const DEFAULT_ANTARES_DICFUSE_REPLY_TTL_SECS: u64 = 60;
+
 const DEFAULT_ANTARES_DICFUSE_OPEN_BUFF_MAX_BYTES: u64 = 64 * 1024 * 1024; // 64MiB
 const DEFAULT_ANTARES_DICFUSE_OPEN_BUFF_MAX_FILES: usize = 1024;
 
@@ -271,6 +303,22 @@ fn get_config() -> &'static ScorpioConfig {
             "dicfuse_dir_sync_ttl_secs".to_string(),
             DEFAULT_DICFUSE_DIR_SYNC_TTL_SECS.to_string(),
         );
+        config.insert(
+            "dicfuse_reply_ttl_secs".to_string(),
+            DEFAULT_DICFUSE_REPLY_TTL_SECS.to_string(),
+        );
+        config.insert(
+            "dicfuse_fetch_dir_timeout_secs".to_string(),
+            DEFAULT_DICFUSE_FETCH_DIR_TIMEOUT_SECS.to_string(),
+        );
+        config.insert(
+            "dicfuse_connect_timeout_secs".to_string(),
+            DEFAULT_DICFUSE_CONNECT_TIMEOUT_SECS.to_string(),
+        );
+        config.insert(
+            "dicfuse_fetch_dir_max_retries".to_string(),
+            DEFAULT_DICFUSE_FETCH_DIR_MAX_RETRIES.to_string(),
+        );
         config.insert("dicfuse_stat_mode".to_string(), "accurate".to_string());
         config.insert(
             "dicfuse_open_buff_max_bytes".to_string(),
@@ -297,7 +345,11 @@ fn get_config() -> &'static ScorpioConfig {
         );
         config.insert(
             "antares_dicfuse_dir_sync_ttl_secs".to_string(),
-            DEFAULT_DICFUSE_DIR_SYNC_TTL_SECS.to_string(),
+            DEFAULT_ANTARES_DICFUSE_DIR_SYNC_TTL_SECS.to_string(),
+        );
+        config.insert(
+            "antares_dicfuse_reply_ttl_secs".to_string(),
+            DEFAULT_ANTARES_DICFUSE_REPLY_TTL_SECS.to_string(),
         );
         // Antares defaults under base_path/antares
         config.insert(
@@ -375,6 +427,18 @@ fn validate(config: &mut HashMap<String, String>) -> ConfigResult<()> {
 }
 
 // Configuration accessor functions
+macro_rules! config_accessor {
+    ($fn_name:ident, $key:expr, $ret:ty, $default:expr) => {
+        pub fn $fn_name() -> $ret {
+            get_config()
+                .config
+                .get($key)
+                .and_then(|s| s.parse().ok())
+                .unwrap_or($default)
+        }
+    };
+}
+
 pub fn base_url() -> &'static str {
     &get_config().config["base_url"]
 }
@@ -427,39 +491,61 @@ pub fn antares_state_file() -> &'static str {
     &get_config().config["antares_state_file"]
 }
 
-///Get the depth of directory loading
-pub fn load_dir_depth() -> usize {
-    get_config()
-        .config
-        .get("load_dir_depth")
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(DEFAULT_LOAD_DIR_DEPTH)
-}
+config_accessor!(
+    load_dir_depth,
+    "load_dir_depth",
+    usize,
+    DEFAULT_LOAD_DIR_DEPTH
+);
 
-///Get the number of file download threads
-pub fn fetch_file_thread() -> usize {
-    get_config()
-        .config
-        .get("fetch_file_thread")
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(DEFAULT_FETCH_FILE_THREAD)
-}
+config_accessor!(
+    fetch_file_thread,
+    "fetch_file_thread",
+    usize,
+    DEFAULT_FETCH_FILE_THREAD
+);
 
-pub fn dicfuse_import_concurrency() -> usize {
-    get_config()
-        .config
-        .get("dicfuse_import_concurrency")
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(DEFAULT_DICFUSE_IMPORT_CONCURRENCY)
-}
+config_accessor!(
+    dicfuse_import_concurrency,
+    "dicfuse_import_concurrency",
+    usize,
+    DEFAULT_DICFUSE_IMPORT_CONCURRENCY
+);
 
-pub fn dicfuse_dir_sync_ttl_secs() -> u64 {
-    get_config()
-        .config
-        .get("dicfuse_dir_sync_ttl_secs")
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(DEFAULT_DICFUSE_DIR_SYNC_TTL_SECS)
-}
+config_accessor!(
+    dicfuse_dir_sync_ttl_secs,
+    "dicfuse_dir_sync_ttl_secs",
+    u64,
+    DEFAULT_DICFUSE_DIR_SYNC_TTL_SECS
+);
+
+config_accessor!(
+    dicfuse_reply_ttl_secs,
+    "dicfuse_reply_ttl_secs",
+    u64,
+    DEFAULT_DICFUSE_REPLY_TTL_SECS
+);
+
+config_accessor!(
+    dicfuse_fetch_dir_timeout_secs,
+    "dicfuse_fetch_dir_timeout_secs",
+    u64,
+    DEFAULT_DICFUSE_FETCH_DIR_TIMEOUT_SECS
+);
+
+config_accessor!(
+    dicfuse_connect_timeout_secs,
+    "dicfuse_connect_timeout_secs",
+    u64,
+    DEFAULT_DICFUSE_CONNECT_TIMEOUT_SECS
+);
+
+config_accessor!(
+    dicfuse_fetch_dir_max_retries,
+    "dicfuse_fetch_dir_max_retries",
+    u32,
+    DEFAULT_DICFUSE_FETCH_DIR_MAX_RETRIES
+);
 
 pub fn dicfuse_stat_mode() -> DicfuseStatMode {
     parse_stat_mode(
@@ -468,37 +554,40 @@ pub fn dicfuse_stat_mode() -> DicfuseStatMode {
     )
 }
 
-pub fn dicfuse_open_buff_max_bytes() -> u64 {
-    get_config()
-        .config
-        .get("dicfuse_open_buff_max_bytes")
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(DEFAULT_DICFUSE_OPEN_BUFF_MAX_BYTES)
-}
+config_accessor!(
+    dicfuse_open_buff_max_bytes,
+    "dicfuse_open_buff_max_bytes",
+    u64,
+    DEFAULT_DICFUSE_OPEN_BUFF_MAX_BYTES
+);
 
-pub fn dicfuse_open_buff_max_files() -> usize {
-    get_config()
-        .config
-        .get("dicfuse_open_buff_max_files")
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(DEFAULT_DICFUSE_OPEN_BUFF_MAX_FILES)
-}
+config_accessor!(
+    dicfuse_open_buff_max_files,
+    "dicfuse_open_buff_max_files",
+    usize,
+    DEFAULT_DICFUSE_OPEN_BUFF_MAX_FILES
+);
 
-pub fn antares_load_dir_depth() -> usize {
-    get_config()
-        .config
-        .get("antares_load_dir_depth")
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(DEFAULT_ANTARES_LOAD_DIR_DEPTH)
-}
+config_accessor!(
+    antares_load_dir_depth,
+    "antares_load_dir_depth",
+    usize,
+    DEFAULT_ANTARES_LOAD_DIR_DEPTH
+);
 
-pub fn antares_dicfuse_dir_sync_ttl_secs() -> u64 {
-    get_config()
-        .config
-        .get("antares_dicfuse_dir_sync_ttl_secs")
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(DEFAULT_DICFUSE_DIR_SYNC_TTL_SECS)
-}
+config_accessor!(
+    antares_dicfuse_dir_sync_ttl_secs,
+    "antares_dicfuse_dir_sync_ttl_secs",
+    u64,
+    DEFAULT_ANTARES_DICFUSE_DIR_SYNC_TTL_SECS
+);
+
+config_accessor!(
+    antares_dicfuse_reply_ttl_secs,
+    "antares_dicfuse_reply_ttl_secs",
+    u64,
+    DEFAULT_ANTARES_DICFUSE_REPLY_TTL_SECS
+);
 
 pub fn antares_dicfuse_stat_mode() -> DicfuseStatMode {
     parse_stat_mode(
@@ -507,21 +596,19 @@ pub fn antares_dicfuse_stat_mode() -> DicfuseStatMode {
     )
 }
 
-pub fn antares_dicfuse_open_buff_max_bytes() -> u64 {
-    get_config()
-        .config
-        .get("antares_dicfuse_open_buff_max_bytes")
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(DEFAULT_ANTARES_DICFUSE_OPEN_BUFF_MAX_BYTES)
-}
+config_accessor!(
+    antares_dicfuse_open_buff_max_bytes,
+    "antares_dicfuse_open_buff_max_bytes",
+    u64,
+    DEFAULT_ANTARES_DICFUSE_OPEN_BUFF_MAX_BYTES
+);
 
-pub fn antares_dicfuse_open_buff_max_files() -> usize {
-    get_config()
-        .config
-        .get("antares_dicfuse_open_buff_max_files")
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(DEFAULT_ANTARES_DICFUSE_OPEN_BUFF_MAX_FILES)
-}
+config_accessor!(
+    antares_dicfuse_open_buff_max_files,
+    "antares_dicfuse_open_buff_max_files",
+    usize,
+    DEFAULT_ANTARES_DICFUSE_OPEN_BUFF_MAX_FILES
+);
 #[cfg(test)]
 mod tests {
     use super::*;
