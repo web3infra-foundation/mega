@@ -35,6 +35,7 @@ static PROJECT_ROOT: Lazy<String> =
     Lazy::new(|| std::env::var("BUCK_PROJECT_ROOT").expect("BUCK_PROJECT_ROOT must be set"));
 
 const MOUNT_TIMEOUT_SECS: u64 = 7200;
+const DEFAULT_PREHEAT_SHALLOW_DEPTH: usize = 3;
 static BUILD_CONFIG: Lazy<Option<BuildConfig>> = Lazy::new(load_build_config);
 
 /// Mounts filesystem via remote API for repository access.
@@ -485,7 +486,7 @@ fn preheat_shallow_depth() -> usize {
 
     build_config()
         .map(|config| config.orion_preheat_shallow_depth)
-        .unwrap_or(0)
+        .unwrap_or(DEFAULT_PREHEAT_SHALLOW_DEPTH)
 }
 
 fn parse_env_usize(key: &str) -> Option<usize> {
@@ -542,7 +543,6 @@ fn resolve_config_path() -> Option<PathBuf> {
 
     None
 }
-
 
 /// Derive a stable per-mount buck2 isolation directory name.
 ///

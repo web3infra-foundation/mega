@@ -87,7 +87,7 @@ orion_server = "https://orion.gitmega.com"
 
 # Orion worker: shallow preheat depth before buck2 cells/audit.
 # 0 means disabled.
-orion_preheat_shallow_depth = 0
+orion_preheat_shallow_depth = 3
 
 
 [pack]

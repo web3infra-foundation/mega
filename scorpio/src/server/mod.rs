@@ -59,10 +59,34 @@ use rfuse3::{
     MountOptions,
 };
 
+#[cfg(target_os = "linux")]
+const ANTARES_FUSE_CACHE_MOUNT_OPTIONS: &str =
+    "kernel_cache,auto_cache,entry_timeout=60,attr_timeout=60,negative_timeout=10";
+
+#[cfg(not(target_os = "linux"))]
+const ANTARES_FUSE_CACHE_MOUNT_OPTIONS: &str = "";
+
+fn apply_antares_cache_mount_options(options: &mut MountOptions) {
+    if !ANTARES_FUSE_CACHE_MOUNT_OPTIONS.is_empty() {
+        options.custom_options(ANTARES_FUSE_CACHE_MOUNT_OPTIONS);
+    }
+}
+
 #[allow(unused)]
 pub async fn mount_filesystem<F: Filesystem + std::marker::Sync + Send + 'static>(
     fs: F,
     mountpoint: &OsStr,
+) -> MountHandle {
+    mount_filesystem_with_antares_cache(fs, mountpoint, false).await
+}
+
+#[allow(unused)]
+pub async fn mount_filesystem_with_antares_cache<
+    F: Filesystem + std::marker::Sync + Send + 'static,
+>(
+    fs: F,
+    mountpoint: &OsStr,
+    enable_antares_cache: bool,
 ) -> MountHandle {
     if let Err(e) = env_logger::try_init() {
         if !e.to_string().contains("initialized") {
@@ -96,6 +120,9 @@ pub async fn mount_filesystem<F: Filesystem + std::marker::Sync + Send + 'static
     let mut mount_options = MountOptions::default();
     // .allow_other(true)
     mount_options.force_readdir_plus(true).uid(uid).gid(gid);
+    if enable_antares_cache {
+        apply_antares_cache_mount_options(&mut mount_options);
+    }
 
     let session = Session::<F>::new(mount_options);
     session.mount(fs, mount_path).await.unwrap()
