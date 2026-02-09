@@ -60,6 +60,8 @@ use rfuse3::{
 };
 
 #[cfg(target_os = "linux")]
+// TODO(perf): tune these values with production lookup metrics and make them
+// configurable per mount role (interactive vs build-heavy workers).
 const ANTARES_FUSE_CACHE_MOUNT_OPTIONS: &str =
     "kernel_cache,auto_cache,entry_timeout=60,attr_timeout=60,negative_timeout=10";
 

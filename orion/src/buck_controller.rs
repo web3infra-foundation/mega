@@ -412,6 +412,9 @@ async fn unmount_fs(repo: &str, cl: Option<&str>) -> Result<bool, Box<dyn Error 
 
 /// Buck2 targets stats every directory, which is slow on FUSE.
 /// We pre-warm metadata with `ls -lR` to reduce statx latency.
+/// TODO(perf): Replace this full-tree walk with a targeted preheat plan that
+/// only touches changed paths + ancestors and buck-critical files
+/// (PACKAGE/BUCK/.buckconfig) to avoid duplicated tree scans.
 /// TODO: Rewrite the targets logic in the monolith.
 fn preheat(repo_path: &Path) -> anyhow::Result<()> {
     let preheat_status = std::process::Command::new("ls")
