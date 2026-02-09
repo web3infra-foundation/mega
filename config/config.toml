@@ -86,6 +86,10 @@ enable_build = true
 # build system url
 orion_server = "https://orion.gitmega.com"
 
+# Orion worker: shallow preheat depth before buck2 cells/audit.
+# 0 means disabled.
+orion_preheat_shallow_depth = 3
+
 
 [pack]
 # The maximum memory used by decode
@@ -245,3 +249,24 @@ db_url = "postgres://postgres:postgres@localhost/orion"
 
 # Mono server base URL for file/blob API (file blob endpoint)
 monobase_url = "http://git.gitmega.com"
+
+# Default sidebar menu items.
+# - Visible = false means the menu is hidden by default.
+# - Order_index controls the display order in the UI.
+# - Changes here do not affect old environments; only new or empty DBs will use these defaults.
+[sidebar]
+default_items = [
+    { public_id = "home", label = "Home", href = "/posts", visible = true, order_index = 0 },
+    { public_id = "inbox", label = "Inbox", href = "/inbox", visible = true, order_index = 1 },
+    { public_id = "chat", label = "Chat", href = "/chat", visible = true, order_index = 2 },
+    { public_id = "notes", label = "Docs", href = "/notes", visible = true, order_index = 3 },
+    { public_id = "calls", label = "Calls", href = "/calls", visible = false, order_index = 4 },
+    { public_id = "drafts", label = "Drafts", href = "/drafts", visible = true, order_index = 5 },
+    { public_id = "code", label = "Code", href = "/code", visible = true, order_index = 6 },
+    { public_id = "tags", label = "Tags", href = "/code/tags", visible = true, order_index = 7 },
+    { public_id = "cl", label = "Change List", href = "/cl", visible = true, order_index = 8 },
+    { public_id = "mq", label = "Merge Queue", href = "/queue/main", visible = true, order_index = 9 },
+    { public_id = "issue", label = "Issue", href = "/issue", visible = true, order_index = 10 },
+    { public_id = "rust", label = "Rust", href = "/rust", visible = false, order_index = 11 },
+    { public_id = "oc", label = "Orion Client", href = "/oc", visible = true, order_index = 13 },
+]

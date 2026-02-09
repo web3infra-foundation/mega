@@ -1044,7 +1044,13 @@ impl MonoRepo {
             .await?
             .ok_or_else(|| MegaError::Other(format!("CL not found for link: {}", link)))?;
 
-        if self.bellatrix.enable_build() {
+        // Best-effort build trigger for the CL.
+        let service = BuildTriggerService::new(
+            self.storage.clone(),
+            self.git_object_cache.clone(),
+            self.bellatrix.clone(),
+        );
+        if service.is_enabled() {
             let event = GitPushEvent {
                 repo_path: cl_info.path.clone(),
                 from_hash: cl_info.from_hash.clone(),
@@ -1054,15 +1060,8 @@ impl MonoRepo {
                 triggered_by: self.username.clone(),
             };
 
-            if let Err(e) = BuildTriggerService::handle_git_push_event(
-                self.storage.clone(),
-                self.git_object_cache.clone(),
-                self.bellatrix.clone(),
-                event,
-            )
-            .await
-            {
-                tracing::error!("Failed to trigger CI pipeline: {}", e);
+            if let Err(e) = service.trigger_for_git_push(event).await {
+                tracing::warn!("Build trigger failed (non-blocking): {}", e);
             }
         }
 

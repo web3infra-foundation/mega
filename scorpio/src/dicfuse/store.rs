@@ -218,9 +218,11 @@ impl From<reqwest::Error> for DictionaryError {
 // Get Mega dictionary tree from server
 #[allow(unused)]
 async fn fetch_tree(path: &str) -> Result<ApiResponse, DictionaryError> {
+    // NOTE: Timeout values are captured once on first use and cannot be changed at runtime.
     static CLIENT: Lazy<Client> = Lazy::new(|| {
         Client::builder()
-            .timeout(Duration::from_secs(10)) // 10 second timeout for network requests
+            .timeout(Duration::from_secs(config::dicfuse_fetch_dir_timeout_secs()))
+            .connect_timeout(Duration::from_secs(config::dicfuse_connect_timeout_secs()))
             .build()
             .unwrap_or_else(|_| Client::new()) // Fallback to default client if builder fails
     });
@@ -258,9 +260,11 @@ async fn fetch_file(oid: &str) -> io::Result<Vec<u8>> {
     let start = Instant::now();
     let file_blob_endpoint = config::file_blob_endpoint();
     let url = format!("{file_blob_endpoint}/{oid}");
+    // NOTE: Timeout values are captured once on first use and cannot be changed at runtime.
     static CLIENT: Lazy<Client> = Lazy::new(|| {
         Client::builder()
             .timeout(Duration::from_secs(30)) // 30 second timeout for file downloads (files may be large)
+            .connect_timeout(Duration::from_secs(config::dicfuse_connect_timeout_secs()))
             .build()
             .unwrap_or_else(|_| Client::new()) // Fallback to default client if builder fails
     });
@@ -394,9 +398,11 @@ async fn fetch_file_size(oid: &str) -> Option<u64> {
 
     let file_blob_endpoint = config::file_blob_endpoint();
     let url = format!("{file_blob_endpoint}/{oid}");
+    // NOTE: Timeout values are captured once on first use and cannot be changed at runtime.
     static CLIENT: Lazy<Client> = Lazy::new(|| {
         Client::builder()
             .timeout(Duration::from_secs(10))
+            .connect_timeout(Duration::from_secs(config::dicfuse_connect_timeout_secs()))
             .build()
             .unwrap_or_else(|_| Client::new())
     });
@@ -456,9 +462,11 @@ async fn fetch_file_size(oid: &str) -> Option<u64> {
 
 async fn fetch_dir(path: &str) -> Result<ApiResponseExt, DictionaryError> {
     let start = Instant::now();
+    // NOTE: Timeout values are captured once on first use and cannot be changed at runtime.
     static CLIENT: Lazy<Client> = Lazy::new(|| {
         Client::builder()
-            .timeout(Duration::from_secs(10)) // 10 second timeout for network requests
+            .timeout(Duration::from_secs(config::dicfuse_fetch_dir_timeout_secs()))
+            .connect_timeout(Duration::from_secs(config::dicfuse_connect_timeout_secs()))
             .build()
             .unwrap_or_else(|_| Client::new()) // Fallback to default client if builder fails
     });
@@ -471,22 +479,22 @@ async fn fetch_dir(path: &str) -> Result<ApiResponseExt, DictionaryError> {
         clean_path
     );
 
-    const MAX_RETRIES: u32 = 3;
+    let max_retries = config::dicfuse_fetch_dir_max_retries().max(1);
     // Base delay for linear backoff: 100ms, 200ms, 300ms for attempts 0, 1, 2
     // Linear backoff is appropriate here since we only retry a few times with short delays
     const RETRY_DELAY_MS: u64 = 100;
 
     // Retry logic for network errors
-    for attempt in 0..MAX_RETRIES {
+    for attempt in 0..max_retries {
         let response = match client.get(&url).send().await {
             Ok(resp) => resp,
             Err(e) => {
-                if attempt < MAX_RETRIES - 1 {
+                if attempt < max_retries - 1 {
                     // Retry on network errors (timeout, connection refused, etc.)
                     debug!(
                         "Failed to fetch tree: {e} (attempt {}/{}), retrying...",
                         attempt + 1,
-                        MAX_RETRIES
+                        max_retries
                     );
                     debug!("  URL: {url}");
                     debug!("  Path: {path}");
@@ -497,7 +505,7 @@ async fn fetch_dir(path: &str) -> Result<ApiResponseExt, DictionaryError> {
                     continue;
                 } else {
                     // Final attempt failed
-                    debug!("Failed to fetch tree: {e} after {} attempts", MAX_RETRIES);
+                    debug!("Failed to fetch tree: {e} after {} attempts", max_retries);
                     debug!("  URL: {url}");
                     debug!("  Path: {path}");
                     return Ok(ApiResponseExt {
@@ -523,12 +531,12 @@ async fn fetch_dir(path: &str) -> Result<ApiResponseExt, DictionaryError> {
                 });
             }
             // For other status codes, retry
-            if attempt < MAX_RETRIES - 1 {
+            if attempt < max_retries - 1 {
                 debug!(
                     "Unexpected HTTP status {} for path: {path} (attempt {}/{}), retrying...",
                     status,
                     attempt + 1,
-                    MAX_RETRIES
+                    max_retries
                 );
                 tokio::time::sleep(Duration::from_millis(RETRY_DELAY_MS * (attempt + 1) as u64))
                     .await;
@@ -540,11 +548,11 @@ async fn fetch_dir(path: &str) -> Result<ApiResponseExt, DictionaryError> {
         let tree_info: TreeInfoResponse = match response.json().await {
             Ok(info) => info,
             Err(e) => {
-                if attempt < MAX_RETRIES - 1 {
+                if attempt < max_retries - 1 {
                     debug!(
                         "Failed to parse commit info: {e} (attempt {}/{}), retrying...",
                         attempt + 1,
-                        MAX_RETRIES
+                        max_retries
                     );
                     tokio::time::sleep(Duration::from_millis(
                         RETRY_DELAY_MS * (attempt + 1) as u64,
@@ -554,7 +562,7 @@ async fn fetch_dir(path: &str) -> Result<ApiResponseExt, DictionaryError> {
                 } else {
                     debug!(
                         "Failed to parse commit info: {e} after {} attempts",
-                        MAX_RETRIES
+                        max_retries
                     );
                     return Ok(ApiResponseExt {
                         _req_result: false,
@@ -625,16 +633,18 @@ async fn fetch_dir(path: &str) -> Result<ApiResponseExt, DictionaryError> {
     Ok(ApiResponseExt {
         _req_result: false,
         data: Vec::new(),
-        _err_message: format!("Failed to fetch tree after {} attempts", MAX_RETRIES),
+        _err_message: format!("Failed to fetch tree after {} attempts", max_retries),
     })
 }
 
 /// Get the directory hash from the server
 async fn fetch_get_dir_hash(path: &str) -> Result<ApiResponseExt, DictionaryError> {
     let start = Instant::now();
+    // NOTE: Timeout values are captured once on first use and cannot be changed at runtime.
     static CLIENT: Lazy<Client> = Lazy::new(|| {
         Client::builder()
             .timeout(Duration::from_secs(10)) // 10 second timeout for network requests
+            .connect_timeout(Duration::from_secs(config::dicfuse_connect_timeout_secs()))
             .build()
             .unwrap_or_else(|_| Client::new()) // Fallback to default client if builder fails
     });
@@ -996,6 +1006,18 @@ impl DictionaryStore {
         self.dir_sync_ttl
     }
 
+    /// Returns whether the directory represented by `parent_inode` needs refresh.
+    ///
+    /// This is a cheap check used by lookup fast-path to decide whether it should
+    /// kick off background directory loading.
+    pub fn dir_refresh_needed(&self, parent_inode: u64) -> io::Result<bool> {
+        let parent_user_path = self.inode_to_user_path(parent_inode)?;
+        if let Some(dir) = self.dirs.get(&parent_user_path) {
+            return Ok(dir_needs_refresh(&dir, self.dir_sync_ttl()));
+        }
+        Ok(true)
+    }
+
     fn open_buff_cache_enabled(&self) -> bool {
         self.open_buff_max_bytes > 0 && self.open_buff_max_files > 0
     }
@@ -1012,11 +1034,7 @@ impl DictionaryStore {
         {
             debug!(
                 "dicfuse: open_buff eviction: cur_files={} cur_bytes={} new_len={} max_files={} max_bytes={}",
-                cur_files,
-                cur_bytes,
-                new_len,
-                self.open_buff_max_files,
-                self.open_buff_max_bytes
+                cur_files, cur_bytes, new_len, self.open_buff_max_files, self.open_buff_max_bytes
             );
             self.open_buff.clear();
             self.open_buff_bytes.store(0, Ordering::Release);

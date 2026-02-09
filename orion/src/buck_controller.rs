@@ -12,6 +12,7 @@ use api_model::buck2::{
     types::{ProjectRelativePath, TaskPhase},
     ws::WSMessage,
 };
+use common::config::BuildConfig;
 use once_cell::sync::Lazy;
 use serde_json::{Value, json};
 use td_util::{command::spawn, file_io::file_writer};
@@ -36,6 +37,8 @@ static PROJECT_ROOT: Lazy<String> =
     Lazy::new(|| std::env::var("BUCK_PROJECT_ROOT").expect("BUCK_PROJECT_ROOT must be set"));
 
 const MOUNT_TIMEOUT_SECS: u64 = 7200;
+const DEFAULT_PREHEAT_SHALLOW_DEPTH: usize = 3;
+static BUILD_CONFIG: Lazy<Option<BuildConfig>> = Lazy::new(load_build_config);
 
 /// Mounts filesystem via remote API for repository access.
 ///
@@ -409,10 +412,12 @@ async fn unmount_fs(repo: &str, cl: Option<&str>) -> Result<bool, Box<dyn Error 
     Ok(true)
 }
 
-/// Since buck2 targets needs to statx every directory,
-/// which is extremely time-consuming on FUSE, we are using ls first to pre-warm the metadata cache.
-/// The targets logic will be migrated to the monolith later.
-// TODO: Rewrite the targets logic.
+/// Buck2 targets stats every directory, which is slow on FUSE.
+/// We pre-warm metadata with `ls -lR` to reduce statx latency.
+/// TODO(perf): Replace this full-tree walk with a targeted preheat plan that
+/// only touches changed paths + ancestors and buck-critical files
+/// (PACKAGE/BUCK/.buckconfig) to avoid duplicated tree scans.
+/// TODO: Rewrite the targets logic in the monolith.
 fn preheat(repo_path: &Path) -> anyhow::Result<()> {
     let preheat_status = std::process::Command::new("ls")
         .arg("-lR")
@@ -427,16 +432,152 @@ fn preheat(repo_path: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Preheat a shallow directory tree to reduce cold-start metadata misses.
+fn preheat_shallow(repo_path: &Path, max_depth: usize) -> anyhow::Result<()> {
+    if max_depth == 0 {
+        return Ok(());
+    }
+
+    let mut stack = vec![(repo_path.to_path_buf(), 0usize)];
+    while let Some((path, depth)) = stack.pop() {
+        let entries = match std::fs::read_dir(&path) {
+            Ok(entries) => entries,
+            Err(err) => {
+                tracing::warn!("Preheat shallow read_dir failed for {path:?}: {err}");
+                continue;
+            }
+        };
+
+        for entry in entries {
+            let entry = match entry {
+                Ok(entry) => entry,
+                Err(err) => {
+                    tracing::warn!("Preheat shallow entry error under {path:?}: {err}");
+                    continue;
+                }
+            };
+
+            let file_type = match entry.file_type() {
+                Ok(file_type) => file_type,
+                Err(err) => {
+                    tracing::warn!(
+                        "Preheat shallow file_type failed for {:?}: {err}",
+                        entry.path()
+                    );
+                    continue;
+                }
+            };
+
+            // Touch metadata to warm FUSE cache.
+            let _ = entry.metadata();
+
+            if file_type.is_dir() && depth < max_depth {
+                stack.push((entry.path(), depth + 1));
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn preheat_shallow_depth() -> usize {
+    if let Some(depth) = parse_env_usize("ORION_PREHEAT_SHALLOW_DEPTH") {
+        return depth;
+    }
+
+    if let Some(depth) = parse_env_usize("MEGA_BUILD__ORION_PREHEAT_SHALLOW_DEPTH") {
+        return depth;
+    }
+
+    build_config()
+        .map(|config| config.orion_preheat_shallow_depth)
+        .unwrap_or(DEFAULT_PREHEAT_SHALLOW_DEPTH)
+}
+
+fn parse_env_usize(key: &str) -> Option<usize> {
+    match std::env::var(key) {
+        Ok(value) => match value.parse::<usize>() {
+            Ok(depth) => Some(depth),
+            Err(_) => {
+                tracing::warn!("Invalid {key}={value:?}, ignoring.");
+                None
+            }
+        },
+        Err(_) => None,
+    }
+}
+
+fn build_config() -> Option<&'static BuildConfig> {
+    BUILD_CONFIG.as_ref()
+}
+
+fn load_build_config() -> Option<BuildConfig> {
+    let path = resolve_config_path()?;
+    let path_str = path.to_str()?;
+    match common::config::Config::new(path_str) {
+        Ok(config) => Some(config.build),
+        Err(err) => {
+            tracing::warn!("Failed to load MEGA config from {path:?}: {err}");
+            None
+        }
+    }
+}
+
+fn resolve_config_path() -> Option<PathBuf> {
+    if let Ok(path) = std::env::var("MEGA_CONFIG") {
+        let path = PathBuf::from(path);
+        if path.exists() {
+            return Some(path);
+        }
+        tracing::warn!("MEGA_CONFIG points to missing file: {path:?}");
+    }
+
+    if let Ok(cwd) = std::env::current_dir() {
+        let path = cwd.join("config/config.toml");
+        if path.exists() {
+            return Some(path);
+        }
+    }
+
+    if let Ok(base_dir) = std::env::var("MEGA_BASE_DIR") {
+        let path = PathBuf::from(base_dir).join("etc/config.toml");
+        if path.exists() {
+            return Some(path);
+        }
+    }
+
+    None
+}
+
+/// Derive a stable per-mount buck2 isolation directory name.
+///
+/// Buck2 `--isolation-dir` expects a plain directory **name** (no path
+/// separators).  Buck2 itself stores daemon state under
+/// `<project_root>/.buck2/<isolation_dir>/`, so we only need to return a
+/// unique name – not a full path.
+fn buck2_isolation_dir(repo_path: &Path) -> anyhow::Result<String> {
+    let digest = ring::digest::digest(
+        &ring::digest::SHA256,
+        repo_path.to_string_lossy().as_bytes(),
+    );
+    let suffix = &hex::encode(digest.as_ref())[..16];
+    Ok(format!("buck2-isolation-{suffix}"))
+}
+
 /// Get target of a specific repo under tmp directory.
 fn get_repo_targets(file_name: &str, repo_path: &Path) -> anyhow::Result<Targets> {
     const MAX_ATTEMPTS: usize = 2;
     let jsonl_path = PathBuf::from(repo_path).join(file_name);
+    let isolation_dir = buck2_isolation_dir(repo_path)?;
+
+    preheat(repo_path)?;
 
     for attempt in 1..=MAX_ATTEMPTS {
         tracing::debug!("Get targets for repo {repo_path:?} (attempt {attempt}/{MAX_ATTEMPTS})");
-        preheat(repo_path)?;
         let mut command = std::process::Command::new("buck2");
-        command.args(targets_arguments());
+        command
+            .args(targets_arguments())
+            .args(["--isolation-dir", &isolation_dir]);
         command.current_dir(repo_path);
         let (mut child, stdout) = spawn(command)?;
         let mut writer = file_writer(&jsonl_path)?;
@@ -480,7 +621,9 @@ async fn get_build_targets(
     let old_repo = PathBuf::from(old_repo_mount_point);
     tracing::debug!("Analyzing changes {mega_changes:?}");
 
+    preheat_shallow(&mount_path, preheat_shallow_depth())?;
     let mut buck2 = Buck2::with_root("buck2".to_string(), mount_path.clone());
+    buck2.set_isolation_dir(buck2_isolation_dir(&mount_path)?);
     let mut cells = CellInfo::parse(
         &buck2
             .cells()
@@ -591,20 +734,21 @@ pub async fn build(
     sender: UnboundedSender<WSMessage>,
     changes: Vec<Status<ProjectRelativePath>>,
 ) -> Result<ExitStatus, Box<dyn Error + Send + Sync>> {
-    tracing::info!("[Task {}] Building in repo /", id);
+    tracing::info!("[Task {}] Building in repo {}", id, repo);
 
     // Handle empty cl string as None to mount the base repo without a CL layer.
     let cl_trimmed = cl.trim();
     let cl_arg = (!cl_trimmed.is_empty()).then_some(cl_trimmed);
 
-    // We will analyze the whole repo
-    let repo_path = "/".to_string();
-    // Used to change ProjectRelativePath relative to root
-    let repo_prefix = repo.strip_prefix("/").unwrap_or(&repo);
-    let changes: Vec<Status<ProjectRelativePath>> = changes
-        .into_iter()
-        .map(|p| p.into_map(|rp| ProjectRelativePath::new(repo_prefix).join(rp.as_str())))
-        .collect();
+    // Mount the entire monorepo root so all cells/toolchains are available,
+    // but run buck2 from the specific sub-project directory.
+    let mount_path = "/".to_string();
+    // `repo_prefix` is the relative path from monorepo root to the buck2 project.
+    // e.g., repo="/project/git-internal/git-internal" → repo_prefix="project/git-internal/git-internal"
+    let repo_prefix = repo.strip_prefix('/').unwrap_or(&repo);
+
+    // Changes are already relative to the sub-project (buck2 project root).
+    // Do NOT prefix them with repo_prefix — buck2 runs from the sub-project dir.
 
     const MAX_TARGETS_ATTEMPTS: usize = 2;
     let mut mount_point = None;
@@ -617,12 +761,12 @@ pub async fn build(
         // We should also mount the repo before cl, for build target analyzing.
         let id_for_old_repo = format!("{id}-old-{attempt}");
         let (old_repo_mount_point, mount_id_old_repo) =
-            mount_antares_fs(&id_for_old_repo, &repo_path, None).await?;
+            mount_antares_fs(&id_for_old_repo, &mount_path, None).await?;
         let guard_old_repo = MountGuard::new(mount_id_old_repo, id_for_old_repo);
 
         let id_for_repo = format!("{id}-{attempt}");
         let (repo_mount_point, mount_id) =
-            mount_antares_fs(&id_for_repo, &repo_path, cl_arg).await?;
+            mount_antares_fs(&id_for_repo, &mount_path, cl_arg).await?;
         let guard = MountGuard::new(mount_id.clone(), id_for_repo);
 
         tracing::info!(
@@ -632,7 +776,17 @@ pub async fn build(
             MAX_TARGETS_ATTEMPTS
         );
 
-        match get_build_targets(&old_repo_mount_point, &repo_mount_point, changes.clone()).await {
+        // Resolve the sub-project paths within each mount for buck2.
+        let old_project_root = PathBuf::from(&old_repo_mount_point).join(repo_prefix);
+        let new_project_root = PathBuf::from(&repo_mount_point).join(repo_prefix);
+
+        match get_build_targets(
+            old_project_root.to_str().unwrap_or(&old_repo_mount_point),
+            new_project_root.to_str().unwrap_or(&repo_mount_point),
+            changes.clone(),
+        )
+        .await
+        {
             Ok(found_targets) => {
                 mount_point = Some(repo_mount_point);
                 mount_guard = Some(guard);
@@ -685,7 +839,12 @@ pub async fn build(
         mount_guard_old_repo.ok_or("Old repo mount guard missing after target discovery")?;
 
     let build_result = async {
+        // Run buck2 build from the sub-project directory, not the monorepo root.
+        // This ensures buck2 uses the sub-project's .buckconfig and PACKAGE files.
+        let project_root = PathBuf::from(&mount_point).join(repo_prefix);
+        let isolation_dir = buck2_isolation_dir(&project_root)?;
         let mut cmd = Command::new("buck2");
+        cmd.args(["--isolation-dir", &isolation_dir]);
         let cmd = cmd
             .arg("build")
             .args(&targets)
@@ -695,7 +854,7 @@ pub async fn build(
             // with the selected platform (e.g., macOS-only crates on Linux builders).
             .arg("--skip-incompatible-targets")
             .arg("--verbose=2")
-            .current_dir(mount_point)
+            .current_dir(&project_root)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 

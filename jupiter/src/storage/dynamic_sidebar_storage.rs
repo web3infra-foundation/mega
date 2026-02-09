@@ -1,11 +1,11 @@
 use std::{collections::HashSet, ops::Deref};
 
 use callisto::dynamic_sidebar;
-use common::errors::MegaError;
+use common::{config::SidebarConfig, errors::MegaError};
 use sea_orm::{
     ActiveModelTrait,
     ActiveValue::{NotSet, Set},
-    EntityTrait, QueryOrder, TransactionTrait,
+    EntityTrait, PaginatorTrait, QueryOrder, TransactionTrait,
 };
 
 use crate::{
@@ -26,6 +26,33 @@ impl Deref for DynamicSidebarStorage {
 }
 
 impl DynamicSidebarStorage {
+    /// Initialize default sidebars from config if the table is empty.
+    /// This is idempotent: only inserts if no rows exist.
+    pub async fn init_default_sidebars(&self, config: &SidebarConfig) -> Result<(), MegaError> {
+        let count = dynamic_sidebar::Entity::find()
+            .count(self.get_connection())
+            .await?;
+        if count > 0 {
+            return Ok(());
+        }
+
+        let default_items = &config.default_items;
+
+        for item in default_items {
+            let active_model = dynamic_sidebar::ActiveModel {
+                public_id: Set(item.public_id.clone()),
+                label: Set(item.label.clone()),
+                href: Set(item.href.clone()),
+                visible: Set(item.visible),
+                order_index: Set(item.order_index),
+                ..Default::default()
+            };
+            active_model.insert(self.get_connection()).await?;
+        }
+
+        Ok(())
+    }
+
     pub async fn get_sidebar_by_id(
         &self,
         id: i32,

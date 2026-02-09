@@ -14,6 +14,7 @@ pub enum BuildTriggerType {
     Webhook,
     Schedule,
     WebEdit,
+    BuckFileUpload,
 }
 
 impl fmt::Display for BuildTriggerType {
@@ -25,6 +26,7 @@ impl fmt::Display for BuildTriggerType {
             BuildTriggerType::Webhook => "webhook",
             BuildTriggerType::Schedule => "schedule",
             BuildTriggerType::WebEdit => "webedit",
+            BuildTriggerType::BuckFileUpload => "buck_file_upload",
         };
         write!(f, "{}", s)
     }
@@ -160,6 +162,26 @@ pub struct WebEditPayload {
     pub triggered_by: Option<String>,
 }
 
+/// Payload for Buck file upload trigger
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BuckFileUploadPayload {
+    pub repo: String,
+    pub from_hash: String,
+    pub commit_hash: String,
+    pub cl_link: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cl_id: Option<i64>,
+    pub builds: serde_json::Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub triggered_by: Option<String>,
+    /// Target branch name; always "main" for current single-branch upload flow
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ref_name: Option<String>,
+    /// Ref type for display; always "branch" for current flow
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ref_type: Option<String>,
+}
+
 /// Trigger payload - stores context specific to each trigger type
 /// This enum is serialized to JSON and stored in database's trigger_payload column
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -171,6 +193,7 @@ pub enum BuildTriggerPayload {
     Webhook(WebhookPayload),
     Schedule(SchedulePayload),
     WebEdit(WebEditPayload),
+    BuckFileUpload(BuckFileUploadPayload),
 }
 
 impl BuildTriggerPayload {
@@ -182,6 +205,7 @@ impl BuildTriggerPayload {
             BuildTriggerPayload::Webhook(p) => &p.repo,
             BuildTriggerPayload::Schedule(p) => &p.repo,
             BuildTriggerPayload::WebEdit(p) => &p.repo,
+            BuildTriggerPayload::BuckFileUpload(p) => &p.repo,
         }
     }
 
@@ -193,6 +217,7 @@ impl BuildTriggerPayload {
             BuildTriggerPayload::Webhook(p) => &p.commit_hash,
             BuildTriggerPayload::Schedule(p) => &p.commit_hash,
             BuildTriggerPayload::WebEdit(p) => &p.commit_hash,
+            BuildTriggerPayload::BuckFileUpload(p) => &p.commit_hash,
         }
     }
 
@@ -204,6 +229,7 @@ impl BuildTriggerPayload {
             BuildTriggerPayload::Webhook(p) => &p.cl_link,
             BuildTriggerPayload::Schedule(p) => &p.cl_link,
             BuildTriggerPayload::WebEdit(p) => &p.cl_link,
+            BuildTriggerPayload::BuckFileUpload(p) => &p.cl_link,
         }
     }
 
@@ -215,6 +241,7 @@ impl BuildTriggerPayload {
             BuildTriggerPayload::Webhook(p) => p.cl_id,
             BuildTriggerPayload::Schedule(p) => p.cl_id,
             BuildTriggerPayload::WebEdit(p) => p.cl_id,
+            BuildTriggerPayload::BuckFileUpload(p) => p.cl_id,
         }
     }
 
@@ -226,6 +253,7 @@ impl BuildTriggerPayload {
             BuildTriggerPayload::Webhook(_) => None,
             BuildTriggerPayload::Schedule(_) => None,
             BuildTriggerPayload::WebEdit(p) => p.triggered_by.as_deref(),
+            BuildTriggerPayload::BuckFileUpload(p) => p.triggered_by.as_deref(),
         }
     }
 
@@ -237,6 +265,7 @@ impl BuildTriggerPayload {
             BuildTriggerPayload::Webhook(_) => "",
             BuildTriggerPayload::Schedule(_) => "",
             BuildTriggerPayload::WebEdit(p) => &p.from_hash,
+            BuildTriggerPayload::BuckFileUpload(p) => &p.from_hash,
         }
     }
 }
@@ -373,6 +402,36 @@ impl TriggerContext {
             ref_type: None,
         }
     }
+
+    /// Build context for Buck file upload trigger.
+    /// Caller should set context.ref_name and context.ref_type after construction (same as Manual).
+    pub fn from_buck_upload(
+        repo_path: String,
+        from_hash: String,
+        commit_hash: String,
+        cl_link: String,
+        cl_id: Option<i64>,
+        triggered_by: Option<String>,
+    ) -> Self {
+        Self {
+            trigger_type: BuildTriggerType::BuckFileUpload,
+            trigger_source: if triggered_by.is_some() {
+                TriggerSource::User
+            } else {
+                TriggerSource::System
+            },
+            triggered_by,
+            repo_path,
+            from_hash,
+            commit_hash,
+            cl_link: Some(cl_link),
+            cl_id,
+            params: None,
+            original_trigger_id: None,
+            ref_name: None,
+            ref_type: None,
+        }
+    }
 }
 
 impl From<mega_cl::Model> for TriggerContext {
@@ -458,6 +517,9 @@ impl TriggerResponse {
                 p.ref_type.clone(),
             ),
             BuildTriggerPayload::Webhook(p) => (p.raw_payload.clone(), None, None, None),
+            BuildTriggerPayload::BuckFileUpload(p) => {
+                (None, None, p.ref_name.clone(), p.ref_type.clone())
+            }
             _ => (None, None, None, None),
         };
 

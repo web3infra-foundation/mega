@@ -1,13 +1,5 @@
 import type { AnnotationSide, FileDiffMetadata } from '@pierre/diffs'
 
-export function normalizeLine(content: string): string {
-  return content
-    .trim()
-    .replace(/\/\/.*$/g, '')
-    .replace(/\/\*.*?\*\//g, '')
-    .trim()
-}
-
 export function extractLinesFromHunks(fileDiff: FileDiffMetadata, side: 'deletions' | 'additions'): string[] {
   const lines: string[] = []
 
@@ -47,13 +39,13 @@ function getLineContextFromLines(
   }
 
   const selectedLines = lines.slice(startIndex, endIndex + 1)
-  const normalizedContent = selectedLines.map((line) => normalizeLine(line)).join('\n')
+  const normalizedContent = selectedLines.join('\n')
 
   const contextBeforeStart = Math.max(0, startIndex - contextSize)
-  const contextBefore = lines.slice(contextBeforeStart, startIndex).map((line) => normalizeLine(line))
+  const contextBefore = lines.slice(contextBeforeStart, startIndex)
 
   const contextAfterEnd = Math.min(lines.length, endIndex + contextSize + 1)
-  const contextAfter = lines.slice(endIndex + 1, contextAfterEnd).map((line) => normalizeLine(line))
+  const contextAfter = lines.slice(endIndex + 1, contextAfterEnd)
 
   return {
     selectedLines,

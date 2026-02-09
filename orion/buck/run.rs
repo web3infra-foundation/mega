@@ -53,6 +53,10 @@ impl Buck2 {
         }
     }
 
+    pub fn set_isolation_dir(&mut self, isolation_dir: String) {
+        self.isolation_dir = Some(isolation_dir);
+    }
+
     pub fn command(&self) -> Command {
         let mut command = Command::new(&self.program);
         match &self.isolation_dir {

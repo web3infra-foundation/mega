@@ -8,9 +8,8 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
     pub task_id: Uuid,
-    pub exit_code: Option<i32>,
     pub retry_count: i32,
-    pub repo: String,
+    pub exit_code: Option<i32>,
     pub log: Option<String>,
     pub log_output_file: String,
     pub start_at: DateTimeWithTimeZone,
