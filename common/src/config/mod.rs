@@ -98,6 +98,8 @@ pub struct Config {
     pub object_storage: ObjectStorageConfig,
     #[serde(default)]
     pub orion_server: Option<OrionServerConfig>,
+    #[serde(default)]
+    pub sidebar: SidebarConfig,
 }
 
 impl Config {
@@ -136,6 +138,7 @@ impl Config {
             buck: None,
             object_storage: ObjectStorageConfig::default(),
             orion_server: None,
+            sidebar: SidebarConfig::default(),
         }
     }
 
@@ -871,6 +874,55 @@ impl Default for BuckConfig {
             completed_retention_days: default_completed_retention_days(),
         }
     }
+}
+
+#[derive(Deserialize, Debug)]
+pub struct SidebarConfig {
+    pub default_items: Vec<SidebarItem>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct SidebarItem {
+    pub public_id: String,
+    pub label: String,
+    pub href: String,
+    #[serde(default = "default_visible")]
+    pub visible: bool,
+    pub order_index: i32,
+}
+
+impl Default for SidebarConfig {
+    fn default() -> Self {
+        Self {
+            default_items: vec![
+                SidebarItem {
+                    public_id: "home".to_string(),
+                    label: "Home".to_string(),
+                    href: "/posts".to_string(),
+                    visible: true,
+                    order_index: 0,
+                },
+                SidebarItem {
+                    public_id: "inbox".to_string(),
+                    label: "Inbox".to_string(),
+                    href: "/inbox".to_string(),
+                    visible: true,
+                    order_index: 1,
+                },
+                SidebarItem {
+                    public_id: "docs".to_string(),
+                    label: "Docs".to_string(),
+                    href: "/notes".to_string(),
+                    visible: true,
+                    order_index: 2,
+                },
+            ],
+        }
+    }
+}
+
+fn default_visible() -> bool {
+    true
 }
 
 #[cfg(test)]
