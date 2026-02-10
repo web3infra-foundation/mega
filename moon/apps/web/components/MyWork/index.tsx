@@ -12,7 +12,7 @@ import { NewPostButton } from '@/components/Home/NewPostButton'
 import { IndexPageContainer, IndexPageContent } from '@/components/IndexPages/components'
 import { RefetchingPageIndicator } from '@/components/NavigationBar/RefetchingPageIndicator'
 import { refetchingPostsAtom } from '@/components/NavigationBar/useNavigationTabAction'
-import { UserFeedOnboarding } from '@/components/Onboarding/UserFeedOnboarding'
+// import { UserFeedOnboarding } from '@/components/Onboarding/UserFeedOnboarding'
 import { PostsIndexDisplayDropdown } from '@/components/PostsIndex/PostsIndexDisplayDropdown'
 import { SplitViewContainer, SplitViewDetail } from '@/components/SplitView'
 import { useScope } from '@/contexts/scope'
@@ -44,7 +44,7 @@ function MyWorkPosts() {
   return (
     <>
       <div className='hidden lg:flex lg:flex-col'>
-        <UserFeedOnboarding />
+        {/*<UserFeedOnboarding />*/}
         <EnablePush containerClassName='p-4' />
       </div>
 

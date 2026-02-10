@@ -14,7 +14,7 @@ import { HomeSpaces } from '@/components/MobileHome/HomeSpaces'
 import { UnreadHomeSpaces } from '@/components/MobileHome/UnreadHomeSpaces'
 import { refetchingHomeAtom } from '@/components/NavigationBar'
 import { RefetchingPageIndicator } from '@/components/NavigationBar/RefetchingPageIndicator'
-import { UserFeedOnboarding } from '@/components/Onboarding/UserFeedOnboarding'
+// import { UserFeedOnboarding } from '@/components/Onboarding/UserFeedOnboarding'
 import AuthAppProviders from '@/components/Providers/AuthAppProviders'
 import { ScrollableContainer } from '@/components/ScrollableContainer'
 import { CallBreadcrumbIcon, NoteBreadcrumbIcon, PostBreadcrumbIcon } from '@/components/Titlebar/BreadcrumbPageIcons'
@@ -59,7 +59,7 @@ const MyWorkHomePage: PageWithLayout<any> = () => {
 
       <ScrollableContainer id='/[org]/home' className='pb-20'>
         <div className='flex flex-col lg:hidden'>
-          <UserFeedOnboarding />
+          {/*<UserFeedOnboarding />*/}
           <EnablePush containerClassName='p-4' />
         </div>
         <RefetchingPageIndicator isRefetching={isRefetching} />
