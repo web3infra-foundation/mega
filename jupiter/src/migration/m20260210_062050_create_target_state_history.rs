@@ -29,7 +29,7 @@ impl MigrationTrait for Migration {
                             .not_null(),
                     )
                     .col(
-                        ColumnDef::new(TargetStateHistories::CreatedTime)
+                        ColumnDef::new(TargetStateHistories::CreatedAt)
                             .timestamp_with_time_zone()
                             .not_null()
                             .default(Expr::current_timestamp()),
@@ -55,5 +55,5 @@ enum TargetStateHistories {
     TargetId,
     BuildId,
     TargetState,
-    CreatedTime,
+    CreatedAt,
 }
