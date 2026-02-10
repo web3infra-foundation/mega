@@ -11,9 +11,11 @@ import {
   ChevronSelectIcon,
   GearIcon,
   GlobeIcon,
-  PlusIcon,
+  MegaLogoIcon,
+  // PlusIcon,
   ProjectIcon,
   ReorderHandlesIcon,
+  // RocketIcon,
   UIText,
   useBreakpoint,
   UserCircleIcon
@@ -155,13 +157,13 @@ export function OrganizationSwitcher({ trigger }: { trigger?: React.ReactNode })
   const allItems = buildMenuItems([
     ...items,
     !isLg && items.length > 0 && { type: 'separator' },
-    ...(!isLg ? mobileItems : []),
-    (!isLg || memberships?.length === 1) && {
-      type: 'item',
-      leftSlot: <PlusIcon />,
-      label: 'New organization',
-      url: '/new'
-    }
+    ...(!isLg ? mobileItems : [])
+    // (!isLg || memberships?.length === 1) && {
+    //   type: 'item',
+    //   leftSlot: <PlusIcon />,
+    //   label: 'New organization',
+    //   url: '/new'
+    // }
   ])
 
   if (allItems.length === 0) {
@@ -211,13 +213,17 @@ function OrganizationAvatarAndName({
     <div className={cn('flex min-w-[0] items-center gap-2 text-left', className)}>
       <div className='shrink-0'>
         {organization ? (
-          <Avatar
-            rounded='rounded'
-            key={organization?.id}
-            size='xs'
-            name={organization?.name}
-            urls={organization?.avatar_urls}
-          />
+          organization?.name === 'Mega' ? (
+            <MegaLogoIcon size={20} />
+          ) : (
+            <Avatar
+              rounded='rounded'
+              key={organization?.id}
+              size='xs'
+              name={organization?.name}
+              urls={organization?.avatar_urls}
+            />
+          )
         ) : (
           <ReorderHandlesIcon />
         )}
