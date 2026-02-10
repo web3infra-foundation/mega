@@ -13,10 +13,15 @@ impl MigrationTrait for Migration {
                     .table(TargetStateHistories::Table)
                     .if_not_exists()
                     .col(
-                        ColumnDef::new(TargetStateHistories::TargetId)
+                        ColumnDef::new(TargetStateHistories::Id)
                             .uuid()
                             .not_null()
                             .primary_key(),
+                    )
+                    .col(
+                        ColumnDef::new(TargetStateHistories::TargetId)
+                            .uuid()
+                            .not_null(),
                     )
                     .col(
                         ColumnDef::new(TargetStateHistories::BuildId)
@@ -52,6 +57,7 @@ impl MigrationTrait for Migration {
 #[derive(DeriveIden)]
 enum TargetStateHistories {
     Table,
+    Id,
     TargetId,
     BuildId,
     TargetState,
