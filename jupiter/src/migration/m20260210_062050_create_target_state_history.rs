@@ -19,12 +19,12 @@ impl MigrationTrait for Migration {
                             .primary_key(),
                     )
                     .col(
-                        ColumnDef::new(TargetStateHistories::TargetId)
+                        ColumnDef::new(TargetStateHistories::BuildTargetId)
                             .uuid()
                             .not_null(),
                     )
                     .col(
-                        ColumnDef::new(TargetStateHistories::BuildId)
+                        ColumnDef::new(TargetStateHistories::BuildEventId)
                             .uuid()
                             .not_null(),
                     )
@@ -38,6 +38,26 @@ impl MigrationTrait for Migration {
                             .timestamp_with_time_zone()
                             .not_null()
                             .default(Expr::current_timestamp()),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from(
+                                TargetStateHistories::Table,
+                                TargetStateHistories::BuildEventId,
+                            )
+                            .to(BuildEvents::Table, BuildEvents::Id)
+                            .on_delete(ForeignKeyAction::Cascade)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from(
+                                TargetStateHistories::Table,
+                                TargetStateHistories::BuildTargetId,
+                            )
+                            .to(BuildTargets::Table, BuildTargets::Id)
+                            .on_delete(ForeignKeyAction::Cascade)
+                            .on_update(ForeignKeyAction::Cascade),
                     )
                     .to_owned(),
             )
@@ -58,8 +78,20 @@ impl MigrationTrait for Migration {
 enum TargetStateHistories {
     Table,
     Id,
-    TargetId,
-    BuildId,
+    BuildTargetId,
+    BuildEventId,
     TargetState,
     CreatedAt,
+}
+
+#[derive(DeriveIden)]
+enum BuildEvents {
+    Table,
+    Id,
+}
+
+#[derive(DeriveIden)]
+enum BuildTargets {
+    Table,
+    Id,
 }
