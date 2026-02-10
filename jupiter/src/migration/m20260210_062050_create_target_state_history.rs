@@ -62,10 +62,49 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await?;
+
+        // create indexes
+        manager
+            .create_index(
+                Index::create()
+                    .name("idx_target_state_histories_build_target_id")
+                    .table(TargetStateHistories::Table)
+                    .col(TargetStateHistories::BuildTargetId)
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .name("idx_target_state_histories_build_event_id")
+                    .table(TargetStateHistories::Table)
+                    .col(TargetStateHistories::BuildEventId)
+                    .to_owned(),
+            )
+            .await?;
+
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        // drop indexes
+        manager
+            .drop_index(
+                Index::drop()
+                    .name("idx_target_state_histories_build_target_id")
+                    .table(TargetStateHistories::Table)
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .drop_index(
+                Index::drop()
+                    .name("idx_target_state_histories_build_event_id")
+                    .table(TargetStateHistories::Table)
+                    .to_owned(),
+            )
+            .await?;
+
         // drop target state histories table
         manager
             .drop_table(Table::drop().table(TargetStateHistories::Table).to_owned())
