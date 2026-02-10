@@ -99,6 +99,21 @@ impl BuildTriggerService {
         Ok(Some(id))
     }
 
+    pub async fn build_by_context(
+        storage: Storage,
+        git_cache: Arc<GitObjectCache>,
+        bellatrix: Arc<Bellatrix>,
+        context: TriggerContext,
+    ) -> Result<Option<i64>, MegaError> {
+        if !bellatrix.enable_build() {
+            return Ok(None);
+        }
+        let registry = TriggerRegistry::new(storage, git_cache, bellatrix);
+
+        let id = registry.trigger_build(context).await?;
+        Ok(Some(id))
+    }
+
     /// Triggers a build for an existing CL using its unique link.
     pub async fn trigger_for_cl(&self, cl_link: &str) -> Result<Option<i64>, MegaError> {
         if !self.is_enabled() {
