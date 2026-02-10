@@ -28,21 +28,20 @@ This demo ships **multi-architecture Docker images** (linux/amd64 + linux/arm64)
 
 ### System Requirements
 
-* Linux – native Docker & Compose
-* macOS – Docker Desktop
-* Windows – Docker Desktop (WSL2 recommended)
+- Linux – native Docker & Compose
+- macOS – Docker Desktop
+- Windows – Docker Desktop (WSL2 recommended)
 
 **Hardware** (minimum):
 
-* CPU: 4 cores
-* RAM: 8 GB (16 GB recommended for source builds)
-* Disk: 10 GB free (30 GB recommended if building images locally)
-
+- CPU: 4 cores
+- RAM: 8 GB (16 GB recommended for source builds)
+- Disk: 10 GB free (30 GB recommended if building images locally)
 
 ### Required Tools
 
-* Docker ≥ 20.10
-* Docker Compose ≥ 2 (bundled with Docker Desktop)
+- Docker ≥ 20.10
+- Docker Compose ≥ 2 (bundled with Docker Desktop)
 
 ```bash
 docker --version
@@ -63,15 +62,14 @@ cd mega
 ### 2  Configure environment *(optional)*
 
 > **Hosts mapping (required for demo domains)**
-> 
+>
 > The demo uses virtual domains under `gitmono.local`. Add the following line to your operating-system hosts file so that the browser resolves them to your local machine:
 >
 > ```
 > 127.0.0.1 app.gitmono.local git.gitmono.local api.gitmono.local auth.gitmono.local orion.gitmono.local
 > ```
-> 
+>
 > On Linux/macOS this is `/etc/hosts`; on Windows it is `C:\Windows\System32\drivers\etc\hosts`. You can remove the mapping at any time after testing.
-
 
 The demo environment already has sensible default values and can be used as-is. To customize any settings, create a `.env` file under `docker/demo/`:
 
@@ -100,6 +98,9 @@ The main configurable environment variables include:
 - **RustFS Configuration**:
   - `RUSTFS_ACCESS_KEY`: RustFS access key (default: `rustfsadmin`)
   - `RUSTFS_SECRET_KEY`: RustFS secret key (default: `rustfsadmin`)
+
+- **Mega Backend Configuration**:
+  - `MEGA_MONOREPO__ADMIN`: Add your GitHub login name here to grant admin access (comma-separated for multiple users)(default: `Null`)
 
 > **Note**: The demo environment uses default passwords and test users for demonstration purposes only.
 
@@ -168,7 +169,7 @@ When all services show a status of `healthy` or `running`, you can start using t
 Open your browser and visit:
 
 ```
-http://localhost:3000
+http://app.gitmono.local
 ```
 
 ### 2. Sign in with the test user
@@ -191,10 +192,13 @@ In Mega UI:
 
 - **View in the UI**: Build status and logs are displayed in Mega UI
 - **View build client logs**:
+
   ```bash
   docker compose -f docker/demo/docker-compose.demo.yml logs -f orion_build_client
   ```
+
 - **View Orion Server logs**:
+
   ```bash
   docker compose -f docker/demo/docker-compose.demo.yml logs -f orion_server
   ```
@@ -208,6 +212,7 @@ http://localhost:9001/rustfs/console/access-keys
 ```
 
 Log in with the following credentials:
+
 - **Access Key**: `rustfsadmin` (or the value of `RUSTFS_ACCESS_KEY`)
 - **Secret Key**: `rustfsadmin` (or the value of `RUSTFS_SECRET_KEY`)
 
@@ -217,21 +222,21 @@ Log in with the following credentials:
 
 | Service | URL | Description |
 |------|---------|------|
-| **Mega UI** | http://localhost:3000 | Web Frontend UI |
-| **Mega API** | http://localhost:8000 | Mega backend API |
-| **Orion Server** | http://localhost:8004 | Orion build server API |
-| **Campsite API** | http://localhost:8080 | Campsite OAuth/SSO API |
+| **Mega UI** | <http://app.gitmono.local> | Web Frontend UI |
+| **Mega API** | <http://api.gitmono.local:8000> | Mega backend API |
+| **Orion Server** | <http://orion.gitmono.local:8004> | Orion build server API |
+| **Campsite API** | <http://api.gitmono.local:8080> | Campsite OAuth/SSO API |
 | **PostgreSQL** | localhost:5432 | Database (used by Mega & Orion, mapped to host port 5432 in demo) |
 | **MySQL** | localhost:3306 | Database (used by Campsite API, mapped to host port 3306 in demo) |
 | **Redis** | localhost:6379 | Cache service (mapped to host port 6379 in demo) |
-| **RustFS Console** | http://localhost:9001 | Web console for RustFS object storage |
-| **RustFS S3 API** | http://localhost:9000 | S3-compatible endpoint |
+| **RustFS Console** | <http://localhost:9001> | Web console for RustFS object storage |
+| **RustFS S3 API** | <http://localhost:9000> | S3-compatible endpoint |
 
 ### API Health Check Endpoints
 
-- **Mega API**: `GET http://localhost:8000/api/v1/status`
-- **Orion Server**: `GET http://localhost:8004/v2/health`
-- **Campsite API**: `GET http://localhost:8080/health`
+- **Mega API**: `GET http://api.gitmono.lcoal:8000/api/v1/status`
+- **Orion Server**: `GET http://orion.gitmono.local:8004/v2/health`
+- **Campsite API**: `GET http://api.gitmono.local:8080/health`
 
 ---
 
@@ -245,12 +250,14 @@ Log in with the following credentials:
 
 1. **Update the port mapping in the compose file**:
    Edit `docker/demo/docker-compose.demo.yml` and adjust the `ports` section, e.g.:
+
    ```yaml
    ports:
      - "8001:8000"  # Change host port to 8001
    ```
 
 2. **Stop the service occupying the port**:
+
    ```bash
    # Find the process occupying the port (Linux/macOS)
    lsof -i :8000
@@ -263,11 +270,13 @@ Log in with the following credentials:
 **Issue**: First run of `docker compose up` takes a long time
 
 **Reason**:
+
 - Images must be pulled from remote registries (may be large)
 - If you are using locally built images, the `mega` and `orion_server` services need to be built from source
 - PostgreSQL and MySQL databases need to initialize
 
 **Solution**:
+
 - Be patient; the first startup usually takes **5–15 minutes** (depending on network speed and hardware)
 - You can view progress in real time with `docker compose logs -f`
 - Subsequent starts will be much faster (images are cached)
@@ -279,12 +288,14 @@ Log in with the following credentials:
 **Troubleshooting Steps**:
 
 1. **View service logs**:
+
    ```bash
    docker compose -f docker/demo/docker-compose.demo.yml logs <service_name>
    ```
 
 2. **Check dependency services**:
    Ensure infrastructure services (PostgreSQL, MySQL, Redis, RustFS) are healthy:
+
    ```bash
    docker compose -f docker/demo/docker-compose.demo.yml ps
    ```
@@ -294,11 +305,13 @@ Log in with the following credentials:
 
 4. **Check network connectivity**:
    Ensure container-to-container network communication is normal:
+
    ```bash
    docker network inspect mega-demo-network
    ```
 
 5. **Restart a service**:
+
    ```bash
    docker compose -f docker/demo/docker-compose.demo.yml restart <service_name>
    ```
@@ -308,6 +321,7 @@ Log in with the following credentials:
 **Problem**: The `orion_build_client` container cannot connect to `orion_server`.
 
 **Possible causes**:
+
 - `orion_server` has not fully started yet
 - Incorrect WebSocket address configuration
 - Network issues
@@ -315,11 +329,13 @@ Log in with the following credentials:
 **Solution**:
 
 1. Check whether `orion_server` is healthy:
+
    ```bash
    docker compose -f docker/demo/docker-compose.demo.yml ps orion_server
    ```
 
 2. Inspect `orion_build_client` logs:
+
    ```bash
    docker compose -f docker/demo/docker-compose.demo.yml logs orion_build_client
    ```
@@ -333,11 +349,13 @@ Log in with the following credentials:
 **Troubleshooting steps**:
 
 1. **Check whether PostgreSQL is healthy** (used by Mega and Orion):
+
    ```bash
    docker compose -f docker/demo/docker-compose.demo.yml ps postgres
    ```
 
 2. **Check whether MySQL is healthy** (used by the Campsite API):
+
    ```bash
    docker compose -f docker/demo/docker-compose.demo.yml ps mysql
    ```
@@ -347,6 +365,7 @@ Log in with the following credentials:
    - Campsite: ensure `CAMPSITE_DATABASE_URL` is correctly formatted (MySQL; format: `mysql2://user:password@host:port/database`)
 
 4. **Test connectivity manually**:
+
    ```bash
    # Test PostgreSQL connection (Mega/Orion)
    docker compose -f docker/demo/docker-compose.demo.yml exec postgres psql -U postgres -d mono
@@ -362,6 +381,7 @@ Log in with the following credentials:
 **Troubleshooting steps**:
 
 1. Check whether RustFS is healthy:
+
    ```bash
    docker compose -f docker/demo/docker-compose.demo.yml ps rustfs
    ```
@@ -377,6 +397,7 @@ Log in with the following credentials:
 **Problem**: `orion_server` failed to build.
 
 **Possible causes**:
+
 - Docker build context issues
 - Network issues (unable to download dependencies)
 - Insufficient disk space
@@ -384,16 +405,19 @@ Log in with the following credentials:
 **Solution**:
 
 1. View detailed build logs:
+
    ```bash
    docker compose -f docker/demo/docker-compose.demo.yml build --no-cache orion_server
    ```
 
 2. Check disk space:
+
    ```bash
    df -h  # Linux/macOS
    ```
 
 3. Prune Docker cache:
+
    ```bash
    docker system prune -a
    ```
@@ -521,11 +545,12 @@ If you run into issues, you can:
 
 ---
 
-## Warning!
+## Warning
 
 ⚠️ **This Docker Compose configuration is intended for local demo / evaluation only and is NOT suitable for production.**
 
 The demo environment includes the following insecure settings:
+
 - Default passwords and test users
 - HTTPS disabled
 - No security policies configured
