@@ -30,7 +30,7 @@ jobs:
     strategy:
       matrix:
         platform: [linux/amd64]
-        env_name: [demo, staging, openatom, gitmono]
+        env_name: [demo, staging, openatom, gitmono, buck2hub]
     timeout-minutes: 10
     permissions:
       id-token: write
@@ -81,7 +81,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        env_name: [demo, staging, openatom, gitmono]
+        env_name: [demo, staging, openatom, gitmono, buck2hub]
     permissions:
       contents: read
     steps:
