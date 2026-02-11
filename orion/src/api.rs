@@ -1,20 +1,20 @@
+use api_model::buck2::{status::Status, types::ProjectRelativePath, ws::WSMessage};
 use serde::Serialize;
-use td_util_buck::types::ProjectRelativePath;
 use tokio::sync::mpsc::UnboundedSender;
 use uuid::Uuid;
 
-use crate::{buck_controller, repo::sapling::status::Status, ws::WSMessage};
+use crate::buck_controller;
 
-/// Parameters required to execute a buck build operation.
-#[derive(Debug)]
-pub struct BuildRequest {
-    /// Monorepo mount path (Buck2 project root or subdirectory)
-    pub repo: String,
-    /// Change List identifier for context
-    pub cl: String,
-    /// Commit changes
-    pub changes: Vec<Status<ProjectRelativePath>>,
-}
+// /// Parameters required to execute a buck build operation.
+// #[derive(Debug)]
+// pub struct BuildRequest {
+//     /// Monorepo mount path (Buck2 project root or subdirectory)
+//     pub repo: String,
+//     /// Change List identifier for context
+//     pub cl: String,
+//     /// Commit changes
+//     pub changes: Vec<Status<ProjectRelativePath>>,
+// }
 
 /// Result of a build operation containing status and metadata.
 #[derive(Debug, Serialize)]
@@ -22,7 +22,7 @@ pub struct BuildResult {
     /// Whether the build operation was successful
     pub success: bool,
     /// Unique identifier for the build task
-    pub id: String,
+    pub build_id: String,
     /// Process exit code (None if not yet completed)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exit_code: Option<i32>,
@@ -44,7 +44,9 @@ pub struct BuildResult {
 /// Immediate acknowledgment that the build task has been queued and started
 pub async fn buck_build(
     id: Uuid,
-    req: BuildRequest,
+    cl_link: String,
+    repo: String,
+    changes: Vec<Status<ProjectRelativePath>>,
     sender: UnboundedSender<WSMessage>,
 ) -> BuildResult {
     let id_str = id.to_string();
@@ -53,52 +55,47 @@ pub async fn buck_build(
     // Spawn background task to handle the actual build process
     tokio::spawn(async move {
         // Execute the build operation via buck_controller
-        let build_result = match buck_controller::build(
-            id_str.clone(),
-            req.repo,
-            req.cl,
-            sender.clone(),
-            req.changes,
-        )
-        .await
-        {
-            Ok(status) => {
-                let message = format!(
-                    "Build {}",
-                    if status.success() {
-                        "succeeded"
-                    } else {
-                        "failed"
+        let build_result =
+            match buck_controller::build(id_str.clone(), repo, cl_link, sender.clone(), changes)
+                .await
+            {
+                Ok(status) => {
+                    let message = format!(
+                        "Build {}",
+                        if status.success() {
+                            "succeeded"
+                        } else {
+                            "failed"
+                        }
+                    );
+                    tracing::info!(
+                        "[Task {}] {}; Exit code: {:?}",
+                        id_str,
+                        message,
+                        status.code()
+                    );
+                    BuildResult {
+                        success: status.success(),
+                        build_id: id_str.clone(),
+                        exit_code: status.code(),
+                        message,
                     }
-                );
-                tracing::info!(
-                    "[Task {}] {}; Exit code: {:?}",
-                    id_str,
-                    message,
-                    status.code()
-                );
-                BuildResult {
-                    success: status.success(),
-                    id: id_str.clone(),
-                    exit_code: status.code(),
-                    message,
                 }
-            }
-            Err(e) => {
-                let error_msg = format!("Build execution failed: {e}");
-                tracing::error!("[Task {}] {}", id_str, error_msg);
-                BuildResult {
-                    success: false,
-                    id: id_str.clone(),
-                    exit_code: None,
-                    message: error_msg,
+                Err(e) => {
+                    let error_msg = format!("Build execution failed: {e}");
+                    tracing::error!("[Task {}] {}", id_str, error_msg);
+                    BuildResult {
+                        success: false,
+                        build_id: id_str.clone(),
+                        exit_code: None,
+                        message: error_msg,
+                    }
                 }
-            }
-        };
+            };
 
         // Send build completion notification via WebSocket
-        let complete_msg = WSMessage::BuildComplete {
-            id: build_result.id,
+        let complete_msg = WSMessage::TaskBuildComplete {
+            build_id: build_result.build_id,
             success: build_result.success,
             exit_code: build_result.exit_code,
             message: build_result.message,
@@ -116,7 +113,7 @@ pub async fn buck_build(
     // WARN: exit_code and can_auto_retry is invalid data
     BuildResult {
         success: true,
-        id: id.to_string(),
+        build_id: id.to_string(),
         exit_code: None,
         message: "Build task has been accepted and started.".to_string(),
     }

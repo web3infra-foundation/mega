@@ -1,8 +1,7 @@
 use std::{ops::ControlFlow, time::Duration};
 
+use api_model::buck2::ws::WSMessage;
 use futures_util::{SinkExt, StreamExt};
-use serde::{Deserialize, Serialize};
-use td_util_buck::types::ProjectRelativePath;
 use tokio::{
     net::TcpStream,
     sync::{
@@ -13,60 +12,9 @@ use tokio::{
 use tokio_tungstenite::{
     MaybeTlsStream, WebSocketStream, connect_async, tungstenite::protocol::Message,
 };
-use utoipa::ToSchema;
 use uuid::Uuid;
 
-use crate::{
-    api::{BuildRequest, buck_build},
-    repo::sapling::status::Status,
-};
-
-/// Task phase when in buck2 build
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
-pub enum TaskPhase {
-    DownloadingSource,
-    RunningBuild,
-}
-
-/// Message protocol for WebSocket communication between worker and server.
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(tag = "type")]
-pub enum WSMessage {
-    // Worker -> Server messages
-    Register {
-        id: String,
-        hostname: String,
-        orion_version: String,
-    },
-    Heartbeat,
-    // Sent when a task is in the build process and its execution phase changes.
-    TaskPhaseUpdate {
-        id: String,
-        phase: TaskPhase,
-    },
-    TaskAck {
-        id: String,
-        success: bool,
-        message: String,
-    },
-    BuildOutput {
-        id: String,
-        output: String,
-    },
-    BuildComplete {
-        id: String,
-        success: bool,
-        exit_code: Option<i32>,
-        message: String,
-    },
-    // Server -> Worker messages
-    Task {
-        id: String,
-        repo: String,
-        cl_link: String,
-        changes: Vec<Status<ProjectRelativePath>>,
-    },
-}
+use crate::api::buck_build;
 
 /// Manages persistent WebSocket connection with automatic reconnection.
 ///
@@ -218,20 +166,20 @@ async fn process_server_message(
                 Ok(ws_msg) => {
                     tracing::info!("Received message from server: {:?}", ws_msg);
                     match ws_msg {
-                        WSMessage::Task {
-                            id,
+                        WSMessage::TaskBuild {
+                            build_id,
                             repo,
-                            cl_link: cl,
+                            cl_link,
                             changes,
                         } => {
-                            tracing::info!("Received task: id={}", id);
+                            tracing::info!("Received task: id={}", build_id);
                             tokio::spawn(async move {
-                                let task_id_uuid = match Uuid::parse_str(&id) {
+                                let task_id_uuid = match Uuid::parse_str(&build_id) {
                                     Ok(uuid) => uuid,
                                     Err(e) => {
                                         tracing::error!(
                                             "Failed to parse task id '{}' as Uuid: {}. Aborting task.",
-                                            id,
+                                            build_id,
                                             e
                                         );
                                         return;
@@ -240,13 +188,15 @@ async fn process_server_message(
 
                                 let build_result = buck_build(
                                     task_id_uuid,
-                                    BuildRequest { repo, cl, changes },
+                                    repo,
+                                    cl_link,
+                                    changes,
                                     sender.clone(),
                                 )
                                 .await;
 
                                 if let Err(e) = sender.send(WSMessage::TaskAck {
-                                    id,
+                                    build_id,
                                     success: build_result.success,
                                     message: build_result.message.clone(),
                                 }) {

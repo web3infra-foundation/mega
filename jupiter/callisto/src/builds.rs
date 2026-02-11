@@ -24,18 +24,18 @@ pub struct Model {
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
     #[sea_orm(
-        belongs_to = "super::tasks::Entity",
+        belongs_to = "super::orion_tasks::Entity",
         from = "Column::TaskId",
-        to = "super::tasks::Column::Id",
+        to = "super::orion_tasks::Column::Id",
         on_update = "NoAction",
         on_delete = "Cascade"
     )]
-    Tasks,
+    OrionTasks,
 }
 
-impl Related<super::tasks::Entity> for Entity {
+impl Related<super::orion_tasks::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::Tasks.def()
+        Relation::OrionTasks.def()
     }
 }
 
