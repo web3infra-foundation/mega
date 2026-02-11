@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { LazyLog } from '@melloware/react-logviewer'
+import { format } from 'date-fns'
 import { useAtom } from 'jotai'
 
 import { LoadingSpinner } from '@gitmono/ui'
@@ -24,6 +25,10 @@ const Checks = ({ cl, path }: { cl: number; path?: string }) => {
   const [statusMap, _setStatusMap] = useAtom(statusMapAtom)
   const { data: tasks, isError: isTasksError, isLoading: isTasksLoading } = useGetClTask(cl)
   const [logStatus, setLogStatus] = useState<Record<string, LogStatus>>({})
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null)
+  const [tooltipPosition, setTooltipPosition] = useState<{ top: number; left: number } | null>(null)
 
   // Resizable panel state
   const containerRef = useRef<HTMLDivElement>(null)
@@ -237,6 +242,68 @@ const Checks = ({ cl, path }: { cl: number; path?: string }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tasks])
 
+  // Initialize selected task
+  useEffect(() => {
+    const validTasks = tasks?.filter((t) => t.build_list && t.build_list.length > 0) || []
+
+    if (validTasks.length > 0 && !selectedTaskId) {
+      setSelectedTaskId(validTasks[0].task_id)
+    }
+  }, [tasks, selectedTaskId])
+
+  // Helper functions for dropdown
+  const getTaskFileName = (task: any) => {
+    if (!task.targets || task.targets.length === 0) return task.task_name || 'Unnamed Task'
+
+    const firstTarget = task.targets[0] as any
+
+    if (!firstTarget.builds || firstTarget.builds.length === 0) return task.task_name || 'Unnamed Task'
+
+    const firstBuild = firstTarget.builds[0]
+
+    if (!firstBuild.output_file) return task.task_name || 'Unnamed Task'
+
+    const parts = firstBuild.output_file.split('/')
+
+    return parts[parts.length - 1] || 'Unnamed Task'
+  }
+
+  const formatDateTime = (isoDate: string): string => {
+    try {
+      return format(new Date(isoDate), 'yyyy-MM-dd HH:mm')
+    } catch {
+      return isoDate
+    }
+  }
+
+  const getTaskStatus = (task: any) => {
+    if (!task.targets || task.targets.length === 0) return null
+
+    const states = task.targets.map((t: any) => t.state)
+
+    if (states.some((s: string) => s === 'Failed')) {
+      return { status: 'Failed', color: 'text-red-600 dark:text-red-400' }
+    }
+
+    if (states.some((s: string) => s === 'Interrupted')) {
+      return { status: 'Interrupted', color: 'text-orange-600 dark:text-orange-400' }
+    }
+
+    if (states.some((s: string) => s === 'Building')) {
+      return { status: 'Building', color: 'text-blue-600 dark:text-blue-400' }
+    }
+
+    if (states.some((s: string) => s === 'Pending')) {
+      return { status: 'Pending', color: 'text-yellow-600 dark:text-yellow-400' }
+    }
+
+    if (states.every((s: string) => s === 'Completed')) {
+      return { status: 'Completed', color: 'text-green-600 dark:text-green-400' }
+    }
+
+    return null
+  }
+
   // Handle tasks loading state
   if (isTasksLoading) {
     return (
@@ -273,6 +340,8 @@ const Checks = ({ cl, path }: { cl: number; path?: string }) => {
   }
 
   const validTasks = tasks?.filter((t) => t.build_list && t.build_list.length > 0) || []
+  const selectedTask = validTasks.find((t) => t.task_id === selectedTaskId)
+  const tasksToDisplay = selectedTask ? [selectedTask] : validTasks
 
   if (!isTasksLoading && (!tasks || tasks.length === 0 || validTasks.length === 0)) {
     return (
@@ -353,18 +422,189 @@ const Checks = ({ cl, path }: { cl: number; path?: string }) => {
   return (
     <>
       <div className='bg-secondary' style={{ height: `calc(100vh - 104px)` }}>
+        {/* Header with Task Selector */}
         <div className='border-primary bg-primary flex h-[60px] items-center border-b px-4'>
-          <span>
+          <div className='flex flex-1 items-center gap-2'>
             <h2 className='text-tertiary text-bold fz-[14px]'>[] tasks status interface</h2>
-          </span>
+
+            {/* Task Selector Dropdown - Only show if multiple tasks */}
+            {validTasks.length > 1 && (
+              <div className='relative' style={{ minWidth: '240px', maxWidth: '320px' }}>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setIsDropdownOpen(!isDropdownOpen)
+                  }}
+                  className='flex w-full items-center justify-between rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm transition-all hover:border-blue-400 hover:bg-gray-50 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-800 dark:hover:border-blue-500 dark:hover:bg-gray-700'
+                >
+                  <div className='flex flex-1 items-center gap-2 overflow-hidden'>
+                    {selectedTask ? (
+                      <>
+                        <span className='truncate font-medium text-gray-800 dark:text-gray-200'>
+                          {getTaskFileName(selectedTask)}
+                        </span>
+                        {getTaskStatus(selectedTask) && (
+                          <span className={`flex-shrink-0 text-xs ${getTaskStatus(selectedTask)?.color}`}>
+                            • {getTaskStatus(selectedTask)?.status}
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <span className='text-gray-500 dark:text-gray-400'>Select a task...</span>
+                    )}
+                  </div>
+                  <svg
+                    className={`ml-2 h-4 w-4 flex-shrink-0 text-gray-500 transition-transform dark:text-gray-400 ${
+                      isDropdownOpen ? 'rotate-180' : ''
+                    }`}
+                    fill='none'
+                    stroke='currentColor'
+                    viewBox='0 0 24 24'
+                  >
+                    <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M19 9l-7 7-7-7' />
+                  </svg>
+                </button>
+
+                {/* Dropdown Menu */}
+                {isDropdownOpen && (
+                  <>
+                    {/* Backdrop */}
+                    <div className='fixed inset-0 z-10' onClick={() => setIsDropdownOpen(false)} />
+
+                    {/* Dropdown List */}
+                    <div className='absolute left-0 top-full z-20 mt-1 max-h-80 w-full overflow-y-auto rounded-lg border border-gray-300 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-800'>
+                      {validTasks.map((task) => {
+                        const fileName = getTaskFileName(task)
+                        const status = getTaskStatus(task)
+                        const isSelected = task.task_id === selectedTaskId
+                        const targetsCount = task.targets?.length || 0
+
+                        return (
+                          <div
+                            key={task.task_id}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setSelectedTaskId(task.task_id)
+                              setIsDropdownOpen(false)
+                              setHoveredTaskId(null)
+                            }}
+                            onMouseEnter={(e) => {
+                              setHoveredTaskId(task.task_id)
+
+                              const rect = e.currentTarget.getBoundingClientRect()
+
+                              setTooltipPosition({
+                                top: rect.top,
+                                left: rect.right + 8
+                              })
+                            }}
+                            onMouseLeave={() => {
+                              setHoveredTaskId(null)
+                              setTooltipPosition(null)
+                            }}
+                            className={`flex cursor-pointer items-center justify-between px-3 py-2.5 transition-colors ${
+                              isSelected ? 'bg-blue-50 dark:bg-blue-900/30' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                            }`}
+                          >
+                            <div className='flex flex-1 flex-col gap-1 overflow-hidden'>
+                              <div className='flex items-center gap-2'>
+                                <span
+                                  className={`truncate text-sm font-medium ${
+                                    isSelected ? 'text-blue-700 dark:text-blue-300' : 'text-gray-800 dark:text-gray-200'
+                                  }`}
+                                >
+                                  {fileName}
+                                </span>
+                                {status && (
+                                  <span className={`flex-shrink-0 text-xs ${status.color}`}>• {status.status}</span>
+                                )}
+                              </div>
+                              <span className='truncate text-xs text-gray-500 dark:text-gray-400'>
+                                {targetsCount} {targetsCount === 1 ? 'target' : 'targets'}
+                              </span>
+                            </div>
+                            {isSelected && (
+                              <svg
+                                className='ml-2 h-4 w-4 flex-shrink-0 text-blue-600 dark:text-blue-400'
+                                fill='currentColor'
+                                viewBox='0 0 20 20'
+                              >
+                                <path
+                                  fillRule='evenodd'
+                                  d='M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z'
+                                  clipRule='evenodd'
+                                />
+                              </svg>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    {/* Tooltip for hovered task */}
+                    {hoveredTaskId && tooltipPosition && (
+                      <div
+                        className='fixed z-30 max-w-md rounded-lg border border-gray-300 bg-white p-3 shadow-xl dark:border-gray-600 dark:bg-gray-800'
+                        style={{
+                          top: `${tooltipPosition.top}px`,
+                          left: `${tooltipPosition.left}px`
+                        }}
+                      >
+                        {(() => {
+                          const task = validTasks.find((t) => t.task_id === hoveredTaskId)
+
+                          if (!task) return null
+
+                          const fileName = getTaskFileName(task)
+                          const status = getTaskStatus(task)
+                          const targetsCount = task.targets?.length || 0
+
+                          return (
+                            <div className='flex flex-col gap-2'>
+                              <div className='flex items-center gap-2'>
+                                <span className='font-semibold text-gray-800 dark:text-gray-200'>{fileName}</span>
+                                {status && (
+                                  <span
+                                    className={`rounded-md px-2 py-0.5 text-xs font-medium ${
+                                      status.status === 'Completed'
+                                        ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+                                        : status.status === 'Failed'
+                                          ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+                                          : status.status === 'Building'
+                                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
+                                            : status.status === 'Pending'
+                                              ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300'
+                                              : 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300'
+                                    }`}
+                                  >
+                                    {status.status}
+                                  </span>
+                                )}
+                              </div>
+                              <div className='text-xs text-gray-600 dark:text-gray-400'>
+                                <div>Task ID: {task.task_id}</div>
+                                <div>Created: {formatDateTime(task.created_at)}</div>
+                                <div>Targets: {targetsCount}</div>
+                              </div>
+                            </div>
+                          )
+                        })()}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         </div>
+
         <div ref={containerRef} className='flex' style={{ height: `calc(100vh - 164px)` }}>
           <div
             ref={leftPanelRef}
             className='border-primary h-full overflow-y-auto border-r'
             style={{ width: leftWidth ?? '30%', flexShrink: 0 }}
           >
-            <TreeRoot path={path} tasks={validTasks} logStatus={logStatus} />
+            <TreeRoot path={path} tasks={tasksToDisplay} logStatus={logStatus} totalTasksCount={validTasks.length} />
           </div>
           {/* Resizer handle */}
           <div
