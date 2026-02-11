@@ -5,7 +5,14 @@ import { useRouter } from 'next/router'
 import { isMacOs } from 'react-device-detect'
 
 import { PublicOrganization } from '@gitmono/types'
-import { Avatar, LayeredHotkeys, Link, PlusIcon, Tooltip } from '@gitmono/ui'
+import {
+  Avatar,
+  LayeredHotkeys,
+  Link,
+  MegaLogoIcon
+  // PlusIcon,
+  // Tooltip
+} from '@gitmono/ui'
 import { useIsDesktopApp } from '@gitmono/ui/src/hooks'
 import { cn } from '@gitmono/ui/src/utils'
 
@@ -72,20 +79,20 @@ export function SidebarOrgSwitcher() {
                 <OrgSidebarItem organization={organization} index={index} isDragging={draggingId === id} />
               </Reorder.Item>
             ))}
-          <Tooltip label='New organization' side='right'>
-            <span>
-              <Link
-                draggable={false}
-                className={cn(
-                  'group relative flex h-6 w-6 items-center justify-center gap-2 rounded-[5px] bg-black/10 ring-offset-2 ring-offset-gray-50 hover:bg-black/15 focus:ring-black/20 dark:bg-white/10 dark:ring-offset-gray-900 dark:hover:bg-white/20 dark:focus:ring-white/50',
-                  {}
-                )}
-                href={`/new`}
-              >
-                <PlusIcon className='opacity-50 group-hover:opacity-100' size={18} strokeWidth='2' />
-              </Link>
-            </span>
-          </Tooltip>
+          {/*<Tooltip label='New organization' side='right'>*/}
+          {/*  <span>*/}
+          {/*    <Link*/}
+          {/*      draggable={false}*/}
+          {/*      className={cn(*/}
+          {/*        'group relative flex h-6 w-6 items-center justify-center gap-2 rounded-[5px] bg-black/10 ring-offset-2 ring-offset-gray-50 hover:bg-black/15 focus:ring-black/20 dark:bg-white/10 dark:ring-offset-gray-900 dark:hover:bg-white/20 dark:focus:ring-white/50',*/}
+          {/*        {}*/}
+          {/*      )}*/}
+          {/*      href={`/new`}*/}
+          {/*    >*/}
+          {/*      <PlusIcon className='opacity-50 group-hover:opacity-100' size={18} strokeWidth='2' />*/}
+          {/*    </Link>*/}
+          {/*  </span>*/}
+          {/*</Tooltip>*/}
         </Reorder.Group>
       </div>
     </div>
@@ -141,13 +148,17 @@ function OrgSidebarItem({
             href={`/${organization?.slug}`}
             draggable={false}
           >
-            <Avatar
-              rounded='rounded-[5px]'
-              key={organization?.id}
-              size='sm'
-              name={organization?.name}
-              urls={organization?.avatar_urls}
-            />
+            {organization?.name === 'Mega' ? (
+              <MegaLogoIcon size={24} />
+            ) : (
+              <Avatar
+                rounded='rounded-[5px]'
+                key={organization?.id}
+                size='sm'
+                name={organization?.name}
+                urls={organization?.avatar_urls}
+              />
+            )}
 
             {showUnread && (
               <div

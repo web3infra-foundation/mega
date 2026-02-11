@@ -7,6 +7,11 @@ use std::{
 };
 
 use anyhow::anyhow;
+use api_model::buck2::{
+    status::Status,
+    types::{ProjectRelativePath, TaskPhase},
+    ws::WSMessage,
+};
 use common::config::BuildConfig;
 use once_cell::sync::Lazy;
 use serde_json::{Value, json};
@@ -15,16 +20,13 @@ use td_util_buck::{
     cells::CellInfo,
     run::{Buck2, targets_arguments},
     targets::Targets,
-    types::{ProjectRelativePath, TargetLabel},
+    types::TargetLabel,
 };
 use tokio::{io::AsyncBufReadExt, process::Command, sync::mpsc::UnboundedSender, time::Duration};
 
 // Import complete Error trait for better error handling
 use crate::repo::changes::Changes;
-use crate::{
-    repo::{diff, sapling::status::Status},
-    ws::{TaskPhase, WSMessage},
-};
+use crate::repo::diff;
 
 fn scorpio_base_url() -> String {
     crate::scorpio_api::base_url()
@@ -63,7 +65,7 @@ pub async fn mount_fs(
     // is slow, we use a generous 2-hour timeout here. This can be tuned later.
     if let (Some(sender), Some(build_id)) = (&sender, &build_id)
         && let Err(err) = sender.send(WSMessage::TaskPhaseUpdate {
-            id: build_id.clone(),
+            build_id: build_id.clone(),
             phase: TaskPhase::DownloadingSource,
         })
     {
@@ -818,8 +820,8 @@ pub async fn build(
                 .unwrap_or_else(|| anyhow!("Error getting build targets: mount point missing"));
             let error_msg = err.to_string();
             if sender
-                .send(WSMessage::BuildOutput {
-                    id: id.clone(),
+                .send(WSMessage::TaskBuildOutput {
+                    build_id: id.clone(),
                     output: error_msg.clone(),
                 })
                 .is_err()
@@ -861,7 +863,7 @@ pub async fn build(
         let mut child = cmd.spawn()?;
 
         if let Err(e) = sender.send(WSMessage::TaskPhaseUpdate {
-            id: id.clone(),
+            build_id: id.clone(),
             phase: TaskPhase::RunningBuild,
         }) {
             tracing::error!("Failed to send RunningBuild phase update: {}", e);
@@ -878,7 +880,7 @@ pub async fn build(
                 result = stdout_reader.next_line() => {
                     match result {
                         Ok(Some(line)) => {
-                            if sender.send(WSMessage::BuildOutput { id: id.clone(), output: line }).is_err() {
+                            if sender.send(WSMessage::TaskBuildOutput { build_id: id.clone(), output: line }).is_err() {
                                 child.kill().await?;
                                 return Err("WebSocket connection lost during build.".into());
                             }
@@ -893,7 +895,7 @@ pub async fn build(
                 result = stderr_reader.next_line() => {
                     match result {
                         Ok(Some(line)) => {
-                            if sender.send(WSMessage::BuildOutput { id: id.clone(), output: line }).is_err() {
+                            if sender.send(WSMessage::TaskBuildOutput { build_id: id.clone(), output: line }).is_err() {
                                 child.kill().await?;
                                 return Err("WebSocket connection lost during build.".into());
                             }

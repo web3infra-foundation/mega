@@ -2,7 +2,10 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::buck2::types::{ProjectRelativePath, Status, TaskPhase};
+use crate::buck2::{
+    status::Status,
+    types::{ProjectRelativePath, TaskPhase},
+};
 
 /// Message protocol for WebSocket communication between worker and server.
 #[allow(dead_code)]
@@ -10,15 +13,15 @@ use crate::buck2::types::{ProjectRelativePath, Status, TaskPhase};
 #[serde(tag = "type")]
 pub enum WSMessage {
     // Server -> Worker messages
-    Task {
-        id: String,
+    TaskBuild {
+        build_id: String,
         repo: String,
         cl_link: String,
         changes: Vec<Status<ProjectRelativePath>>,
     },
 
-    TaskWithTargets {
-        id: String,
+    TaskBuildWithTargets {
+        build_id: String,
         repo: String,
         cl_link: String,
         // targets: Vec<Target>,
@@ -31,26 +34,27 @@ pub enum WSMessage {
         orion_version: String,
     },
 
-    Heartbeat,
     // Sent when a task is in the build process and its execution phase changes.
+    Heartbeat,
+
     TaskPhaseUpdate {
-        id: String,
+        build_id: String,
         phase: TaskPhase,
     },
 
     TaskAck {
-        id: String,
+        build_id: String,
         success: bool,
         message: String,
     },
 
     TaskBuildOutput {
-        id: String,
+        build_id: String,
         output: String,
     },
 
     TaskBuildComplete {
-        id: String,
+        build_id: String,
         success: bool,
         exit_code: Option<i32>,
         message: String,

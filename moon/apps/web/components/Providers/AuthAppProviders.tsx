@@ -14,7 +14,6 @@ import { IncomingCallRoomInvitationToast } from '@/components/Call/IncomingCallR
 import { LocalCommandMenu } from '@/components/CommandMenu'
 import { FeedbackDialog } from '@/components/Feedback/FeedbackDialog'
 import { GlobalKeyboardShortcuts } from '@/components/GlobalKeyboardShortcuts'
-import { DevModeBanner } from '@/components/NavigationSidebar/DevModeBanner'
 import { PostComposer } from '@/components/PostComposer'
 import { AuthProvider } from '@/components/Providers/AuthProvider'
 import { BackgroundAppRefresh } from '@/components/Providers/BackgroundAppRefresh'
@@ -69,7 +68,6 @@ export const AuthAppProviders: PageWithProviders<any> = ({ children, allowLogged
                               <FeedbackDialog />
                               <LocalCommandMenu />
                               <BackgroundAppRefresh />
-                              <DevModeBanner />
                               <GlobalKeyboardShortcuts />
                               <DesktopProtocolUrlHandler />
                               <PostComposer />

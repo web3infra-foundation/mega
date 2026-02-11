@@ -10,13 +10,12 @@
 
 use std::collections::HashSet;
 
+use api_model::buck2::{status::Status, types::ProjectRelativePath};
 use td_util::prelude::*;
 use td_util_buck::{
     cells::CellInfo,
-    types::{CellPath, Package, ProjectRelativePath},
+    types::{CellPath, Package},
 };
-
-use crate::repo::sapling::status::Status;
 
 #[derive(Default, Debug)]
 pub struct Changes {
@@ -92,10 +91,10 @@ impl Changes {
 }
 #[cfg(test)]
 mod tests {
-    use td_util_buck::types::{CellPath, ProjectRelativePath};
+    use api_model::buck2::types::ProjectRelativePath;
+    use td_util_buck::types::CellPath;
 
     use super::*;
-    use crate::repo::sapling::status::Status;
 
     #[test]
     fn test_changes_empty() {

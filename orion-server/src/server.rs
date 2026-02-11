@@ -1,5 +1,6 @@
 use std::{env, net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
 
+use api_model::buck2::types::TaskPhase;
 use axum::{Router, routing::get};
 use chrono::{FixedOffset, Utc};
 use common::{
@@ -11,7 +12,6 @@ use common::{
 };
 use http::{HeaderValue, Method};
 use io_orbit::factory::ObjectStorageFactory;
-use orion::ws::TaskPhase;
 use sea_orm::{ActiveValue::Set, ColumnTrait, Database, EntityTrait, QueryFilter};
 use tower::ServiceBuilder;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
@@ -39,6 +39,7 @@ use crate::{
         api::target_logs_handler,
         api::tasks_handler,
         api::task_targets_handler,
+        api::task_targets_summary_handler,
         api::get_orion_clients_info,
         api::get_orion_client_status_by_id,
         api::build_retry_handler,
@@ -53,6 +54,7 @@ use crate::{
             api::TaskStatusEnum,
             api::BuildDTO,
             api::TargetDTO,
+            api::TargetSummaryDTO,
             api_model::buck2::types::TargetLogQuery,
             api_model::buck2::types::LogReadMode,
             api_model::buck2::types::TaskHistoryQuery,
@@ -62,7 +64,7 @@ use crate::{
             api::CoreWorkerStatus,
             api::OrionClientQuery,
             crate::model::targets::TargetState,
-            TaskPhase,
+            TaskPhase
         )
     ),
     tags(
@@ -302,18 +304,21 @@ async fn start_health_check_task(state: AppState) {
                 tracing::info!("Removed dead worker: {}", worker_id);
 
                 // If worker was busy, mark task as interrupted
-                if let crate::scheduler::WorkerStatus::Busy { task_id, .. } = worker_info.status {
+                if let crate::scheduler::WorkerStatus::Busy { build_id, .. } = worker_info.status {
                     tracing::warn!(
                         "Worker {} was busy with task {}. Marking task as Interrupted.",
                         worker_id,
-                        task_id
+                        build_id
                     );
-                    state.scheduler.active_builds.remove(&task_id);
+                    state.scheduler.active_builds.remove(&build_id);
 
-                    let build_uuid = match task_id.parse::<uuid::Uuid>() {
+                    let build_uuid = match build_id.parse::<uuid::Uuid>() {
                         Ok(uuid) => uuid,
                         Err(_) => {
-                            tracing::warn!("Invalid build id {} when marking interrupted", task_id);
+                            tracing::warn!(
+                                "Invalid build id {} when marking interrupted",
+                                build_id
+                            );
                             continue;
                         }
                     };
@@ -335,7 +340,7 @@ async fn start_health_check_task(state: AppState) {
                         if let Err(e) = update_res {
                             tracing::error!(
                                 "Failed to update orphaned task {} in DB: {}",
-                                task_id,
+                                build_id,
                                 e
                             );
                         }

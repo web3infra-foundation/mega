@@ -8,11 +8,11 @@ on:
       - "orion-server/**"
 
 env:
-  AWS_ECS_CLUSTER_NAME: ${{ secrets.AWS_ECS_CLUSTER_NAME }}
-  AWS_ECS_WEB_SERVICE_NAME: ${{ secrets.AWS_ECS_WEB_SERVICE_NAME }}
   REGISTRY_ALIAS: m8q5m4u3
   REPOSITORY: mega
   IMAGE_TAG_BASE: orion-server-0.1.0-pre-release
+  GCP_PROJECT_ID: infra-20250121-20260121-0235
+  GCP_REPOSITORY: mega
 
 permissions:
   id-token: write
@@ -25,19 +25,21 @@ concurrency:
 jobs:
   build-push-single-arch:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        platform: [linux/amd64]
     timeout-minutes: 20
     permissions:
       id-token: write
       contents: read
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # -----------------------------
+      # AWS auth
+      # -----------------------------
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -51,20 +53,42 @@ jobs:
         with:
           registry-type: public
 
-      - name: Build & push image for ${{ matrix.platform }}
+      # -----------------------------
+      # GCP auth
+      # -----------------------------
+      - name: Auth to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Configure docker for GCP
+        run: |
+          gcloud auth configure-docker us-central1-docker.pkg.dev
+
+      # -----------------------------
+      # Build once, push to AWS + GCP
+      # -----------------------------
+      - name: Build & push amd64 image to AWS and GCP
         env:
-          REGISTRY: ${{ steps.login-ecr-public.outputs.registry }}
-          PLATFORM: ${{ matrix.platform }}
+          AWS_REGISTRY: ${{ steps.login-ecr-public.outputs.registry }}
         run: |
           set -euo pipefail
-          IMAGE_BASE="$REGISTRY/${{ env.REGISTRY_ALIAS }}/${{ env.REPOSITORY }}"
-          ARCH_SUFFIX=$(echo "$PLATFORM" | awk -F'/' '{print $2}')
+
+          PLATFORM="linux/amd64"
+          ARCH_SUFFIX="amd64"
+
+          AWS_IMAGE_BASE="$AWS_REGISTRY/${{ env.REGISTRY_ALIAS }}/${{ env.REPOSITORY }}"
+          GCP_IMAGE_BASE="us-central1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_REPOSITORY }}/${{ env.REPOSITORY }}"
+
+          TAG="${{ env.IMAGE_TAG_BASE }}-$ARCH_SUFFIX"
+
           docker buildx build \
             --platform "$PLATFORM" \
             --provenance=false \
             --sbom=false \
-            -t "$IMAGE_BASE:${{ env.IMAGE_TAG_BASE }}-$ARCH_SUFFIX" \
             -f orion-server/Dockerfile \
+            -t "$AWS_IMAGE_BASE:$TAG" \
+            -t "$GCP_IMAGE_BASE:$TAG" \
             --push .
 
   manifest:

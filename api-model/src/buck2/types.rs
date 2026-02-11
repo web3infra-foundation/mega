@@ -1,16 +1,8 @@
 //! Types related to Buck2 build system.
 
+use parse_display::Display;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-
-/// Request from server to worker to build a target.
-#[allow(dead_code)]
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, ToSchema)]
-pub enum Status<Path> {
-    Modified(Path),
-    Added(Path),
-    Removed(Path),
-}
 
 /// Task phase when in buck2 build
 #[allow(dead_code)]
@@ -20,23 +12,52 @@ pub enum TaskPhase {
     RunningBuild,
 }
 
-/// Represents a file path relative to the project root.
-#[allow(dead_code)]
-#[derive(Clone, Debug, Hash, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Display, Deserialize, Serialize, ToSchema)]
 pub struct ProjectRelativePath(String);
 
 impl ProjectRelativePath {
-    /// Creates a new ProjectRelativePath from a string slice.
     pub fn new(path: &str) -> Self {
         Self(path.to_owned())
     }
 
-    /// Attempts to create a ProjectRelativePath from an absolute path and a base path.
-    pub fn from_abs(abs_path: &str, base: &str) -> Option<Self> {
-        let opt = abs_path
-            .strip_prefix(base)
-            .map(|s| s.trim_start_matches("/"));
-        opt.map(|s| Self(s.to_owned()))
+    pub fn join(&self, suffix: &str) -> Self {
+        if self.0.is_empty() {
+            Self(suffix.to_owned())
+        } else {
+            Self(format!("{}/{}", self.0, suffix))
+        }
+    }
+
+    /// ```
+    /// use api-models::types::ProjectRelativePath;
+    /// assert_eq!(
+    ///     ProjectRelativePath::new("foo/bar.bzl").extension(),
+    ///     Some("bzl")
+    /// );
+    /// assert_eq!(
+    ///     ProjectRelativePath::new("foo/bar.bzl/baz").extension(),
+    ///     None
+    /// );
+    /// assert_eq!(ProjectRelativePath::new("foo/bar/baz").extension(), None);
+    /// ```
+    pub fn extension(&self) -> Option<&str> {
+        self.0
+            .as_str()
+            .rsplit_once('/')
+            .unwrap_or_default()
+            .1
+            .rsplit_once('.')
+            .map(|x| x.1)
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl AsRef<str> for ProjectRelativePath {
+    fn as_ref(&self) -> &str {
+        self.as_str()
     }
 }
 
@@ -77,6 +98,7 @@ pub struct LogSegment {
 pub struct TargetLogQuery {
     #[serde(default)]
     pub r#type: LogReadMode,
+    pub build_id: Option<String>,
     pub offset: Option<usize>,
     pub limit: Option<usize>,
 }
