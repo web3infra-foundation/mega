@@ -381,9 +381,12 @@ impl ApiHandler for MonoApiService {
             .ok_or_else(|| GitError::CustomError("Invalid file path".to_string()))?;
         let repo_path = &parent_path.display().to_string();
 
-        let parent_tree = tree_ops::search_tree_by_path(self, &parent_path, None)
+        let parent_tree = tree_ops::search_tree_by_path(self, parent_path, None)
             .await?
-            .ok_or(GitError::CustomError(format!("invalid repo_path {}, Parent tree not found", repo_path)))?;
+            .ok_or(GitError::CustomError(format!(
+                "invalid repo_path {}, Parent tree not found",
+                repo_path
+            )))?;
 
         let file_name = file_path
             .file_name()
@@ -403,7 +406,7 @@ impl ApiHandler for MonoApiService {
             MonoServiceLogic::build_result_by_chain(file_path.clone(), update_chain, new_blob.id)
                 .map_err(|e| GitError::CustomError(e.to_string()))?;
 
-        let from_hash = edit_utils::refs_with_head_hash(&self.storage, repo_path).await?;
+        let src_commit = edit_utils::get_repo_latest_commit(&self.storage, repo_path).await?;
 
         // Apply and save
         let new_commit_id = self
@@ -415,7 +418,7 @@ impl ApiHandler for MonoApiService {
             .clone()
             .unwrap_or("Anonymous".to_string());
 
-        let editor = OneditCodeEdit::from(repo_path, &from_hash, &self);
+        let editor = OneditCodeEdit::from(repo_path, &src_commit.id.to_string(), &self);
         let cl = editor
             .find_or_create_cl_for_edit(
                 &self.storage,

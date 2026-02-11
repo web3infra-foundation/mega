@@ -1,21 +1,21 @@
 use std::{
     collections::{HashMap, HashSet},
-    path::PathBuf,
+    path::{Component, PathBuf},
     vec,
 };
 
-use callisto::mega_cl;
+use callisto::{mega_cl, mega_refs};
 use common::{self, errors::MegaError, utils::ZERO_ID};
-use git_internal::{hash::ObjectHash, internal::object::commit::Commit};
+use git_internal::{
+    hash::ObjectHash,
+    internal::object::{commit::Commit, tree::Tree},
+};
 use jupiter::{storage::Storage, utils::converter::FromMegaModel};
-use callisto::mega_refs;
 
 use crate::{
     api_service::{ApiHandler, commit_ops},
     model::change_list::ClDiffFile,
 };
-use git_internal::internal::object::tree::Tree;
-use std::path::Component;
 
 pub async fn cl_files_list(
     old_files: Vec<(PathBuf, ObjectHash)>,
@@ -55,13 +55,16 @@ pub async fn get_repo_latest_commit(
     storage: &Storage,
     repo_path: &str,
 ) -> Result<Commit, MegaError> {
-    let storage = storage.mono_storage();
-    let refs = storage.get_main_ref(repo_path).await?.unwrap();
+    let mono_storage = storage.mono_storage();
+    let commit_hash = match mono_storage.get_main_ref(repo_path).await {
+        Ok(Some(refs)) => refs.ref_commit_hash,
+        _ => create_repo_commit(storage, repo_path).await?,
+    };
     Ok(Commit::from_mega_model(
-        storage
-            .get_commit_by_hash(&refs.ref_commit_hash)
+        mono_storage
+            .get_commit_by_hash(&commit_hash)
             .await?
-            .unwrap_or_else(|| panic!("can't fetch commit by hash {}", &refs.ref_commit_hash)),
+            .expect("can't fetch commit by hash"),
     ))
 }
 
@@ -282,16 +285,10 @@ pub async fn get_parent_policy_content<T: ApiHandler>(
         .flatten()
 }
 
-
-pub async fn refs_with_head_hash(
-    storage: &Storage,
-    repo_path: &str,
-) -> Result<String, MegaError> {
+pub async fn create_repo_commit(storage: &Storage, repo_path: &str) -> Result<String, MegaError> {
     let storage = storage.mono_storage();
 
-    let path_refs = storage
-        .get_all_refs(repo_path, false)
-        .await?;
+    let path_refs = storage.get_all_refs(repo_path, false).await?;
 
     let heads_exist = path_refs
         .iter()
@@ -307,15 +304,14 @@ pub async fn refs_with_head_hash(
 
         for root_ref in root_refs {
             let (tree_hash, commit_hash) = (root_ref.ref_tree_hash, root_ref.ref_commit_hash);
-            let mut tree: Tree = Tree::from_mega_model(
-                storage.get_tree_by_hash(&tree_hash).await?.unwrap(),
-            );
+            let mut tree: Tree =
+                Tree::from_mega_model(storage.get_tree_by_hash(&tree_hash).await?.unwrap());
 
             let commit: Commit = Commit::from_mega_model(
                 storage
                     .get_commit_by_hash(&commit_hash)
                     .await?
-                    .expect("can't get commit by ref.ref_commit_hash")
+                    .expect("can't get commit by ref.ref_commit_hash"),
             );
 
             for component in target_path.components() {
@@ -330,9 +326,8 @@ pub async fn refs_with_head_hash(
                         tree = Tree::from_mega_model(
                             storage
                                 .get_tree_by_hash(&hash.to_string())
-                                .await
-                                ?
-                                .expect("can't get commit by tree_items hash")
+                                .await?
+                                .expect("can't get commit by tree_items hash"),
                         );
                     } else {
                         return Ok(ZERO_ID.to_string());
