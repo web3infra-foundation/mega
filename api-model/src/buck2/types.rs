@@ -77,6 +77,7 @@ pub struct LogSegment {
 pub struct TargetLogQuery {
     #[serde(default)]
     pub r#type: LogReadMode,
+    pub build_id: Option<String>,
     pub offset: Option<usize>,
     pub limit: Option<usize>,
 }
