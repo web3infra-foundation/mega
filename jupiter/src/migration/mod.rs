@@ -83,6 +83,7 @@ mod m20260128_080549_add_mega_code_review_anchor_and_position;
 mod m20260130_065535_refactor_orion_module;
 mod m20260208_012349_change_build_events;
 mod m20260209_064016_remove_default_dynamic_sidebar;
+mod m20260210_062050_create_target_state_history;
 
 /// Creates a primary key column definition with big integer type.
 ///
@@ -156,6 +157,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260130_065535_refactor_orion_module::Migration),
             Box::new(m20260208_012349_change_build_events::Migration),
             Box::new(m20260209_064016_remove_default_dynamic_sidebar::Migration),
+            Box::new(m20260210_062050_create_target_state_history::Migration),
         ]
     }
 }

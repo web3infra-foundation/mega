@@ -106,6 +106,10 @@ pub fn routers() -> Router<AppState> {
         .route("/targets/{target_id}/logs", get(target_logs_handler))
         .route("/tasks/{cl}", get(tasks_handler))
         .route("/tasks/{task_id}/targets", get(task_targets_handler))
+        .route(
+            "/tasks/{task_id}/targets/summary",
+            get(task_targets_summary_handler),
+        )
         .route("/queue-stats", get(queue_stats_handler))
         .route("/orion-clients-info", post(get_orion_clients_info))
         .route(
@@ -289,6 +293,7 @@ pub async fn task_history_output_handler(
     params(
         ("target_id" = String, Path, description = "Target ID whose logs to read"),
         ("type" = String, Query, description = "full | segment"),
+        ("build_id" = Option<String>, Query, description = "Optional build ID to read logs from"),
         ("offset" = Option<usize>, Query, description = "Start line number for segment mode"),
         ("limit" = Option<usize>, Query, description = "Max lines for segment mode"),
     ),
@@ -343,30 +348,66 @@ pub async fn target_logs_handler(
         }
     };
 
-    let build_model = match builds::Entity::find()
-        .filter(builds::Column::TargetId.eq(target_uuid))
-        .order_by_desc(builds::Column::EndAt)
-        .order_by_desc(builds::Column::CreatedAt)
-        .one(&state.conn)
-        .await
-    {
-        Ok(Some(build)) => build,
-        Ok(None) => {
-            return Err((
-                StatusCode::NOT_FOUND,
+    let build_model = if let Some(build_id) = params.build_id.as_ref() {
+        let build_uuid = build_id.parse::<Uuid>().map_err(|_| {
+            (
+                StatusCode::BAD_REQUEST,
                 Json(LogErrorResponse {
-                    message: "No builds for target".to_string(),
+                    message: "Invalid build id".to_string(),
                 }),
-            ));
+            )
+        })?;
+
+        match builds::Entity::find_by_id(build_uuid)
+            .filter(builds::Column::TargetId.eq(target_uuid))
+            .one(&state.conn)
+            .await
+        {
+            Ok(Some(build)) => build,
+            Ok(None) => {
+                return Err((
+                    StatusCode::NOT_FOUND,
+                    Json(LogErrorResponse {
+                        message: "Build not found for target".to_string(),
+                    }),
+                ));
+            }
+            Err(err) => {
+                tracing::error!("Failed to load build {}: {}", build_uuid, err);
+                return Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(LogErrorResponse {
+                        message: "Failed to load build".to_string(),
+                    }),
+                ));
+            }
         }
-        Err(err) => {
-            tracing::error!("Failed to load build for target {}: {}", target_uuid, err);
-            return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(LogErrorResponse {
-                    message: "Failed to load build".to_string(),
-                }),
-            ));
+    } else {
+        match builds::Entity::find()
+            .filter(builds::Column::TargetId.eq(target_uuid))
+            .order_by_desc(builds::Column::EndAt)
+            .order_by_desc(builds::Column::CreatedAt)
+            .one(&state.conn)
+            .await
+        {
+            Ok(Some(build)) => build,
+            Ok(None) => {
+                return Err((
+                    StatusCode::NOT_FOUND,
+                    Json(LogErrorResponse {
+                        message: "No builds for target".to_string(),
+                    }),
+                ));
+            }
+            Err(err) => {
+                tracing::error!("Failed to load build for target {}: {}", target_uuid, err);
+                return Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(LogErrorResponse {
+                        message: "Failed to load build".to_string(),
+                    }),
+                ));
+            }
         }
     };
 
@@ -1183,6 +1224,17 @@ pub struct TaskInfoDTO {
     pub targets: Vec<TargetDTO>,
 }
 
+/// Target summary counts for a task.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct TargetSummaryDTO {
+    pub task_id: String,
+    pub pending: u64,
+    pub building: u64,
+    pub completed: u64,
+    pub failed: u64,
+    pub interrupted: u64,
+}
+
 impl TaskInfoDTO {
     fn from_model(model: tasks::Model, build_list: Vec<BuildDTO>, targets: Vec<TargetDTO>) -> Self {
         Self {
@@ -1355,6 +1407,63 @@ pub async fn task_targets_handler(
 
     let info = assemble_task_info(task_model, &state, &state.scheduler.active_builds).await;
     Ok(Json(info))
+}
+
+#[utoipa::path(
+    get,
+    path = "/tasks/{task_id}/targets/summary",
+    params(
+        ("task_id" = String, Path, description = "Task ID to query target summary for")
+    ),
+    responses(
+        (status = 200, description = "Target summary", body = TargetSummaryDTO),
+        (status = 400, description = "Invalid task ID", body = serde_json::Value),
+        (status = 500, description = "Internal error", body = serde_json::Value)
+    )
+)]
+pub async fn task_targets_summary_handler(
+    State(state): State<AppState>,
+    Path(task_id): Path<String>,
+) -> Result<Json<TargetSummaryDTO>, (StatusCode, Json<serde_json::Value>)> {
+    let task_uuid = task_id.parse::<Uuid>().map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "message": "Invalid task ID" })),
+        )
+    })?;
+
+    let targets = targets::Entity::find()
+        .filter(targets::Column::TaskId.eq(task_uuid))
+        .all(&state.conn)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to fetch target summary: {e}");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "message": "Failed to fetch target summary" })),
+            )
+        })?;
+
+    let mut summary = TargetSummaryDTO {
+        task_id,
+        pending: 0,
+        building: 0,
+        completed: 0,
+        failed: 0,
+        interrupted: 0,
+    };
+
+    for target in targets {
+        match target.state {
+            TargetState::Pending => summary.pending += 1,
+            TargetState::Building => summary.building += 1,
+            TargetState::Completed => summary.completed += 1,
+            TargetState::Failed => summary.failed += 1,
+            TargetState::Interrupted => summary.interrupted += 1,
+        }
+    }
+
+    Ok(Json(summary))
 }
 
 // Orion client information

@@ -1,157 +1,22 @@
-<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <g clip-path="url(#clip0_2575_4550)">
-    <g filter="url(#filter0_di_2575_4550)">
-      <path
-        d="M48 0H16C7.16344 0 0 7.16344 0 16V48C0 56.8366 7.16344 64 16 64H48C56.8366 64 64 56.8366 64 48V16C64 7.16344 56.8366 0 48 0Z"
-        fill="url(#paint0_radial_2575_4550)"
-      />
-    </g>
-    <g filter="url(#filter1_dddii_2575_4550)">
-      <path
-        d="M9.52012 41.9532L22.0953 20.6545C22.3348 20.2489 22.7709 19.9999 23.2421 19.9999H43.7279C44.7587 19.9999 45.3987 21.1203 44.8747 22.0077L32.2996 43.3064C32.0601 43.7121 31.624 43.961 31.1528 43.961H10.667C9.63615 43.961 8.99619 42.8406 9.52012 41.9532Z"
-        fill="url(#paint1_linear_2575_4550)"
-        fill-opacity="0.96"
-      />
-      <path
-        d="M38.9673 43.9609H53.2769C54.2811 43.9609 54.924 42.8921 54.4531 42.0055L47.6958 29.2815C47.2086 28.3639 45.9046 28.333 45.3743 29.2264L37.8221 41.9505C37.2954 42.8378 37.9352 43.9609 38.9673 43.9609Z"
-        fill="url(#paint2_linear_2575_4550)"
-        fill-opacity="0.96"
-      />
-    </g>
-  </g>
-  <defs>
-    <filter
-      id="filter0_di_2575_4550"
-      x="-40"
-      y="0"
-      width="144"
-      height="144"
-      filterUnits="userSpaceOnUse"
-      color-interpolation-filters="sRGB"
-    >
-      <feFlood flood-opacity="0" result="BackgroundImageFix" />
-      <feColorMatrix
-        in="SourceAlpha"
-        type="matrix"
-        values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0"
-        result="hardAlpha"
-      />
-      <feOffset dy="40" />
-      <feGaussianBlur stdDeviation="20" />
-      <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0" />
-      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_2575_4550" />
-      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_2575_4550" result="shape" />
-      <feColorMatrix
-        in="SourceAlpha"
-        type="matrix"
-        values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0"
-        result="hardAlpha"
-      />
-      <feOffset dy="16" />
-      <feGaussianBlur stdDeviation="8" />
-      <feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1" />
-      <feColorMatrix type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.25 0" />
-      <feBlend mode="normal" in2="shape" result="effect2_innerShadow_2575_4550" />
-    </filter>
-    <filter
-      id="filter1_dddii_2575_4550"
-      x="1.33325"
-      y="15.9999"
-      width="61.2772"
-      height="39.9611"
-      filterUnits="userSpaceOnUse"
-      color-interpolation-filters="sRGB"
-    >
-      <feFlood flood-opacity="0" result="BackgroundImageFix" />
-      <feColorMatrix
-        in="SourceAlpha"
-        type="matrix"
-        values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0"
-        result="hardAlpha"
-      />
-      <feOffset dy="1" />
-      <feGaussianBlur stdDeviation="1" />
-      <feColorMatrix type="matrix" values="0 0 0 0 0.733333 0 0 0 0 0.0745098 0 0 0 0 0.0745098 0 0 0 0.316416 0" />
-      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_2575_4550" />
-      <feColorMatrix
-        in="SourceAlpha"
-        type="matrix"
-        values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0"
-        result="hardAlpha"
-      />
-      <feOffset dy="2" />
-      <feGaussianBlur stdDeviation="2" />
-      <feColorMatrix type="matrix" values="0 0 0 0 0.733333 0 0 0 0 0.0745098 0 0 0 0 0.0745098 0 0 0 0.358691 0" />
-      <feBlend mode="normal" in2="effect1_dropShadow_2575_4550" result="effect2_dropShadow_2575_4550" />
-      <feColorMatrix
-        in="SourceAlpha"
-        type="matrix"
-        values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0"
-        result="hardAlpha"
-      />
-      <feOffset dy="4" />
-      <feGaussianBlur stdDeviation="4" />
-      <feColorMatrix type="matrix" values="0 0 0 0 0.733333 0 0 0 0 0.0745098 0 0 0 0 0.0745098 0 0 0 0.31 0" />
-      <feBlend mode="normal" in2="effect2_dropShadow_2575_4550" result="effect3_dropShadow_2575_4550" />
-      <feBlend mode="normal" in="SourceGraphic" in2="effect3_dropShadow_2575_4550" result="shape" />
-      <feColorMatrix
-        in="SourceAlpha"
-        type="matrix"
-        values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0"
-        result="hardAlpha"
-      />
-      <feOffset dy="-2" />
-      <feGaussianBlur stdDeviation="12" />
-      <feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1" />
-      <feColorMatrix type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.4 0" />
-      <feBlend mode="normal" in2="shape" result="effect4_innerShadow_2575_4550" />
-      <feColorMatrix
-        in="SourceAlpha"
-        type="matrix"
-        values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0"
-        result="hardAlpha"
-      />
-      <feOffset />
-      <feGaussianBlur stdDeviation="2" />
-      <feComposite in2="hardAlpha" operator="arithmetic" k2="-1" k3="1" />
-      <feColorMatrix type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1 0" />
-      <feBlend mode="normal" in2="effect4_innerShadow_2575_4550" result="effect5_innerShadow_2575_4550" />
-    </filter>
-    <radialGradient
-      id="paint0_radial_2575_4550"
-      cx="0"
-      cy="0"
-      r="1"
-      gradientUnits="userSpaceOnUse"
-      gradientTransform="translate(13.5534 65.4757) rotate(-74.2658) scale(68.0246 308.191)"
-    >
-      <stop stop-color="#FA4438" />
-      <stop offset="1" stop-color="#FF6D23" />
-    </radialGradient>
-    <linearGradient
-      id="paint1_linear_2575_4550"
-      x1="46.122"
-      y1="28.5745"
-      x2="46.122"
-      y2="43.9609"
-      gradientUnits="userSpaceOnUse"
-    >
-      <stop stop-color="white" />
-      <stop offset="1" stop-color="white" stop-opacity="0.86" />
-    </linearGradient>
-    <linearGradient
-      id="paint2_linear_2575_4550"
-      x1="46.122"
-      y1="28.5745"
-      x2="46.122"
-      y2="43.9609"
-      gradientUnits="userSpaceOnUse"
-    >
-      <stop stop-color="white" />
-      <stop offset="1" stop-color="white" stop-opacity="0.86" />
-    </linearGradient>
-    <clipPath id="clip0_2575_4550">
-      <rect width="64" height="64" rx="16" fill="white" />
-    </clipPath>
-  </defs>
+<svg width="356" height="356" viewBox="0 0 356 356" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M146.152 34.3454L178.06 3.02734L209.948 34.3454H146.152Z" fill="#9DD7FF"/>
+  <path d="M127.29 3.1875H178.129L146.147 34.3508L103.109 23.3889L127.29 3.1875Z" fill="#3EA5DF"/>
+  <path d="M228.969 3.1875H178.129L209.952 34.3534L253.301 23.5009L228.969 3.1875Z" fill="#BCE3FF"/>
+  <path d="M79.5781 57.0409L103.115 23.3867L146.337 34.3955L97.5997 94.1505L79.5781 57.0409Z" fill="#006BBF"/>
+  <path d="M276.602 57.0409L253.065 23.3867L209.962 34.346L258.706 93.8747L276.602 57.0409Z" fill="#9BD4F0"/>
+  <path d="M156.127 54.0289L146.159 34.3555L97.6016 94.1468L156.127 54.0289Z" fill="#80CBF5"/>
+  <path d="M200.053 54.0276L209.959 34.3438L258.699 93.8552L200.053 54.0276Z" fill="#CFF7FF"/>
+  <path d="M200.176 54.0809H156.122L146.152 34.3438H209.961L200.176 54.0809Z" fill="#E1F7FC"/>
+  <path d="M147.699 59.8026L156.123 54.082H200.262L208.537 59.8271L179.382 90.2929L147.699 59.8026Z" fill="#0155A6"/>
+  <path d="M10.2266 248.042L79.6524 57.1289L110.188 118.976L102.013 304.902L10.2266 248.042Z" fill="#003153"/>
+  <path d="M345.945 248.982L276.519 57.1289L246.189 119.17L254.162 305.189L345.945 248.982Z" fill="#9BD4F0"/>
+  <path d="M178.148 352.969L102.008 304.899L109.888 119.117L178.182 141.467L178.148 352.969Z" fill="#076AAF"/>
+  <path d="M178.144 352.972L254.164 305.186L246.283 119.117L178.144 141.467V352.972Z" fill="#69B7E1"/>
+  <path d="M132.215 150.921L149.682 116.359H221.568L230.829 150.921H132.215Z" fill="#076AAF"/>
+  <path d="M137.696 212.598L125.809 149.432L147.953 135.68L137.696 212.598Z" fill="#E1F7FC"/>
+  <path d="M221.777 212.598L233.664 149.432L211.52 135.68L221.777 212.598Z" fill="#E1F7FC"/>
+  <path d="M92.9492 124.136L97.6016 94.1434L147.696 59.8008L179.378 90.284V122.727L120.262 158.119L100.002 143.629L92.9492 124.136Z" fill="#0E86D4"/>
+  <path d="M265.809 124.135L258.714 93.8151L208.519 59.8164L179.38 90.2822V122.725L238.495 158.117L258.756 143.627L265.809 124.135Z" fill="#71C8FB"/>
+  <circle cx="122.372" cy="49.0084" r="8.11782" fill="#042A69"/>
+  <circle cx="233.844" cy="49.0084" r="8.11782" fill="#042A69"/>
 </svg>
