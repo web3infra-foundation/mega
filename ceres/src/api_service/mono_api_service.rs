@@ -375,7 +375,7 @@ impl ApiHandler for MonoApiService {
 
     /// Save file edit in monorepo with optimistic concurrency check
     async fn save_file_edit(&self, payload: EditFilePayload) -> Result<EditFileResult, GitError> {
-        let file_path = PathBuf::from(&payload.path);
+        let file_path = PathBuf::from("/").join(PathBuf::from(&payload.path));
         let parent_path = file_path
             .parent()
             .ok_or_else(|| GitError::CustomError("Invalid file path".to_string()))?;
@@ -406,7 +406,7 @@ impl ApiHandler for MonoApiService {
             MonoServiceLogic::build_result_by_chain(file_path.clone(), update_chain, new_blob.id)
                 .map_err(|e| GitError::CustomError(e.to_string()))?;
 
-        let src_commit = edit_utils::get_repo_latest_commit(&self.storage, repo_path).await?;
+        let src_commit = edit_utils::get_repo_main_latest_commit(&self.storage, repo_path).await?;
 
         // Apply and save
         let new_commit_id = self

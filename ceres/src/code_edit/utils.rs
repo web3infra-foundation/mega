@@ -51,7 +51,7 @@ pub async fn cl_files_list(
     Ok(res)
 }
 
-pub async fn get_repo_latest_commit(
+pub async fn get_repo_main_latest_commit(
     storage: &Storage,
     repo_path: &str,
 ) -> Result<Commit, MegaError> {
