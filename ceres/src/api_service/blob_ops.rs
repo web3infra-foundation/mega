@@ -215,14 +215,14 @@ fn extract_raw_content_from_blob(blob_data: &[u8]) -> &[u8] {
         }
 
         // Parse size as usize
-        if let Ok(size_str) = std::str::from_utf8(size_bytes) {
-            if let Ok(expected_size) = size_str.parse::<usize>() {
-                // Validate: size must match actual content length
-                let actual_size = blob_data.len() - (null_pos + 1);
-                if expected_size == actual_size {
-                    // Perfect match, return stripped content
-                    return &blob_data[null_pos + 1..];
-                }
+        if let Ok(size_str) = std::str::from_utf8(size_bytes)
+            && let Ok(expected_size) = size_str.parse::<usize>()
+        {
+            // Validate: size must match actual content length
+            let actual_size = blob_data.len() - (null_pos + 1);
+            if expected_size == actual_size {
+                // Perfect match, return stripped content
+                return &blob_data[null_pos + 1..];
             }
         }
 
@@ -238,10 +238,11 @@ fn extract_raw_content_from_blob(blob_data: &[u8]) -> &[u8] {
     blob_data
 }
 
-/// Get content hashes (raw SHA-1) for multiple file paths in batch
+/// Internal helper function that computes both content hashes and blob IDs.
 ///
 /// This function retrieves blob IDs for files, extracts raw content from Git blobs,
-/// and calculates SHA-1 hash of the raw content.
+/// and calculates SHA-1 hash of the raw content. Returns both the content hashes
+/// and the blob IDs to avoid duplicate queries.
 ///
 /// # Arguments
 /// * `handler` - API handler implementing ApiHandler trait
@@ -249,27 +250,31 @@ fn extract_raw_content_from_blob(blob_data: &[u8]) -> &[u8] {
 /// * `refs` - Optional commit hash or ref name
 ///
 /// # Returns
-/// HashMap mapping file paths to raw content SHA-1 hashes
+/// Tuple of (content_hashes, blob_ids) where:
+/// - content_hashes: HashMap mapping file paths to raw content SHA-1 hashes
+/// - blob_ids: HashMap mapping file paths to ObjectHash blob IDs
+///
 /// Files not found will not be in the result
-pub async fn get_files_content_hashes<T: ApiHandler + ?Sized>(
+async fn get_files_content_hashes_internal<T: ApiHandler + ?Sized>(
     handler: &T,
     paths: &[PathBuf],
     refs: Option<&str>,
-) -> Result<HashMap<PathBuf, String>, GitError> {
+) -> Result<(HashMap<PathBuf, String>, HashMap<PathBuf, ObjectHash>), GitError> {
     if paths.is_empty() {
-        return Ok(HashMap::new());
+        return Ok((HashMap::new(), HashMap::new()));
     }
 
     // Get blob IDs for all files
     let blob_ids = get_files_blob_ids(handler, paths, refs).await?;
 
     if blob_ids.is_empty() {
-        return Ok(HashMap::new());
+        return Ok((HashMap::new(), HashMap::new()));
     }
 
     // Pre-allocate HashMap capacity to avoid reallocation during insertion
     let capacity = blob_ids.len();
-    let mut result = HashMap::with_capacity(capacity);
+    let mut content_hashes = HashMap::with_capacity(capacity);
+    let mut successful_blob_ids = HashMap::with_capacity(capacity);
 
     // Batch read blob contents
     let max_concurrent = handler.get_context().get_recommended_batch_concurrency();
@@ -291,7 +296,7 @@ pub async fn get_files_content_hashes<T: ApiHandler + ?Sized>(
                         let mut hasher = Sha1::new();
                         hasher.update(content_slice);
                         let hash = hex::encode(hasher.finalize());
-                        (path, Ok(hash))
+                        (path, Ok((hash, blob_hash)))
                     }
                     Err(e) => (path, Err((blob_hash_str, e))),
                 }
@@ -302,8 +307,9 @@ pub async fn get_files_content_hashes<T: ApiHandler + ?Sized>(
     // Process each result as it completes
     while let Some((path, result_item)) = blob_stream.next().await {
         match result_item {
-            Ok(content_hash) => {
-                result.insert(path, content_hash);
+            Ok((content_hash, blob_hash)) => {
+                content_hashes.insert(path.clone(), content_hash);
+                successful_blob_ids.insert(path, blob_hash);
             }
             Err((hash, e)) => {
                 tracing::warn!("Failed to read blob {} for path {:?}: {}", hash, path, e);
@@ -312,7 +318,54 @@ pub async fn get_files_content_hashes<T: ApiHandler + ?Sized>(
         }
     }
 
-    Ok(result)
+    Ok((content_hashes, successful_blob_ids))
+}
+
+/// Get content hashes (raw SHA-1) for multiple file paths in batch
+///
+/// This function retrieves blob IDs for files, extracts raw content from Git blobs,
+/// and calculates SHA-1 hash of the raw content.
+///
+/// # Arguments
+/// * `handler` - API handler implementing ApiHandler trait
+/// * `paths` - Slice of file paths to query
+/// * `refs` - Optional commit hash or ref name
+///
+/// # Returns
+/// HashMap mapping file paths to raw content SHA-1 hashes
+/// Files not found will not be in the result
+pub async fn get_files_content_hashes<T: ApiHandler + ?Sized>(
+    handler: &T,
+    paths: &[PathBuf],
+    refs: Option<&str>,
+) -> Result<HashMap<PathBuf, String>, GitError> {
+    let (content_hashes, _) = get_files_content_hashes_internal(handler, paths, refs).await?;
+    Ok(content_hashes)
+}
+
+/// Get content hashes and blob IDs for multiple file paths in batch
+///
+/// This function retrieves blob IDs for files, extracts raw content from Git blobs,
+/// and calculates SHA-1 hash of the raw content. Returns both values to avoid
+/// duplicate queries when both are needed.
+///
+/// # Arguments
+/// * `handler` - API handler implementing ApiHandler trait
+/// * `paths` - Slice of file paths to query
+/// * `refs` - Optional commit hash or ref name
+///
+/// # Returns
+/// Tuple of (content_hashes, blob_ids) where:
+/// - content_hashes: HashMap mapping file paths to raw content SHA-1 hashes
+/// - blob_ids: HashMap mapping file paths to ObjectHash blob IDs
+///
+/// Files not found will not be in the result
+pub async fn get_files_content_hashes_with_blob_ids<T: ApiHandler + ?Sized>(
+    handler: &T,
+    paths: &[PathBuf],
+    refs: Option<&str>,
+) -> Result<(HashMap<PathBuf, String>, HashMap<PathBuf, ObjectHash>), GitError> {
+    get_files_content_hashes_internal(handler, paths, refs).await
 }
 
 #[cfg(test)]
@@ -326,7 +379,7 @@ mod tests {
         let result = extract_raw_content_from_blob(blob_data);
         assert_eq!(result, b"hello");
         // Verify it's a slice reference, not a copy
-        assert_eq!(result.as_ptr(), unsafe { blob_data.as_ptr().add(7) });
+        assert_eq!(result.as_ptr(), blob_data[7..].as_ptr());
     }
 
     #[test]

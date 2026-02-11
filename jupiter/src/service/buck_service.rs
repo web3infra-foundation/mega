@@ -494,6 +494,9 @@ impl BuckService {
 
     /// Parse hash string by stripping the "sha1:" prefix if present.
     ///
+    /// Validates that the hash is exactly 40 lowercase hexadecimal characters,
+    /// consistent with validate_manifest_entry() validation.
+    ///
     /// # Arguments
     /// * `hash` - Hash string that may or may not have "sha1:" prefix
     ///
@@ -507,6 +510,18 @@ impl BuckService {
             return Err(BuckError::ValidationError(format!(
                 "Invalid ObjectHash length: expected 40, got {}",
                 hash_str.len()
+            ))
+            .into());
+        }
+
+        // Validate hex format and lowercase
+        if !hash_str
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_uppercase())
+        {
+            return Err(BuckError::ValidationError(format!(
+                "Invalid hash format (must be 40 lowercase hex chars): {}",
+                hash_str
             ))
             .into());
         }
@@ -1266,5 +1281,26 @@ mod tests {
         let service = create_test_service();
         let result = service.parse_hash("sha1:abc123");
         assert!(result.is_err(), "Should reject hash with wrong length");
+    }
+
+    #[test]
+    fn test_parse_hash_rejects_uppercase() {
+        let service = create_test_service();
+        let result = service.parse_hash("sha1:A94A8FE5CCB19BA61C4C0873D391E987982FBBD3");
+        assert!(result.is_err(), "Should reject uppercase hash");
+    }
+
+    #[test]
+    fn test_parse_hash_rejects_non_hex() {
+        let service = create_test_service();
+        let result = service.parse_hash("sha1:zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz");
+        assert!(result.is_err(), "Should reject non-hex characters");
+    }
+
+    #[test]
+    fn test_parse_hash_rejects_mixed_case() {
+        let service = create_test_service();
+        let result = service.parse_hash("sha1:a94A8fe5ccb19ba61c4c0873d391e987982fbbd3");
+        assert!(result.is_err(), "Should reject mixed case hash");
     }
 }

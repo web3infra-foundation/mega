@@ -2536,24 +2536,15 @@ impl MonoApiService {
             .map(|f| PathBuf::from(&f.path))
             .collect();
 
-        // Get content hashes (raw SHA-1) for comparison with client-provided hashes
-        let existing_file_hashes = crate::api_service::blob_ops::get_files_content_hashes(
-            self,
-            &manifest_paths,
-            session.from_hash.as_deref(),
-        )
-        .await
-        .map_err(MegaError::Git)?;
-
-        // Get Git blob IDs for storing in database
-        // blob_id field stores Git blob hash, not content hash
-        let existing_blob_ids_map = crate::api_service::blob_ops::get_files_blob_ids(
-            self,
-            &manifest_paths,
-            session.from_hash.as_deref(),
-        )
-        .await
-        .map_err(MegaError::Git)?;
+        // Get content hashes (raw SHA-1) and blob IDs
+        let (existing_file_hashes, existing_blob_ids_map) =
+            crate::api_service::blob_ops::get_files_content_hashes_with_blob_ids(
+                self,
+                &manifest_paths,
+                session.from_hash.as_deref(),
+            )
+            .await
+            .map_err(MegaError::Git)?;
 
         // Convert ObjectHash to String for storage
         let existing_blob_ids: HashMap<PathBuf, String> = existing_blob_ids_map

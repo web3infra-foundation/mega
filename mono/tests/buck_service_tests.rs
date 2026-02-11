@@ -9,7 +9,6 @@ use bytes::Bytes;
 use chrono::{Duration, Utc};
 use common::config::BuckConfig;
 use git_internal::internal::object::blob::Blob;
-use hex;
 use jupiter::{
     service::{
         buck_service::{BuckService, ManifestPayload},
@@ -587,7 +586,7 @@ async fn test_process_manifest_with_existing_files() {
     );
     existing_file_hashes.insert(
         PathBuf::from("file3.txt"),
-        "old_hash_old_hash_old_hash_old_hash_oldx".to_string(), // 40 chars for SHA-1
+        "dddddddddddddddddddddddddddddddddddddddd".to_string(), // Valid hex hash (40 lowercase hex chars)
     );
 
     // Mock blob IDs for unchanged file (file2.txt)
