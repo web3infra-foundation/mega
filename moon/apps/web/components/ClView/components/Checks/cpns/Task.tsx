@@ -25,19 +25,21 @@ const formatDateTime = (isoDate: string): string => {
 
 type LogStatus = 'idle' | 'loading' | 'success' | 'empty' | 'error'
 
-/**
- * Tree Root Component - Top level node showing the path
- */
-export const TreeRoot = ({
-  path,
-  tasks,
-  logStatus
-}: {
+export interface TreeRootProps {
   path?: string
   tasks: TaskInfoDTO[]
   logStatus: Record<string, LogStatus>
-}) => {
+  totalTasksCount?: number
+}
+
+/**
+ * Tree Root Component - Top level node showing the path
+ */
+export const TreeRoot = ({ path, tasks, logStatus, totalTasksCount }: TreeRootProps) => {
   const [isExpanded, setIsExpanded] = useState(true)
+
+  // Show the total number of tasks in dropdown (displayed as "builds")
+  const displayCount = totalTasksCount ?? tasks.length
 
   return (
     <div className='select-none'>
@@ -56,7 +58,7 @@ export const TreeRoot = ({
         </div>
         <span className='text-sm font-semibold text-gray-800 dark:text-gray-200'>{path || 'Project Root'}</span>
         <span className='ml-auto rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'>
-          {tasks.length} {tasks.length === 1 ? 'build' : 'builds'}
+          {displayCount} {displayCount === 1 ? 'build' : 'builds'}
         </span>
       </div>
       {isExpanded && (
@@ -82,7 +84,7 @@ export const Task = ({
   logStatus: Record<string, LogStatus>
   isLast?: boolean
 }) => {
-  const [isExpanded, setIsExpanded] = useState(false)
+  const [isExpanded, setIsExpanded] = useState(true)
 
   // Extract filename from output_file path (from first target's first build)
   const getFileName = () => {
@@ -206,7 +208,7 @@ export const Task = ({
 }
 
 /**
- * TaskItem Component - Third level showing individual builds
+ * TaskItem Component - Build item showing individual builds
  */
 export const TaskItem = ({
   build,
