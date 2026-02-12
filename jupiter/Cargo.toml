@@ -46,6 +46,7 @@ redis = { workspace = true, features = [
     "connection-manager",
 ] }
 rustls = { workspace = true }
+sha1 = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true }
 

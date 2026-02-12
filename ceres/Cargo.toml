@@ -44,6 +44,8 @@ tokio-util = { workspace = true }
 uuid = { workspace = true, features = ["v4"] }
 redis = { workspace = true }
 bincode = { workspace = true }
+sha1 = { workspace = true }
+hex = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
