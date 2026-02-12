@@ -95,10 +95,10 @@ pub struct FileUploadResponse {
 }
 
 /// Complete upload payload.
+///
+/// Empty payload - commit_message is set exclusively in Manifest phase
 #[derive(Debug, Clone)]
-pub struct CompletePayload {
-    pub commit_message: Option<String>,
-}
+pub struct CompletePayload {}
 
 /// Complete upload response.
 #[derive(Debug, Clone)]
@@ -853,7 +853,7 @@ impl BuckService {
         &self,
         username: &str,
         cl_link: &str,
-        payload: CompletePayload,
+        _payload: CompletePayload,
         commit_artifacts: Option<CommitArtifacts>,
     ) -> Result<CompleteResponse, MegaError> {
         // Validate session status
@@ -892,6 +892,12 @@ impl BuckService {
             session.from_hash.clone().unwrap_or_default()
         };
 
+        // Use commit_message from session
+        let commit_message = session
+            .commit_message
+            .as_deref()
+            .unwrap_or("Upload via buck push");
+
         // Persist within transaction
         let db = self.mono_storage.get_connection();
         let txn = db.begin().await?;
@@ -926,22 +932,14 @@ impl BuckService {
                     cl_link,
                     session.from_hash.as_deref().unwrap_or_default(),
                     &artifacts.commit_id,
-                    payload
-                        .commit_message
-                        .as_deref()
-                        .unwrap_or("Upload via buck push"),
+                    commit_message,
                 )
                 .await?;
         }
 
         // Update session status to completed
         self.buck_storage
-            .update_session_status(
-                &txn,
-                cl_link,
-                session_status::COMPLETED,
-                payload.commit_message.as_deref(),
-            )
+            .update_session_status(&txn, cl_link, session_status::COMPLETED, None)
             .await?;
 
         txn.commit().await?;
