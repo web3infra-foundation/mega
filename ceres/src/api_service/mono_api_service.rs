@@ -2614,7 +2614,7 @@ impl MonoApiService {
         &self,
         username: &str,
         cl_link: &str,
-        payload: CompletePayload,
+        _payload: CompletePayload,
     ) -> Result<CompleteResponse, MegaError> {
         let session = self
             .storage
@@ -2681,10 +2681,10 @@ impl MonoApiService {
             })
             .collect();
 
-        let commit_message = payload
+        // Use commit_message from session
+        let commit_message = session
             .commit_message
             .clone()
-            .or(session.commit_message.clone())
             .unwrap_or_else(|| "Upload via buck push".to_string());
 
         let commit_result = if file_changes.is_empty() {
@@ -2721,14 +2721,7 @@ impl MonoApiService {
         let svc_resp: SvcCompleteResponse = self
             .storage
             .buck_service
-            .complete_upload(
-                username,
-                cl_link,
-                SvcCompletePayload {
-                    commit_message: payload.commit_message.clone(),
-                },
-                artifacts,
-            )
+            .complete_upload(username, cl_link, SvcCompletePayload {}, artifacts)
             .await?;
 
         // Calculate uploaded files count

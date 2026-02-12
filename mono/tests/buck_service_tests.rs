@@ -1192,7 +1192,7 @@ async fn test_complete_upload_success() {
 
     storage
         .buck_storage()
-        .update_session_status_with_pool(session_id, session_status::UPLOADING, None)
+        .update_session_status_with_pool(session_id, session_status::UPLOADING, Some("Test commit"))
         .await
         .unwrap();
 
@@ -1202,12 +1202,8 @@ async fn test_complete_upload_success() {
     let artifacts = create_test_commit_artifacts(commit_id, tree_hash, "/test/repo");
 
     // Complete upload
-    let payload = CompletePayload {
-        commit_message: Some("Test commit".to_string()),
-    };
-
     let result = service
-        .complete_upload("test_user", session_id, payload, Some(artifacts))
+        .complete_upload("test_user", session_id, CompletePayload {}, Some(artifacts))
         .await;
 
     if let Err(e) = &result {
@@ -1247,12 +1243,8 @@ async fn test_complete_upload_invalid_session_status() {
         .await
         .unwrap();
 
-    let payload = CompletePayload {
-        commit_message: None,
-    };
-
     let result = service
-        .complete_upload("test_user", session_id, payload, None)
+        .complete_upload("test_user", session_id, CompletePayload {}, None)
         .await;
 
     assert!(result.is_err(), "Invalid session status should fail");
@@ -1308,12 +1300,8 @@ async fn test_complete_upload_pending_files() {
         .await
         .unwrap();
 
-    let payload = CompletePayload {
-        commit_message: None,
-    };
-
     let result = service
-        .complete_upload("test_user", session_id, payload, None)
+        .complete_upload("test_user", session_id, CompletePayload {}, None)
         .await;
 
     assert!(result.is_err(), "Pending files should fail");
@@ -1369,12 +1357,8 @@ async fn test_complete_upload_missing_blob_id() {
         .await
         .unwrap();
 
-    let payload = CompletePayload {
-        commit_message: None,
-    };
-
     let result = service
-        .complete_upload("test_user", session_id, payload, None)
+        .complete_upload("test_user", session_id, CompletePayload {}, None)
         .await;
 
     assert!(result.is_err(), "Missing blob_id should fail");
@@ -1432,7 +1416,7 @@ async fn test_complete_upload_idempotency() {
 
     storage
         .buck_storage()
-        .update_session_status_with_pool(session_id, session_status::UPLOADING, None)
+        .update_session_status_with_pool(session_id, session_status::UPLOADING, Some("Test commit"))
         .await
         .unwrap();
 
@@ -1440,16 +1424,12 @@ async fn test_complete_upload_idempotency() {
     let tree_hash = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
     let artifacts = create_test_commit_artifacts(commit_id, tree_hash, "/test/repo");
 
-    let payload = CompletePayload {
-        commit_message: Some("Test commit".to_string()),
-    };
-
     // First complete
     let result1 = service
         .complete_upload(
             "test_user",
             session_id,
-            payload.clone(),
+            CompletePayload {},
             Some(artifacts.clone()),
         )
         .await;
@@ -1458,13 +1438,13 @@ async fn test_complete_upload_idempotency() {
     // Reset session status to allow retry
     storage
         .buck_storage()
-        .update_session_status_with_pool(session_id, session_status::UPLOADING, None)
+        .update_session_status_with_pool(session_id, session_status::UPLOADING, Some("Test commit"))
         .await
         .unwrap();
 
     // Second complete (idempotency - should succeed due to ON CONFLICT DO NOTHING)
     let result2 = service
-        .complete_upload("test_user", session_id, payload, Some(artifacts))
+        .complete_upload("test_user", session_id, CompletePayload {}, Some(artifacts))
         .await;
     assert!(result2.is_ok(), "Idempotent complete should succeed");
 }
