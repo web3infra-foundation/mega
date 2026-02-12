@@ -63,13 +63,26 @@ jobs:
           )
 
     steps:
+      # Checkout PR Branch (for comments)
+      - name: Resolve PR Ref
+        id: resolve-pr-ref
+        if: github.event_name == 'issue_comment' && github.event.issue.pull_request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER=${{ github.event.issue.number }}
+          echo "Resolving HEAD SHA for PR #$PR_NUMBER..."
+          PR_SHA=$(gh pr view $PR_NUMBER --repo ${{ github.repository }} --json headRefOid -q .headRefOid)
+          echo "Resolved SHA: $PR_SHA"
+          echo "pr_sha=$PR_SHA" >> $GITHUB_OUTPUT
+
       # Checkout the repository at the appropriate commit for review
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
           # Use PR head SHA for pull_request_target to review the actual PR code
           # For comment events, this will default to the base branch (PR context is inferred by Claude action)
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ steps.resolve-pr-ref.outputs.pr_sha || github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
 
       # Invoke Claude to perform an automated PR review with progress tracking
