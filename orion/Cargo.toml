@@ -33,3 +33,4 @@ common = { path = "../common" }
 ring = "0.17.14"
 hex = { workspace = true }
 scorpiofs = "0.1.0"
+tokio-util = { workspace = true }
