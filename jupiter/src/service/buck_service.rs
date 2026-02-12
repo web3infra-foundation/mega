@@ -841,10 +841,14 @@ impl BuckService {
     /// Validates all files are uploaded, then persists commit artifacts (trees, commit,
     /// CL refs, and CL record) within a database transaction. Updates session status to COMPLETED.
     ///
+    /// Commit message is read from `session.commit_message` which is set during Manifest phase.
+    /// The payload is intentionally unused (empty struct).
+    ///
     /// # Arguments
     /// * `username` - User completing the upload
     /// * `cl_link` - CL link (8-character alphanumeric identifier)
-    /// * `payload` - Complete payload containing an optional commit message
+    /// * `_payload` - Empty payload (unused). Commit message is read from session.commit_message
+    ///   which is set during Manifest phase via `update_session_status_with_pool`.
     /// * `commit_artifacts` - Optional commit artifacts from MonoApiService (Git build in ceres)
     ///
     /// # Returns

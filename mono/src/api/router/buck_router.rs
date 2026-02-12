@@ -234,13 +234,19 @@ async fn upload_file(
 ///
 /// Complete the upload session, create Git commit, and activate CL.
 /// Returns immediately - CI build is triggered asynchronously.
+///
+/// Request body is optional. Commit message is read from session.
 #[utoipa::path(
     post,
     params(
         ("cl_link" = String, Path, description = "CL link (8-character alphanumeric identifier)")
     ),
     path = "/session/{cl_link}/complete",
-    request_body = CompletePayload,
+    request_body(
+        content = Option<CompletePayload>,
+        description = "Optional empty payload. Can be omitted or sent as {}",
+        content_type = "application/json"
+    ),
     responses(
         (status = 200, body = CommonResult<CompleteResponse>),
         (status = 400, description = "Files not fully uploaded"),
@@ -253,8 +259,9 @@ async fn complete_upload(
     user: LoginUser,
     Path(cl_link): Path<String>,
     state: State<MonoApiServiceState>,
-    Json(payload): Json<CompletePayload>,
+    payload: Option<Json<CompletePayload>>,
 ) -> Result<Json<CommonResult<CompleteResponse>>, ApiError> {
+    let payload = payload.map(|p| p.0).unwrap_or(CompletePayload {});
     let response = state
         .monorepo()
         .complete_buck_upload(&user.username, &cl_link, payload)
