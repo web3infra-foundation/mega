@@ -4,7 +4,10 @@ use api_model::buck2::ws::WSMessage;
 use futures_util::{SinkExt, StreamExt};
 use tokio::{
     net::TcpStream,
-    sync::mpsc::{UnboundedReceiver, UnboundedSender},
+    sync::{
+        mpsc,
+        mpsc::{UnboundedReceiver, UnboundedSender},
+    },
 };
 use tokio_tungstenite::{
     MaybeTlsStream, WebSocketStream, connect_async, tungstenite::protocol::Message,
@@ -12,7 +15,11 @@ use tokio_tungstenite::{
 use uuid::Uuid;
 
 use crate::api::buck_build;
-use crate::api::{BuildRequest, buck_build};
+
+/// Manages persistent WebSocket connection with automatic reconnection.
+///
+/// Handles connection establishment, registration, heartbeat, and task processing.
+/// Implements exponential backoff for reconnection attempts.
 ///
 /// # Arguments
 /// * `server_addr` - WebSocket server endpoint URL

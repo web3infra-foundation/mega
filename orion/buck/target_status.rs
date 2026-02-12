@@ -8,8 +8,13 @@
  * above-listed licenses.
  */
 
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    fmt::{self, Display},
+    str::FromStr,
+};
 
+use api_model::buck2::ws::WSTargetBuildStatusUpdate;
 use serde::{Deserialize, Serialize};
 
 pub const EVENT_LOG_FILE: &str = "event.jsonl";
@@ -25,6 +30,44 @@ pub struct TargetBuildStatusUpdate {
     // Todo: Add timestamp and error_message
 }
 
+impl From<TargetBuildStatusUpdate> for WSTargetBuildStatusUpdate {
+    fn from(value: TargetBuildStatusUpdate) -> Self {
+        Self {
+            configured_target_package: value.action_id.configured_target.target.package,
+            configured_target_name: value.action_id.configured_target.target.name,
+            configured_target_configuration: value.action_id.configured_target.configuration,
+            category: value.action_id.category,
+            identifier: value.action_id.identifier,
+            action: value.action_id.action.to_string(),
+            old_status: value.old_status.to_string(),
+            new_status: value.new_status.to_string(),
+        }
+    }
+}
+
+impl From<WSTargetBuildStatusUpdate> for TargetBuildStatusUpdate {
+    fn from(value: WSTargetBuildStatusUpdate) -> Self {
+        Self {
+            action_id: LogicalActionId {
+                configured_target: ConfiguredTargetId {
+                    target: TargetBuildId {
+                        package: value.configured_target_package,
+                        name: value.configured_target_name,
+                    },
+                    configuration: value.configured_target_configuration,
+                },
+                category: value.category,
+                identifier: value.identifier,
+                action: ActionKind::from_str(&value.action).unwrap_or(ActionKind::Other),
+            },
+            old_status: ExecutionStatus::from_str(&value.old_status)
+                .unwrap_or(ExecutionStatus::Pending),
+            new_status: ExecutionStatus::from_str(&value.new_status)
+                .unwrap_or(ExecutionStatus::Pending),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExecutionStatus {
     Pending,
@@ -32,6 +75,32 @@ pub enum ExecutionStatus {
     Succeeded,
     Failed,
     // Cache
+}
+
+impl Display for ExecutionStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            ExecutionStatus::Pending => "pending",
+            ExecutionStatus::Running => "running",
+            ExecutionStatus::Succeeded => "succeeded",
+            ExecutionStatus::Failed => "failed",
+        };
+        write!(f, "{}", s)
+    }
+}
+
+impl FromStr for ExecutionStatus {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "pending" => Ok(ExecutionStatus::Pending),
+            "running" => Ok(ExecutionStatus::Running),
+            "succeeded" | "success" => Ok(ExecutionStatus::Succeeded),
+            "failed" | "failure" => Ok(ExecutionStatus::Failed),
+            _ => Err(format!("Unknown execution status: {}", s)),
+        }
+    }
 }
 
 /// Hierarchical yet flat data model for Buck2 build events.
@@ -548,6 +617,44 @@ pub enum ActionKind {
     /// Catch-all for other action kinds
     #[serde(other)]
     Other,
+}
+
+impl fmt::Display for ActionKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            ActionKind::NotSet => "not_set",
+            ActionKind::Copy => "copy",
+            ActionKind::DownloadFile => "download_file",
+            ActionKind::Run => "run",
+            ActionKind::SymlinkedDir => "symlinked_dir",
+            ActionKind::Write => "write",
+            ActionKind::WriteMacrosToFile => "write_macros_to_file",
+            ActionKind::CasArtifact => "cas_artifact",
+            ActionKind::Other => "other",
+        };
+        write!(f, "{}", s)
+    }
+}
+
+impl FromStr for ActionKind {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "not_set" | "notset" | "not-set" => Ok(ActionKind::NotSet),
+            "copy" => Ok(ActionKind::Copy),
+            "download_file" | "downloadfile" | "download-file" => Ok(ActionKind::DownloadFile),
+            "run" => Ok(ActionKind::Run),
+            "symlinked_dir" | "symlinkeddir" | "symlinked-dir" => Ok(ActionKind::SymlinkedDir),
+            "write" => Ok(ActionKind::Write),
+            "write_macros_to_file" | "writemacrostofile" | "write-macros-to-file" => {
+                Ok(ActionKind::WriteMacrosToFile)
+            }
+            "cas_artifact" | "casartifact" | "cas-artifact" => Ok(ActionKind::CasArtifact),
+            "other" => Ok(ActionKind::Other),
+            _ => Err(format!("Unknown action kind: '{}'", s)),
+        }
+    }
 }
 
 /// Human-readable action name for display and analytics.

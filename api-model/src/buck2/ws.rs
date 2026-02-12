@@ -59,4 +59,18 @@ pub enum WSMessage {
         exit_code: Option<i32>,
         message: String,
     },
+    /// Batch of target build status updates for real-time build progress tracking.
+    TargetBuildStatusBatch(Vec<WSTargetBuildStatusUpdate>),
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct WSTargetBuildStatusUpdate {
+    pub configured_target_package: String,
+    pub configured_target_name: String,
+    pub configured_target_configuration: String,
+    pub category: String,
+    pub identifier: String,
+    pub action: String,
+    pub old_status: String,
+    pub new_status: String,
 }

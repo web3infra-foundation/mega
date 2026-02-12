@@ -11,7 +11,7 @@ use anyhow::anyhow;
 use api_model::buck2::{
     status::Status,
     types::{ProjectRelativePath, TaskPhase},
-    ws::WSMessage,
+    ws::{WSMessage, WSTargetBuildStatusUpdate},
 };
 use common::config::BuildConfig;
 use once_cell::sync::Lazy;
@@ -497,23 +497,35 @@ async fn flush_buffer(
     cl_id: &str,
 ) -> bool {
     if buffer.is_empty() {
+        tracing::trace!("Buffer empty for CL {}, skipping flush", cl_id);
         return true;
     }
 
-    let batch = TargetBuildStatusBatch {
-        cl_id: cl_id.to_string(),
-        updates: buffer.drain().map(|(_, v)| v).collect(),
-    };
+    let update_count = buffer.len();
+    tracing::debug!("Flushing {} updates for CL {}", update_count, cl_id);
 
-    if sender
-        .send(WSMessage::TargetBuildStatusBatch(batch))
-        .is_err()
-    {
-        tracing::warn!("WebSocket sender closed, stopping tracker");
-        return false;
+    let batch: Vec<WSTargetBuildStatusUpdate> =
+        buffer.drain().map(|(_, update)| update.into()).collect();
+
+    match sender.send(WSMessage::TargetBuildStatusBatch(batch)) {
+        Ok(_) => {
+            tracing::trace!(
+                "Successfully flushed {} updates for CL {}",
+                update_count,
+                cl_id
+            );
+            true
+        }
+        Err(e) => {
+            tracing::warn!(
+                "WebSocket sender closed for CL {}, failed to send {} updates: {}",
+                cl_id,
+                update_count,
+                e
+            );
+            false
+        }
     }
-
-    true
 }
 
 /// RAII guard for automatically unmounting Antares filesystem when dropped
