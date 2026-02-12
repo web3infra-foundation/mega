@@ -85,30 +85,16 @@ jobs:
           ref: ${{ steps.resolve-pr-ref.outputs.pr_sha || github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 20
 
-      # Manually setup PR branch to workaround Claude Action issue with forks
-      # For issue_comment events, the action does not attempt to fetch the PR branch,
-      # so we create it locally from the current HEAD (secure, verified SHA)
-      - name: Setup PR Branch
-        if: github.event_name == 'issue_comment' && github.event.issue.pull_request
-        env:
-          PR_NUMBER: ${{ github.event.issue.number }}
-        run: |
-          echo "Setting up local PR branch pr-$PR_NUMBER..."
-          git checkout -b pr-$PR_NUMBER
-
-      # Fix git protocol for PR ref access
-      # actions/checkout@v6 creates a shallow clone with only refs/heads/* in the fetch
-      # refspec. The claude-code-action internally runs:
-      #   git fetch origin pull/N/head:pr-N
-      # Under git protocol v2 (default since git 2.26), the client sends ref-prefix
-      # filters to the server. Since refs/pull/* is not in the configured fetch refspec,
-      # the server may not return refs/pull/N/head, causing "couldn't find remote ref".
-      # Adding refs/pull/*/head to the fetch refspec ensures these refs are discoverable.
+      # Fix git ref access for claude-code-action PR branch checkout
+      # The action internally runs: git fetch origin pull/N/head:pr-N
+      # This can fail for two reasons:
+      # 1. Under git protocol v2, refs/pull/* may not be discoverable if not in
+      #    the configured fetch refspec (causes "couldn't find remote ref")
+      # 2. If a local branch pr-N already exists and is checked out, git refuses
+      #    to fetch into it (causes "refusing to fetch into branch")
+      # Adding refs/pull/*/head to the fetch refspec solves issue 1, and we avoid
+      # creating local branches to prevent issue 2.
       - name: Configure git for PR ref access
-        if: |
-          github.event_name == 'pull_request_target' ||
-          github.event_name == 'pull_request_review_comment' ||
-          github.event_name == 'pull_request_review'
         run: |
           git config --add remote.origin.fetch '+refs/pull/*/head:refs/remotes/origin/pull/*/head'
 
