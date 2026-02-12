@@ -89,9 +89,13 @@ jobs:
       # We create the branch from the current HEAD (which is the secure, verified SHA checked out above)
       # This avoids fetching mutable refs from the network, addressing the "Untrusted Checkout" vulnerability
       - name: Setup PR Branch
-        if: github.event_name == 'issue_comment' && github.event.issue.pull_request
+        if: |
+          (github.event_name == 'issue_comment' && github.event.issue.pull_request) ||
+          github.event_name == 'pull_request_target' ||
+          github.event_name == 'pull_request_review_comment' ||
+          github.event_name == 'pull_request_review'
         env:
-          PR_NUMBER: ${{ github.event.issue.number }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
         run: |
           echo "Setting up local PR branch pr-$PR_NUMBER..."
           git checkout -b pr-$PR_NUMBER
