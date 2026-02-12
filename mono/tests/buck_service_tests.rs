@@ -1220,6 +1220,25 @@ async fn test_complete_upload_success() {
         .unwrap()
         .unwrap();
     assert_eq!(session.status, session_status::COMPLETED);
+
+    // Regression test: Verify session.commit_message is preserved
+    assert_eq!(
+        session.commit_message,
+        Some("Test commit".to_string()),
+        "session.commit_message should be preserved from Manifest phase"
+    );
+
+    // Regression test: Verify CL title uses session.commit_message
+    let cl = storage
+        .cl_storage()
+        .get_cl(session_id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        cl.title, "Test commit",
+        "CL title should use commit_message from session"
+    );
 }
 
 #[tokio::test]

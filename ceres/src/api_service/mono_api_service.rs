@@ -2603,10 +2603,14 @@ impl MonoApiService {
 
     /// Complete buck upload.
     ///
+    /// Commit message is read from session.commit_message which is set during Manifest phase.
+    /// The payload is intentionally unused (empty struct).
+    ///
     /// # Arguments
     /// * `username` - User completing the upload
     /// * `cl_link` - CL link
-    /// * `payload` - Complete payload containing an optional commit message
+    /// * `_payload` - Empty payload (unused). Commit message is read from session.commit_message
+    ///   which is set during Manifest phase.
     ///
     /// # Returns
     /// Returns `CompleteResponse` on success
