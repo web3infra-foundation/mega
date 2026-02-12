@@ -375,19 +375,19 @@ impl ApiHandler for MonoApiService {
 
     /// Save file edit in monorepo with optimistic concurrency check
     async fn save_file_edit(&self, payload: EditFilePayload) -> Result<EditFileResult, GitError> {
-        let repo_path = "/";
-        let src_commit = edit_utils::get_repo_latest_commit(&self.storage, repo_path).await?;
-        let file_path = PathBuf::from(&payload.path);
+        let file_path = PathBuf::from("/").join(PathBuf::from(&payload.path));
         let parent_path = file_path
             .parent()
             .ok_or_else(|| GitError::CustomError("Invalid file path".to_string()))?;
+        let repo_path = &parent_path.display().to_string();
 
-        // Build update chain to parent directory and determine current blob id
-        let update_chain = self.search_tree_for_update(parent_path).await?;
-        let parent_tree = update_chain
-            .last()
-            .ok_or_else(|| GitError::CustomError("Parent tree not found".to_string()))?
-            .clone();
+        let parent_tree = tree_ops::search_tree_by_path(self, parent_path, None)
+            .await?
+            .ok_or(GitError::CustomError(format!(
+                "invalid repo_path {}, Parent tree not found",
+                repo_path
+            )))?;
+
         let file_name = file_path
             .file_name()
             .and_then(|n| n.to_str())
@@ -401,9 +401,12 @@ impl ApiHandler for MonoApiService {
 
         // Create new blob and build update result up to root
         let new_blob = Blob::from_content(&payload.content);
+        let update_chain = vec![parent_tree.into()];
         let result =
             MonoServiceLogic::build_result_by_chain(file_path.clone(), update_chain, new_blob.id)
                 .map_err(|e| GitError::CustomError(e.to_string()))?;
+
+        let src_commit = edit_utils::get_repo_main_latest_commit(&self.storage, repo_path).await?;
 
         // Apply and save
         let new_commit_id = self
@@ -425,6 +428,7 @@ impl ApiHandler for MonoApiService {
                 &username,
             )
             .await?;
+
         self.storage
             .mono_service
             .save_blobs(&new_commit_id, vec![new_blob.clone()])
