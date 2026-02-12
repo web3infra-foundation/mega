@@ -14,12 +14,12 @@ use tokio_tungstenite::{
 };
 use uuid::Uuid;
 
+<<<<<<< HEAD
 use crate::api::buck_build;
-
-/// Manages persistent WebSocket connection with automatic reconnection.
-///
-/// Handles connection establishment, registration, heartbeat, and task processing.
-/// Implements exponential backoff for reconnection attempts.
+=======
+use crate::{
+    api::{BuildRequest, buck_build},
+};
 ///
 /// # Arguments
 /// * `server_addr` - WebSocket server endpoint URL
