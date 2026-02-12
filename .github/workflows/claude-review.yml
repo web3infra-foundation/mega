@@ -83,10 +83,21 @@ jobs:
           # Use PR head SHA for pull_request_target to review the actual PR code
           # For comment events, this will default to the base branch (PR context is inferred by Claude action)
           ref: ${{ steps.resolve-pr-ref.outputs.pr_sha || github.event.pull_request.head.sha || github.sha }}
-          fetch-depth: 1
+          fetch-depth: 20
+
+      # Manually setup PR branch to workaround Claude Action issue with forks
+      - name: Setup PR Branch
+        if: github.event_name == 'issue_comment' && github.event.issue.pull_request
+        env:
+          PR_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          echo "Setting up local PR branch pr-$PR_NUMBER..."
+          git fetch origin refs/pull/$PR_NUMBER/head:pr-$PR_NUMBER
+          git checkout pr-$PR_NUMBER
 
       # Invoke Claude to perform an automated PR review with progress tracking
-      - name: PR Review with Progress Tracking
+      - name: Run Claude Code Review
+        id: claude-review
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
