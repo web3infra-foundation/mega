@@ -57,7 +57,7 @@ impl VaultCore {
     }
 
     pub async fn config(ctx: Storage, key_path: PathBuf) -> Self {
-        let backend: Arc<dyn Backend> = Arc::new(JupiterBackend::new(ctx));
+        let backend: Arc<dyn Backend> = Arc::new(JupiterBackend::new(ctx.clone()));
         let seal_config = libvault_core::core::SealConfig {
             secret_shares: 10,
             secret_threshold: 5,
@@ -65,54 +65,58 @@ impl VaultCore {
 
         let rvault =
             RustyVault::new(backend.clone(), None).expect("Failed to create RustyVault instance");
-        let key = {
-            let core_key = if !key_path.exists() {
-                println!("Vault core key file does not exist, creating a new one...");
-                let result = rvault
-                    .init(&seal_config)
-                    .await
-                    .expect("Failed to initialize vault");
-                println!(
-                    "Vault core initialized with root token: {}",
-                    result.root_token
-                );
-                let core_key = CoreKey {
-                    secret_shares: Vec::from(&result.secret_shares[..]),
-                    root_token: result.root_token.clone(),
-                };
 
-                println!(
-                    "[vault] Creating new core_key.json at: {}",
-                    key_path.display()
-                );
+        let core_key = if !key_path.exists() {
+            println!("Vault core key file does not exist, clearing database and reinitializing...");
 
-                let file = std::fs::File::create(&key_path).unwrap();
-                serde_json::to_writer_pretty(file, &core_key).unwrap();
-                core_key
-            } else {
-                println!("Using existing vault core key file: {}", key_path.display());
-                let key_data =
-                    std::fs::read(&key_path).expect("Failed to read vault core key file");
-                serde_json::from_slice::<CoreKey>(&key_data)
-                    .expect("Failed to deserialize core key")
-            };
+            let vault_storage = ctx.vault_storage();
+            vault_storage
+                .delete_all()
+                .await
+                .expect("Failed to clear vault storage");
 
-            for i in 0..seal_config.secret_threshold {
-                let key = &core_key.secret_shares[i as usize];
-                let unseal = rvault.unseal(&[key.as_slice()]).await;
-                assert!(unseal.is_ok(), "Unseal error: {:?}", unseal.err());
-            }
-
-            log::debug!(
+            let result = rvault
+                .init(&seal_config)
+                .await
+                .expect("Failed to initialize vault");
+            println!(
                 "Vault core initialized with root token: {}",
-                core_key.root_token
+                result.root_token
             );
 
+            let core_key = CoreKey {
+                secret_shares: Vec::from(&result.secret_shares[..]),
+                root_token: result.root_token.clone(),
+            };
+
+            println!(
+                "[vault] Creating new core_key.json at: {}",
+                key_path.display()
+            );
+
+            let file = std::fs::File::create(&key_path).unwrap();
+            serde_json::to_writer_pretty(file, &core_key).unwrap();
+
             core_key
+        } else {
+            println!("Using existing vault core key file: {}", key_path.display());
+            let key_data = std::fs::read(&key_path).expect("Failed to read vault core key file");
+            serde_json::from_slice::<CoreKey>(&key_data).expect("Failed to deserialize core key")
         };
 
+        for i in 0..seal_config.secret_threshold {
+            let key = &core_key.secret_shares[i as usize];
+            let unseal = rvault.unseal(&[key.as_slice()]).await;
+            assert!(unseal.is_ok(), "Unseal error: {:?}", unseal.err());
+        }
+
+        log::debug!(
+            "Vault core initialized with root token: {}",
+            core_key.root_token
+        );
+
         let rvault = rvault.into();
-        let key = Arc::new(key);
+        let key = Arc::new(core_key);
 
         Self { rvault, key }
     }
@@ -271,5 +275,50 @@ mod tests {
                 "Secret {name} should be deleted but still exists"
             );
         }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn test_vault_reinitialize_after_file_loss() {
+        let temp_dir = tempfile::tempdir().expect("Failed to create temporary directory");
+        let key_path = temp_dir.path().join(CORE_KEY_FILE);
+        let storage = test_storage(temp_dir.path()).await;
+
+        let vault_core = VaultCore::config(storage.clone(), key_path.clone()).await;
+
+        let secret_data = serde_json::json!({"value": "test"})
+            .as_object()
+            .unwrap()
+            .clone();
+        vault_core
+            .write_secret("test_key", Some(secret_data))
+            .await
+            .expect("Failed to write test secret");
+
+        let read_result = vault_core.read_secret("test_key").await;
+        assert!(read_result.is_ok());
+        assert!(read_result.unwrap().is_some(), "Test secret should exist");
+
+        std::fs::remove_file(&key_path).expect("Failed to delete key file");
+
+        let vault_core2 = VaultCore::config(storage.clone(), key_path.clone()).await;
+
+        assert!(!vault_core2.token().is_empty());
+        assert!(vault_core2.rvault.core.load().inited().await.unwrap());
+
+        let read_result2 = vault_core2.read_secret("test_key").await;
+        assert!(read_result2.is_ok());
+        assert!(
+            read_result2.unwrap().is_none(),
+            "Old data should be cleared after reinitialize"
+        );
+
+        let new_secret_data = serde_json::json!({"value": "new"})
+            .as_object()
+            .unwrap()
+            .clone();
+        vault_core2
+            .write_secret("new_key", Some(new_secret_data))
+            .await
+            .expect("Failed to write new secret");
     }
 }
