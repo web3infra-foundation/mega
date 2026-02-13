@@ -13,13 +13,7 @@ use crate::{
 
 pub struct OneditFormator;
 impl model::ConversationMessageFormater for OneditFormator {
-    fn format(
-        &self,
-        _: &mega_cl::Model,
-        from_hash: &str,
-        to_hash: &str,
-        username: &str,
-    ) -> String {
+    fn format(&self, _: &mega_cl::Model, from_hash: &str, to_hash: &str, username: &str) -> String {
         let old_hash = &from_hash[..6];
         let new_hash = &to_hash[..6];
         format!(
