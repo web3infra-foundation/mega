@@ -43,6 +43,9 @@ const cspResourcesByDirective = {
     // gitmono environments
     'https://*.gitmono.com',
     'wss://*.gitmono.com',
+    // buck2hub environments
+    'https://*.buck2hub.com',
+    'wss://*.buck2hub.com',
     // Local demo environments
     'http://*.gitmono.local:8004',
     'http://*.gitmono.local:8000',

@@ -1,11 +1,7 @@
 //! Buck Service Layer Tests
 //!
-//! # Current Status
-//!
-//! **All tests in this file are currently ignored (`#[ignore]`) due to database migration issues.**
-//! The tests require database migrations that are not yet finalized.
-//!
-//! This file contains tests for BuckService
+//! This file contains tests for BuckService.
+//! Tests use in-memory SQLite database via `test_storage` helper function.
 
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
@@ -23,6 +19,7 @@ use jupiter::{
     tests::test_storage,
 };
 use serial_test::serial;
+use sha1::{Digest, Sha1};
 use tempfile::tempdir;
 use tokio::sync::Semaphore;
 
@@ -31,10 +28,6 @@ use tokio::sync::Semaphore;
 // ============================================================================
 
 /// Create a BuckService with real database connection for testing.
-///
-/// This function is currently unused because all tests are ignored.
-/// It will be used again once database migration issues are resolved.
-#[allow(dead_code)]
 async fn create_test_buck_service_with_db()
 -> (BuckService, jupiter::storage::Storage, tempfile::TempDir) {
     let temp_dir = tempdir().unwrap();
@@ -67,7 +60,6 @@ async fn create_test_buck_service_with_db()
 // ============================================================================
 
 #[tokio::test]
-#[ignore] // TODO: Re-enable after database migration issues are resolved
 #[serial]
 async fn test_validate_session_not_found() {
     let (service, _storage, _temp_dir) = create_test_buck_service_with_db().await;
@@ -85,7 +77,6 @@ async fn test_validate_session_not_found() {
 }
 
 #[tokio::test]
-#[ignore] // TODO: Re-enable after database migration issues are resolved
 #[serial]
 async fn test_validate_session_wrong_user() {
     let (service, storage, _temp_dir) = create_test_buck_service_with_db().await;
@@ -113,7 +104,6 @@ async fn test_validate_session_wrong_user() {
 }
 
 #[tokio::test]
-#[ignore] // TODO: Re-enable after database migration issues are resolved
 #[serial]
 async fn test_validate_session_expired() {
     let (service, storage, _temp_dir) = create_test_buck_service_with_db().await;
@@ -140,7 +130,6 @@ async fn test_validate_session_expired() {
 }
 
 #[tokio::test]
-#[ignore] // TODO: Re-enable after database migration issues are resolved
 #[serial]
 async fn test_validate_session_invalid_status() {
     let (service, storage, _temp_dir) = create_test_buck_service_with_db().await;
@@ -172,7 +161,6 @@ async fn test_validate_session_invalid_status() {
 }
 
 #[tokio::test]
-#[ignore] // TODO: Re-enable after database migration issues are resolved
 #[serial]
 async fn test_validate_session_success() {
     let (service, storage, _temp_dir) = create_test_buck_service_with_db().await;
@@ -201,7 +189,6 @@ async fn test_validate_session_success() {
 // ============================================================================
 
 #[tokio::test]
-#[ignore] // TODO: Re-enable after database migration issues are resolved
 #[serial]
 async fn test_create_session_success() {
     let (service, storage, _temp_dir) = create_test_buck_service_with_db().await;
@@ -252,7 +239,6 @@ async fn test_create_session_success() {
 }
 
 #[tokio::test]
-#[ignore] // TODO: Re-enable after database migration issues are resolved
 #[serial]
 async fn test_create_session_expires_at_calculation() {
     let (service, storage, _temp_dir) = create_test_buck_service_with_db().await;
@@ -316,7 +302,6 @@ async fn test_create_session_expires_at_calculation() {
 // For now, we'll test with empty existing_file_hashes (all files are new).
 
 #[tokio::test]
-#[ignore] // TODO: Re-enable after database migration issues are resolved
 #[serial]
 async fn test_process_manifest_empty_list() {
     let (service, storage, _temp_dir) = create_test_buck_service_with_db().await;
@@ -336,9 +321,16 @@ async fn test_process_manifest_empty_list() {
         commit_message: None,
     };
     let existing_file_hashes = HashMap::new();
+    let existing_blob_ids = HashMap::new();
 
     let result = service
-        .process_manifest("test_user", session_id, payload, existing_file_hashes)
+        .process_manifest(
+            "test_user",
+            session_id,
+            payload,
+            existing_file_hashes,
+            existing_blob_ids,
+        )
         .await;
 
     assert!(result.is_err(), "Empty manifest should fail");
@@ -350,7 +342,6 @@ async fn test_process_manifest_empty_list() {
 }
 
 #[tokio::test]
-#[ignore] // TODO: Re-enable after database migration issues are resolved
 #[serial]
 async fn test_process_manifest_idempotency() {
     let (service, storage, _temp_dir) = create_test_buck_service_with_db().await;
@@ -374,6 +365,7 @@ async fn test_process_manifest_idempotency() {
         commit_message: None,
     };
     let existing_file_hashes = HashMap::new();
+    let existing_blob_ids = HashMap::new();
 
     // Process manifest first time
     let result1 = service
@@ -382,6 +374,7 @@ async fn test_process_manifest_idempotency() {
             session_id,
             payload.clone(),
             existing_file_hashes.clone(),
+            existing_blob_ids.clone(),
         )
         .await;
     assert!(result1.is_ok(), "First manifest should succeed");
@@ -397,7 +390,13 @@ async fn test_process_manifest_idempotency() {
     // Note: This may fail with "None of the records are inserted" if all files already exist
     // This is expected behavior for idempotency - the operation is effectively a no-op
     let result2 = service
-        .process_manifest("test_user", session_id, payload, existing_file_hashes)
+        .process_manifest(
+            "test_user",
+            session_id,
+            payload,
+            existing_file_hashes,
+            existing_blob_ids,
+        )
         .await;
 
     // Idempotency: Either succeeds (if some files are new) or fails gracefully (if all files exist)
@@ -423,7 +422,6 @@ async fn test_process_manifest_idempotency() {
 }
 
 #[tokio::test]
-#[ignore] // TODO: Re-enable after database migration issues are resolved
 #[serial]
 async fn test_process_manifest_duplicate_paths() {
     let (service, storage, _temp_dir) = create_test_buck_service_with_db().await;
@@ -454,9 +452,16 @@ async fn test_process_manifest_duplicate_paths() {
         commit_message: None,
     };
     let existing_file_hashes = HashMap::new();
+    let existing_blob_ids = HashMap::new();
 
     let result = service
-        .process_manifest("test_user", session_id, payload, existing_file_hashes)
+        .process_manifest(
+            "test_user",
+            session_id,
+            payload,
+            existing_file_hashes,
+            existing_blob_ids,
+        )
         .await;
 
     assert!(result.is_err(), "Duplicate paths should fail");
@@ -468,7 +473,6 @@ async fn test_process_manifest_duplicate_paths() {
 }
 
 #[tokio::test]
-#[ignore] // TODO: Re-enable after database migration issues are resolved
 #[serial]
 async fn test_process_manifest_success() {
     let (service, storage, _temp_dir) = create_test_buck_service_with_db().await;
@@ -499,9 +503,16 @@ async fn test_process_manifest_success() {
         commit_message: Some("Test commit".to_string()),
     };
     let existing_file_hashes = HashMap::new(); // All files are new
+    let existing_blob_ids = HashMap::new();
 
     let result = service
-        .process_manifest("test_user", session_id, payload, existing_file_hashes)
+        .process_manifest(
+            "test_user",
+            session_id,
+            payload,
+            existing_file_hashes,
+            existing_blob_ids,
+        )
         .await;
 
     assert!(result.is_ok(), "Valid manifest should succeed");
@@ -531,7 +542,6 @@ async fn test_process_manifest_success() {
 }
 
 #[tokio::test]
-#[ignore] // TODO: Re-enable after database migration issues are resolved
 #[serial]
 async fn test_process_manifest_with_existing_files() {
     let (service, storage, _temp_dir) = create_test_buck_service_with_db().await;
@@ -576,14 +586,34 @@ async fn test_process_manifest_with_existing_files() {
     );
     existing_file_hashes.insert(
         PathBuf::from("file3.txt"),
-        "old_hash_old_hash_old_hash_old_hash_old_hash".to_string(),
+        "dddddddddddddddddddddddddddddddddddddddd".to_string(), // Valid hex hash (40 lowercase hex chars)
+    );
+
+    // Mock blob IDs for unchanged file (file2.txt)
+    let mut existing_blob_ids = HashMap::new();
+    existing_blob_ids.insert(
+        PathBuf::from("file2.txt"),
+        "mock_blob_hash_for_file2".to_string(),
     );
 
     let result = service
-        .process_manifest("test_user", session_id, payload, existing_file_hashes)
+        .process_manifest(
+            "test_user",
+            session_id,
+            payload,
+            existing_file_hashes,
+            existing_blob_ids,
+        )
         .await;
 
-    assert!(result.is_ok());
+    if let Err(ref e) = result {
+        eprintln!("process_manifest failed with error: {:?}", e);
+    }
+    assert!(
+        result.is_ok(),
+        "process_manifest should succeed, but got error: {:?}",
+        result.as_ref().err()
+    );
     let response = result.unwrap();
 
     assert_eq!(response.total_files, 3);
@@ -597,7 +627,6 @@ async fn test_process_manifest_with_existing_files() {
 // ============================================================================
 
 #[tokio::test]
-#[ignore] // TODO: Re-enable after database migration issues are resolved
 #[serial]
 async fn test_upload_file_success() {
     let (service, storage, _temp_dir) = create_test_buck_service_with_db().await;
@@ -611,10 +640,11 @@ async fn test_upload_file_success() {
         .await
         .unwrap();
 
-    // Prepare file content and calculate hash
+    // Prepare file content and calculate raw content hash
     let file_content_bytes = b"Hello, World!".repeat(8); // 104 bytes
-    let blob = Blob::from_content_bytes(file_content_bytes.clone());
-    let actual_hash = blob.id.to_string();
+    let mut hasher = Sha1::new();
+    hasher.update(&file_content_bytes);
+    let actual_hash = hex::encode(hasher.finalize());
 
     // Add file to manifest with correct hash
     storage
@@ -673,7 +703,6 @@ async fn test_upload_file_success() {
 }
 
 #[tokio::test]
-#[ignore] // TODO: Re-enable after database migration issues are resolved
 #[serial]
 async fn test_upload_file_invalid_session_status() {
     let (service, storage, _temp_dir) = create_test_buck_service_with_db().await;
@@ -702,7 +731,6 @@ async fn test_upload_file_invalid_session_status() {
 }
 
 #[tokio::test]
-#[ignore] // TODO: Re-enable after database migration issues are resolved
 #[serial]
 async fn test_upload_file_not_in_manifest() {
     let (service, storage, _temp_dir) = create_test_buck_service_with_db().await;
@@ -744,7 +772,6 @@ async fn test_upload_file_not_in_manifest() {
 }
 
 #[tokio::test]
-#[ignore] // TODO: Re-enable after database migration issues are resolved
 #[serial]
 async fn test_upload_file_size_exceeds_limit() {
     let (service, storage, _temp_dir) = create_test_buck_service_with_db().await;
@@ -764,8 +791,10 @@ async fn test_upload_file_size_exceeds_limit() {
 
     // Add file to manifest
     let file_content_bytes = vec![0u8; oversized as usize];
-    let blob = Blob::from_content_bytes(file_content_bytes.clone());
-    let actual_hash = blob.id.to_string();
+    // Calculate raw content hash for file_hash field
+    let mut hasher = Sha1::new();
+    hasher.update(&file_content_bytes);
+    let content_hash = hex::encode(hasher.finalize());
 
     storage
         .buck_storage()
@@ -774,7 +803,7 @@ async fn test_upload_file_size_exceeds_limit() {
             vec![jupiter::storage::buck_storage::FileRecord {
                 file_path: "file1.txt".to_string(),
                 file_size: oversized as i64,
-                file_hash: format!("sha1:{}", actual_hash),
+                file_hash: format!("sha1:{}", content_hash),
                 file_mode: Some("100644".to_string()),
                 upload_status: upload_status::PENDING.to_string(),
                 upload_reason: Some(upload_reason::NEW.to_string()),
@@ -812,7 +841,6 @@ async fn test_upload_file_size_exceeds_limit() {
 }
 
 #[tokio::test]
-#[ignore] // TODO: Re-enable after database migration issues are resolved
 #[serial]
 async fn test_upload_file_size_mismatch() {
     let (service, storage, _temp_dir) = create_test_buck_service_with_db().await;
@@ -827,8 +855,10 @@ async fn test_upload_file_size_mismatch() {
         .unwrap();
 
     let file_content_bytes = b"test content".to_vec();
-    let blob = Blob::from_content_bytes(file_content_bytes.clone());
-    let actual_hash = blob.id.to_string();
+    // Calculate raw content hash for file_hash field
+    let mut hasher = Sha1::new();
+    hasher.update(&file_content_bytes);
+    let content_hash = hex::encode(hasher.finalize());
 
     // Add file to manifest with size 100, but actual content is 12 bytes
     storage
@@ -838,7 +868,7 @@ async fn test_upload_file_size_mismatch() {
             vec![jupiter::storage::buck_storage::FileRecord {
                 file_path: "file1.txt".to_string(),
                 file_size: 100, // Wrong size
-                file_hash: format!("sha1:{}", actual_hash),
+                file_hash: format!("sha1:{}", content_hash),
                 file_mode: Some("100644".to_string()),
                 upload_status: upload_status::PENDING.to_string(),
                 upload_reason: Some(upload_reason::NEW.to_string()),
@@ -876,7 +906,6 @@ async fn test_upload_file_size_mismatch() {
 }
 
 #[tokio::test]
-#[ignore] // TODO: Re-enable after database migration issues are resolved
 #[serial]
 async fn test_upload_file_hash_mismatch() {
     let (service, storage, _temp_dir) = create_test_buck_service_with_db().await;
@@ -929,7 +958,6 @@ async fn test_upload_file_hash_mismatch() {
 }
 
 #[tokio::test]
-#[ignore] // TODO: Re-enable after database migration issues are resolved
 #[serial]
 async fn test_upload_file_already_uploaded() {
     let (service, storage, _temp_dir) = create_test_buck_service_with_db().await;
@@ -944,8 +972,14 @@ async fn test_upload_file_already_uploaded() {
         .unwrap();
 
     let file_content_bytes = b"test content".to_vec();
+    // Calculate raw content hash for file_hash field
+    let mut hasher = Sha1::new();
+    hasher.update(&file_content_bytes);
+    let content_hash = hex::encode(hasher.finalize());
+
+    // Calculate Git blob hash for blob_id field (needed for already uploaded files)
     let blob = Blob::from_content_bytes(file_content_bytes.clone());
-    let actual_hash = blob.id.to_string();
+    let blob_hash = blob.id.to_string();
 
     // Add file to manifest and mark as uploaded
     storage
@@ -955,11 +989,11 @@ async fn test_upload_file_already_uploaded() {
             vec![jupiter::storage::buck_storage::FileRecord {
                 file_path: "file1.txt".to_string(),
                 file_size: 12,
-                file_hash: format!("sha1:{}", actual_hash),
+                file_hash: format!("sha1:{}", content_hash),
                 file_mode: Some("100644".to_string()),
                 upload_status: upload_status::UPLOADED.to_string(), // Already uploaded
                 upload_reason: Some(upload_reason::NEW.to_string()),
-                blob_id: Some(actual_hash.clone()),
+                blob_id: Some(blob_hash),
             }],
         )
         .await
@@ -986,7 +1020,6 @@ async fn test_upload_file_already_uploaded() {
 }
 
 #[tokio::test]
-#[ignore] // TODO: Re-enable after database migration issues are resolved
 #[serial]
 async fn test_upload_file_hash_verification_success() {
     let (service, storage, _temp_dir) = create_test_buck_service_with_db().await;
@@ -1001,8 +1034,10 @@ async fn test_upload_file_hash_verification_success() {
         .unwrap();
 
     let file_content_bytes = b"test content".to_vec();
-    let blob = Blob::from_content_bytes(file_content_bytes.clone());
-    let actual_hash = blob.id.to_string();
+    // Calculate raw content hash for file_hash field and verification
+    let mut hasher = Sha1::new();
+    hasher.update(&file_content_bytes);
+    let content_hash = hex::encode(hasher.finalize());
 
     // Add file to manifest
     storage
@@ -1012,7 +1047,7 @@ async fn test_upload_file_hash_verification_success() {
             vec![jupiter::storage::buck_storage::FileRecord {
                 file_path: "file1.txt".to_string(),
                 file_size: 12,
-                file_hash: format!("sha1:{}", actual_hash),
+                file_hash: format!("sha1:{}", content_hash),
                 file_mode: Some("100644".to_string()),
                 upload_status: upload_status::PENDING.to_string(),
                 upload_reason: Some(upload_reason::NEW.to_string()),
@@ -1036,7 +1071,7 @@ async fn test_upload_file_hash_verification_success() {
             session_id,
             "file1.txt",
             12,
-            Some(&format!("sha1:{}", actual_hash)), // Explicit hash
+            Some(&format!("sha1:{}", content_hash)), // Explicit hash (raw content hash)
             file_content,
         )
         .await;
@@ -1109,7 +1144,6 @@ fn create_test_commit_artifacts(
 }
 
 #[tokio::test]
-#[ignore] // TODO: Re-enable after database migration issues are resolved
 #[serial]
 async fn test_complete_upload_success() {
     let (service, storage, _temp_dir) = create_test_buck_service_with_db().await;
@@ -1158,7 +1192,7 @@ async fn test_complete_upload_success() {
 
     storage
         .buck_storage()
-        .update_session_status_with_pool(session_id, session_status::UPLOADING, None)
+        .update_session_status_with_pool(session_id, session_status::UPLOADING, Some("Test commit"))
         .await
         .unwrap();
 
@@ -1168,12 +1202,8 @@ async fn test_complete_upload_success() {
     let artifacts = create_test_commit_artifacts(commit_id, tree_hash, "/test/repo");
 
     // Complete upload
-    let payload = CompletePayload {
-        commit_message: Some("Test commit".to_string()),
-    };
-
     let result = service
-        .complete_upload("test_user", session_id, payload, Some(artifacts))
+        .complete_upload("test_user", session_id, CompletePayload {}, Some(artifacts))
         .await;
 
     if let Err(e) = &result {
@@ -1190,10 +1220,28 @@ async fn test_complete_upload_success() {
         .unwrap()
         .unwrap();
     assert_eq!(session.status, session_status::COMPLETED);
+
+    // Regression test: Verify session.commit_message is preserved
+    assert_eq!(
+        session.commit_message,
+        Some("Test commit".to_string()),
+        "session.commit_message should be preserved from Manifest phase"
+    );
+
+    // Regression test: Verify CL title uses session.commit_message
+    let cl = storage
+        .cl_storage()
+        .get_cl(session_id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        cl.title, "Test commit",
+        "CL title should use commit_message from session"
+    );
 }
 
 #[tokio::test]
-#[ignore] // TODO: Re-enable after database migration issues are resolved
 #[serial]
 async fn test_complete_upload_invalid_session_status() {
     let (service, storage, _temp_dir) = create_test_buck_service_with_db().await;
@@ -1214,12 +1262,8 @@ async fn test_complete_upload_invalid_session_status() {
         .await
         .unwrap();
 
-    let payload = CompletePayload {
-        commit_message: None,
-    };
-
     let result = service
-        .complete_upload("test_user", session_id, payload, None)
+        .complete_upload("test_user", session_id, CompletePayload {}, None)
         .await;
 
     assert!(result.is_err(), "Invalid session status should fail");
@@ -1231,7 +1275,6 @@ async fn test_complete_upload_invalid_session_status() {
 }
 
 #[tokio::test]
-#[ignore] // TODO: Re-enable after database migration issues are resolved
 #[serial]
 async fn test_complete_upload_pending_files() {
     let (service, storage, _temp_dir) = create_test_buck_service_with_db().await;
@@ -1276,12 +1319,8 @@ async fn test_complete_upload_pending_files() {
         .await
         .unwrap();
 
-    let payload = CompletePayload {
-        commit_message: None,
-    };
-
     let result = service
-        .complete_upload("test_user", session_id, payload, None)
+        .complete_upload("test_user", session_id, CompletePayload {}, None)
         .await;
 
     assert!(result.is_err(), "Pending files should fail");
@@ -1293,7 +1332,6 @@ async fn test_complete_upload_pending_files() {
 }
 
 #[tokio::test]
-#[ignore] // TODO: Re-enable after database migration issues are resolved
 #[serial]
 async fn test_complete_upload_missing_blob_id() {
     let (service, storage, _temp_dir) = create_test_buck_service_with_db().await;
@@ -1338,12 +1376,8 @@ async fn test_complete_upload_missing_blob_id() {
         .await
         .unwrap();
 
-    let payload = CompletePayload {
-        commit_message: None,
-    };
-
     let result = service
-        .complete_upload("test_user", session_id, payload, None)
+        .complete_upload("test_user", session_id, CompletePayload {}, None)
         .await;
 
     assert!(result.is_err(), "Missing blob_id should fail");
@@ -1355,7 +1389,6 @@ async fn test_complete_upload_missing_blob_id() {
 }
 
 #[tokio::test]
-#[ignore] // TODO: Re-enable after database migration issues are resolved
 #[serial]
 async fn test_complete_upload_idempotency() {
     let (service, storage, _temp_dir) = create_test_buck_service_with_db().await;
@@ -1402,7 +1435,7 @@ async fn test_complete_upload_idempotency() {
 
     storage
         .buck_storage()
-        .update_session_status_with_pool(session_id, session_status::UPLOADING, None)
+        .update_session_status_with_pool(session_id, session_status::UPLOADING, Some("Test commit"))
         .await
         .unwrap();
 
@@ -1410,16 +1443,12 @@ async fn test_complete_upload_idempotency() {
     let tree_hash = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
     let artifacts = create_test_commit_artifacts(commit_id, tree_hash, "/test/repo");
 
-    let payload = CompletePayload {
-        commit_message: Some("Test commit".to_string()),
-    };
-
     // First complete
     let result1 = service
         .complete_upload(
             "test_user",
             session_id,
-            payload.clone(),
+            CompletePayload {},
             Some(artifacts.clone()),
         )
         .await;
@@ -1428,13 +1457,13 @@ async fn test_complete_upload_idempotency() {
     // Reset session status to allow retry
     storage
         .buck_storage()
-        .update_session_status_with_pool(session_id, session_status::UPLOADING, None)
+        .update_session_status_with_pool(session_id, session_status::UPLOADING, Some("Test commit"))
         .await
         .unwrap();
 
     // Second complete (idempotency - should succeed due to ON CONFLICT DO NOTHING)
     let result2 = service
-        .complete_upload("test_user", session_id, payload, Some(artifacts))
+        .complete_upload("test_user", session_id, CompletePayload {}, Some(artifacts))
         .await;
     assert!(result2.is_ok(), "Idempotent complete should succeed");
 }

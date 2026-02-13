@@ -144,11 +144,10 @@ pub struct FileUploadResponse {
 }
 
 /// Request payload for completing upload
+///
+/// Empty payload - commit_message is set exclusively in Manifest phase
 #[derive(Debug, Deserialize, ToSchema)]
-pub struct CompletePayload {
-    /// Optional commit message (overrides manifest message)
-    pub commit_message: Option<String>,
-}
+pub struct CompletePayload {}
 
 /// Response for upload completion
 ///

@@ -11,7 +11,9 @@ use common::{
     config::BuckConfig,
     errors::{BuckError, MegaError},
 };
+use hex;
 use sea_orm::TransactionTrait;
+use sha1::{Digest, Sha1};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 use crate::{
@@ -93,10 +95,10 @@ pub struct FileUploadResponse {
 }
 
 /// Complete upload payload.
+///
+/// Empty payload - commit_message is set exclusively in Manifest phase
 #[derive(Debug, Clone)]
-pub struct CompletePayload {
-    pub commit_message: Option<String>,
-}
+pub struct CompletePayload {}
 
 /// Complete upload response.
 #[derive(Debug, Clone)]
@@ -492,6 +494,9 @@ impl BuckService {
 
     /// Parse hash string by stripping the "sha1:" prefix if present.
     ///
+    /// Validates that the hash is exactly 40 lowercase hexadecimal characters,
+    /// consistent with validate_manifest_entry() validation.
+    ///
     /// # Arguments
     /// * `hash` - Hash string that may or may not have "sha1:" prefix
     ///
@@ -505,6 +510,18 @@ impl BuckService {
             return Err(BuckError::ValidationError(format!(
                 "Invalid ObjectHash length: expected 40, got {}",
                 hash_str.len()
+            ))
+            .into());
+        }
+
+        // Validate hex format and lowercase
+        if !hash_str
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_uppercase())
+        {
+            return Err(BuckError::ValidationError(format!(
+                "Invalid hash format (must be 40 lowercase hex chars): {}",
+                hash_str
             ))
             .into());
         }
@@ -562,7 +579,8 @@ impl BuckService {
     /// * `username` - User processing the manifest
     /// * `session_id` - Session ID
     /// * `payload` - Manifest payload containing files to process
-    /// * `existing_file_hashes` - Map of existing file paths to their blob hashes
+    /// * `existing_file_hashes` - Map of existing file paths to their raw content hashes (for comparison)
+    /// * `existing_blob_ids` - Map of existing file paths to their Git blob hashes (for storage)
     ///
     /// # Returns
     /// Returns `ManifestResponse` with analysis results
@@ -572,6 +590,7 @@ impl BuckService {
         cl_link: &str,
         payload: ManifestPayload,
         existing_file_hashes: HashMap<PathBuf, String>,
+        existing_blob_ids: HashMap<PathBuf, String>,
     ) -> Result<ManifestResponse, MegaError> {
         // Basic validation
         if payload.files.is_empty() {
@@ -660,11 +679,12 @@ impl BuckService {
                         )
                     } else {
                         files_unchanged += 1;
-                        (
-                            upload_status::SKIPPED.to_string(),
-                            None,
-                            Some(format!("sha1:{}", normalized_old_hash)),
-                        )
+                        // For unchanged files, use Git blob hash (not content hash) for blob_id
+                        // blob_id is used later in complete_upload to build Git tree
+                        let blob_id = existing_blob_ids
+                            .get(&path_buf)
+                            .map(|blob_hash| format!("sha1:{}", blob_hash));
+                        (upload_status::SKIPPED.to_string(), None, blob_id)
                     }
                 }
             };
@@ -757,16 +777,18 @@ impl BuckService {
             .into());
         }
 
-        // Write blob to storage
-        let blob_hash = self.git_service.save_object_from_raw(file_content).await?;
+        // Compute SHA-1 hash of raw content
+        let mut hasher = Sha1::new();
+        hasher.update(&file_content);
+        let content_hash = hex::encode(hasher.finalize());
 
-        // Optional hash verification
+        // Optional hash verification using raw content hash
         let verified = if let Some(expected_hash) = file_hash {
             let normalized_expected = self.parse_hash(expected_hash)?;
-            if normalized_expected != blob_hash {
+            if normalized_expected != content_hash {
                 return Err(BuckError::HashMismatch {
                     expected: normalized_expected,
-                    actual: blob_hash,
+                    actual: content_hash,
                 }
                 .into());
             }
@@ -774,15 +796,18 @@ impl BuckService {
         } else {
             // Normalize the hash from manifest (may have "sha1:" prefix)
             let normalized_record = self.parse_hash(&pending.file_hash)?;
-            if normalized_record != blob_hash {
+            if normalized_record != content_hash {
                 return Err(BuckError::HashMismatch {
                     expected: normalized_record,
-                    actual: blob_hash,
+                    actual: content_hash,
                 }
                 .into());
             }
             Some(true)
         };
+
+        // Write blob to storage (after hash verification passes)
+        let blob_hash = self.git_service.save_object_from_raw(file_content).await?;
         let rows = self
             .buck_storage
             .mark_file_uploaded(cl_link, file_path, &blob_hash)
@@ -816,10 +841,14 @@ impl BuckService {
     /// Validates all files are uploaded, then persists commit artifacts (trees, commit,
     /// CL refs, and CL record) within a database transaction. Updates session status to COMPLETED.
     ///
+    /// Commit message is read from `session.commit_message` which is set during Manifest phase.
+    /// The payload is intentionally unused (empty struct).
+    ///
     /// # Arguments
     /// * `username` - User completing the upload
     /// * `cl_link` - CL link (8-character alphanumeric identifier)
-    /// * `payload` - Complete payload containing an optional commit message
+    /// * `_payload` - Empty payload (unused). Commit message is read from session.commit_message
+    ///   which is set during Manifest phase via `update_session_status_with_pool`.
     /// * `commit_artifacts` - Optional commit artifacts from MonoApiService (Git build in ceres)
     ///
     /// # Returns
@@ -828,7 +857,7 @@ impl BuckService {
         &self,
         username: &str,
         cl_link: &str,
-        payload: CompletePayload,
+        _payload: CompletePayload,
         commit_artifacts: Option<CommitArtifacts>,
     ) -> Result<CompleteResponse, MegaError> {
         // Validate session status
@@ -867,6 +896,12 @@ impl BuckService {
             session.from_hash.clone().unwrap_or_default()
         };
 
+        // Use commit_message from session
+        let commit_message = session
+            .commit_message
+            .as_deref()
+            .unwrap_or("Upload via buck push");
+
         // Persist within transaction
         let db = self.mono_storage.get_connection();
         let txn = db.begin().await?;
@@ -901,22 +936,14 @@ impl BuckService {
                     cl_link,
                     session.from_hash.as_deref().unwrap_or_default(),
                     &artifacts.commit_id,
-                    payload
-                        .commit_message
-                        .as_deref()
-                        .unwrap_or("Upload via buck push"),
+                    commit_message,
                 )
                 .await?;
         }
 
         // Update session status to completed
         self.buck_storage
-            .update_session_status(
-                &txn,
-                cl_link,
-                session_status::COMPLETED,
-                payload.commit_message.as_deref(),
-            )
+            .update_session_status(&txn, cl_link, session_status::COMPLETED, None)
             .await?;
 
         txn.commit().await?;
@@ -1256,5 +1283,26 @@ mod tests {
         let service = create_test_service();
         let result = service.parse_hash("sha1:abc123");
         assert!(result.is_err(), "Should reject hash with wrong length");
+    }
+
+    #[test]
+    fn test_parse_hash_rejects_uppercase() {
+        let service = create_test_service();
+        let result = service.parse_hash("sha1:A94A8FE5CCB19BA61C4C0873D391E987982FBBD3");
+        assert!(result.is_err(), "Should reject uppercase hash");
+    }
+
+    #[test]
+    fn test_parse_hash_rejects_non_hex() {
+        let service = create_test_service();
+        let result = service.parse_hash("sha1:zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz");
+        assert!(result.is_err(), "Should reject non-hex characters");
+    }
+
+    #[test]
+    fn test_parse_hash_rejects_mixed_case() {
+        let service = create_test_service();
+        let result = service.parse_hash("sha1:a94A8fe5ccb19ba61c4c0873d391e987982fbbd3");
+        assert!(result.is_err(), "Should reject mixed case hash");
     }
 }

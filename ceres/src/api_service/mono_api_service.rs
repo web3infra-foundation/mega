@@ -2571,17 +2571,20 @@ impl MonoApiService {
             .map(|f| PathBuf::from(&f.path))
             .collect();
 
-        let existing_file_hashes = crate::api_service::blob_ops::get_files_blob_ids(
-            self,
-            &manifest_paths,
-            session.from_hash.as_deref(),
-        )
-        .await
-        .map_err(MegaError::Git)?;
+        // Get content hashes (raw SHA-1) and blob IDs
+        let (existing_file_hashes, existing_blob_ids_map) =
+            crate::api_service::blob_ops::get_files_content_hashes_with_blob_ids(
+                self,
+                &manifest_paths,
+                session.from_hash.as_deref(),
+            )
+            .await
+            .map_err(MegaError::Git)?;
 
-        let existing_file_hashes: HashMap<PathBuf, String> = existing_file_hashes
+        // Convert ObjectHash to String for storage
+        let existing_blob_ids: HashMap<PathBuf, String> = existing_blob_ids_map
             .into_iter()
-            .map(|(path, sha1)| (path, sha1.to_string()))
+            .map(|(path, blob_hash)| (path, blob_hash.to_string()))
             .collect();
 
         // Convert payload to service layer type
@@ -2601,7 +2604,13 @@ impl MonoApiService {
         let svc_resp = self
             .storage
             .buck_service
-            .process_manifest(username, cl_link, service_payload, existing_file_hashes)
+            .process_manifest(
+                username,
+                cl_link,
+                service_payload,
+                existing_file_hashes,
+                existing_blob_ids,
+            )
             .await?;
 
         // Convert back to API layer response
@@ -2625,10 +2634,14 @@ impl MonoApiService {
 
     /// Complete buck upload.
     ///
+    /// Commit message is read from session.commit_message which is set during Manifest phase.
+    /// The payload is intentionally unused (empty struct).
+    ///
     /// # Arguments
     /// * `username` - User completing the upload
     /// * `cl_link` - CL link
-    /// * `payload` - Complete payload containing an optional commit message
+    /// * `_payload` - Empty payload (unused). Commit message is read from session.commit_message
+    ///   which is set during Manifest phase.
     ///
     /// # Returns
     /// Returns `CompleteResponse` on success
@@ -2636,7 +2649,7 @@ impl MonoApiService {
         &self,
         username: &str,
         cl_link: &str,
-        payload: CompletePayload,
+        _payload: CompletePayload,
     ) -> Result<CompleteResponse, MegaError> {
         let session = self
             .storage
@@ -2703,10 +2716,10 @@ impl MonoApiService {
             })
             .collect();
 
-        let commit_message = payload
+        // Use commit_message from session
+        let commit_message = session
             .commit_message
             .clone()
-            .or(session.commit_message.clone())
             .unwrap_or_else(|| "Upload via buck push".to_string());
 
         let commit_result = if file_changes.is_empty() {
@@ -2743,14 +2756,7 @@ impl MonoApiService {
         let svc_resp: SvcCompleteResponse = self
             .storage
             .buck_service
-            .complete_upload(
-                username,
-                cl_link,
-                SvcCompletePayload {
-                    commit_message: payload.commit_message.clone(),
-                },
-                artifacts,
-            )
+            .complete_upload(username, cl_link, SvcCompletePayload {}, artifacts)
             .await?;
 
         // Calculate uploaded files count
