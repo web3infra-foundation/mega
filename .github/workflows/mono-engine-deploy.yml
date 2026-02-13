@@ -130,7 +130,7 @@ jobs:
             "$IMAGE_BASE:${{ env.IMAGE_TAG_BASE }}-arm64"
           docker manifest push "$IMAGE_BASE:${{ env.IMAGE_TAG_BASE }}"
 
-  deploy:
+  deploy-aws:
     needs: manifest
     if: ${{ github.repository == 'web3infra-foundation/mega' }}
     runs-on: ubuntu-latest
@@ -154,3 +154,33 @@ jobs:
           AWS_REGION: ap-southeast-2
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+  deploy-gcp:
+    needs: manifest
+    # if: ${{ github.repository == 'web3infra-foundation/mega' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Auth to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Deploy to Cloud Run (force new revision)
+        env:
+          REGION: asia-east1
+          SERVICE_NAME: buck2hub-mono
+        run: |
+          set -euo pipefail
+
+          IMAGE=$(gcloud run services describe $SERVICE_NAME \
+            --project "$GCP_PROJECT_ID" \
+            --region "$REGION" \
+            --format="value(spec.template.spec.containers[0].image)")
+
+          echo "Current image: $IMAGE"
+
+          gcloud run deploy $SERVICE_NAME \
+            --image "$IMAGE" \
+            --region "$REGION" \
+            --project "$GCP_PROJECT_ID" \
+            --quiet
