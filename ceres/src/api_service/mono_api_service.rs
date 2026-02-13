@@ -423,7 +423,8 @@ impl ApiHandler for MonoApiService {
             .unwrap_or("Anonymous".to_string());
 
         self.storage
-            .mono_storage()
+            .mono_service
+            .mono_storage
             .save_mega_commits(vec![dst_commit], None)
             .await?;
 
@@ -437,7 +438,8 @@ impl ApiHandler for MonoApiService {
             .collect();
 
         self.storage
-            .mono_storage()
+            .mono_service
+            .mono_storage
             .batch_save_model(save_trees)
             .await
             .map_err(|e| GitError::CustomError(e.to_string()))?;
