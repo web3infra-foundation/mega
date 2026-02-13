@@ -86,4 +86,12 @@ impl VaultStorage {
             ))),
         }
     }
+
+    pub async fn delete_all(&self) -> Result<(), MegaError> {
+        Entity::delete_many()
+            .exec(self.get_connection())
+            .await
+            .map_err(|e| MegaError::Other(format!("Failed to delete all vault entries: {}", e)))?;
+        Ok(())
+    }
 }
