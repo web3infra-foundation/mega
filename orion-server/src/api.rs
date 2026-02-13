@@ -120,8 +120,8 @@ pub fn routers() -> Router<AppState> {
         .route("/v2/health", get(health_check_handler))
         .route("/v2/task-retry/{id}", post(task_retry_handler))
         .route("/v2/task/{cl}", get(task_get_handler))
-        .route("/v2/build-event/{task-id}", get(build_event_get_handler))
-        .route("/v2/target/{task-id}", get(target_get_handler))
+        .route("/v2/build-event/{task_id}", get(build_event_get_handler))
+        .route("/v2/target/{task_id}", get(target_get_handler))
 }
 
 /// Start queue management background task (event-driven + periodic cleanup)
@@ -1922,10 +1922,7 @@ pub async fn task_retry_handler(
     let result_message = MessageResponse {
         message: "todo".to_string(),
     };
-    (
-        StatusCode::NOT_IMPLEMENTED,
-        serde_json::to_string(&result_message).unwrap(),
-    )
+    (StatusCode::NOT_IMPLEMENTED, Json(result_message))
 }
 
 #[utoipa::path(
@@ -1949,7 +1946,7 @@ pub async fn task_get_handler(
 
 #[utoipa::path(
     get,
-    path = "/v2/build-event/{task-id}",
+    path = "/v2/build-event/{task_id}",
     params(("task-id" = String, Path, description = "Task ID")),
     responses(
         (status = 200, description = "Get build event successfully", body = BuildEventDTO),
@@ -1968,7 +1965,7 @@ pub async fn build_event_get_handler(
 
 #[utoipa::path(
     get,
-    path = "/v2/target/{task-id}",
+    path = "/v2/target/{task_id}",
     params(("task-id" = String, Path, description = "Task ID")),
     responses(
         (status = 200, description = "Get target successfully", body = BuildTargetDTO),
