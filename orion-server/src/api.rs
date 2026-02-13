@@ -120,8 +120,8 @@ pub fn routers() -> Router<AppState> {
         .route("/v2/health", get(health_check_handler))
         .route("/v2/task-retry/{id}", post(task_retry_handler))
         .route("/v2/task/{cl}", get(task_get_handler))
-        .route("/v2/build-event/{task-id}", get(build_event_get_handler))
-        .route("/v2/target/{task-id}", get(target_get_handler))
+        .route("/v2/build-event/{task_id}", get(build_event_get_handler))
+        .route("/v2/target/{task_id}", get(target_get_handler))
 }
 
 /// Start queue management background task (event-driven + periodic cleanup)
@@ -1910,7 +1910,7 @@ pub struct BuildTargetDTO {
     path = "/v2/task-retry/{id}",
     params(("id" = String, description = "Task ID to retry task")),
     responses(
-        (status = 200, description = "Inserted queque the task", body = MessageResponse),
+        (status = 200, description = "Task queued for retry", body = MessageResponse),
         (status = 400, description = "ID format error", body = MessageResponse),
         (status = 404, description = "Not found this task ID", body = MessageResponse),
     )
@@ -1922,16 +1922,13 @@ pub async fn task_retry_handler(
     let result_message = MessageResponse {
         message: "todo".to_string(),
     };
-    (
-        StatusCode::BAD_REQUEST,
-        serde_json::to_string(&result_message).unwrap(),
-    )
+    (StatusCode::NOT_IMPLEMENTED, Json(result_message))
 }
 
 #[utoipa::path(
     get,
-    path = "v2/task/{cl}",
-    params(("cl" = String, Path, description = "cl")),
+    path = "/v2/task/{cl}",
+    params(("cl" = String, Path, description = "Change List")),
     responses(
         (status = 200, description = "Get task successfully", body = OrionTaskDTO),
         (status = 404, description = "Not found task", body = MessageResponse),
@@ -1944,15 +1941,12 @@ pub async fn task_get_handler(
     let result_message = MessageResponse {
         message: "todo".to_string(),
     };
-    (
-        StatusCode::NOT_IMPLEMENTED,
-        serde_json::to_string(&result_message).unwrap(),
-    )
+    (StatusCode::NOT_IMPLEMENTED, Json(result_message))
 }
 
 #[utoipa::path(
     get,
-    path = "v2/build-event/{task-id}",
+    path = "/v2/build-event/{task_id}",
     params(("task-id" = String, Path, description = "Task ID")),
     responses(
         (status = 200, description = "Get build event successfully", body = BuildEventDTO),
@@ -1961,20 +1955,17 @@ pub async fn task_get_handler(
 )]
 pub async fn build_event_get_handler(
     State(_state): State<AppState>,
-    Path(_cl): Path<String>,
+    Path(_task_id): Path<String>,
 ) -> impl IntoResponse {
     let result_message = MessageResponse {
         message: "todo".to_string(),
     };
-    (
-        StatusCode::NOT_IMPLEMENTED,
-        serde_json::to_string(&result_message).unwrap(),
-    )
+    (StatusCode::NOT_IMPLEMENTED, Json(result_message))
 }
 
 #[utoipa::path(
     get,
-    path = "v2/target/{task-id}",
+    path = "/v2/target/{task_id}",
     params(("task-id" = String, Path, description = "Task ID")),
     responses(
         (status = 200, description = "Get target successfully", body = BuildTargetDTO),
@@ -1988,10 +1979,7 @@ pub async fn target_get_handler(
     let result_message = MessageResponse {
         message: "todo".to_string(),
     };
-    (
-        StatusCode::NOT_IMPLEMENTED,
-        serde_json::to_string(&result_message).unwrap(),
-    )
+    (StatusCode::NOT_IMPLEMENTED, Json(result_message))
 }
 
 #[cfg(test)]
