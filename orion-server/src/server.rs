@@ -43,7 +43,11 @@ use crate::{
         api::get_orion_clients_info,
         api::get_orion_client_status_by_id,
         api::build_retry_handler,
-        api::health_check_handler
+        api::health_check_handler,
+        api::task_retry_handler,
+        api::task_get_handler,
+        api::build_event_get_handler,
+        api::target_get_handler,
     ),
     components(
         schemas(
@@ -64,7 +68,11 @@ use crate::{
             api::CoreWorkerStatus,
             api::OrionClientQuery,
             crate::model::targets::TargetState,
-            TaskPhase
+            TaskPhase,
+            api::MessageResponse,
+            api::BuildEventDTO,
+            api::OrionTaskDTO,
+            api::BuildTargetDTO,
         )
     ),
     tags(
