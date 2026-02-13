@@ -15,24 +15,17 @@ pub struct OneditFormator;
 impl model::ConversationMessageFormater for OneditFormator {
     fn format(
         &self,
-        cl: &mega_cl::Model,
+        _: &mega_cl::Model,
         from_hash: &str,
         to_hash: &str,
         username: &str,
     ) -> String {
-        let old_hash = &cl.to_hash[..6];
+        let old_hash = &from_hash[..6];
         let new_hash = &to_hash[..6];
-        if cl.from_hash == from_hash {
-            format!(
-                "{} updated the change_list automatic from {} to {}",
-                username, old_hash, new_hash
-            )
-        } else {
-            format!(
-                "{} edited the change_list automatic from {} to {}.",
-                username, old_hash, new_hash
-            )
-        }
+        format!(
+            "{} edited the change_list automatic from {} to {}.",
+            username, old_hash, new_hash
+        )
     }
 }
 

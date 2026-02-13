@@ -294,6 +294,15 @@ impl<
             )
             .await?;
         self.assign_reviewer(storage, &cl).await?;
+        storage
+            .conversation_storage()
+            .add_conversation(
+                &cl.link,
+                username,
+                Some(self.formator.format(&cl, from_hash, to_hash, username)),
+                ConvTypeEnum::Comment,
+            )
+            .await?;
         Ok(cl)
     }
 
