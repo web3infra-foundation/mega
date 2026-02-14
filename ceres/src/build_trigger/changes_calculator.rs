@@ -3,13 +3,14 @@ use std::{
     sync::Arc,
 };
 
+pub use api_model::buck2::{status::Status, types::ProjectRelativePath};
 use common::errors::MegaError;
 use git_internal::hash::ObjectHash;
 use jupiter::storage::Storage;
 
 use crate::{
     api_service::{cache::GitObjectCache, mono_api_service::MonoApiService},
-    build_trigger::{SerializableBuildInfo, SerializableStatus, TriggerContext},
+    build_trigger::TriggerContext,
     model::change_list::{ClDiffFile, ClFilesRes},
 };
 
@@ -29,21 +30,21 @@ impl ChangesCalculator {
     pub async fn get_builds_for_commit(
         &self,
         context: &TriggerContext,
-    ) -> Result<Vec<SerializableBuildInfo>, MegaError> {
+    ) -> Result<Vec<Status<ProjectRelativePath>>, MegaError> {
         let old_files = self.get_commit_blobs(&context.from_hash).await?;
         let new_files = self.get_commit_blobs(&context.commit_hash).await?;
         let diff_files = self.cl_files_list(old_files, new_files).await?;
 
         let changes = self.build_changes(&context.repo_path, diff_files)?;
 
-        Ok(vec![SerializableBuildInfo { changes }])
+        Ok(changes)
     }
 
     fn build_changes(
         &self,
         cl_path: &str,
         cl_diff_files: Vec<ClDiffFile>,
-    ) -> Result<Vec<SerializableStatus>, MegaError> {
+    ) -> Result<Vec<Status<ProjectRelativePath>>, MegaError> {
         let cl_base = PathBuf::from(cl_path);
         let path_str = cl_base.to_str().ok_or_else(|| {
             MegaError::Other(format!("CL base path is not valid UTF-8: {:?}", cl_base))
@@ -73,11 +74,11 @@ impl ChangesCalculator {
                     .to_string();
 
                 let status = if s.action == "new" {
-                    SerializableStatus::Added(rel)
+                    Status::Added(ProjectRelativePath::new(&rel))
                 } else if s.action == "deleted" {
-                    SerializableStatus::Removed(rel)
+                    Status::Removed(ProjectRelativePath::new(&rel))
                 } else if s.action == "modified" {
-                    SerializableStatus::Modified(rel)
+                    Status::Modified(ProjectRelativePath::new(&rel))
                 } else {
                     return Err(MegaError::Other(format!(
                         "Unsupported change action: {}",

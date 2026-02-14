@@ -8,6 +8,7 @@ name = "bellatrix"
 path = "src/lib.rs"
 
 [dependencies]
+api-model = { workspace = true }
 common = { workspace = true }
 reqwest = { workspace = true, features = ["json"]}
 anyhow = { workspace = true }

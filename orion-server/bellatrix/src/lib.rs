@@ -1,8 +1,9 @@
 pub mod orion_client;
 
+use api_model::buck2::api::TaskBuildRequest;
 use common::config::BuildConfig;
 
-use crate::orion_client::{OrionBuildRequest, OrionClient};
+use crate::orion_client::OrionClient;
 
 #[derive(Clone)]
 pub struct Bellatrix {
@@ -23,7 +24,7 @@ impl Bellatrix {
         self.build_config.enable_build
     }
 
-    pub async fn on_post_receive(&self, req: OrionBuildRequest) -> anyhow::Result<String> {
+    pub async fn on_post_receive(&self, req: TaskBuildRequest) -> anyhow::Result<String> {
         let task_id = self.orion.trigger_build(req).await?;
         Ok(task_id)
     }

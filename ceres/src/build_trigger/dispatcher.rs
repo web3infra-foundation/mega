@@ -1,13 +1,11 @@
 use std::sync::Arc;
 
-use bellatrix::{
-    Bellatrix,
-    orion_client::{BuildInfo, OrionBuildRequest},
-};
+use api_model::buck2::{api::TaskBuildRequest, status::Status, types::ProjectRelativePath};
+use bellatrix::Bellatrix;
 use common::errors::MegaError;
 use jupiter::storage::Storage;
 
-use crate::build_trigger::{BuildTrigger, BuildTriggerPayload, SerializableBuildInfo};
+use crate::build_trigger::{BuildTrigger, BuildTriggerPayload};
 
 /// Handles dispatching build triggers to the build execution layer (Bellatrix/Orion).
 pub struct BuildDispatcher {
@@ -39,24 +37,18 @@ impl BuildDispatcher {
                 BuildTriggerPayload::BuckFileUpload(p) => (&p.cl_link, &p.repo, &p.builds, p.cl_id),
             };
 
-            let builds: Vec<SerializableBuildInfo> = serde_json::from_value(builds_json.clone())
-                .map_err(|e| {
+            let changes: Vec<Status<ProjectRelativePath>> =
+                serde_json::from_value(builds_json.clone()).map_err(|e| {
                     tracing::error!("Failed to deserialize builds from payload: {}", e);
                     MegaError::Other(format!("Failed to deserialize builds from payload: {}", e))
                 })?;
 
-            let bellatrix_builds: Vec<BuildInfo> = builds
-                .into_iter()
-                .map(|info| BuildInfo {
-                    changes: info.changes.into_iter().map(|s| s.into()).collect(),
-                })
-                .collect();
-
-            let req = OrionBuildRequest {
+            let req = TaskBuildRequest {
+                repo: repo.to_string(),
                 cl_link: cl_link.to_string(),
-                mount_path: repo.to_string(),
-                cl: cl_id.unwrap_or(0),
-                builds: bellatrix_builds,
+                cl_id: cl_id.unwrap_or(0),
+                changes,
+                targets: None,
             };
 
             let task_id_str = self.bellatrix.on_post_receive(req).await.map_err(|e| {
