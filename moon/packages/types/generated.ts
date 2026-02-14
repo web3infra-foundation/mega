@@ -3544,6 +3544,7 @@ export type CommonResultDiffItemSchema = {
 export type CommonResultEditFileResult = {
   /** Response body after saving an edited file */
   data?: {
+    cl_link?: string | null
     /** New commit id created by this save */
     commit_id: string
     /** New blob oid of the saved file */
@@ -3980,11 +3981,12 @@ export type CommonResultBool = {
   req_result: boolean
 }
 
-/** Request payload for completing upload */
-export type CompletePayload = {
-  /** Optional commit message (overrides manifest message) */
-  commit_message?: string | null
-}
+/**
+ * Request payload for completing upload
+ *
+ * Empty payload - commit_message is set exclusively in Manifest phase
+ */
+export type CompletePayload = object
 
 /**
  * Response for upload completion
@@ -4154,6 +4156,14 @@ export enum DiffSide {
   Additions = 'Additions'
 }
 
+/** force create new cl */
+export type EditCLMode =
+  | 'force_create'
+  | {
+      /** try to reuse old cl, if none, will search existing open cl, and create new cl if not found */
+      try_reuse: string | null
+    }
+
 /** Request body for saving an edited file with conflict detection. */
 export type EditFilePayload = {
   /** author email to bind this commit to a user */
@@ -4164,12 +4174,17 @@ export type EditFilePayload = {
   commit_message: string
   /** New file content to save */
   content: string
+  /** force create new cl */
+  mode?: EditCLMode
   /** Full file path like "/project/dir/file.rs" */
   path: string
+  /** if true, skip build */
+  skip_build?: boolean
 }
 
 /** Response body after saving an edited file */
 export type EditFileResult = {
+  cl_link?: string | null
   /** New commit id created by this save */
   commit_id: string
   /** New blob oid of the saved file */
@@ -4983,11 +4998,31 @@ export type BuildDTO = {
   task_id: string
 }
 
+export type BuildEventDTO = {
+  end_at?: string | null
+  /** @format int32 */
+  exit_code?: number | null
+  id: string
+  log?: string | null
+  log_output_file: string
+  /** @format int32 */
+  retry_count: number
+  start_at: string
+  task_id: string
+}
+
 /** Request payload for creating a new build task */
 export type BuildRequest = {
   changes: StatusProjectRelativePath[]
   /** Buck2 target path (e.g. //app:server). Optional for backward compatibility. */
   target?: string | null
+}
+
+export type BuildTargetDTO = {
+  id: string
+  path: string
+  target_state: string
+  task_id: string
 }
 
 export type CommonPageOrionClientInfo = {
@@ -5032,6 +5067,10 @@ export enum LogReadMode {
   Segment = 'segment'
 }
 
+export type MessageResponse = {
+  message: string
+}
+
 export type OrionClientInfo = {
   client_id: string
   hostname: string
@@ -5061,6 +5100,14 @@ export type OrionClientStatus = {
   phase?: null | TaskPhase
 }
 
+export type OrionTaskDTO = {
+  changes: string
+  cl: string
+  created_at: string
+  id: string
+  repo_name: string
+}
+
 export type PageParamsOrionClientQuery = {
   /**
    * Additional query parameters for querying Orion clients.
@@ -5076,12 +5123,12 @@ export type PageParamsOrionClientQuery = {
 
 /** Request structure for Retry a build */
 export type RetryBuildRequest = {
-  /** Request payload for creating a new build task */
-  build: BuildRequest
   build_id: string
+  changes: StatusProjectRelativePath[]
   /** @format int64 */
-  cl: number
+  cl_id: number
   cl_link: string
+  targets?: any[] | null
 }
 
 export type StatusProjectRelativePath =
@@ -5105,6 +5152,7 @@ export type TargetLogLinesResponse = {
 
 /** Query parameters for target log APIs. */
 export type TargetLogQuery = {
+  build_id?: string | null
   /** @min 0 */
   limit?: number | null
   /** @min 0 */
@@ -5121,6 +5169,36 @@ export enum TargetState {
   Interrupted = 'Interrupted'
 }
 
+/** Target summary counts for a task. */
+export type TargetSummaryDTO = {
+  /**
+   * @format int64
+   * @min 0
+   */
+  building: number
+  /**
+   * @format int64
+   * @min 0
+   */
+  completed: number
+  /**
+   * @format int64
+   * @min 0
+   */
+  failed: number
+  /**
+   * @format int64
+   * @min 0
+   */
+  interrupted: number
+  /**
+   * @format int64
+   * @min 0
+   */
+  pending: number
+  task_id: string
+}
+
 /** Target DTO with a generic builds payload. */
 export type TargetWithBuilds = {
   builds: BuildDTO[]
@@ -5130,6 +5208,20 @@ export type TargetWithBuilds = {
   start_at?: string | null
   state: TargetState
   target_path: string
+}
+
+/** Parameters required to build a task. */
+export type TaskBuildRequest = {
+  /** The list of file diff changes */
+  changes: StatusProjectRelativePath[]
+  /** @format int64 */
+  cl_id: number
+  /** The change list link (URL) */
+  cl_link: string
+  /** The repository base path */
+  repo: string
+  /** Buck2 target path (e.g. //app:server). Optional for backward compatibility. */
+  targets?: any[] | null
 }
 
 /** Query parameters for task history log APIs. */
@@ -5159,15 +5251,6 @@ export type TaskInfoDTO = {
 export enum TaskPhase {
   DownloadingSource = 'DownloadingSource',
   RunningBuild = 'RunningBuild'
-}
-
-/** Request structure for creating a task */
-export type TaskRequest = {
-  builds: BuildRequest[]
-  /** @format int64 */
-  cl: number
-  cl_link: string
-  repo: string
 }
 
 /** Enumeration of possible task statuses */
@@ -6341,6 +6424,8 @@ export type GetApiBlobData = CommonResultString
 
 export type PostApiBuckSessionStartData = CommonResultSessionResponse
 
+export type PostApiBuckSessionCompletePayload = null | CompletePayload
+
 export type PostApiBuckSessionCompleteData = CommonResultCompleteResponse
 
 export type PostApiBuckSessionFileData = CommonResultFileUploadResponse
@@ -6623,6 +6708,8 @@ export type PostRetryBuildData = any
 export type GetTargetsLogsParams = {
   /** full | segment */
   type: string
+  /** Optional build ID to read logs from */
+  build_id?: string
   /**
    * Start line number for segment mode
    * @min 0
@@ -6674,7 +6761,25 @@ export type GetTasksByClData = TaskInfoDTO[]
 
 export type GetTasksTargetsData = TaskInfoDTO
 
+export type GetTasksTargetsSummaryData = TargetSummaryDTO
+
+export type GetBuildEventByTaskIdV2Data = BuildEventDTO
+
+export type GetBuildEventByTaskIdV2Error = MessageResponse
+
 export type GetHealthV2Data = any
+
+export type GetTargetByTaskIdV2Data = BuildTargetDTO
+
+export type GetTargetByTaskIdV2Error = MessageResponse
+
+export type PostTaskRetryByIdV2Data = MessageResponse
+
+export type PostTaskRetryByIdV2Error = MessageResponse
+
+export type GetTaskByClV2Data = OrionTaskDTO
+
+export type GetTaskByClV2Error = MessageResponse
 
 export type QueryParamsType = Record<string | number, any>
 export type ResponseFormat = keyof Omit<Body, 'body' | 'bodyUsed'>
@@ -7023,7 +7128,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
     return {
       baseKey: dataTaggedQueryKey<PostTaskData>([base]),
       requestKey: () => dataTaggedQueryKey<PostTaskData>([base]),
-      request: (data: TaskRequest, params: RequestParams = {}) =>
+      request: (data: TaskBuildRequest, params: RequestParams = {}) =>
         this.request<PostTaskData>({
           path: `/task`,
           method: 'POST',
@@ -15175,7 +15280,7 @@ supporting either retrieving the entire log at once or segmenting it by line cou
     },
 
     /**
-     * @description Complete the upload session, create Git commit, and activate CL. Returns immediately - CI build is triggered asynchronously.
+     * @description Complete the upload session, create Git commit, and activate CL. Returns immediately - CI build is triggered asynchronously. Request body is optional. Commit message is read from session.
      *
      * @tags Buck Upload API
      * @name PostApiBuckSessionComplete
@@ -15188,7 +15293,7 @@ supporting either retrieving the entire log at once or segmenting it by line cou
       return {
         baseKey: dataTaggedQueryKey<PostApiBuckSessionCompleteData>([base]),
         requestKey: (clLink: string) => dataTaggedQueryKey<PostApiBuckSessionCompleteData>([base, clLink]),
-        request: (clLink: string, data: CompletePayload, params: RequestParams = {}) =>
+        request: (clLink: string, data: PostApiBuckSessionCompletePayload, params: RequestParams = {}) =>
           this.request<PostApiBuckSessionCompleteData>({
             path: `/api/v1/buck/session/${clLink}/complete`,
             method: 'POST',
@@ -17790,6 +17895,51 @@ Continuously monitors the log file and streams new content as it becomes availab
             ...params
           })
       }
+    },
+
+    /**
+     * No description
+     *
+     * @tags api
+     * @name GetTasksTargetsSummary
+     * @request GET:/tasks/{task_id}/targets/summary
+     */
+    getTasksTargetsSummary: () => {
+      const base = 'GET:/tasks/{task_id}/targets/summary' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetTasksTargetsSummaryData>([base]),
+        requestKey: (taskId: string) => dataTaggedQueryKey<GetTasksTargetsSummaryData>([base, taskId]),
+        request: (taskId: string, params: RequestParams = {}) =>
+          this.request<GetTasksTargetsSummaryData>({
+            path: `/tasks/${taskId}/targets/summary`,
+            method: 'GET',
+            ...params
+          })
+      }
+    }
+  }
+  buildEvent = {
+    /**
+     * No description
+     *
+     * @tags api
+     * @name GetBuildEventByTaskIdV2
+     * @request GET:/v2/build-event/{task_id}
+     */
+    getBuildEventByTaskIdV2: () => {
+      const base = 'GET:/v2/build-event/{task_id}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetBuildEventByTaskIdV2Data>([base]),
+        requestKey: (taskId: string) => dataTaggedQueryKey<GetBuildEventByTaskIdV2Data>([base, taskId]),
+        request: (taskId: string, params: RequestParams = {}) =>
+          this.request<GetBuildEventByTaskIdV2Data>({
+            path: `/v2/build-event/${taskId}`,
+            method: 'GET',
+            ...params
+          })
+      }
     }
   }
   health = {
@@ -17811,6 +17961,75 @@ Returns simple health status based on database connectivity
         request: (params: RequestParams = {}) =>
           this.request<GetHealthV2Data>({
             path: `/v2/health`,
+            method: 'GET',
+            ...params
+          })
+      }
+    }
+  }
+  target = {
+    /**
+     * No description
+     *
+     * @tags api
+     * @name GetTargetByTaskIdV2
+     * @request GET:/v2/target/{task_id}
+     */
+    getTargetByTaskIdV2: () => {
+      const base = 'GET:/v2/target/{task_id}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetTargetByTaskIdV2Data>([base]),
+        requestKey: (taskId: string) => dataTaggedQueryKey<GetTargetByTaskIdV2Data>([base, taskId]),
+        request: (taskId: string, params: RequestParams = {}) =>
+          this.request<GetTargetByTaskIdV2Data>({
+            path: `/v2/target/${taskId}`,
+            method: 'GET',
+            ...params
+          })
+      }
+    }
+  }
+  taskRetry = {
+    /**
+     * No description
+     *
+     * @tags api
+     * @name PostTaskRetryByIdV2
+     * @request POST:/v2/task-retry/{id}
+     */
+    postTaskRetryByIdV2: () => {
+      const base = 'POST:/v2/task-retry/{id}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostTaskRetryByIdV2Data>([base]),
+        requestKey: (id: string) => dataTaggedQueryKey<PostTaskRetryByIdV2Data>([base, id]),
+        request: (id: string, params: RequestParams = {}) =>
+          this.request<PostTaskRetryByIdV2Data>({
+            path: `/v2/task-retry/${id}`,
+            method: 'POST',
+            ...params
+          })
+      }
+    }
+  }
+  task = {
+    /**
+     * No description
+     *
+     * @tags api
+     * @name GetTaskByClV2
+     * @request GET:/v2/task/{cl}
+     */
+    getTaskByClV2: () => {
+      const base = 'GET:/v2/task/{cl}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetTaskByClV2Data>([base]),
+        requestKey: (cl: string) => dataTaggedQueryKey<GetTaskByClV2Data>([base, cl]),
+        request: (cl: string, params: RequestParams = {}) =>
+          this.request<GetTaskByClV2Data>({
+            path: `/v2/task/${cl}`,
             method: 'GET',
             ...params
           })

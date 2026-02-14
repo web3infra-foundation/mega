@@ -8,6 +8,7 @@ import toast from 'react-hot-toast'
 import { Button } from '@gitmono/ui/Button'
 import { Dialog } from '@gitmono/ui/Dialog'
 
+import { usePostClList } from '@/hooks/CL/usePostClList'
 import { useDiffPreview } from '@/hooks/useDiffPreview'
 import { useGetCurrentUser } from '@/hooks/useGetCurrentUser'
 import { useUpdateBlob } from '@/hooks/useUpdateBlob'
@@ -21,13 +22,21 @@ interface BlobEditorProps {
 }
 
 type ViewMode = 'edit' | 'preview'
+type CLModeType = 'force_create' | 'try_reuse'
+
+interface ClList {
+  id: string
+  link: string
+  title: string
+  author: string
+}
 
 export default function BlobEditor({ fileContent, filePath, fileName, onCancel }: BlobEditorProps) {
   const { data: currentUser } = useGetCurrentUser()
 
   const updateBlobMutation = useUpdateBlob()
   const diffPreviewMutation = useDiffPreview()
-
+  const { mutate: fetchClList } = usePostClList()
   const [content, setContent] = useState(fileContent)
 
   const [editedFileName, setEditedFileName] = useState(fileName)
@@ -35,6 +44,11 @@ export default function BlobEditor({ fileContent, filePath, fileName, onCancel }
   const [commitDescription, setCommitDescription] = useState('')
 
   const [viewMode, setViewMode] = useState<ViewMode>('edit')
+
+  const [clOpenList, setClOpenList] = useState<ClList[]>([])
+  const [selectedClMode, setSelectedClMode] = useState<CLModeType>('force_create')
+  const [selectedClLink, setSelectedClLink] = useState<string | null>(null)
+  const [skipBuild, setSkipBuild] = useState(false)
 
   const [diffResult, setDiffResult] = useState<any>(null)
   const [fileDiffMetadata, setFileDiffMetadata] = useState<FileDiffMetadata | null>(null)
@@ -87,7 +101,6 @@ export default function BlobEditor({ fileContent, filePath, fileName, onCancel }
           if (patches.length > 0 && patches[0].files.length > 0) {
             let metadata = patches[0].files[0]
 
-            // 设置文件名和语言
             if (!metadata.name) {
               metadata = { ...metadata, name: editedFileName }
             }
@@ -107,15 +120,49 @@ export default function BlobEditor({ fileContent, filePath, fileName, onCancel }
       return
     }
     setIsCommitDialogOpen(true)
-  }, [hasChanges])
+    setSelectedClMode('force_create')
+    setSelectedClLink(null)
+    setSkipBuild(false)
+
+    fetchClList(
+      {
+        data: {
+          pagination: { page: 1, per_page: 100 },
+          additional: {
+            asc: true,
+            status: 'open'
+          }
+        }
+      },
+      {
+        onSuccess: (response) => {
+          const data = response.data
+          const items = data?.items || []
+
+          setClOpenList(
+            items.map((item: any) => ({
+              id: item.id || '',
+              link: item.link || '',
+              title: item.title || '',
+              author: item.author || ''
+            }))
+          )
+        }
+      }
+    )
+  }, [fetchClList, hasChanges])
 
   const handleSave = useCallback(async () => {
+    const mode = selectedClMode === 'force_create' ? 'force_create' : { try_reuse: selectedClLink }
+
     await updateBlobMutation.mutateAsync({
       path: fullEditedPath,
       content: content,
       commit_message: commitDescription ? `${commitMessage}\n\n${commitDescription}` : commitMessage,
       author_email: currentUser?.email,
-      author_username: currentUser?.username
+      author_username: currentUser?.username,
+      mode: mode,
+      skip_build: skipBuild
     })
 
     setIsCommitDialogOpen(false)
@@ -128,8 +175,21 @@ export default function BlobEditor({ fileContent, filePath, fileName, onCancel }
     commitMessage,
     currentUser?.email,
     currentUser?.username,
+    selectedClMode,
+    selectedClLink,
+    skipBuild,
     onCancel
   ])
+
+  const handleDialogClose = useCallback((open: boolean) => {
+    setIsCommitDialogOpen(open)
+    if (!open) {
+      setSelectedClMode('force_create')
+      setSelectedClLink(null)
+      setSkipBuild(false)
+      setClOpenList([])
+    }
+  }, [])
 
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setContent(e.target.value)
@@ -286,7 +346,7 @@ export default function BlobEditor({ fileContent, filePath, fileName, onCancel }
         </div>
       </div>
 
-      <Dialog.Root open={isCommitDialogOpen} onOpenChange={setIsCommitDialogOpen}>
+      <Dialog.Root open={isCommitDialogOpen} onOpenChange={handleDialogClose}>
         <Dialog.Content>
           <Dialog.CloseButton />
           <Dialog.Header>
@@ -317,15 +377,68 @@ export default function BlobEditor({ fileContent, filePath, fileName, onCancel }
                 disabled={updateBlobMutation.isPending}
               />
             </div>
+
+            <div className='flex flex-col gap-2'>
+              <label className='text-sm font-medium text-gray-700'>Change List Mode *</label>
+              <select
+                value={selectedClMode}
+                onChange={(e) => {
+                  const mode = e.target.value as CLModeType
+
+                  setSelectedClMode(mode)
+                  if (mode === 'force_create') {
+                    setSelectedClLink(null)
+                  }
+                  // 切换到 try_reuse 时不自动选择，保持为 null
+                }}
+                className='w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500'
+                disabled={updateBlobMutation.isPending}
+              >
+                <option value='try_reuse'>Try reuse existing CL</option>
+                <option value='force_create'>Create new CL</option>
+              </select>
+            </div>
+
+            {selectedClMode === 'try_reuse' && (
+              <div className='flex flex-col gap-2'>
+                <label className='text-sm font-medium text-gray-700'>Select Change List</label>
+                <select
+                  value={selectedClLink || ''}
+                  onChange={(e) => setSelectedClLink(e.target.value || null)}
+                  className='w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500'
+                  disabled={updateBlobMutation.isPending}
+                >
+                  <option value=''>Auto select or create new</option>
+                  {clOpenList.map((cl) => (
+                    <option key={cl.link} value={cl.link}>
+                      {cl.link} - {cl.title} ({cl.author})
+                    </option>
+                  ))}
+                </select>
+                <p className='text-xs text-gray-500'>
+                  If no CL is selected, the system will automatically search for an existing open CL or create a new one
+                </p>
+              </div>
+            )}
+
+            <div className='flex items-center gap-2'>
+              <input
+                type='checkbox'
+                id='skipBuild'
+                checked={skipBuild}
+                onChange={(e) => setSkipBuild(e.target.checked)}
+                className='h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500'
+                disabled={updateBlobMutation.isPending}
+              />
+              <label htmlFor='skipBuild' className='text-sm font-medium text-gray-700'>
+                Skip automatic build after commit
+              </label>
+            </div>
           </div>
 
           <Dialog.Footer>
             <Dialog.TrailingActions>
-              <Button
-                variant='flat'
-                onClick={() => setIsCommitDialogOpen(false)}
-                disabled={updateBlobMutation.isPending}
-              >
+              <Button variant='flat' onClick={() => handleDialogClose(false)} disabled={updateBlobMutation.isPending}>
                 Cancel
               </Button>
               <Button onClick={handleSave} disabled={updateBlobMutation.isPending || !commitMessage.trim()}>
