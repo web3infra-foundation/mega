@@ -17,7 +17,6 @@ on:
       - 'scripts/**'
       - 'toolchains/**'
       - '.github/workflows/web-**'
-      - 'extensions/**'
 
 name: Base GitHub Action for Check, Test and Lints
 

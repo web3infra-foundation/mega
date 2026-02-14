@@ -13,9 +13,6 @@ COPY api-model/Cargo.toml api-model/
 COPY ceres/Cargo.toml ceres/
 COPY common/Cargo.toml common/
 COPY context/Cargo.toml context/
-COPY extensions/rag/chat/Cargo.toml extensions/rag/chat/
-COPY extensions/rag/index/Cargo.toml extensions/rag/index/
-COPY extensions/observatory/Cargo.toml extensions/observatory/
 COPY io-orbit/Cargo.toml io-orbit/
 COPY jupiter/Cargo.toml jupiter/
 COPY jupiter/callisto/Cargo.toml jupiter/callisto/

@@ -9,8 +9,6 @@ on:
       - 'moon/**'
       - 'rust/**'
       - 'scripts/**'
-      - 'toolchains/**'
-      - 'extensions/**'
 
 
 concurrency:
