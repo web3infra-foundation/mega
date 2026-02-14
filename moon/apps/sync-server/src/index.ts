@@ -1,15 +1,13 @@
 import { Logger } from '@hocuspocus/extension-logger'
 import { Hocuspocus } from '@hocuspocus/server'
 import * as Sentry from '@sentry/node'
-import * as dotenv from 'dotenv'
 
+import { PORT } from './config'
 import { database, getResource, sendVersionToConnections } from './database'
 import { AuthenticationError, Context } from './types'
 
-dotenv.config()
-
 const server = new Hocuspocus({
-  port: parseInt(process.env.PORT || '9000', 10),
+  port: PORT,
 
   async onAuthenticate(data): Promise<Context> {
     if (!data.token) {
