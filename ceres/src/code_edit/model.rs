@@ -76,14 +76,14 @@ pub(crate) trait TriggerContextBuilder {
         bellatrix: Arc<Bellatrix>,
         cl: &mega_cl::Model,
         username: &str,
-    ) -> Result<Option<i64>, MegaError> {
-        BuildTriggerService::build_by_context(
-            storage,
-            git_cache,
-            bellatrix,
-            self.get_context(cl, username).await?,
-        )
-        .await
+    ) -> Result<(), MegaError> {
+        let cl_model = cl.clone();
+        let username = username.to_string();
+        let context = self.get_context(&cl_model, &username).await?;
+        tokio::spawn(async move {
+            BuildTriggerService::build_by_context(storage, git_cache, bellatrix, context).await
+        });
+        Ok(())
     }
 }
 
@@ -294,6 +294,15 @@ impl<
             )
             .await?;
         self.assign_reviewer(storage, &cl).await?;
+        storage
+            .conversation_storage()
+            .add_conversation(
+                &cl.link,
+                username,
+                Some(self.formator.format(&cl, from_hash, to_hash, username)),
+                ConvTypeEnum::Comment,
+            )
+            .await?;
         Ok(cl)
     }
 
@@ -328,7 +337,7 @@ impl<
         bellatrix: Arc<Bellatrix>,
         cl: &mega_cl::Model,
         username: &str,
-    ) -> Result<Option<i64>, MegaError> {
+    ) -> Result<(), MegaError> {
         self.builder
             .trigger_build(storage, git_cache, bellatrix, cl, username)
             .await
@@ -359,8 +368,7 @@ impl<
         cl: &mega_cl::Model,
         username: &str,
     ) -> Result<(), MegaError> {
-        let _ = self
-            .trigger_build(storage.clone(), git_cache, bellatrix, cl, username)
+        self.trigger_build(storage.clone(), git_cache, bellatrix, cl, username)
             .await?;
         self.trigger_check(storage, username, cl).await?;
         Ok(())

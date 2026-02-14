@@ -4,7 +4,7 @@ use common::{
     utils::{self},
 };
 use git_internal::errors::GitError;
-use jupiter::storage::Storage;
+use jupiter::storage::{Storage, mono_storage::MonoStorage};
 
 use crate::{
     api_service::mono_api_service::MonoApiService, build_trigger::TriggerContext, code_edit::model,
@@ -13,30 +13,19 @@ use crate::{
 
 pub struct OneditFormator;
 impl model::ConversationMessageFormater for OneditFormator {
-    fn format(
-        &self,
-        cl: &mega_cl::Model,
-        from_hash: &str,
-        to_hash: &str,
-        username: &str,
-    ) -> String {
-        let old_hash = &cl.to_hash[..6];
+    fn format(&self, _: &mega_cl::Model, from_hash: &str, to_hash: &str, username: &str) -> String {
+        let old_hash = &from_hash[..6];
         let new_hash = &to_hash[..6];
-        if cl.from_hash == from_hash {
-            format!(
-                "{} updated the change_list automatic from {} to {}",
-                username, old_hash, new_hash
-            )
-        } else {
-            format!(
-                "{} edited the change_list automatic from {} to {}.",
-                username, old_hash, new_hash
-            )
-        }
+        format!(
+            "{} edited the change_list automatic from {} to {}.",
+            username, old_hash, new_hash
+        )
     }
 }
 
-pub struct OneditVisitor {}
+pub struct OneditVisitor {
+    mono_storage: MonoStorage,
+}
 impl model::CLRefUpdateVisitor for OneditVisitor {
     async fn visit(
         &self,
@@ -44,13 +33,15 @@ impl model::CLRefUpdateVisitor for OneditVisitor {
         commit_hash: &str,
         tree_hash: &str,
     ) -> Result<mega_refs::Model, MegaError> {
-        Ok(mega_refs::Model::new(
+        let cl_ref = mega_refs::Model::new(
             &cl.path,
             utils::cl_ref_name(&cl.link),
             commit_hash.to_string(),
             tree_hash.to_string(),
             true,
-        ))
+        );
+        self.mono_storage.save_refs(cl_ref.clone(), None).await?;
+        Ok(cl_ref)
     }
 }
 
@@ -103,12 +94,17 @@ pub(crate) type OneditCodeEdit = model::CodeEditService<
 >;
 
 impl OneditCodeEdit {
-    pub fn from(repo_path: &str, from_hash: &str, handler: &MonoApiService) -> Self {
+    pub fn from(
+        repo_path: &str,
+        from_hash: &str,
+        handler: &MonoApiService,
+        mono_storage: MonoStorage,
+    ) -> Self {
         Self::new(
             repo_path,
             from_hash,
             OneditFormator {},
-            OneditVisitor {},
+            OneditVisitor { mono_storage },
             OneditAcceptor {},
             OneditTrigerBuilder {},
             OneditChecker {},

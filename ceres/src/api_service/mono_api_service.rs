@@ -401,24 +401,55 @@ impl ApiHandler for MonoApiService {
 
         // Create new blob and build update result up to root
         let new_blob = Blob::from_content(&payload.content);
-        let update_chain = vec![parent_tree.into()];
-        let result =
-            MonoServiceLogic::build_result_by_chain(file_path.clone(), update_chain, new_blob.id)
-                .map_err(|e| GitError::CustomError(e.to_string()))?;
-
+        let new_tree = MonoServiceLogic::update_tree_hash(
+            parent_tree.into(),
+            file_path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .ok_or_else(|| GitError::CustomError("Invalid path".into()))?,
+            new_blob.id,
+        )?;
         let src_commit = edit_utils::get_repo_main_latest_commit(&self.storage, repo_path).await?;
-
-        // Apply and save
-        let new_commit_id = self
-            .apply_update_result(&result, &payload.commit_message, None)
-            .await?;
+        let dst_commit = Commit::from_tree_id(
+            new_tree.id,
+            vec![ObjectHash::from_str(&src_commit.id.to_string()).unwrap()],
+            &payload.commit_message,
+        );
+        let new_commit_id = dst_commit.id.to_string();
 
         let username = payload
             .author_username
             .clone()
             .unwrap_or("Anonymous".to_string());
 
-        let editor = OneditCodeEdit::from(repo_path, &src_commit.id.to_string(), &self);
+        self.storage
+            .mono_service
+            .mono_storage
+            .save_mega_commits(vec![dst_commit], None)
+            .await?;
+
+        let save_trees: Vec<mega_tree::ActiveModel> = vec![new_tree]
+            .into_iter()
+            .map(|save_t| {
+                let mut tree_model: mega_tree::Model = save_t.into_mega_model(EntryMeta::new());
+                tree_model.commit_id.clone_from(&new_commit_id);
+                tree_model.into()
+            })
+            .collect();
+
+        self.storage
+            .mono_service
+            .mono_storage
+            .batch_save_model(save_trees)
+            .await
+            .map_err(|e| GitError::CustomError(e.to_string()))?;
+
+        let editor = OneditCodeEdit::from(
+            repo_path,
+            &src_commit.id.to_string(),
+            &self,
+            self.storage.mono_storage(),
+        );
         let cl = editor
             .find_or_create_cl_for_edit(
                 &self.storage,
