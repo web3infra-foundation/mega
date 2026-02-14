@@ -7,6 +7,19 @@ pub const ZERO_ID: &str = match std::str::from_utf8(&[b'0'; 40]) {
     Err(_) => panic!("can't get ZERO_ID"),
 };
 
+/// Returns true if `oid` looks like a full Git object id in hex form.
+///
+/// We intentionally only accept full-hex ids here (no short ids), because short ids
+/// require repository-specific disambiguation.
+///
+/// Supported lengths:
+/// - SHA-1   : 40 hex chars
+/// - SHA-256 : 64 hex chars
+pub fn is_full_hex_object_id(oid: &str) -> bool {
+    let is_valid_len = oid.len() == 40 || oid.len() == 64;
+    is_valid_len && oid.as_bytes().iter().all(|b| b.is_ascii_hexdigit())
+}
+
 pub fn generate_id() -> i64 {
     // Call `next_id` to generate a new unique id.
     IdInstance::next_id()

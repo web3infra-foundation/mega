@@ -1,5 +1,6 @@
 use bytes::Bytes;
 use common::errors::MegaError;
+use common::utils::is_full_hex_object_id;
 use futures::StreamExt;
 use git_internal::internal::object::blob::Blob;
 use io_orbit::{
@@ -83,6 +84,11 @@ impl GitService {
     }
 
     pub async fn get_object_as_bytes(&self, hash: &str) -> Result<Vec<u8>, MegaError> {
+        // Avoid sending obviously invalid object ids to object storage backends.
+        if !is_full_hex_object_id(hash) {
+            return Err(MegaError::Other("Invalid object ID format".to_string()));
+        }
+
         let key = ObjectKey {
             namespace: ObjectNamespace::Git,
             key: hash.to_string(),
@@ -100,6 +106,12 @@ impl GitService {
     }
 
     pub fn get_objects_stream(&self, hashes: Vec<String>) -> MultiObjectByteStream<'_> {
+        // Filter out obviously invalid object ids early to avoid spurious backend requests.
+        // Callers that need strict validation should validate up-front and return 4xx.
+        let hashes = hashes
+            .into_iter()
+            .filter(|h| is_full_hex_object_id(h))
+            .collect::<Vec<_>>();
         self.obj_storage.inner.get_many(
             hashes
                 .into_iter()

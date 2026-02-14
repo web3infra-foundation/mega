@@ -64,6 +64,17 @@ pub enum MegaError {
     #[error("ObjStorage error: {0}")]
     ObjStorage(String),
 
+    /// Object not found in underlying object storage (S3/GCS/local).
+    /// Typically corresponds to a 404/NoSuchKey-style error.
+    #[error("ObjStorage not found: {0}")]
+    ObjStorageNotFound(String),
+
+    ///Object not found in underlying object storage (S3/GCS/local). but exists in the repository.
+    #[error("ObjStorage inconsistent: {0}")]
+    ObjStorageInconsistent(String),
+    
+    
+
     // --- Other ---
     #[error("Other error: {0}")]
     Other(String),

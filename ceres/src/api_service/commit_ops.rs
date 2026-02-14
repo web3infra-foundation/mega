@@ -708,10 +708,12 @@ async fn compute_commit_diff_items<T: ApiHandler + ?Sized>(
         parent_blobs_set.push(blobs);
     }
 
-    let ctx = handler.get_context();
     let mut blob_cache: HashMap<ObjectHash, Vec<u8>> = HashMap::new();
     for hash in &all_hashes {
-        match ctx.git_service.get_object_as_bytes(&hash.to_string()).await {
+        // Reuse ApiHandler's blob reading helper so that:
+        // - object IDs are validated
+        // - ObjStorageNotFound cases are classified/logged via Storage helpers
+        match handler.get_raw_blob_by_hash(&hash.to_string()).await {
             Ok(blob) => {
                 blob_cache.insert(*hash, blob);
             }

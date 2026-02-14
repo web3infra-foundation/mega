@@ -94,11 +94,23 @@ impl MonoApiService {
                 MegaError::Other(format!("{} not found in root directory", ADMIN_FILE))
             })?;
 
-        let content_bytes = self
+        let blob_hash = blob_item.id.to_string();
+        let content_bytes = match self
             .storage
             .git_service
-            .get_object_as_bytes(&blob_item.id.to_string())
-            .await?;
+            .get_object_as_bytes(&blob_hash)
+            .await
+        {
+            Ok(bytes) => bytes,
+            Err(e) => {
+                // Best-effort classification/logging for ObjStorageNotFound cases.
+                let e = self
+                    .storage
+                    .classify_blob_objstorage_not_found(&blob_hash, e)
+                    .await;
+                return Err(e);
+            }
+        };
 
         let content = String::from_utf8(content_bytes)
             .map_err(|e| MegaError::Other(format!("UTF-8 decode failed: {}", e)))?;

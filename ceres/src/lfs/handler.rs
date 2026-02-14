@@ -522,7 +522,7 @@ async fn lfs_download_url(
 
     if let Some(url) = storage
         .inner
-        .signed_url(&key, Method::GET, Duration::from_hours(1))
+        .signed_url(&key, Method::GET, Duration::from_secs(3600))
         .await?
     {
         return Ok(url);
@@ -540,7 +540,7 @@ async fn lfs_upload_url(
 
     if let Some(url) = storage
         .inner
-        .signed_url(&key, Method::PUT, Duration::from_hours(1))
+        .signed_url(&key, Method::PUT, Duration::from_secs(3600))
         .await?
     {
         return Ok(url);
