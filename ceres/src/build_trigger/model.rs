@@ -1,5 +1,6 @@
 use std::{collections::HashMap, fmt};
 
+pub use api_model::buck2::{status::Status, types::ProjectRelativePath};
 use callisto::mega_cl;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -574,36 +575,6 @@ impl From<ListTriggersParams> for jupiter::storage::build_trigger_storage::ListT
             triggered_by: params.triggered_by,
             start_time: params.start_time,
             end_time: params.end_time,
-        }
-    }
-}
-
-#[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct SerializableBuildInfo {
-    pub changes: Vec<SerializableStatus>,
-}
-
-#[derive(Clone, Serialize, Deserialize, Debug)]
-pub enum SerializableStatus {
-    Modified(String),
-    Added(String),
-    Removed(String),
-}
-
-impl From<SerializableStatus>
-    for bellatrix::orion_client::Status<bellatrix::orion_client::ProjectRelativePath>
-{
-    fn from(status: SerializableStatus) -> Self {
-        match status {
-            SerializableStatus::Modified(path) => bellatrix::orion_client::Status::Modified(
-                bellatrix::orion_client::ProjectRelativePath::new(&path),
-            ),
-            SerializableStatus::Added(path) => bellatrix::orion_client::Status::Added(
-                bellatrix::orion_client::ProjectRelativePath::new(&path),
-            ),
-            SerializableStatus::Removed(path) => bellatrix::orion_client::Status::Removed(
-                bellatrix::orion_client::ProjectRelativePath::new(&path),
-            ),
         }
     }
 }
