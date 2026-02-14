@@ -10,7 +10,6 @@ on:
       - 'rust/**'
       - 'scripts/**'
       - 'toolchains/**'
-      - 'extensions/**'
 
 
 concurrency:
