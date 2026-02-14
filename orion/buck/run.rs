@@ -14,14 +14,13 @@ use std::{
 };
 
 use anyhow::{anyhow, Context as _};
-use api_model::buck2::types::ProjectRelativePath;
 use audit::{audit_cell_arguments, audit_config_arguments};
 use td_util::command::{create_at_file_arg, with_command};
 use tracing::info;
 
 use crate::{
     cells::CellInfo,
-    types::{Package, TargetPattern},
+    types::{Package, ProjectRelativePath, TargetPattern},
     ExitStatusExt,
 };
 

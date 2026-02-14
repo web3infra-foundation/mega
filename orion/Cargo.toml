@@ -9,7 +9,6 @@ path = "src/main.rs"
 
 
 [dependencies]
-api-model = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "fs", "process"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }

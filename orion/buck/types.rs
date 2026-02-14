@@ -15,6 +15,7 @@ use std::{ffi::OsStr, fmt, hash::Hash, str::FromStr};
 use parse_display::Display;
 use serde::{Deserialize, Serialize};
 use td_util::string::InternString;
+use utoipa::ToSchema;
 
 use crate::{cells::CellInfo, labels::Labels};
 
@@ -604,6 +605,55 @@ pub struct TargetHash(String);
 impl TargetHash {
     pub fn new(hash: &str) -> Self {
         Self(hash.to_owned())
+    }
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Display, Deserialize, Serialize, ToSchema)]
+pub struct ProjectRelativePath(String);
+
+impl ProjectRelativePath {
+    pub fn new(path: &str) -> Self {
+        Self(path.to_owned())
+    }
+
+    pub fn join(&self, suffix: &str) -> Self {
+        if self.0.is_empty() {
+            Self(suffix.to_owned())
+        } else {
+            Self(format!("{}/{}", self.0, suffix))
+        }
+    }
+
+    /// ```
+    /// use td_util_buck::types::ProjectRelativePath;
+    /// assert_eq!(
+    ///     ProjectRelativePath::new("foo/bar.bzl").extension(),
+    ///     Some("bzl")
+    /// );
+    /// assert_eq!(
+    ///     ProjectRelativePath::new("foo/bar.bzl/baz").extension(),
+    ///     None
+    /// );
+    /// assert_eq!(ProjectRelativePath::new("foo/bar/baz").extension(), None);
+    /// ```
+    pub fn extension(&self) -> Option<&str> {
+        self.0
+            .as_str()
+            .rsplit_once('/')
+            .unwrap_or_default()
+            .1
+            .rsplit_once('.')
+            .map(|x| x.1)
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl AsRef<str> for ProjectRelativePath {
+    fn as_ref(&self) -> &str {
+        self.as_str()
     }
 }
 

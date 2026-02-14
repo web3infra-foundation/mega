@@ -8,7 +8,6 @@ name = "td_util_buck"
 path = "lib.rs"
 
 [dependencies]
-api-model = {workspace = true}
 anyhow = "1.0"
 dashmap = { version = "5.5", features = ["serde"] }
 fnv = "1.0"

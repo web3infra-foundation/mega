@@ -142,7 +142,6 @@ redis-test = "1.0.1"
 bincode = "2.0.1"
 rustls = "0.23.36"
 object_store = "0.13.1"
-parse-display = "0.8.2"
 qlean = "0.2.2"
 toml = "0.9.8"
 

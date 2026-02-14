@@ -60,11 +60,12 @@ impl LogService {
         &self,
         task_id: &str,
         repo: &str,
-        build_event_id: &str,
+        build_id: &str,
     ) -> anyhow::Result<String> {
         let key = self
             .local_log_store
-            .get_key(task_id, &Self::last_segment(repo), build_event_id);
+            .get_key(task_id, &Self::last_segment(repo), build_id);
+
         match (
             self.local_log_store.log_exists(&key).await,
             self.cloud_log_store.log_exists(&key).await,
@@ -85,13 +86,13 @@ impl LogService {
         &self,
         task_id: &str,
         repo: &str,
-        build_event_id: &str,
+        build_id: &str,
         start: usize,
         end: usize,
     ) -> anyhow::Result<String> {
         let key = self
             .local_log_store
-            .get_key(task_id, &Self::last_segment(repo), build_event_id);
+            .get_key(task_id, &Self::last_segment(repo), build_id);
 
         let local_exists = self.local_log_store.log_exists(&key).await;
         let cloud_exists = self.cloud_log_store.log_exists(&key).await;

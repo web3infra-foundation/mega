@@ -10,11 +10,10 @@
 
 //! Equivalent to the Buck2 `glob` to the greatest extent possible.
 
-use api_model::buck2::types::ProjectRelativePath;
 use glob::{MatchOptions, Pattern};
 use itertools::{Either, Itertools};
 
-use crate::types::{Glob, GlobInclusion};
+use crate::types::{Glob, GlobInclusion, ProjectRelativePath};
 
 pub struct GlobSpec {
     include: GlobSet,

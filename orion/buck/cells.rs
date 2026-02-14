@@ -11,14 +11,13 @@
 use std::{collections::HashMap, fs, path::Path};
 
 use anyhow::Context as _;
-use api_model::buck2::types::ProjectRelativePath;
 use itertools::Itertools;
 use td_util::prelude::*;
 use thiserror::Error;
 
 use crate::{
     ignore_set::IgnoreSet,
-    types::{CellName, CellPath, CellRelativePath},
+    types::{CellName, CellPath, CellRelativePath, ProjectRelativePath},
 };
 
 /// The value of `buildfile.name` if omitted.
