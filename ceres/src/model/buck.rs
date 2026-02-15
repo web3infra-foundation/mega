@@ -169,6 +169,10 @@ pub struct CompleteResponse {
     pub files_count: u32,
     /// CL creation time (RFC3339 format)
     pub created_at: String,
+    /// Repository path (for build trigger context)
+    pub repo_path: String,
+    /// Base commit hash before upload (for build trigger context)
+    pub from_hash: String,
 }
 
 /// Represents a single file change for batch commit building
