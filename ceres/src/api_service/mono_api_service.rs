@@ -90,6 +90,7 @@ use crate::{
         ApiHandler, buck_tree_builder::BuckCommitBuilder, cache::GitObjectCache,
         state::ProtocolApiState, tree_ops,
     },
+    build_trigger::{BuildTriggerService, TriggerContext},
     code_edit::{on_edit::OneditCodeEdit, utils as edit_utils},
     model::{
         buck::{
@@ -1114,6 +1115,34 @@ impl MonoApiService {
             .await?;
 
         Ok(())
+    }
+
+    /// Triggers a build for Buck upload completion
+    fn trigger_build_for_buck_upload(&self, response: &CompleteResponse, username: &str) {
+        let config = self.storage.config();
+        let bellatrix = Arc::new(Bellatrix::new(config.build.clone()));
+        if !bellatrix.enable_build() {
+            return;
+        }
+        let storage = self.storage.clone();
+        let git_cache = self.git_object_cache.clone();
+        let mut context = TriggerContext::from_buck_upload(
+            response.repo_path.clone(),
+            response.from_hash.clone(),
+            response.commit_id.clone(),
+            response.cl_link.clone(),
+            Some(response.cl_id),
+            Some(username.to_string()),
+        );
+        context.ref_name = Some("main".to_string());
+        context.ref_type = Some("branch".to_string());
+        tokio::spawn(async move {
+            if let Err(e) =
+                BuildTriggerService::build_by_context(storage, git_cache, bellatrix, context).await
+            {
+                tracing::error!("Failed to create build trigger for buck upload: {}", e);
+            }
+        });
     }
 
     async fn create_annotated_tag_mono(
@@ -2762,22 +2791,19 @@ impl MonoApiService {
         // Calculate uploaded files count
         let uploaded_files_count = file_changes.len() as u32;
 
-        // TODO: Buck Upload completion flow - remaining steps (not implemented):
-        // 1. Output CL creation and diff logs (need to calculate file diffs, see get_diff_by_blobs)
-        // 2. Notify change-detector with CL change content (need to implement change-detector client)
-        // 3. Analyze affected targets (based on BUCK dependency graph, need to parse BUCK files)
-        // 4. Return build target list (affected_targets)
-        // 5. Start Buck2 build tasks (only build affected_targets, see bellatrix integration in post_cl_operation)
-        // 6. Return build results (success/failure/log path)
-        // 7. Push build progress and result logs (need real-time push mechanism)
-
-        Ok(CompleteResponse {
+        let response = CompleteResponse {
             cl_id: session.id,
             cl_link: session.session_id.clone(),
             commit_id: svc_resp.commit_id,
             files_count: uploaded_files_count,
             created_at: session.created_at.to_string(),
-        })
+            repo_path: session.repo_path.clone(),
+            from_hash: session.from_hash.clone().unwrap_or_default(),
+        };
+
+        self.trigger_build_for_buck_upload(&response, username);
+
+        Ok(response)
     }
 
     /// Ensures the background merge processor is running.

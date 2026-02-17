@@ -7,6 +7,7 @@ use jupiter::storage::Storage;
 
 use crate::api_service::cache::GitObjectCache;
 
+mod buck_upload_handler;
 mod changes_calculator;
 mod dispatcher;
 mod git_push_handler;
@@ -20,6 +21,7 @@ mod web_edit_handler;
 pub use model::*;
 pub use ref_resolver::{RefResolver, RefType, ResolvedRef};
 pub mod service;
+use buck_upload_handler::BuckFileUploadHandler;
 use dispatcher::BuildDispatcher;
 use git_push_handler::GitPushHandler;
 use manual_handler::ManualHandler;
@@ -69,6 +71,10 @@ impl TriggerRegistry {
             git_object_cache.clone(),
         )));
         registry.register(Box::new(WebEditHandler::new(
+            storage.clone(),
+            git_object_cache.clone(),
+        )));
+        registry.register(Box::new(BuckFileUploadHandler::new(
             storage.clone(),
             git_object_cache.clone(),
         )));

@@ -549,7 +549,7 @@ pub struct ListTriggersParams {
     /// Filter by repository path
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repo_path: Option<String>,
-    /// Filter by trigger type (git_push, manual, retry, webhook, schedule)
+    /// Filter by trigger type (git_push, manual, retry, webhook, schedule, buck_file_upload)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub trigger_type: Option<String>,
     /// Filter by trigger source (user, system, service)
