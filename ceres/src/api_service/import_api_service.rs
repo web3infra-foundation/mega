@@ -26,7 +26,7 @@ use jupiter::{storage::Storage, utils::converter::FromGitModel};
 use crate::{
     api_service::{ApiHandler, cache::GitObjectCache, history},
     model::{
-        git::{CreateEntryInfo, EditFilePayload, EditFileResult},
+        git::{CreateEntryInfo, CreateEntryResult, EditFilePayload, EditFileResult},
         tag::TagInfo,
     },
     protocol::repo::Repo,
@@ -49,10 +49,13 @@ impl ApiHandler for ImportApiService {
         &self.git_object_cache
     }
 
-    async fn create_monorepo_entry(&self, _: CreateEntryInfo) -> Result<String, GitError> {
-        return Err(GitError::CustomError(
+    async fn create_monorepo_entry(
+        &self,
+        _: CreateEntryInfo,
+    ) -> Result<CreateEntryResult, GitError> {
+        Err(GitError::CustomError(
             "import dir does not support create entry".to_string(),
-        ));
+        ))
     }
 
     fn strip_relative(&self, path: &Path) -> Result<PathBuf, MegaError> {

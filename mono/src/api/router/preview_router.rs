@@ -10,8 +10,8 @@ use ceres::model::{
     blame::{BlameQuery, BlameRequest, BlameResult},
     change_list::DiffItemSchema,
     git::{
-        BlobContentQuery, CodePreviewQuery, CreateEntryInfo, DiffPreviewPayload, EditFilePayload,
-        EditFileResult, FileTreeItem, TreeCommitItem, TreeHashItem, TreeResponse,
+        BlobContentQuery, CodePreviewQuery, CreateEntryInfo, CreateEntryResult, DiffPreviewPayload,
+        EditFilePayload, EditFileResult, FileTreeItem, TreeCommitItem, TreeHashItem, TreeResponse,
     },
 };
 use utoipa_axum::{router::OpenApiRouter, routes};
@@ -20,6 +20,27 @@ use crate::{
     api::{MonoApiServiceState, error::ApiError},
     server::http_server::CODE_PREVIEW,
 };
+
+async fn upsert_commit_binding(
+    state: &MonoApiServiceState,
+    commit_id: &str,
+    author_username: Option<&str>,
+) -> Result<(), ApiError> {
+    let final_username = author_username.and_then(|u| {
+        let t = u.trim();
+        if t.is_empty() || t.eq_ignore_ascii_case("anonymous") {
+            None
+        } else {
+            Some(t.to_string())
+        }
+    });
+    state
+        .storage
+        .commit_binding_storage()
+        .upsert_binding(commit_id, final_username.clone(), final_username.is_none())
+        .await
+        .map_err(|e| ApiError::from(anyhow::anyhow!("Failed to save commit binding: {}", e)))
+}
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new()
@@ -66,31 +87,19 @@ async fn get_blob_string(
     path = "/create-entry",
     request_body = CreateEntryInfo,
     responses(
-        (status = 200, body = CommonResult<String>, content_type = "application/json")
+        (status = 200, body = CommonResult<CreateEntryResult>, content_type = "application/json")
     ),
     tag = CODE_PREVIEW
 )]
 async fn create_entry(
     state: State<MonoApiServiceState>,
     Json(json): Json<CreateEntryInfo>,
-) -> Result<Json<CommonResult<String>>, ApiError> {
+) -> Result<Json<CommonResult<CreateEntryResult>>, ApiError> {
     let handler = state.api_handler(json.path.as_ref()).await?;
-    let commit_id = handler.create_monorepo_entry(json.clone()).await?;
+    let result = handler.create_monorepo_entry(json.clone()).await?;
 
-    // Bind commit to optional username; empty/"anonymous" -> anonymous
-    let stg = state.storage.commit_binding_storage();
-    let final_username = json.author_username.as_deref().and_then(|u| {
-        let t = u.trim();
-        if t.is_empty() || t.eq_ignore_ascii_case("anonymous") {
-            None
-        } else {
-            Some(t.to_string())
-        }
-    });
-    stg.upsert_binding(&commit_id, final_username.clone(), final_username.is_none())
-        .await
-        .map_err(|e| ApiError::from(anyhow::anyhow!("Failed to save commit binding: {}", e)))?;
-    Ok(Json(CommonResult::success(None)))
+    upsert_commit_binding(&state, &result.commit_id, json.author_username.as_deref()).await?;
+    Ok(Json(CommonResult::success(Some(result))))
 }
 
 /// Get latest commit by path
@@ -374,23 +383,7 @@ async fn save_edit(
     let handler = state.api_handler(payload.path.as_ref()).await?;
     let res = handler.save_file_edit(payload.clone()).await?;
 
-    // Bind commit to optional username; empty/"anonymous" -> anonymous
-    let stg = state.storage.commit_binding_storage();
-    let final_username = payload.author_username.as_deref().and_then(|u| {
-        let t = u.trim();
-        if t.is_empty() || t.eq_ignore_ascii_case("anonymous") {
-            None
-        } else {
-            Some(t.to_string())
-        }
-    });
-    stg.upsert_binding(
-        &res.commit_id,
-        final_username.clone(),
-        final_username.is_none(),
-    )
-    .await
-    .map_err(|e| ApiError::from(anyhow::anyhow!("Failed to save commit binding: {}", e)))?;
+    upsert_commit_binding(&state, &res.commit_id, payload.author_username.as_deref()).await?;
 
     Ok(Json(CommonResult::success(Some(res))))
 }
