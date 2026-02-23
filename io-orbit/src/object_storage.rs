@@ -214,7 +214,18 @@ pub trait MegaObjectStorage: Send + Sync {
     ) -> Result<(), MegaError> {
         objects
             .try_for_each_concurrent(concurrency, |(key, stream, meta)| async move {
-                self.put_stream(&key, stream, meta).await
+                self.put_stream(&key, stream, meta)
+                    .await
+                    // Attach key/context so callers can see *which* object failed
+                    // instead of only getting a bare storage error. This avoids
+                    .map_err(|e| {
+                        MegaError::Other(format!(
+                            "object_storage::put_many failed for key={} namespace={} error_chain:\n{}",
+                            key.key,
+                            key.namespace,
+                            dump_error_chain(&e),
+                        ))
+                    })
             })
             .await
     }
