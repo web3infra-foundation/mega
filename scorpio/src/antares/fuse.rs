@@ -17,7 +17,7 @@ pub struct AntaresFuse {
     /// Background task running the FUSE session.
     fuse_task: Option<JoinHandle<()>>,
 }
-use libfuse_fs::passthrough::newlogfs::LoggingFileSystem;
+use rfuse3::raw::logfs::LoggingFileSystem;
 impl AntaresFuse {
     /// Build directories for upper / optional CL layers.
     pub async fn new(
@@ -576,6 +576,35 @@ mod tests {
             _flags: u32,
         ) -> FuseResult<()> {
             Ok(())
+        }
+
+        async fn getlk(
+            &self,
+            _req: Request,
+            _inode: Inode,
+            _fh: u64,
+            _lock_owner: u64,
+            _start: u64,
+            _end: u64,
+            _type: u32,
+            _pid: u32,
+        ) -> FuseResult<rfuse3::raw::reply::ReplyLock> {
+            Err(std::io::Error::from_raw_os_error(libc::ENOSYS).into())
+        }
+
+        async fn setlk(
+            &self,
+            _req: Request,
+            _inode: Inode,
+            _fh: u64,
+            _lock_owner: u64,
+            _start: u64,
+            _end: u64,
+            _type: u32,
+            _pid: u32,
+            _block: bool,
+        ) -> FuseResult<()> {
+            Err(std::io::Error::from_raw_os_error(libc::ENOSYS).into())
         }
     }
 
@@ -1738,9 +1767,10 @@ mod tests {
         use std::sync::Arc;
 
         use libfuse_fs::{
-            passthrough::{new_passthroughfs_layer, newlogfs::LoggingFileSystem, PassthroughArgs},
+            passthrough::{new_passthroughfs_layer, PassthroughArgs},
             unionfs::{config::Config, OverlayFs},
         };
+        use rfuse3::raw::logfs::LoggingFileSystem;
         // Only  LoggingFileSystem DEBUG
         use tracing_subscriber::EnvFilter;
         let _ = tracing_subscriber::fmt()

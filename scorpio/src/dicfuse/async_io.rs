@@ -839,4 +839,33 @@ impl Filesystem for Dicfuse {
         // Read-only filesystem: deny writes.
         Err(libc::EROFS.into())
     }
+
+    async fn getlk(
+        &self,
+        _req: Request,
+        _inode: Inode,
+        _fh: u64,
+        _lock_owner: u64,
+        _start: u64,
+        _end: u64,
+        _type: u32,
+        _pid: u32,
+    ) -> Result<ReplyLock> {
+        Err(libc::ENOSYS.into())
+    }
+
+    async fn setlk(
+        &self,
+        _req: Request,
+        _inode: Inode,
+        _fh: u64,
+        _lock_owner: u64,
+        _start: u64,
+        _end: u64,
+        _type: u32,
+        _pid: u32,
+        _block: bool,
+    ) -> Result<()> {
+        Err(libc::ENOSYS.into())
+    }
 }

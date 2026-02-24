@@ -1,7 +1,7 @@
 use std::{ffi::OsStr, net::SocketAddr, sync::Arc};
 
 use clap::Parser;
-use libfuse_fs::passthrough::newlogfs::LoggingFileSystem;
+use rfuse3::raw::logfs::LoggingFileSystem;
 use scorpio::{
     daemon::daemon_main,
     fuse::MegaFuse,

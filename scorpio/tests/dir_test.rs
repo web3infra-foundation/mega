@@ -13,7 +13,7 @@ use std::{
 
 // use http::Method;
 use lazy_static::lazy_static;
-use libfuse_fs::passthrough::newlogfs::LoggingFileSystem;
+use rfuse3::raw::logfs::LoggingFileSystem;
 use scorpio::{
     dicfuse::store,
     fuse::MegaFuse,
@@ -502,8 +502,7 @@ async fn test_scorpio_dir(
 
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
 
-    let mut mount_handle = mount_filesystem(lgfs, mountpoint).await;
-    let handle = &mut mount_handle;
+    let mut mount_handle: rfuse3::raw::MountHandle = mount_filesystem(lgfs, mountpoint).await;
 
     let arc_fuse = Arc::new(fuse_interface);
     let repo_dir = SCOR_DIR.join("dir_test");
@@ -601,7 +600,7 @@ async fn test_scorpio_dir(
     };
 
     tokio::select! {
-        res = handle => res.unwrap(),
+        res = &mut mount_handle => res.unwrap(),
         _ = cmd_handle => {
             println!("unmount....");
             mount_handle.unmount().await.unwrap();
@@ -611,7 +610,6 @@ async fn test_scorpio_dir(
             println!("unmount....");
             mount_handle.unmount().await.unwrap();
             let _ = result_tx.send(CommandResult::Success).await;
-
         }
     }
 

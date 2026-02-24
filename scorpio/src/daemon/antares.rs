@@ -118,8 +118,35 @@ where
         State(service): State<Arc<S>>,
         Json(request): Json<CreateMountRequest>,
     ) -> Result<Json<MountCreated>, ApiError> {
-        let created = service.create_mount(request).await?;
-        Ok(Json(created))
+        let start = Instant::now();
+        let job_id = request.job_id.clone();
+        let build_id = request.build_id.clone();
+        let path = request.path.clone();
+        let cl = request.cl.clone();
+        tracing::info!(
+            job_id = ?job_id,
+            build_id = ?build_id,
+            path = %path,
+            cl = ?cl,
+            "antares http: create_mount request"
+        );
+
+        let created = service.create_mount(request).await;
+        match &created {
+            Ok(created) => tracing::info!(
+                mount_id = %created.mount_id,
+                mountpoint = %created.mountpoint,
+                elapsed_ms = start.elapsed().as_millis(),
+                "antares http: create_mount success"
+            ),
+            Err(err) => tracing::warn!(
+                elapsed_ms = start.elapsed().as_millis(),
+                error = %err,
+                "antares http: create_mount failed"
+            ),
+        }
+
+        Ok(Json(created?))
     }
 
     async fn list_mounts(State(service): State<Arc<S>>) -> Result<Json<MountCollection>, ApiError> {
@@ -139,8 +166,23 @@ where
         State(service): State<Arc<S>>,
         AxumPath(job_id): AxumPath<String>,
     ) -> Result<Json<MountStatus>, ApiError> {
-        let status = service.delete_mount_by_job(job_id).await?;
-        Ok(Json(status))
+        let start = Instant::now();
+        tracing::info!(job_id = %job_id, "antares http: delete_mount_by_job request");
+        let status = service.delete_mount_by_job(job_id).await;
+        match &status {
+            Ok(status) => tracing::info!(
+                mount_id = %status.mount_id,
+                state = ?status.state,
+                elapsed_ms = start.elapsed().as_millis(),
+                "antares http: delete_mount_by_job done"
+            ),
+            Err(err) => tracing::warn!(
+                elapsed_ms = start.elapsed().as_millis(),
+                error = %err,
+                "antares http: delete_mount_by_job failed"
+            ),
+        }
+        Ok(Json(status?))
     }
 
     async fn describe_mount(
@@ -155,8 +197,24 @@ where
         State(service): State<Arc<S>>,
         AxumPath(mount_id): AxumPath<Uuid>,
     ) -> Result<Json<MountStatus>, ApiError> {
-        let status = service.delete_mount(mount_id).await?;
-        Ok(Json(status))
+        let start = Instant::now();
+        tracing::info!(mount_id = %mount_id, "antares http: delete_mount request");
+        let status = service.delete_mount(mount_id).await;
+        match &status {
+            Ok(status) => tracing::info!(
+                mount_id = %status.mount_id,
+                state = ?status.state,
+                elapsed_ms = start.elapsed().as_millis(),
+                "antares http: delete_mount done"
+            ),
+            Err(err) => tracing::warn!(
+                mount_id = %mount_id,
+                elapsed_ms = start.elapsed().as_millis(),
+                error = %err,
+                "antares http: delete_mount failed"
+            ),
+        }
+        Ok(Json(status?))
     }
 
     async fn build_cl(
@@ -164,16 +222,49 @@ where
         AxumPath(mount_id): AxumPath<Uuid>,
         Json(request): Json<BuildClRequest>,
     ) -> Result<Json<MountStatus>, ApiError> {
-        let status = service.build_cl(mount_id, request.cl).await?;
-        Ok(Json(status))
+        let start = Instant::now();
+        let cl = request.cl;
+        tracing::info!(mount_id = %mount_id, cl = %cl, "antares http: build_cl request");
+        let status = service.build_cl(mount_id, cl).await;
+        match &status {
+            Ok(status) => tracing::info!(
+                mount_id = %status.mount_id,
+                state = ?status.state,
+                elapsed_ms = start.elapsed().as_millis(),
+                "antares http: build_cl done"
+            ),
+            Err(err) => tracing::warn!(
+                mount_id = %mount_id,
+                elapsed_ms = start.elapsed().as_millis(),
+                error = %err,
+                "antares http: build_cl failed"
+            ),
+        }
+        Ok(Json(status?))
     }
 
     async fn clear_cl(
         State(service): State<Arc<S>>,
         AxumPath(mount_id): AxumPath<Uuid>,
     ) -> Result<Json<MountStatus>, ApiError> {
-        let status = service.clear_cl(mount_id).await?;
-        Ok(Json(status))
+        let start = Instant::now();
+        tracing::info!(mount_id = %mount_id, "antares http: clear_cl request");
+        let status = service.clear_cl(mount_id).await;
+        match &status {
+            Ok(status) => tracing::info!(
+                mount_id = %status.mount_id,
+                state = ?status.state,
+                elapsed_ms = start.elapsed().as_millis(),
+                "antares http: clear_cl done"
+            ),
+            Err(err) => tracing::warn!(
+                mount_id = %mount_id,
+                elapsed_ms = start.elapsed().as_millis(),
+                error = %err,
+                "antares http: clear_cl failed"
+            ),
+        }
+        Ok(Json(status?))
     }
 }
 
@@ -1111,6 +1202,7 @@ impl AntaresService for AntaresServiceImpl {
         &self,
         request: CreateMountRequest,
     ) -> Result<MountCreated, ServiceError> {
+        let start = Instant::now();
         let mut request = request;
         request.path = Self::normalize_mount_path(&request.path);
 
@@ -1130,6 +1222,13 @@ impl AntaresService for AntaresServiceImpl {
                     Some(trimmed)
                 }
             });
+
+        tracing::info!(
+            task_id = ?task_id,
+            path = %request.path,
+            cl = ?request.cl,
+            "antares svc: create_mount start"
+        );
 
         // 2. Idempotency / de-dup policy:
         // - If task_id is provided: treat create as idempotent for the same task id.
@@ -1157,6 +1256,13 @@ impl AntaresService for AntaresServiceImpl {
                         )));
                     }
                     entry.update_last_seen();
+                    tracing::info!(
+                        task_id = %job_id,
+                        mount_id = %existing_id,
+                        mountpoint = %entry.mountpoint,
+                        elapsed_ms = start.elapsed().as_millis(),
+                        "antares svc: create_mount idempotent hit"
+                    );
                     return Ok(MountCreated {
                         mount_id: existing_id,
                         mountpoint: entry.mountpoint.clone(),
@@ -1196,6 +1302,15 @@ impl AntaresService for AntaresServiceImpl {
         let mountpoint = PathBuf::from(&mountpoint_str);
         let upper_dir = PathBuf::from(&upper_dir_str);
         let cl_dir = cl_dir_str.as_ref().map(PathBuf::from);
+
+        tracing::debug!(
+            mount_id = %mount_id,
+            task_id = ?task_id,
+            mountpoint = %mountpoint_str,
+            upper_dir = %upper_dir_str,
+            cl_dir = ?cl_dir_str,
+            "antares svc: create_mount paths generated"
+        );
 
         if let (Some(cl_link), Some(ref cl_dir_str)) = (request.cl.as_deref(), cl_dir_str.as_ref())
         {
@@ -1306,6 +1421,8 @@ impl AntaresService for AntaresServiceImpl {
         let path_for_log = request.path.clone();
         let cl_for_log = request.cl.clone();
 
+        let task_id_for_log = task_id.clone();
+
         mounts.insert(mount_id, entry);
         if let Some(job_id) = task_id {
             job_index.insert(job_id, mount_id);
@@ -1314,11 +1431,15 @@ impl AntaresService for AntaresServiceImpl {
         }
 
         tracing::info!(
-            "Created mount {} for path '{}' (cl: {:?}) at {}",
-            mount_id,
-            path_for_log,
-            cl_for_log,
-            mountpoint_str
+            mount_id = %mount_id,
+            task_id = ?task_id_for_log,
+            path = %path_for_log,
+            cl = ?cl_for_log,
+            mountpoint = %mountpoint_str,
+            upper_dir = %upper_dir_str,
+            cl_dir = ?cl_dir_str,
+            elapsed_ms = start.elapsed().as_millis(),
+            "antares svc: create_mount success"
         );
 
         // IMPORTANT: release locks before persisting state.
@@ -1352,6 +1473,7 @@ impl AntaresService for AntaresServiceImpl {
     }
 
     async fn delete_mount(&self, mount_id: Uuid) -> Result<MountStatus, ServiceError> {
+        let start = Instant::now();
         // Acquire write locks to update state
         let mut mounts = self.mounts.write().await;
         let index = self.path_index.write().await;
@@ -1369,6 +1491,15 @@ impl AntaresService for AntaresServiceImpl {
         let path = entry.path.clone();
         let cl = entry.cl.clone();
         let job_id = entry.job_id.clone();
+        let job_id_for_log = job_id.clone();
+        tracing::info!(
+            mount_id = %mount_id,
+            task_id = ?job_id_for_log,
+            path = %path,
+            cl = ?cl,
+            mountpoint = %entry.mountpoint,
+            "antares svc: delete_mount start"
+        );
         let mountpoint = PathBuf::from(&entry.mountpoint);
         let upper_dir = PathBuf::from(&entry.upper_dir);
         let cl_dir = entry.cl_dir.as_ref().map(PathBuf::from);
@@ -1417,7 +1548,13 @@ impl AntaresService for AntaresServiceImpl {
         };
 
         if let Err(e) = unmount_result {
-            tracing::error!("Failed to unmount {}: {}", mount_id, e);
+            tracing::error!(
+                mount_id = %mount_id,
+                task_id = ?job_id_for_log,
+                elapsed_ms = start.elapsed().as_millis(),
+                error = %e,
+                "antares svc: delete_mount unmount failed"
+            );
             // Put fuse back since unmount failed
             entry.fuse = fuse;
             entry.state = MountLifecycle::Failed {
@@ -1444,7 +1581,12 @@ impl AntaresService for AntaresServiceImpl {
             drop(mounts);
             drop(index);
             drop(job_index);
-            tracing::info!("Deleted mount {}", mount_id);
+            tracing::info!(
+                mount_id = %mount_id,
+                task_id = ?job_id_for_log,
+                elapsed_ms = start.elapsed().as_millis(),
+                "antares svc: delete_mount success"
+            );
 
             // Persist state to file for recovery
             self.persist_state().await;
