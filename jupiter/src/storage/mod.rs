@@ -323,11 +323,9 @@ impl Storage {
                             ))
                         }
                     }
-                    Err(_) => {
-                        MegaError::ObjStorageInconsistent(format!(
-                            "Failed to query blob {hash} metadata while handling ObjStorageNotFound "
-                        ))
-                    }
+                    Err(_) => MegaError::ObjStorageInconsistent(format!(
+                        "Failed to query blob {hash} metadata while handling ObjStorageNotFound "
+                    )),
                 }
             }
             other => other,
