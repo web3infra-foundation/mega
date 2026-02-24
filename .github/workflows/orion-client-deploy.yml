@@ -53,9 +53,17 @@ jobs:
             target/release/scorpio
 
   deploy:
-    if: ${{ github.repository == 'web3infra-foundation/mega' }}
+    # NOTE: Upstream repo protection in the original workflow prevents forks from running this job.
+    # We keep the original condition for upstream, but allow forks to run on workflow_dispatch.
+    if: ${{ github.repository == 'web3infra-foundation/mega' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     needs: build
+
+    env:
+      PROJECT_ID: infra-20250121-20260121-0235
+      ZONE: asia-east1-a
+      VM_NAME: buck2-hub-orion-client-vm
+
     steps:
       - name: Download build artifacts
         uses: actions/download-artifact@v4
@@ -63,23 +71,26 @@ jobs:
           name: orion-scorpio-bins
           path: ./artifacts
 
-      - name: Upload binaries via rsync
-        uses: burnett01/rsync-deployments@master
+      - name: Auth to GCP
+        uses: google-github-actions/auth@v2
         with:
-          switches: -avz --progress
-          path: artifacts/orion artifacts/scorpio
-          remote_path: /root/orion-runner/
-          remote_host: ${{ secrets.ORION_DEPLOY_HOST }}
-          remote_user: root
-          remote_key: ${{ secrets.ORION_DEPLOY_SSH_KEY }}
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      - name: Restart service
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.ORION_DEPLOY_HOST }}
-          username: root
-          key: ${{ secrets.ORION_DEPLOY_SSH_KEY }}
-          script: |
-            systemctl daemon-reload
-            systemctl restart orion-runner.service
-            systemctl status orion-runner.service --no-pager
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Upload binaries to GCE VM
+        run: |
+          gcloud compute scp \
+            ./artifacts/orion \
+            ./artifacts/scorpio \
+            "${VM_NAME}:/tmp/" \
+            --zone="${ZONE}" \
+            --project="${PROJECT_ID}"
+
+      - name: Install binaries and restart service
+        run: |
+          gcloud compute ssh "${VM_NAME}" \
+            --zone="${ZONE}" \
+            --project="${PROJECT_ID}" \
+            --command="sudo mv /tmp/orion /usr/local/bin/orion && sudo mv /tmp/scorpio /usr/local/bin/scorpio && sudo chmod +x /usr/local/bin/orion /usr/local/bin/scorpio && sudo systemctl restart orion-worker.service && sudo systemctl status orion-worker.service --no-pager"
