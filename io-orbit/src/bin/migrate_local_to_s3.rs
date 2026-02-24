@@ -194,6 +194,9 @@ async fn migrate_all(
 
     // List everything under the local root. Passing `None` means "from the root prefix".
     let mut listed = local.list(None);
+    // Bounded collection of join handles to avoid unbounded memory growth when
+    // migrating very large object stores. We cap the number of stored handles
+    // to a small multiple of the concurrency limit.
     let mut tasks = Vec::new();
 
     while let Some(entry) = listed.next().await {
@@ -283,6 +286,16 @@ async fn migrate_all(
 
             Ok(())
         }));
+
+        // Periodically await some tasks to keep the number of in-memory
+        // JoinHandles bounded. Semaphore still enforces the true I/O
+        // concurrency; this only caps bookkeeping overhead.
+        if tasks.len() >= concurrency.saturating_mul(4).max(64) {
+            if let Some(t) = tasks.pop() {
+                t.await
+                    .map_err(|e| MegaError::Other(format!("migration task panicked: {e}")))??;
+            }
+        }
     }
 
     for t in tasks {

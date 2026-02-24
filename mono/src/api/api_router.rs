@@ -7,6 +7,7 @@ use axum::{
     routing::get,
 };
 use ceres::{api_service::ApiHandler, model::git::TreeQuery};
+use common::errors::MegaError;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{
@@ -77,7 +78,10 @@ pub async fn get_blob_file(
             .header("Content-Disposition", file_name)
             .body(Body::from(data))
             .unwrap()),
-        Err(e) => Err(ApiError::not_found(anyhow!("error={}", e))),
+        Err(e) => match e {
+            MegaError::ObjStorageNotFound(_) => Err(ApiError::not_found(anyhow!("error={}", e))),
+            _ => Err(ApiError::internal(anyhow!("error={}", e))),
+        },
     }
 }
 

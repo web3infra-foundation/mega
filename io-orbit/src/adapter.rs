@@ -697,6 +697,18 @@ impl ObjectStoreAdapter {
         Ok(())
     }
 
+    /// Uploads an object using a single `PUT` in **create-only** mode.
+    ///
+    /// This helper is currently used only for **Git objects** (blob/pack data)
+    /// via `put_stream` when `ObjectNamespace::Git` + `UploadStrategy::SinglePut`
+    /// are selected.
+    ///
+    /// Semantics:
+    /// - Uses [`PutMode::Create`], so the backend will fail if the key already exists.
+    /// - This makes writes *idempotent* for content-addressed Git blobs: the first
+    ///   successful upload wins, and later attempts do not silently overwrite data.
+    /// - Callers must ensure that `path` is a content-hash-based key (Git object id),
+    ///   so that "already exists" is expected and safe to ignore at higher layers.
     async fn put_idempotent(
         &self,
         path: &object_store::path::Path,

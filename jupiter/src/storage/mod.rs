@@ -300,31 +300,25 @@ impl Storage {
                 {
                     Ok(blobs) if blobs.is_empty() => {
                         let friendly = format!(
-                            "Blob {hash} not found in both object storage and metadata (likely never written or invalid request)"
+                            "[obj_missing_in_db_and_s3] Blob {hash} not found in both object storage and metadata (likely never written or invalid request)"
                         );
                         tracing::warn!("{}", friendly);
                         MegaError::ObjStorageNotFound(friendly)
                     }
                     Ok(mut blobs) => {
-                        if let Some(blob) = blobs.pop() {
-                            tracing::warn!(
-                                "Object { } missing in S3 but metadata exists; possible data loss or misconfiguration",
-                                blob.blob_id
-                            );
-                            MegaError::ObjStorageInconsistent(format!(
-                                "Object{hash} missing in S3 but metadata exists; possible data loss or misconfiguration "
-                            ))
-                        } else {
-                            tracing::warn!(
-                                "Object missing in S3 but metadata lookup returned unexpected empty result",
-                            );
-                            MegaError::ObjStorageInconsistent(format!(
-                                "Object {hash} missing in S3 but metadata lookup returned unexpected empty result "
-                            ))
-                        }
+                        let blob = blobs.pop().expect(
+                            "blobs is guaranteed non-empty here due to match guard on previous arm",
+                        );
+                        tracing::error!(
+                            "[obj_missing_in_s3_but_has_meta] Object with hash {hash} missing in S3 but metadata exists in DB for blob_id {}; possible data loss or misconfiguration",
+                            blob.blob_id,
+                        );
+                        MegaError::ObjStorageInconsistent(format!(
+                            "[obj_missing_in_s3_but_has_meta] Object {hash} missing in S3 but metadata exists; possible data loss or misconfiguration"
+                        ))
                     }
                     Err(_) => MegaError::ObjStorageInconsistent(format!(
-                        "Failed to query blob {hash} metadata while handling ObjStorageNotFound "
+                        "[obj_meta_lookup_failed] Failed to query blob {hash} metadata while handling ObjStorageNotFound"
                     )),
                 }
             }

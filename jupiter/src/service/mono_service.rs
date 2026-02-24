@@ -70,12 +70,10 @@ impl MonoService {
             .batch_save_model_with_txn(mega_trees, Some(&txn))
             .await?;
         let mega_blobs = converter.mega_blobs.borrow().values().cloned().collect();
+        let raw_blobs = converter.raw_blobs.into_inner();
+        self.git_service.put_objects(raw_blobs).await?;
         self.mono_storage
             .batch_save_model_with_txn(mega_blobs, Some(&txn))
-            .await?;
-
-        self.git_service
-            .put_objects(converter.raw_blobs.into_inner())
             .await?;
         Ok(txn.commit().await?)
     }
