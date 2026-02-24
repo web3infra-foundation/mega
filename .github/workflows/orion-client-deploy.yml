@@ -1,4 +1,5 @@
 name: Orion client deploy
+
 on:
   push:
     branches:
@@ -7,6 +8,7 @@ on:
       - ".github/workflows/orion-client-deploy.yml"
       - "orion/**"
       - "scorpio/**"
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -14,7 +16,8 @@ concurrency:
 
 jobs:
   build:
-    if: ${{ github.repository == 'web3infra-foundation/mega' }}
+    # 允许 upstream 正常触发，同时在 fork 中可以通过 workflow_dispatch 手动触发
+    if: ${{ github.repository == 'web3infra-foundation/mega' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -53,16 +56,28 @@ jobs:
             target/release/scorpio
 
   deploy:
-    # NOTE: Upstream repo protection in the original workflow prevents forks from running this job.
-    # We keep the original condition for upstream, but allow forks to run on workflow_dispatch.
+    # upstream 继续限制只在主仓库触发；在 fork 中可以通过 workflow_dispatch 手动触发
     if: ${{ github.repository == 'web3infra-foundation/mega' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     needs: build
 
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # 单台 VM 示例：使用仓库 Secrets ORION_DEPLOY_HOST_1 / ORION_DEPLOY_SSH_KEY_1
+          - name: orion-vm-1
+            host_secret: ORION_DEPLOY_HOST_1
+            ssh_key_secret: ORION_DEPLOY_SSH_KEY_1
+          # 如需多台，再追加：
+          # - name: orion-vm-2
+          #   host_secret: ORION_DEPLOY_HOST_2
+          #   ssh_key_secret: ORION_DEPLOY_SSH_KEY_2
+
     env:
-      PROJECT_ID: infra-20250121-20260121-0235
-      ZONE: asia-east1-a
-      VM_NAME: buck2-hub-orion-client-vm
+      ORION_DEPLOY_HOST: ${{ secrets[matrix.host_secret] }}
+      ORION_DEPLOY_SSH_KEY: ${{ secrets[matrix.ssh_key_secret] }}
+      ORION_DEPLOY_SSH_USER: wiedersehenm
 
     steps:
       - name: Download build artifacts
@@ -71,26 +86,21 @@ jobs:
           name: orion-scorpio-bins
           path: ./artifacts
 
-      - name: Auth to GCP
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-
-      - name: Upload binaries to GCE VM
+      - name: Prepare SSH key
         run: |
-          gcloud compute scp \
+          mkdir -p ~/.ssh
+          printf '%s\n' "${ORION_DEPLOY_SSH_KEY}" > ~/.ssh/orion_deploy_key
+          chmod 600 ~/.ssh/orion_deploy_key
+
+      - name: Upload binaries to VM via SSH
+        run: |
+          scp -i ~/.ssh/orion_deploy_key -o StrictHostKeyChecking=no \
             ./artifacts/orion \
             ./artifacts/scorpio \
-            "${VM_NAME}:/tmp/" \
-            --zone="${ZONE}" \
-            --project="${PROJECT_ID}"
+            "${ORION_DEPLOY_SSH_USER}@${ORION_DEPLOY_HOST}:/tmp/"
 
       - name: Install binaries and restart service
         run: |
-          gcloud compute ssh "${VM_NAME}" \
-            --zone="${ZONE}" \
-            --project="${PROJECT_ID}" \
-            --command="sudo mv /tmp/orion /usr/local/bin/orion && sudo mv /tmp/scorpio /usr/local/bin/scorpio && sudo chmod +x /usr/local/bin/orion /usr/local/bin/scorpio && sudo systemctl restart orion-worker.service && sudo systemctl status orion-worker.service --no-pager"
+          ssh -i ~/.ssh/orion_deploy_key -o StrictHostKeyChecking=no \
+            "${ORION_DEPLOY_SSH_USER}@${ORION_DEPLOY_HOST}" \
+            "sudo mv /tmp/orion /usr/local/bin/orion && sudo mv /tmp/scorpio /usr/local/bin/scorpio && sudo chmod +x /usr/local/bin/orion /usr/local/bin/scorpio && sudo systemctl restart orion-worker.service && sudo systemctl status orion-worker.service --no-pager"
