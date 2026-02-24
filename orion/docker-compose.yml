@@ -11,7 +11,6 @@
 # - Scorpio performs real mounts and therefore requires Linux FUSE support.
 #
 # Profiles:
-#   dev     - Interactive development shell (tooling only)
 #   fuse    - Scorpio daemon (requires privileged mode)
 #   worker  - Orion Worker (requires privileged mode; embeds Scorpio by default)
 # =============================================================================
@@ -79,41 +78,12 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
-  # ---------------------------------------------------------------------------
-  # Development Shell - Tooling Only
-  # ---------------------------------------------------------------------------
-  dev:
-    image: ${ORION_CLIENT_IMAGE:-orion-client:dev}
-    container_name: mega-dev-shell
-    profiles:
-      - dev
-    privileged: true
-    environment:
-      RUST_LOG: ${RUST_LOG:-debug}
-    volumes:
-      - ../..:/workspace
-      - scorpio-data:/data/scorpio
-      - cargo-cache:/root/.cargo/registry
-      - target-cache:/workspace/target
-    working_dir: /workspace
-    stdin_open: true
-    tty: true
-    networks:
-      - mega-network
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-
 volumes:
   scorpio-data:
     name: mega-scorpio-data
   workspace:
     name: mega-workspace
-  cargo-cache:
-    name: mega-cargo-cache
-  target-cache:
-    name: mega-target-cache
 
 networks:
   mega-network:
     name: mega-network
-

@@ -247,6 +247,7 @@ build_image() {
     local image_tag_with_arch="${image_tag}-${arch_suffix}"
     local image_base="${REPOSITORY}"
     local latest_tag="${image_tag%-${GIT_HASH}}-latest"
+    local cache_dir="${REPO_ROOT}/.buildx-cache/${image_name}-${arch_suffix}"
     
     # Verify paths exist (use absolute paths)
     local full_dockerfile="${REPO_ROOT}/${dockerfile_path}"
@@ -283,10 +284,15 @@ build_image() {
     
     # Always load the image into the local Docker engine first.
     build_args+=(--load)
-    
+
     if [ "$image_name" = "mega-ui" ]; then
         build_args+=(--build-arg APP_ENV=demo)
     fi
+
+    # Persist BuildKit cache across builder recreation to speed up local rebuilds.
+    mkdir -p "${cache_dir}"
+    build_args+=(--cache-from "type=local,src=${cache_dir}")
+    build_args+=(--cache-to "type=local,dest=${cache_dir},mode=max")
 
     # Add cache-to (inline cache is always useful)
     build_args+=(--cache-to type=inline)

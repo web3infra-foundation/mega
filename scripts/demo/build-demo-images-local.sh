@@ -262,6 +262,7 @@ build_and_push() {
     fi
     local image_tag_with_arch="${image_tag}-${arch_suffix}"
     local image_base="${REGISTRY}/${REGISTRY_ALIAS}/${REPOSITORY}"
+    local cache_dir="${REPO_ROOT}/.buildx-cache/${image_name}-${arch_suffix}"
     
     # Verify paths exist (use absolute paths)
     local full_dockerfile="${REPO_ROOT}/${dockerfile_path}"
@@ -358,7 +359,12 @@ build_and_push() {
     if [ ${#cache_from_args[@]} -gt 0 ]; then
         build_args+=("${cache_from_args[@]}")
     fi
-    
+
+    # Persist BuildKit cache across builder recreation to speed up local rebuilds.
+    mkdir -p "${cache_dir}"
+    build_args+=(--cache-from "type=local,src=${cache_dir}")
+    build_args+=(--cache-to "type=local,dest=${cache_dir},mode=max")
+
     # Add cache-to (inline cache is always useful)
     build_args+=(--cache-to type=inline)
     
