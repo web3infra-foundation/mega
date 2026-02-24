@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use axum::{
     Json,
     body::Body,
@@ -7,7 +7,6 @@ use axum::{
     routing::get,
 };
 use ceres::{api_service::ApiHandler, model::git::TreeQuery};
-use http::StatusCode;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{
@@ -78,12 +77,10 @@ pub async fn get_blob_file(
             .header("Content-Disposition", file_name)
             .body(Body::from(data))
             .unwrap()),
-        Err(_) => Ok({
-            Response::builder()
-                .status(StatusCode::NOT_FOUND)
-                .body(Body::empty())
-                .unwrap()
-        }),
+        Err(e) => Err(ApiError::not_found(anyhow!(
+            "error={}",
+            e
+        ))),
     }
 }
 

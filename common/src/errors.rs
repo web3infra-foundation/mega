@@ -94,7 +94,14 @@ impl From<ParseErrors> for MegaError {
 
 impl From<MegaError> for GitError {
     fn from(val: MegaError) -> Self {
-        GitError::CustomError(val.to_string())
+        match val {
+            // Preserve HTTP semantics across crates: ApiError can parse [code:404].
+            MegaError::NotFound(msg) => GitError::CustomError(format!("[code:404] {msg}")),
+            MegaError::ObjStorageNotFound(msg) => {
+                GitError::CustomError(format!("[code:404] ObjStorage not found: {msg}"))
+            }
+            other => GitError::CustomError(other.to_string()),
+        }
     }
 }
 

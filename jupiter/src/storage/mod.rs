@@ -291,7 +291,7 @@ impl Storage {
         err: MegaError,
     ) -> MegaError {
         match err {
-            MegaError::ObjStorageNotFound(msg) => {
+            MegaError::ObjStorageNotFound(_msg) => {
                 let mono_storage = self.mono_storage();
             
 
@@ -300,22 +300,22 @@ impl Storage {
                     .await
                 {
                     Ok(blobs) if blobs.is_empty() => {
-                    
-                        tracing::warn!(
+                        let friendly = format!(
                             "Blob {hash} not found in both object storage and metadata (likely never written or invalid request)"
                         );
-                        return MegaError::ObjStorageNotFound(msg);
+                        tracing::warn!("{}", friendly);
+                        return MegaError::ObjStorageNotFound(friendly);
                     }
                     Ok(mut blobs) => {
                     
                         if let Some(blob) = blobs.pop() {
-                            tracing::error!(
+                            tracing::warn!(
                                 "Object { } missing in S3 but metadata exists; possible data loss or misconfiguration",
                                 blob.blob_id
                             );
                             return MegaError::ObjStorageInconsistent(format!("Object{hash} missing in S3 but metadata exists; possible data loss or misconfiguration "));
                         } else {
-                            tracing::error!(
+                            tracing::warn!(
                                 "Object missing in S3 but metadata lookup returned unexpected empty result",
                             );
                             return MegaError::ObjStorageInconsistent(format!("Object {hash} missing in S3 but metadata lookup returned unexpected empty result "));
