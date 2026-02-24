@@ -87,9 +87,6 @@ Examples:
   # Run Buck2 build
   docker run --rm -v $(pwd):/workspace mega-dev:latest buck2 build //...
 
-  # Interactive development
-  docker run -it --rm -v $(pwd):/workspace mega-dev:dev bash
-
 Environment Variables:
   See .env.example for full list of configurable options.
 

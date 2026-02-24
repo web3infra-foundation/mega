@@ -70,6 +70,8 @@ jobs:
             --target runtime \
             --provenance=false \
             --sbom=false \
+            --cache-from "type=gha,scope=orion-client-$ARCH_SUFFIX" \
+            --cache-to "type=gha,mode=max,scope=orion-client-$ARCH_SUFFIX" \
             -t "$IMAGE_BASE:${{ env.IMAGE_TAG_BASE }}-$ARCH_SUFFIX" \
             -f orion/Dockerfile \
             --push .
