@@ -23,8 +23,8 @@ use crate::{
         blame::{BlameQuery, BlameResult},
         change_list::MuiTreeNode,
         git::{
-            CommitBindingInfo, CreateEntryInfo, DiffPreviewPayload, EditFilePayload,
-            EditFileResult, TreeBriefItem, TreeCommitItem, TreeHashItem,
+            CommitBindingInfo, CreateEntryInfo, CreateEntryResult, DiffPreviewPayload,
+            EditFilePayload, EditFileResult, TreeBriefItem, TreeCommitItem, TreeHashItem,
         },
         tag::TagInfo,
     },
@@ -115,8 +115,11 @@ pub trait ApiHandler: Send + Sync {
         blob_ops::get_blob_as_string(self, file_path, refs).await
     }
 
-    /// Create a file or directory entry under the monorepo path. Returns the new commit id on success.
-    async fn create_monorepo_entry(&self, file_info: CreateEntryInfo) -> Result<String, GitError>;
+    /// Create a file or directory entry under the monorepo path.
+    async fn create_monorepo_entry(
+        &self,
+        file_info: CreateEntryInfo,
+    ) -> Result<CreateEntryResult, GitError>;
 
     async fn get_raw_blob_by_hash(&self, hash: &str) -> Result<Vec<u8>, MegaError> {
         self.get_context()

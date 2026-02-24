@@ -21,16 +21,26 @@ pub struct CreateEntryInfo {
     pub author_email: Option<String>,
     /// web username for commit binding (optional)
     pub author_username: Option<String>,
+    /// if true, skip build
+    #[serde(default)]
+    pub skip_build: bool,
+    /// Controls how CL is created or reused for this change.
+    #[serde(default = "default_create_mode")]
+    pub mode: EditCLMode,
 }
 
 impl CreateEntryInfo {
     pub fn commit_msg(&self) -> String {
         if self.is_directory {
-            format!("\n create new directory {}", self.name)
+            format!("create new directory {}", self.name)
         } else {
-            format!("\n create new file {}", self.name)
+            format!("create new file {}", self.name)
         }
     }
+}
+
+fn default_create_mode() -> EditCLMode {
+    EditCLMode::TryReuse(None)
 }
 
 #[derive(Debug, Deserialize, IntoParams)]
@@ -214,6 +224,18 @@ pub struct EditFileResult {
     /// New blob oid of the saved file
     pub new_oid: String,
     /// Saved file path
+    pub path: String,
+    pub cl_link: Option<String>,
+}
+
+/// Response body after creating a file or directory
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct CreateEntryResult {
+    /// New commit id created by this operation
+    pub commit_id: String,
+    /// New blob oid for the created entry
+    pub new_oid: String,
+    /// Created entry path
     pub path: String,
     pub cl_link: Option<String>,
 }

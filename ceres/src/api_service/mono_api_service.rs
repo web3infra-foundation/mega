@@ -39,7 +39,7 @@ use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
     str::FromStr,
-    sync::Arc,
+    sync::{Arc, LazyLock},
     time::Duration,
 };
 
@@ -98,7 +98,7 @@ use crate::{
             FileToUpload as ApiFileToUpload, ManifestPayload, ManifestResponse,
         },
         change_list::{ClDiffFile, UpdateBranchStatusRes},
-        git::{CreateEntryInfo, EditFilePayload, EditFileResult},
+        git::{CreateEntryInfo, CreateEntryResult, EditFilePayload, EditFileResult},
         tag::TagInfo,
         third_party::{ThirdPartyClient, ThirdPartyRepoTrait},
     },
@@ -140,6 +140,14 @@ pub struct RefUpdate {
     tree_id: ObjectHash,
 }
 
+struct CreateEntryUpdate {
+    update_result: TreeUpdateResult,
+    blob: Blob,
+    entry_oid: ObjectHash,
+    repo_path: PathBuf,
+    save_trees: Vec<Tree>,
+}
+
 struct ApplyChangeContext<'a> {
     components: &'a [String],
     chain_paths: &'a [PathBuf],
@@ -158,6 +166,10 @@ struct ApplyChangeContext<'a> {
 /// - In tests, you can call `MonoServiceLogic` methods directly without initializing
 ///   `MonoApiService` or a database.
 pub struct MonoServiceLogic;
+
+static PATH_NOT_EXIST_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"Path '([^']+)' not exist").expect("PATH_NOT_EXIST_RE must be valid")
+});
 
 impl MonoServiceLogic {
     pub fn clean_path_str(path: &str) -> String {
@@ -413,7 +425,11 @@ impl ApiHandler for MonoApiService {
         let src_commit = edit_utils::get_repo_main_latest_commit(&self.storage, repo_path).await?;
         let dst_commit = Commit::from_tree_id(
             new_tree.id,
-            vec![ObjectHash::from_str(&src_commit.id.to_string()).unwrap()],
+            vec![
+                ObjectHash::from_str(&src_commit.id.to_string()).map_err(|e| {
+                    GitError::CustomError(format!("Invalid commit hash {}: {e}", src_commit.id))
+                })?,
+            ],
             &payload.commit_message,
         );
         let new_commit_id = dst_commit.id.to_string();
@@ -486,270 +502,104 @@ impl ApiHandler for MonoApiService {
     ///
     /// # Returns
     ///
-    /// Returns new commit id on success, or a `GitError` on failure.
-    async fn create_monorepo_entry(&self, entry_info: CreateEntryInfo) -> Result<String, GitError> {
+    /// Returns commit metadata on success, or a `GitError` on failure.
+    async fn create_monorepo_entry(
+        &self,
+        entry_info: CreateEntryInfo,
+    ) -> Result<CreateEntryResult, GitError> {
         let storage = self.storage.mono_storage();
-        let path = PathBuf::from(&entry_info.path);
-        let mut save_trees = vec![];
-        let last_commit_id: String;
+        let CreateEntryUpdate {
+            update_result,
+            blob,
+            entry_oid,
+            repo_path,
+            mut save_trees,
+        } = self.prepare_create_entry_update(&entry_info).await?;
 
-        // Try to get the update chain for the given path.
-        // If the path exists, return an empty missing_parts and prefix.
-        // If part of the path does not exist, extract the missing segments (missing_parts),
-        // determine the valid existing prefix, and rebuild the update_chain from that prefix.
-        let (missing_parts, prefix, mut update_chain) =
-            match self.search_tree_for_update(&path).await {
-                Ok(chain) => (Vec::new(), "", chain),
-                Err(err) => {
-                    // If search_tree_for_update failed, try to extract the
-                    // portion of the path that does not exist from the
-                    // error message. The error message is expected to
-                    // contain a substring like: Path '.../missing' not exist
-                    // We capture that substring to determine which segments
-                    // need to be created.
-                    let re: Regex = Regex::new(r"Path '([^']+)' not exist").unwrap();
-                    let extracted = re
-                        .captures(&err.to_string())
-                        .map(|caps| caps[1].to_string())
-                        .unwrap_or(err.to_string());
-
-                    // missing_parts: the trailing path segments after the
-                    // first occurrence of the extracted non-existent path.
-                    // Example: entry_info.path = "a/b/c/d" and extracted = "c/d"
-                    // Then missing_parts = ["c", "d"]
-                    let missing_parts = entry_info
-                        .path
-                        .find(&extracted)
-                        .map(|pos| &entry_info.path[pos..])
-                        .map(|sub| sub.split('/').collect::<Vec<_>>())
-                        .unwrap_or_default();
-
-                    // prefix: the valid existing path before the missing parts.
-                    // Using the same example above, prefix = "a/b/"
-                    let prefix = entry_info
-                        .path
-                        .find(&extracted)
-                        .map(|pos| &entry_info.path[..pos])
-                        .unwrap_or("");
-
-                    // Rebuild the update chain starting from the valid prefix
-                    // so subsequent operations only update from that known
-                    // existing tree downward.
-                    let chain = self.search_tree_for_update(Path::new(prefix)).await?;
-                    (missing_parts, prefix, chain)
-                }
-            };
-
-        let target_items = update_chain.pop().unwrap().tree_items.clone();
-
-        // If there are no missing parts, we are inserting directly into an
-        // existing tree. This branch handles both creating a new file or
-        // creating a new directory in the target tree.
-        if missing_parts.is_empty() {
-            let mut target_items = target_items;
-
-            // Check for duplicate
-            let is_tree_mode = if entry_info.is_directory {
-                TreeItemMode::Tree
+        let repo_path_str = {
+            let path_str = repo_path.to_string_lossy().to_string();
+            if path_str.is_empty() {
+                "/".to_string()
             } else {
-                TreeItemMode::Blob
-            };
-            if target_items
-                .iter()
-                .any(|x| x.mode == is_tree_mode && x.name == entry_info.name)
-            {
-                return Err(GitError::CustomError("Duplicate name".to_string()));
+                path_str
             }
+        };
 
-            // Create a new tree item based on whether it's a directory or file
-            let (new_item, blob) = if entry_info.is_directory {
-                // For a new directory, create a .gitkeep blob so the
-                // directory can be represented as a tree with at least
-                // one blob entry. The blob contains a timestamp so it's
-                // unique.
-                let blob = generate_git_keep_with_timestamp();
-                let tree_item = TreeItem {
-                    mode: TreeItemMode::Blob,
-                    id: blob.id,
-                    name: String::from(".gitkeep"),
-                };
-                let new_dir_tree = Tree::from_tree_items(vec![tree_item]).unwrap();
-                save_trees.push(new_dir_tree.clone());
-                (
-                    TreeItem {
-                        mode: TreeItemMode::Tree,
-                        id: new_dir_tree.id,
-                        name: entry_info.name.clone(),
-                    },
-                    blob,
-                )
-            } else {
-                let blob = Blob::from_content(&entry_info.content.clone().unwrap());
-                (
-                    TreeItem {
-                        mode: TreeItemMode::Blob,
-                        id: blob.id,
-                        name: entry_info.name.clone(),
-                    },
-                    blob,
-                )
-            };
+        let src_commit =
+            edit_utils::get_repo_main_latest_commit(&self.storage, &repo_path_str).await?;
+        let base_commit = ObjectHash::from_str(&src_commit.id.to_string()).map_err(|e| {
+            GitError::CustomError(format!("Invalid commit hash {}: {e}", src_commit.id))
+        })?;
+        let target_tree_id = update_result
+            .ref_updates
+            .first()
+            .ok_or_else(|| GitError::CustomError("Missing ref updates".to_string()))?
+            .tree_id;
+        let dst_commit =
+            Commit::from_tree_id(target_tree_id, vec![base_commit], &entry_info.commit_msg());
+        let new_commit_id = dst_commit.id.to_string();
 
-            target_items.push(new_item);
-            target_items.sort_by(|a, b| a.name.cmp(&b.name));
-            let target_tree = Tree::from_tree_items(target_items).unwrap();
-            save_trees.push(target_tree.clone());
+        let username = entry_info
+            .author_username
+            .clone()
+            .unwrap_or("Anonymous".to_string());
 
-            // Build update instructions for parent trees and refs.
-            // build_result_by_chain walks the update_chain (parent trees)
-            // and prepares the list of updated trees and ref updates
-            // that must be applied to persist the change.
-            let update_result = MonoServiceLogic::build_result_by_chain(
-                if prefix.is_empty() {
-                    path.clone()
-                } else {
-                    PathBuf::from(&prefix)
-                },
-                update_chain,
-                target_tree.id,
-            )?;
-            let new_commit_id = self
-                .apply_update_result(&update_result, &entry_info.commit_msg(), None)
-                .await?;
+        let new_oid = entry_oid.to_string();
 
-            // storage.save_mega_blobs(&new_commit_id, vec![&blob]).await?;
+        let mut all_trees = update_result.updated_trees;
+        all_trees.append(&mut save_trees);
+        let save_trees: Vec<mega_tree::ActiveModel> = all_trees
+            .into_iter()
+            .map(|save_t| {
+                let mut tree_model: mega_tree::Model = save_t.into_mega_model(EntryMeta::new());
+                tree_model.commit_id.clone_from(&new_commit_id);
+                tree_model.into()
+            })
+            .collect();
+        self.storage
+            .mono_service
+            .save_blobs(&new_commit_id, vec![blob])
+            .await?;
 
-            self.storage
-                .mono_service
-                .save_blobs(&new_commit_id, vec![blob])
-                .await?;
+        storage
+            .batch_save_model(save_trees)
+            .await
+            .map_err(|e| GitError::CustomError(e.to_string()))?;
 
-            let save_trees: Vec<mega_tree::ActiveModel> = save_trees
-                .into_iter()
-                .map(|save_t| {
-                    let mut tree_model: mega_tree::Model = save_t.into_mega_model(EntryMeta::new());
-                    tree_model.commit_id.clone_from(&new_commit_id);
-                    tree_model.into()
-                })
-                .collect();
-            storage.batch_save_model(save_trees).await?;
-            last_commit_id = new_commit_id;
-        } else {
-            // If missing_parts is not empty, we must create intermediate
-            // directories (trees) for each missing segment. This branch
-            // constructs the leaf tree first and then wraps it with
-            // additional trees for each missing path component up to the
-            // existing prefix.
-            // Create a new tree item based on whether it's a directory or file
-            let (leaf_item, blob) = if entry_info.is_directory {
-                // Create .gitkeep blob and an initial tree for the new
-                // directory leaf. This represents the directory's own
-                // tree object which will be nested under new parent trees.
-                let blob = generate_git_keep_with_timestamp();
-                let tree_item = TreeItem {
-                    mode: TreeItemMode::Blob,
-                    id: blob.id,
-                    name: String::from(".gitkeep"),
-                };
-                let new_dir_tree = Tree::from_tree_items(vec![tree_item]).unwrap();
-                save_trees.push(new_dir_tree.clone());
-                (
-                    TreeItem {
-                        mode: TreeItemMode::Tree,
-                        id: new_dir_tree.id,
-                        name: entry_info.name.clone(),
-                    },
-                    blob,
-                )
-            } else {
-                let blob = Blob::from_content(&entry_info.content.clone().unwrap());
-                (
-                    TreeItem {
-                        mode: TreeItemMode::Blob,
-                        id: blob.id,
-                        name: entry_info.name.clone(),
-                    },
-                    blob,
-                )
-            };
+        self.storage
+            .mono_service
+            .mono_storage
+            .save_mega_commits(vec![dst_commit], None)
+            .await?;
 
-            let mut current_tree = Tree::from_tree_items(vec![leaf_item]).unwrap();
-            save_trees.push(current_tree.clone());
+        let editor = OneditCodeEdit::from(
+            &repo_path_str,
+            &src_commit.id.to_string(),
+            &self,
+            self.storage.mono_storage(),
+        );
+        let cl = editor
+            .find_or_create_cl_for_edit(
+                &self.storage,
+                &editor,
+                entry_info.mode.clone(),
+                &new_commit_id,
+                &username,
+            )
+            .await?;
 
-            // Wrap the leaf tree with trees for each missing parent segment.
-            // We iterate the missing parts in reverse (from leaf's parent up
-            // to the topmost missing segment) and create a tree object for
-            // each level that points to the previously built child tree.
-            let missing_len = missing_parts.len();
-            for part in missing_parts.iter().rev().take(missing_len - 1) {
-                let sub_item = TreeItem {
-                    mode: TreeItemMode::Tree,
-                    id: current_tree.id,
-                    name: part.to_string(),
-                };
-
-                current_tree = Tree::from_tree_items(vec![sub_item]).unwrap();
-                save_trees.push(current_tree.clone());
-            }
-
-            // top_part is the highest-level missing segment (closest to the
-            // existing prefix). We'll insert this as a child into the
-            // existing target_items collected from the update chain.
-            let top_part = missing_parts.first().unwrap().to_string();
-            let top_item = TreeItem {
-                mode: TreeItemMode::Tree,
-                id: current_tree.id,
-                name: top_part.clone(),
-            };
-
-            let mut target_items = target_items;
-
-            // Check for duplicate
-            if target_items
-                .iter()
-                .any(|x| x.mode == TreeItemMode::Tree && x.name == top_part)
-            {
-                return Err(GitError::CustomError("Duplicate name".to_string()));
-            }
-
-            target_items.push(top_item);
-            target_items.sort_by(|a, b| a.name.cmp(&b.name));
-            let target_tree = Tree::from_tree_items(target_items).unwrap();
-            save_trees.push(target_tree.clone());
-
-            // After constructing the nested trees, build update instructions
-            // and apply them to update the parent trees and refs so the
-            // new nested directory/file is persisted in the repository.
-            let update_result = MonoServiceLogic::build_result_by_chain(
-                PathBuf::from(prefix),
-                update_chain,
-                target_tree.id,
-            )?;
-            let new_commit_id = self
-                .apply_update_result(&update_result, &entry_info.commit_msg(), None)
-                .await?;
-
-            self.storage
-                .mono_service
-                .save_blobs(&new_commit_id, vec![blob])
-                .await?;
-
-            let save_trees: Vec<mega_tree::ActiveModel> = save_trees
-                .into_iter()
-                .map(|save_t| {
-                    let mut tree_model: mega_tree::Model = save_t.into_mega_model(EntryMeta::new());
-                    tree_model.commit_id.clone_from(&new_commit_id);
-                    tree_model.into()
-                })
-                .collect();
-            storage
-                .batch_save_model(save_trees)
-                .await
-                .map_err(|e| GitError::CustomError(e.to_string()))?;
-            last_commit_id = new_commit_id;
+        if !entry_info.skip_build {
+            self.trigger_build_for_cl(&editor, &cl, &username).await?;
         }
 
-        Ok(last_commit_id)
+        let entry_path = Self::build_entry_path(&entry_info.path, &entry_info.name);
+
+        Ok(CreateEntryResult {
+            commit_id: new_commit_id,
+            new_oid,
+            path: entry_path,
+            cl_link: Some(cl.link),
+        })
     }
 
     fn strip_relative(&self, path: &Path) -> Result<PathBuf, MegaError> {
@@ -1082,6 +932,287 @@ impl ApiHandler for MonoApiService {
 }
 
 impl MonoApiService {
+    async fn prepare_create_entry_update(
+        &self,
+        entry_info: &CreateEntryInfo,
+    ) -> Result<CreateEntryUpdate, GitError> {
+        let path = PathBuf::from(&entry_info.path);
+        let mut save_trees = vec![];
+        let file_content = if entry_info.is_directory {
+            None
+        } else {
+            Some(entry_info.content.as_deref().ok_or_else(|| {
+                GitError::CustomError("content is required for file creation".to_string())
+            })?)
+        };
+
+        // Try to get the update chain for the given path.
+        // If the path exists, return an empty missing_parts and prefix.
+        // If part of the path does not exist, extract the missing segments (missing_parts),
+        // determine the valid existing prefix, and rebuild the update_chain from that prefix.
+        let (missing_parts, prefix, mut update_chain) =
+            match self.search_tree_for_update(&path).await {
+                Ok(chain) => (Vec::new(), "", chain),
+                Err(err) => {
+                    // If search_tree_for_update failed, try to extract the
+                    // portion of the path that does not exist from the
+                    // error message. The error message is expected to
+                    // contain a substring like: Path '.../missing' not exist
+                    // We capture that substring to determine which segments
+                    // need to be created.
+                    let err_str = err.to_string();
+                    let extracted = PATH_NOT_EXIST_RE
+                        .captures(&err_str)
+                        .map(|caps| caps[1].to_string())
+                        .ok_or_else(|| {
+                            GitError::CustomError(format!("Path resolution failed: {err_str}"))
+                        })?;
+
+                    // missing_parts: the trailing path segments after the
+                    // first occurrence of the extracted non-existent path.
+                    // Example: entry_info.path = "a/b/c/d" and extracted = "c/d"
+                    // Then missing_parts = ["c", "d"]
+                    let missing_parts = entry_info
+                        .path
+                        .find(&extracted)
+                        .map(|pos| &entry_info.path[pos..])
+                        .map(|sub| sub.split('/').collect::<Vec<_>>())
+                        .unwrap_or_default();
+
+                    if missing_parts.is_empty() {
+                        return Err(GitError::CustomError(format!(
+                            "Missing path segments for '{}': {err_str}",
+                            entry_info.path
+                        )));
+                    }
+
+                    // prefix: the valid existing path before the missing parts.
+                    // Using the same example above, prefix = "a/b/"
+                    let prefix = entry_info
+                        .path
+                        .find(&extracted)
+                        .map(|pos| &entry_info.path[..pos])
+                        .unwrap_or("");
+
+                    // Rebuild the update chain starting from the valid prefix
+                    // so subsequent operations only update from that known
+                    // existing tree downward.
+                    let chain = self.search_tree_for_update(Path::new(prefix)).await?;
+                    (missing_parts, prefix, chain)
+                }
+            };
+
+        let target_items = update_chain
+            .pop()
+            .ok_or_else(|| GitError::CustomError("Empty update chain".to_string()))?
+            .tree_items
+            .clone();
+
+        // If there are no missing parts, we are inserting directly into an
+        // existing tree. This branch handles both creating a new file or
+        // creating a new directory in the target tree.
+        let (update_result, blob, entry_oid, repo_path) = if missing_parts.is_empty() {
+            let mut target_items = target_items;
+
+            // Check for duplicate
+            let is_tree_mode = if entry_info.is_directory {
+                TreeItemMode::Tree
+            } else {
+                TreeItemMode::Blob
+            };
+            if target_items
+                .iter()
+                .any(|x| x.mode == is_tree_mode && x.name == entry_info.name)
+            {
+                return Err(GitError::CustomError("Duplicate name".to_string()));
+            }
+
+            // Create a new tree item based on whether it's a directory or file
+            let (new_item, blob, entry_oid) = if entry_info.is_directory {
+                // For a new directory, create a .gitkeep blob so the
+                // directory can be represented as a tree with at least
+                // one blob entry. The blob contains a timestamp so it's
+                // unique.
+                let blob = generate_git_keep_with_timestamp();
+                let tree_item = TreeItem {
+                    mode: TreeItemMode::Blob,
+                    id: blob.id,
+                    name: String::from(".gitkeep"),
+                };
+                let new_dir_tree = Tree::from_tree_items(vec![tree_item]).unwrap();
+                save_trees.push(new_dir_tree.clone());
+                let entry_oid = new_dir_tree.id;
+                (
+                    TreeItem {
+                        mode: TreeItemMode::Tree,
+                        id: new_dir_tree.id,
+                        name: entry_info.name.clone(),
+                    },
+                    blob,
+                    entry_oid,
+                )
+            } else {
+                let content = file_content
+                    .ok_or_else(|| GitError::CustomError("Missing file content".to_string()))?;
+                let blob = Blob::from_content(content);
+                let entry_oid = blob.id;
+                (
+                    TreeItem {
+                        mode: TreeItemMode::Blob,
+                        id: blob.id,
+                        name: entry_info.name.clone(),
+                    },
+                    blob,
+                    entry_oid,
+                )
+            };
+
+            target_items.push(new_item);
+            target_items.sort_by(|a, b| a.name.cmp(&b.name));
+            let target_tree = Tree::from_tree_items(target_items).unwrap();
+            save_trees.push(target_tree.clone());
+
+            // Build update instructions for parent trees and refs.
+            // build_result_by_chain walks the update_chain (parent trees)
+            // and prepares the list of updated trees and ref updates
+            // that must be applied to persist the change.
+            let update_result = MonoServiceLogic::build_result_by_chain(
+                if prefix.is_empty() {
+                    path.clone()
+                } else {
+                    PathBuf::from(prefix)
+                },
+                update_chain,
+                target_tree.id,
+            )?;
+            let repo_path = if prefix.is_empty() {
+                path.clone()
+            } else {
+                PathBuf::from(prefix)
+            };
+            (update_result, blob, entry_oid, repo_path)
+        } else {
+            // If missing_parts is not empty, we must create intermediate
+            // directories (trees) for each missing segment. This branch
+            // constructs the leaf tree first and then wraps it with
+            // additional trees for each missing path component up to the
+            // existing prefix.
+            // Create a new tree item based on whether it's a directory or file
+            let (leaf_item, blob, entry_oid) = if entry_info.is_directory {
+                // Create .gitkeep blob and an initial tree for the new
+                // directory leaf. This represents the directory's own
+                // tree object which will be nested under new parent trees.
+                let blob = generate_git_keep_with_timestamp();
+                let tree_item = TreeItem {
+                    mode: TreeItemMode::Blob,
+                    id: blob.id,
+                    name: String::from(".gitkeep"),
+                };
+                let new_dir_tree = Tree::from_tree_items(vec![tree_item]).unwrap();
+                save_trees.push(new_dir_tree.clone());
+                let entry_oid = new_dir_tree.id;
+                (
+                    TreeItem {
+                        mode: TreeItemMode::Tree,
+                        id: new_dir_tree.id,
+                        name: entry_info.name.clone(),
+                    },
+                    blob,
+                    entry_oid,
+                )
+            } else {
+                let content = file_content
+                    .ok_or_else(|| GitError::CustomError("Missing file content".to_string()))?;
+                let blob = Blob::from_content(content);
+                let entry_oid = blob.id;
+                (
+                    TreeItem {
+                        mode: TreeItemMode::Blob,
+                        id: blob.id,
+                        name: entry_info.name.clone(),
+                    },
+                    blob,
+                    entry_oid,
+                )
+            };
+
+            let mut current_tree = Tree::from_tree_items(vec![leaf_item]).unwrap();
+            save_trees.push(current_tree.clone());
+
+            // Wrap the leaf tree with trees for each missing parent segment.
+            // We iterate the missing parts in reverse (from leaf's parent up
+            // to the topmost missing segment) and create a tree object for
+            // each level that points to the previously built child tree.
+            let missing_len = missing_parts.len();
+            for part in missing_parts.iter().rev().take(missing_len - 1) {
+                let sub_item = TreeItem {
+                    mode: TreeItemMode::Tree,
+                    id: current_tree.id,
+                    name: part.to_string(),
+                };
+
+                current_tree = Tree::from_tree_items(vec![sub_item]).unwrap();
+                save_trees.push(current_tree.clone());
+            }
+
+            // top_part is the highest-level missing segment (closest to the
+            // existing prefix). We'll insert this as a child into the
+            // existing target_items collected from the update chain.
+            let top_part = missing_parts
+                .first()
+                .expect("missing_parts is non-empty by branch condition")
+                .to_string();
+            let top_item = TreeItem {
+                mode: TreeItemMode::Tree,
+                id: current_tree.id,
+                name: top_part.clone(),
+            };
+
+            let mut target_items = target_items;
+
+            // Check for duplicate
+            if target_items
+                .iter()
+                .any(|x| x.mode == TreeItemMode::Tree && x.name == top_part)
+            {
+                return Err(GitError::CustomError("Duplicate name".to_string()));
+            }
+
+            target_items.push(top_item);
+            target_items.sort_by(|a, b| a.name.cmp(&b.name));
+            let target_tree = Tree::from_tree_items(target_items).unwrap();
+            save_trees.push(target_tree.clone());
+
+            // After constructing the nested trees, build update instructions
+            // and apply them to update the parent trees and refs so the
+            // new nested directory/file is persisted in the repository.
+            let update_result = MonoServiceLogic::build_result_by_chain(
+                PathBuf::from(prefix),
+                update_chain,
+                target_tree.id,
+            )?;
+            let repo_path = PathBuf::from(prefix);
+            (update_result, blob, entry_oid, repo_path)
+        };
+
+        Ok(CreateEntryUpdate {
+            update_result,
+            blob,
+            entry_oid,
+            repo_path,
+            save_trees,
+        })
+    }
+
+    fn build_entry_path(path: &str, name: &str) -> String {
+        let trimmed = path.trim_end_matches('/');
+        if trimmed.is_empty() || trimmed == "/" {
+            format!("/{name}")
+        } else {
+            format!("{trimmed}/{name}")
+        }
+    }
+
     // helper to convert mega_tag model into TagInfo
     fn tag_model_to_info(&self, tag: mega_tag::Model) -> TagInfo {
         TagInfo {
