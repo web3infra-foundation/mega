@@ -127,9 +127,7 @@ pub trait ApiHandler: Send + Sync {
             Ok(data) => Ok(data),
             Err(e) => {
                 // Best-effort classification/logging for ObjStorageNotFound cases.
-                let e = storage
-                    .classify_blob_objstorage_not_found(hash, e)
-                    .await;
+                let e = storage.classify_blob_objstorage_not_found(hash, e).await;
                 Err(e)
             }
         }

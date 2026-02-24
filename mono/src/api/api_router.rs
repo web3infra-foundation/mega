@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use axum::{
     Json,
     body::Body,
@@ -77,10 +77,7 @@ pub async fn get_blob_file(
             .header("Content-Disposition", file_name)
             .body(Body::from(data))
             .unwrap()),
-        Err(e) => Err(ApiError::not_found(anyhow!(
-            "error={}",
-            e
-        ))),
+        Err(e) => Err(ApiError::not_found(anyhow!("error={}", e))),
     }
 }
 

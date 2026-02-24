@@ -72,14 +72,11 @@ impl MegaObjectStorage for ObjectStoreAdapter {
             (ObjectNamespace::Git, UploadStrategy::SinglePut) => {
                 self.put_idempotent(&path, data).await
             }
-            _ => {
-                match self.upload_strategy {
-                    UploadStrategy::Multipart => self.put_multipart(&path, data).await,
-                    UploadStrategy::SinglePut => self.put_single(&path, data).await,
-                }
-            }
+            _ => match self.upload_strategy {
+                UploadStrategy::Multipart => self.put_multipart(&path, data).await,
+                UploadStrategy::SinglePut => self.put_single(&path, data).await,
+            },
         }
-        
     }
 
     async fn get_stream(
@@ -700,20 +697,22 @@ impl ObjectStoreAdapter {
         Ok(())
     }
 
-    async fn put_idempotent( 
+    async fn put_idempotent(
         &self,
         path: &object_store::path::Path,
         mut data: ObjectByteStream,
     ) -> Result<(), MegaError> {
-        
         let mut buf = BytesMut::new();
         while let Some(chunk) = data.try_next().await? {
             buf.extend_from_slice(&chunk);
         }
-        
-        self
-            .to_store()
-            .put_opts(&path, PutPayload::from_bytes(buf.into()), PutOptions::from(PutMode::Create))
+
+        self.to_store()
+            .put_opts(
+                path,
+                PutPayload::from_bytes(buf.into()),
+                PutOptions::from(PutMode::Create),
+            )
             .await
             .map_err(IoOrbitError::from)?;
         Ok(())

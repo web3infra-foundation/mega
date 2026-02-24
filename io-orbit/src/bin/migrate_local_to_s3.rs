@@ -60,15 +60,17 @@
 //! - If you run S3-compatible storage (MinIO/rustfs), this binary currently uses the AWS S3
 //!   builder without a custom endpoint; adapt `AmazonS3Builder` accordingly if needed.
 
-use std::path::PathBuf;
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
-use common::config::{loader::{ConfigInput, ConfigLoader}, Config, ObjectStorageBackend};
-use common::errors::MegaError;
-use futures::{StreamExt, TryStreamExt};
-use object_store::{
-    aws::AmazonS3Builder, local::LocalFileSystem, ObjectStore, ObjectStoreExt,
+use common::{
+    config::{
+        Config, ObjectStorageBackend,
+        loader::{ConfigInput, ConfigLoader},
+    },
+    errors::MegaError,
 };
+use futures::{StreamExt, TryStreamExt};
+use object_store::{ObjectStore, ObjectStoreExt, aws::AmazonS3Builder, local::LocalFileSystem};
 use tokio::sync::Semaphore;
 use tracing::{error, info};
 
@@ -104,29 +106,23 @@ async fn run() -> Result<(), MegaError> {
     // - S3Compatible -> S3-compatible service (RustFS/MinIO etc.) using endpoint_url
     let s3_cfg = object_cfg.s3.clone();
     let s3 = match backend {
-        ObjectStorageBackend::S3 => {
-            AmazonS3Builder::new()
-                .with_region(&s3_cfg.region)
-                .with_bucket_name(&s3_cfg.bucket)
-                .with_access_key_id(&s3_cfg.access_key_id)
-                .with_secret_access_key(&s3_cfg.secret_access_key)
-                .build()
-                .map_err(|e| MegaError::Other(format!("failed to init S3 client: {e}")))?
-        }
-        ObjectStorageBackend::S3Compatible => {
-            AmazonS3Builder::new()
-                .with_region(&s3_cfg.region)
-                .with_bucket_name(&s3_cfg.bucket)
-                .with_access_key_id(&s3_cfg.access_key_id)
-                .with_secret_access_key(&s3_cfg.secret_access_key)
-                .with_endpoint(&s3_cfg.endpoint_url)
-                .with_allow_http(true)
-                .with_virtual_hosted_style_request(false)
-                .build()
-                .map_err(|e| {
-                    MegaError::Other(format!("failed to init S3-compatible client: {e}"))
-                })?
-        }
+        ObjectStorageBackend::S3 => AmazonS3Builder::new()
+            .with_region(&s3_cfg.region)
+            .with_bucket_name(&s3_cfg.bucket)
+            .with_access_key_id(&s3_cfg.access_key_id)
+            .with_secret_access_key(&s3_cfg.secret_access_key)
+            .build()
+            .map_err(|e| MegaError::Other(format!("failed to init S3 client: {e}")))?,
+        ObjectStorageBackend::S3Compatible => AmazonS3Builder::new()
+            .with_region(&s3_cfg.region)
+            .with_bucket_name(&s3_cfg.bucket)
+            .with_access_key_id(&s3_cfg.access_key_id)
+            .with_secret_access_key(&s3_cfg.secret_access_key)
+            .with_endpoint(&s3_cfg.endpoint_url)
+            .with_allow_http(true)
+            .with_virtual_hosted_style_request(false)
+            .build()
+            .map_err(|e| MegaError::Other(format!("failed to init S3-compatible client: {e}")))?,
         other => {
             return Err(MegaError::Other(format!(
                 "migrate_local_to_s3 only supports S3/S3Compatible targets, got {:?}",
@@ -205,9 +201,7 @@ async fn migrate_all(
             Ok(m) => m,
             Err(e) => {
                 error!("list local objects failed: {e}");
-                return Err(MegaError::Other(format!(
-                    "list local objects failed: {e}"
-                )));
+                return Err(MegaError::Other(format!("list local objects failed: {e}")));
             }
         };
 
@@ -299,4 +293,3 @@ async fn migrate_all(
     info!("offline migration completed");
     Ok(())
 }
-

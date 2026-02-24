@@ -72,8 +72,6 @@ pub enum MegaError {
     ///Object not found in underlying object storage (S3/GCS/local). but exists in the repository.
     #[error("ObjStorage inconsistent: {0}")]
     ObjStorageInconsistent(String),
-    
-    
 
     // --- Other ---
     #[error("Other error: {0}")]

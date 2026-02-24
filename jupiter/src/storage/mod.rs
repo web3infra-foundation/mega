@@ -293,7 +293,6 @@ impl Storage {
         match err {
             MegaError::ObjStorageNotFound(_msg) => {
                 let mono_storage = self.mono_storage();
-            
 
                 match mono_storage
                     .get_mega_blobs_by_hashes(vec![hash.to_string()])
@@ -304,28 +303,32 @@ impl Storage {
                             "Blob {hash} not found in both object storage and metadata (likely never written or invalid request)"
                         );
                         tracing::warn!("{}", friendly);
-                        return MegaError::ObjStorageNotFound(friendly);
+                        MegaError::ObjStorageNotFound(friendly)
                     }
                     Ok(mut blobs) => {
-                    
                         if let Some(blob) = blobs.pop() {
                             tracing::warn!(
                                 "Object { } missing in S3 but metadata exists; possible data loss or misconfiguration",
                                 blob.blob_id
                             );
-                            return MegaError::ObjStorageInconsistent(format!("Object{hash} missing in S3 but metadata exists; possible data loss or misconfiguration "));
+                            MegaError::ObjStorageInconsistent(format!(
+                                "Object{hash} missing in S3 but metadata exists; possible data loss or misconfiguration "
+                            ))
                         } else {
                             tracing::warn!(
                                 "Object missing in S3 but metadata lookup returned unexpected empty result",
                             );
-                            return MegaError::ObjStorageInconsistent(format!("Object {hash} missing in S3 but metadata lookup returned unexpected empty result "));
+                            MegaError::ObjStorageInconsistent(format!(
+                                "Object {hash} missing in S3 but metadata lookup returned unexpected empty result "
+                            ))
                         }
                     }
                     Err(_) => {
-                        return MegaError::ObjStorageInconsistent(format!("Failed to query blob {hash} metadata while handling ObjStorageNotFound "));
+                        MegaError::ObjStorageInconsistent(format!(
+                            "Failed to query blob {hash} metadata while handling ObjStorageNotFound "
+                        ))
                     }
                 }
-
             }
             other => other,
         }

@@ -21,8 +21,7 @@ impl From<IoOrbitError> for MegaError {
                     // Underlying object store reports that the object/key does not exist.
                     MegaError::ObjStorageNotFound(e.to_string())
                 }
-                
-               
+
                 // Fallback for any other object_store errors.
                 _ => MegaError::ObjStorage(e.to_string()),
             },
