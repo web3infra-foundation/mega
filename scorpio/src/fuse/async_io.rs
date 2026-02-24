@@ -564,4 +564,56 @@ impl Filesystem for MegaFuse {
     ) -> Result<ReplyLSeek> {
         call_fuse_function!(self, lseek, req, inode, fh, offset, whence)
     }
+
+    async fn getlk(
+        &self,
+        _req: Request,
+        _inode: Inode,
+        _fh: u64,
+        _lock_owner: u64,
+        _start: u64,
+        _end: u64,
+        r#type: u32,
+        _pid: u32,
+    ) -> Result<ReplyLock> {
+        call_fuse_function!(
+            self,
+            getlk,
+            _req,
+            _inode,
+            _fh,
+            _lock_owner,
+            _start,
+            _end,
+            r#type,
+            _pid
+        )
+    }
+
+    async fn setlk(
+        &self,
+        _req: Request,
+        _inode: Inode,
+        _fh: u64,
+        _lock_owner: u64,
+        _start: u64,
+        _end: u64,
+        r#type: u32,
+        _pid: u32,
+        _block: bool,
+    ) -> Result<()> {
+        call_fuse_function!(
+            self,
+            setlk,
+            _req,
+            _inode,
+            _fh,
+            _lock_owner,
+            _start,
+            _end,
+            r#type,
+            _pid,
+            _block
+        )
+    }
 }

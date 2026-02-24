@@ -59,19 +59,14 @@ use rfuse3::{
     MountOptions,
 };
 
-#[cfg(target_os = "linux")]
-// TODO(perf): tune these values with production lookup metrics and make them
-// configurable per mount role (interactive vs build-heavy workers).
-const ANTARES_FUSE_CACHE_MOUNT_OPTIONS: &str =
-    "kernel_cache,auto_cache,entry_timeout=60,attr_timeout=60,negative_timeout=10";
-
-#[cfg(not(target_os = "linux"))]
-const ANTARES_FUSE_CACHE_MOUNT_OPTIONS: &str = "";
-
 fn apply_antares_cache_mount_options(options: &mut MountOptions) {
-    if !ANTARES_FUSE_CACHE_MOUNT_OPTIONS.is_empty() {
-        options.custom_options(ANTARES_FUSE_CACHE_MOUNT_OPTIONS);
-    }
+    // Enable write-back cache for better write performance.
+    // This negotiates FUSE_WRITEBACK_CACHE flag during FUSE_INIT.
+    //
+    // NOTE: Caching timeouts (entry_timeout, attr_timeout, etc.) are NOT
+    // configurable via mount options in Linux kernel FUSE. They must be
+    // set in the filesystem implementation's ReplyEntry/ReplyAttr TTL fields.
+    options.write_back(true);
 }
 
 #[allow(unused)]
@@ -126,6 +121,18 @@ pub async fn mount_filesystem_with_antares_cache<
         apply_antares_cache_mount_options(&mut mount_options);
     }
 
+    eprintln!(
+        "[DEBUG] About to mount FUSE filesystem at: {:?}",
+        mount_path
+    );
     let session = Session::<F>::new(mount_options);
-    session.mount(fs, mount_path).await.unwrap()
+    match session.mount(fs, mount_path).await {
+        Ok(handle) => handle,
+        Err(e) => {
+            eprintln!("[ERROR] FUSE mount failed: {:?}", e);
+            eprintln!("[ERROR] Mount path: {:?}", mountpoint);
+            eprintln!("[ERROR] OS error code: {:?}", e.raw_os_error());
+            panic!("FUSE mount failed: {}", e);
+        }
+    }
 }

@@ -16,13 +16,7 @@ reqwest = { workspace = true, features = ["json", "blocking"] }
 serde = { workspace = true, features = ["derive"] }
 tokio = { workspace = true, features = ["full"] }
 axum = { workspace = true, features = ["macros"] }
-# rfuse3 version 0.0.5 provides bugfixes and API improvements,
-# including better async mount handling and error reporting.
-# This is required for Antares to improve FUSE readiness/polling and avoid
-# mount/unmount race issues observed with 0.0.4.
-# NOTE: Verify version exists at https://github.com/cberner/rfuse3/releases
-# If 0.0.5 doesn't exist, use the latest available version and update this comment.
-rfuse3 = { version = "0.0.5", features = ["tokio-runtime", "unprivileged"] }
+rfuse3 = {  version = "0.0.7", features = ["tokio-runtime", "unprivileged"] }
 clap = { workspace = true, features = ["derive"] }
 
 toml = { workspace = true }
@@ -39,13 +33,7 @@ async-recursion = { workspace = true }
 bytes = { workspace = true }
 futures = { workspace = true }
 uuid = { workspace = true, features = ["v4"] }
-# libfuse-fs upgraded from 0.1.6 to 0.1.9 to address breaking API changes:
-# - Fixed FUSE mount/unmount race conditions and improved error propagation.
-# - Changed trait bounds for async operations, required for Scorpio's async FUSE integration.
-# - Updated method signatures for file/directory operations to match rfuse3 and kernel expectations.
-# - 0.1.6 had issues with incomplete async support and incorrect error handling, causing panics in Scorpio.
-# NOTE: Verify release notes at the libfuse-fs repository before upgrading versions.
-libfuse-fs = "0.1.10"
+libfuse-fs = { version = "0.1.11"}
 whoami = "1.6.0"
 thiserror = { workspace = true }
 crossbeam = "0.8.4"
