@@ -1,4 +1,8 @@
 name: Orion client deploy
+
+permissions:
+  contents: read
+
 on:
   push:
     branches:
@@ -7,14 +11,15 @@ on:
       - ".github/workflows/orion-client-deploy.yml"
       - "orion/**"
       - "scorpio/**"
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
-    if: ${{ github.repository == 'web3infra-foundation/mega' }}
+    if: ${{ github.repository == 'web3infra-foundation/mega' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -40,9 +45,12 @@ jobs:
 
       - name: Verify build artifacts
         run: |
-          ls -lh target/release || true
-          file target/release/orion || true
-          file target/release/scorpio || true
+          set -e
+          ls -lh target/release
+          test -f target/release/orion
+          test -f target/release/scorpio
+          file target/release/orion
+          file target/release/scorpio
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -51,11 +59,29 @@ jobs:
           path: |
             target/release/orion
             target/release/scorpio
+          retention-days: 7
 
   deploy:
-    if: ${{ github.repository == 'web3infra-foundation/mega' }}
+    if: >
+      (github.repository == 'web3infra-foundation/mega' && github.ref == 'refs/heads/main')
+      || (github.repository != 'web3infra-foundation/mega' && github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     needs: build
+    timeout-minutes: 10
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: orion-vm-1
+            host_secret: ORION_DEPLOY_HOST_1
+            ssh_key_secret: ORION_DEPLOY_SSH_KEY_1
+
+    env:
+      ORION_DEPLOY_HOST: ${{ secrets.ORION_DEPLOY_HOST_1 }}
+      ORION_DEPLOY_SSH_KEY: ${{ secrets.ORION_DEPLOY_SSH_KEY_1 }}
+      ORION_DEPLOY_SSH_USER: ${{ secrets.ORION_DEPLOY_SSH_USER_1 }}
+
     steps:
       - name: Download build artifacts
         uses: actions/download-artifact@v4
@@ -63,23 +89,37 @@ jobs:
           name: orion-scorpio-bins
           path: ./artifacts
 
-      - name: Upload binaries via rsync
-        uses: burnett01/rsync-deployments@master
-        with:
-          switches: -avz --progress
-          path: artifacts/orion artifacts/scorpio
-          remote_path: /root/orion-runner/
-          remote_host: ${{ secrets.ORION_DEPLOY_HOST }}
-          remote_user: root
-          remote_key: ${{ secrets.ORION_DEPLOY_SSH_KEY }}
+      - name: Make artifacts executable
+        run: chmod +x ./artifacts/orion ./artifacts/scorpio
 
-      - name: Restart service
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.ORION_DEPLOY_HOST }}
-          username: root
-          key: ${{ secrets.ORION_DEPLOY_SSH_KEY }}
-          script: |
-            systemctl daemon-reload
-            systemctl restart orion-runner.service
-            systemctl status orion-runner.service --no-pager
+      - name: Prepare SSH key
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${ORION_DEPLOY_SSH_KEY}" > ~/.ssh/orion_deploy_key
+          chmod 600 ~/.ssh/orion_deploy_key
+
+      - name: Add host to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "${ORION_DEPLOY_HOST}" >> ~/.ssh/known_hosts
+
+      - name: Upload binaries to VM via SSH
+        run: |
+          scp -i ~/.ssh/orion_deploy_key \
+            ./artifacts/orion \
+            ./artifacts/scorpio \
+            "${ORION_DEPLOY_SSH_USER}@${ORION_DEPLOY_HOST}:/tmp/"
+
+      - name: Install binaries and restart service
+        run: |
+          ssh -i ~/.ssh/orion_deploy_key \
+            "${ORION_DEPLOY_SSH_USER}@${ORION_DEPLOY_HOST}" \
+            "sudo mv /tmp/orion /usr/local/bin/orion && \
+             sudo mv /tmp/scorpio /usr/local/bin/scorpio && \
+             sudo chmod +x /usr/local/bin/orion /usr/local/bin/scorpio && \
+             sudo systemctl restart orion-worker.service && \
+             sudo systemctl status orion-worker.service --no-pager"
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f ~/.ssh/orion_deploy_key
