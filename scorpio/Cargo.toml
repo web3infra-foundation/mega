@@ -10,13 +10,12 @@ path = "src/lib.rs"
 
 
 [dependencies]
-api-model = { path = "../api-model" }
 git-internal = { workspace = true }
 reqwest = { workspace = true, features = ["json", "blocking"] }
 serde = { workspace = true, features = ["derive"] }
 tokio = { workspace = true, features = ["full"] }
 axum = { workspace = true, features = ["macros"] }
-rfuse3 = {  version = "0.0.7", features = ["tokio-runtime", "unprivileged"] }
+rfuse3 = {  version = "0.0.7", features = ["tokio-runtime", "unprivileged", "file-lock"] }
 clap = { workspace = true, features = ["derive"] }
 
 toml = { workspace = true }

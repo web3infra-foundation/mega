@@ -319,12 +319,16 @@ impl Dicfuse {
 
             let url = format!("{}/{}", file_blob_endpoint, i.id);
             // Send GET request
-            let response = client.get(url).send().await.unwrap(); //todo error
+            let response = client
+                .get(url)
+                .send()
+                .await
+                .map_err(std::io::Error::other)?;
 
             // Ensure that the response status is successful
             if response.status().is_success() {
                 // Get the binary data from the response body
-                let content = response.bytes().await.unwrap(); //TODO error
+                let content = response.bytes().await.map_err(std::io::Error::other)?;
 
                 // Store the content in a Vec<u8>
                 let data: Vec<u8> = content.to_vec();
@@ -374,8 +378,14 @@ impl Dicfuse {
         let client = Client::new();
         let file_blob_endpoint = config::file_blob_endpoint();
         for i in tree.tree_items {
-            //TODO & POS_BUG: how to deal with the link?
+            // Symlinks (TreeItemMode::Link) and subtrees are skipped during
+            // file preloading.  Symlink support requires storing the link
+            // target in DictionaryStore and returning it via readlink(); this
+            // is not yet implemented.
             if i.mode != TreeItemMode::Blob && i.mode != TreeItemMode::BlobExecutable {
+                if i.mode == TreeItemMode::Link {
+                    tracing::debug!(name = %i.name, "load_files: skipping symlink (not yet supported)");
+                }
                 continue;
             }
             let url = format!("{}/{}", file_blob_endpoint, i.id);
@@ -432,7 +442,7 @@ impl Dicfuse {
                     is_first = false;
                 }
             } else {
-                eprintln!("Request failed with status: {}", response.status());
+                tracing::warn!(name = %i.name, status = %response.status(), "load_files: HTTP request failed");
             }
         }
         self.store.save_file(parent_item.get_inode(), Vec::new());

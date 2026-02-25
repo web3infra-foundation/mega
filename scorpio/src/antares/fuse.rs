@@ -128,22 +128,76 @@ impl AntaresFuse {
     /// will cause this method to return an error.
     pub async fn unmount(&mut self) -> std::io::Result<()> {
         if let Some(task) = self.fuse_task.take() {
-            // Unmount via fusermount with lazy unmount (-z) for faster unmounting
-            // This allows unmounting even if there are pending operations
             let mount_path = self.mountpoint.to_string_lossy().to_string();
-            let output = tokio::process::Command::new("fusermount")
-                .arg("-uz") // -u: unmount, -z: lazy unmount (detach even if busy; actual unmount occurs after all references are released)
-                .arg(&mount_path)
-                .output()
-                .await?;
+            // Prefer graceful unmount first to reduce stale-handle windows for active clients.
+            // If it cannot finish quickly (busy mount), fall back to lazy detach.
+            let graceful = tokio::time::timeout(
+                tokio::time::Duration::from_millis(1200),
+                tokio::process::Command::new("fusermount")
+                    .arg("-u")
+                    .arg(&mount_path)
+                    .output(),
+            )
+            .await;
 
-            if !output.status.success() {
-                tracing::warn!(
-                    "fusermount -uz failed for {}: {}",
-                    mount_path,
-                    String::from_utf8_lossy(&output.stderr)
-                );
-                // Continue, as lazy unmount might still succeed partially or task might exit
+            match graceful {
+                Ok(Ok(output)) if output.status.success() => {}
+                Ok(Ok(output)) => {
+                    tracing::warn!(
+                        "fusermount -u failed for {}: {}; falling back to -uz",
+                        mount_path,
+                        String::from_utf8_lossy(&output.stderr)
+                    );
+                    let lazy = tokio::process::Command::new("fusermount")
+                        .arg("-uz")
+                        .arg(&mount_path)
+                        .output()
+                        .await?;
+                    if !lazy.status.success() {
+                        tracing::warn!(
+                            "fusermount -uz failed for {}: {}",
+                            mount_path,
+                            String::from_utf8_lossy(&lazy.stderr)
+                        );
+                    }
+                }
+                Ok(Err(e)) => {
+                    tracing::warn!(
+                        "failed to execute fusermount -u for {}: {}; falling back to -uz",
+                        mount_path,
+                        e
+                    );
+                    let lazy = tokio::process::Command::new("fusermount")
+                        .arg("-uz")
+                        .arg(&mount_path)
+                        .output()
+                        .await?;
+                    if !lazy.status.success() {
+                        tracing::warn!(
+                            "fusermount -uz failed for {}: {}",
+                            mount_path,
+                            String::from_utf8_lossy(&lazy.stderr)
+                        );
+                    }
+                }
+                Err(_) => {
+                    tracing::warn!(
+                        "fusermount -u timed out for {}; falling back to -uz",
+                        mount_path
+                    );
+                    let lazy = tokio::process::Command::new("fusermount")
+                        .arg("-uz")
+                        .arg(&mount_path)
+                        .output()
+                        .await?;
+                    if !lazy.status.success() {
+                        tracing::warn!(
+                            "fusermount -uz failed for {}: {}",
+                            mount_path,
+                            String::from_utf8_lossy(&lazy.stderr)
+                        );
+                    }
+                }
             }
 
             // Wait for the FUSE task to complete with timeout to avoid hanging
@@ -584,12 +638,18 @@ mod tests {
             _inode: Inode,
             _fh: u64,
             _lock_owner: u64,
-            _start: u64,
-            _end: u64,
+            start: u64,
+            end: u64,
             _type: u32,
             _pid: u32,
         ) -> FuseResult<rfuse3::raw::reply::ReplyLock> {
-            Err(std::io::Error::from_raw_os_error(libc::ENOSYS).into())
+            // In-memory test layer: no locks held, report F_UNLCK.
+            Ok(rfuse3::raw::reply::ReplyLock {
+                start,
+                end,
+                r#type: libc::F_UNLCK as u32,
+                pid: 0,
+            })
         }
 
         async fn setlk(
@@ -604,7 +664,8 @@ mod tests {
             _pid: u32,
             _block: bool,
         ) -> FuseResult<()> {
-            Err(std::io::Error::from_raw_os_error(libc::ENOSYS).into())
+            // In-memory test layer: accept lock requests (no real enforcement).
+            Ok(())
         }
     }
 

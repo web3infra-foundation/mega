@@ -13,6 +13,11 @@ use crate::dicfuse::{
     abi::{default_dic_entry, default_file_entry},
     store::EMPTY_BLOB_OID,
 };
+
+/// How long the kernel caches a "file does not exist" lookup result.
+/// Prevents repeated misses for common probe paths (e.g. `.buckconfig.local`).
+const NEGATIVE_ENTRY_TTL: Duration = Duration::from_secs(5);
+
 impl Filesystem for Dicfuse {
     /// initialize filesystem. Called before any other filesystem method.
     async fn init(&self, _req: Request) -> Result<ReplyInit> {
@@ -174,9 +179,32 @@ impl Filesystem for Dicfuse {
         let child = match child {
             Some(v) => v,
             None => {
-                // TODO(perf): add short-lived negative lookup cache for ENOENT
-                // to avoid repeated misses for Buck2 probe paths.
-                return Err(std::io::Error::from_raw_os_error(libc::ENOENT).into());
+                // Return a "negative entry" with inode 0 and a short TTL so the
+                // kernel caches the miss.  Without this, Buck2 probes for files
+                // like `.buckconfig.local`, `.watchmanconfig`, etc. penetrate all
+                // the way to Dicfuse (→ network) on every lookup.
+                //
+                // FUSE protocol: nodeid == 0 means "no such entry"; entry_valid
+                // tells the kernel how long to cache the negative result.
+                return Ok(ReplyEntry {
+                    ttl: NEGATIVE_ENTRY_TTL,
+                    attr: FileAttr {
+                        ino: 0,
+                        size: 0,
+                        blocks: 0,
+                        atime: rfuse3::Timestamp::new(0, 0),
+                        mtime: rfuse3::Timestamp::new(0, 0),
+                        ctime: rfuse3::Timestamp::new(0, 0),
+                        kind: rfuse3::FileType::RegularFile,
+                        perm: 0,
+                        nlink: 0,
+                        uid: 0,
+                        gid: 0,
+                        rdev: 0,
+                        blksize: 0,
+                    },
+                    generation: 0,
+                });
             }
         };
 
@@ -846,12 +874,18 @@ impl Filesystem for Dicfuse {
         _inode: Inode,
         _fh: u64,
         _lock_owner: u64,
-        _start: u64,
-        _end: u64,
+        start: u64,
+        end: u64,
         _type: u32,
         _pid: u32,
     ) -> Result<ReplyLock> {
-        Err(libc::ENOSYS.into())
+        // Read-only filesystem: no locks are ever held, report F_UNLCK.
+        Ok(ReplyLock {
+            start,
+            end,
+            r#type: libc::F_UNLCK as u32,
+            pid: 0,
+        })
     }
 
     async fn setlk(
@@ -866,6 +900,7 @@ impl Filesystem for Dicfuse {
         _pid: u32,
         _block: bool,
     ) -> Result<()> {
-        Err(libc::ENOSYS.into())
+        // Read-only filesystem: deny lock requests.
+        Err(libc::EROFS.into())
     }
 }
