@@ -62,7 +62,6 @@ jobs:
           retention-days: 7
 
   deploy:
-    # Upstream仓库只允许 main 分支部署到生产；fork 中仍可通过 workflow_dispatch 进行手动测试。
     if: >
       (github.repository == 'web3infra-foundation/mega' && github.ref == 'refs/heads/main')
       || (github.repository != 'web3infra-foundation/mega' && github.event_name == 'workflow_dispatch')
