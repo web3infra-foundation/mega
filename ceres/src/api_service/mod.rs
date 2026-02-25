@@ -122,10 +122,15 @@ pub trait ApiHandler: Send + Sync {
     ) -> Result<CreateEntryResult, GitError>;
 
     async fn get_raw_blob_by_hash(&self, hash: &str) -> Result<Vec<u8>, MegaError> {
-        self.get_context()
-            .git_service
-            .get_object_as_bytes(hash)
-            .await
+        let storage = self.get_context();
+        match storage.git_service.get_object_as_bytes(hash).await {
+            Ok(data) => Ok(data),
+            Err(e) => {
+                // Best-effort classification/logging for ObjStorageNotFound cases.
+                let e = storage.classify_blob_objstorage_not_found(hash, e).await;
+                Err(e)
+            }
+        }
     }
 
     /// Preview unified diff for a single file change

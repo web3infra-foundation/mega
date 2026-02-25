@@ -7,6 +7,19 @@ pub const ZERO_ID: &str = match std::str::from_utf8(&[b'0'; 40]) {
     Err(_) => panic!("can't get ZERO_ID"),
 };
 
+/// Returns true if `oid` looks like a full Git object id in hex form.
+///
+/// We intentionally only accept full-hex ids here (no short ids), because short ids
+/// require repository-specific disambiguation.
+///
+/// Supported lengths:
+/// - SHA-1   : 40 hex chars
+/// - SHA-256 : 64 hex chars
+pub fn is_full_hex_object_id(oid: &str) -> bool {
+    let is_valid_len = oid.len() == 40 || oid.len() == 64;
+    is_valid_len && oid.as_bytes().iter().all(|b| b.is_ascii_hexdigit())
+}
+
 pub fn generate_id() -> i64 {
     // Call `next_id` to generate a new unique id.
     IdInstance::next_id()
@@ -120,6 +133,42 @@ pub fn get_current_bin_name() -> String {
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn test_is_full_hex_object_id() {
+        // Valid SHA-1 (40 hex)
+        assert!(is_full_hex_object_id(&"0".repeat(40)));
+        assert!(is_full_hex_object_id(&"a".repeat(40)));
+        assert!(is_full_hex_object_id(&"A".repeat(40)));
+        assert!(is_full_hex_object_id(&"f".repeat(40)));
+        assert!(is_full_hex_object_id(&"F".repeat(40)));
+
+        // Valid SHA-256 (64 hex)
+        assert!(is_full_hex_object_id(&"0".repeat(64)));
+        let sha256 = "abcdef".repeat(10) + "abcd"; // 60 + 4 = 64
+        assert!(is_full_hex_object_id(&sha256));
+
+        // Invalid lengths (we don't accept short ids)
+        assert!(!is_full_hex_object_id(""));
+        assert!(!is_full_hex_object_id(&"0".repeat(39)));
+        assert!(!is_full_hex_object_id(&"0".repeat(41)));
+        assert!(!is_full_hex_object_id(&"0".repeat(63)));
+        assert!(!is_full_hex_object_id(&"0".repeat(65)));
+
+        // Invalid characters
+        assert!(!is_full_hex_object_id(
+            &(String::from("g") + &"0".repeat(39))
+        ));
+        assert!(!is_full_hex_object_id(
+            &(String::from("-") + &"0".repeat(39))
+        ));
+        assert!(!is_full_hex_object_id(
+            &(String::from(" ") + &"0".repeat(39))
+        ));
+        assert!(!is_full_hex_object_id(
+            &(String::from("é") + &"0".repeat(39))
+        ));
+    }
 
     #[test]
     fn test_check_conventional_commits() {
