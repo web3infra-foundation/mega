@@ -1,5 +1,8 @@
 name: Orion client deploy
 
+permissions:
+  contents: read
+
 on:
   push:
     branches:
@@ -12,7 +15,7 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -42,9 +45,12 @@ jobs:
 
       - name: Verify build artifacts
         run: |
-          ls -lh target/release || true
-          file target/release/orion || true
-          file target/release/scorpio || true
+          set -e
+          ls -lh target/release
+          test -f target/release/orion
+          test -f target/release/scorpio
+          file target/release/orion
+          file target/release/scorpio
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -53,11 +59,16 @@ jobs:
           path: |
             target/release/orion
             target/release/scorpio
+          retention-days: 7
 
   deploy:
-    if: ${{ github.repository == 'web3infra-foundation/mega' || github.event_name == 'workflow_dispatch' }}
+    # Upstream仓库只允许 main 分支部署到生产；fork 中仍可通过 workflow_dispatch 进行手动测试。
+    if: >
+      (github.repository == 'web3infra-foundation/mega' && github.ref == 'refs/heads/main')
+      || (github.repository != 'web3infra-foundation/mega' && github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     needs: build
+    timeout-minutes: 10
 
     strategy:
       fail-fast: false
@@ -68,9 +79,9 @@ jobs:
             ssh_key_secret: ORION_DEPLOY_SSH_KEY_1
 
     env:
-      ORION_DEPLOY_HOST: ${{ secrets[matrix.host_secret] }}
-      ORION_DEPLOY_SSH_KEY: ${{ secrets[matrix.ssh_key_secret] }}
-      ORION_DEPLOY_SSH_USER: wiedersehenm
+      ORION_DEPLOY_HOST: ${{ secrets.ORION_DEPLOY_HOST_1 }}
+      ORION_DEPLOY_SSH_KEY: ${{ secrets.ORION_DEPLOY_SSH_KEY_1 }}
+      ORION_DEPLOY_SSH_USER: ${{ secrets.ORION_DEPLOY_SSH_USER_1 }}
 
     steps:
       - name: Download build artifacts
@@ -79,21 +90,37 @@ jobs:
           name: orion-scorpio-bins
           path: ./artifacts
 
+      - name: Make artifacts executable
+        run: chmod +x ./artifacts/orion ./artifacts/scorpio
+
       - name: Prepare SSH key
         run: |
           mkdir -p ~/.ssh
           printf '%s\n' "${ORION_DEPLOY_SSH_KEY}" > ~/.ssh/orion_deploy_key
           chmod 600 ~/.ssh/orion_deploy_key
 
+      - name: Add host to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "${ORION_DEPLOY_HOST}" >> ~/.ssh/known_hosts
+
       - name: Upload binaries to VM via SSH
         run: |
-          scp -i ~/.ssh/orion_deploy_key -o StrictHostKeyChecking=no \
+          scp -i ~/.ssh/orion_deploy_key \
             ./artifacts/orion \
             ./artifacts/scorpio \
             "${ORION_DEPLOY_SSH_USER}@${ORION_DEPLOY_HOST}:/tmp/"
 
       - name: Install binaries and restart service
         run: |
-          ssh -i ~/.ssh/orion_deploy_key -o StrictHostKeyChecking=no \
+          ssh -i ~/.ssh/orion_deploy_key \
             "${ORION_DEPLOY_SSH_USER}@${ORION_DEPLOY_HOST}" \
-            "sudo mv /tmp/orion /usr/local/bin/orion && sudo mv /tmp/scorpio /usr/local/bin/scorpio && sudo chmod +x /usr/local/bin/orion /usr/local/bin/scorpio && sudo systemctl restart orion-worker.service && sudo systemctl status orion-worker.service --no-pager"
+            "sudo mv /tmp/orion /usr/local/bin/orion && \
+             sudo mv /tmp/scorpio /usr/local/bin/scorpio && \
+             sudo chmod +x /usr/local/bin/orion /usr/local/bin/scorpio && \
+             sudo systemctl restart orion-worker.service && \
+             sudo systemctl status orion-worker.service --no-pager"
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f ~/.ssh/orion_deploy_key
