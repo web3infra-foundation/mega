@@ -719,14 +719,21 @@ impl ObjectStoreAdapter {
             buf.extend_from_slice(&chunk);
         }
 
-        self.to_store()
+        // Use `PutMode::Create` so we never overwrite an existing object.
+        // For Git blobs (content-addressed by hash), an "already exists"
+        // error is expected and treated as success by higher layers.
+        match self
+            .to_store()
             .put_opts(
                 path,
                 PutPayload::from_bytes(buf.into()),
                 PutOptions::from(PutMode::Create),
             )
             .await
-            .map_err(IoOrbitError::from)?;
-        Ok(())
+        {
+            Ok(_) => Ok(()),
+            Err(object_store::Error::AlreadyExists { .. }) => Ok(()),
+            Err(e) => Err(IoOrbitError::from(e).into()),
+        }
     }
 }
