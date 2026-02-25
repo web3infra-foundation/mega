@@ -10,6 +10,7 @@ pub mod conversation_storage;
 pub mod dynamic_sidebar_storage;
 pub mod git_db_storage;
 pub mod gpg_storage;
+pub mod group_storage;
 pub mod init;
 pub mod issue_storage;
 pub mod lfs_db_storage;
@@ -45,6 +46,7 @@ use crate::{
         dynamic_sidebar_storage::DynamicSidebarStorage,
         git_db_storage::GitDbStorage,
         gpg_storage::GpgStorage,
+        group_storage::GroupStorage,
         init::database_connection,
         issue_storage::IssueStorage,
         lfs_db_storage::LfsDbStorage,
@@ -63,6 +65,7 @@ pub struct AppService {
     pub gpg_storage: GpgStorage,
     pub lfs_db_storage: LfsDbStorage,
     pub user_storage: UserStorage,
+    pub group_storage: GroupStorage,
     pub vault_storage: VaultStorage,
     pub cl_storage: ClStorage,
     pub issue_storage: IssueStorage,
@@ -90,6 +93,7 @@ impl AppService {
             gpg_storage: GpgStorage { base: mock.clone() },
             lfs_db_storage: LfsDbStorage { base: mock.clone() },
             user_storage: UserStorage { base: mock.clone() },
+            group_storage: GroupStorage { base: mock.clone() },
             vault_storage: VaultStorage { base: mock.clone() },
             cl_storage: ClStorage { base: mock.clone() },
             issue_storage: IssueStorage { base: mock.clone() },
@@ -132,6 +136,7 @@ impl Storage {
         let gpg_storage = GpgStorage { base: base.clone() };
         let lfs_db_storage = LfsDbStorage { base: base.clone() };
         let user_storage = UserStorage { base: base.clone() };
+        let group_storage = GroupStorage { base: base.clone() };
         let cl_storage = ClStorage { base: base.clone() };
         let issue_storage = IssueStorage { base: base.clone() };
         let vault_storage = VaultStorage { base: base.clone() };
@@ -203,6 +208,7 @@ impl Storage {
             gpg_storage,
             lfs_db_storage,
             user_storage,
+            group_storage,
             vault_storage,
             cl_storage: cl_storage.clone(),
             issue_storage,
@@ -278,6 +284,10 @@ impl Storage {
 
     pub fn user_storage(&self) -> UserStorage {
         self.app_service.user_storage.clone()
+    }
+
+    pub fn group_storage(&self) -> GroupStorage {
+        self.app_service.group_storage.clone()
     }
 
     pub fn vault_storage(&self) -> VaultStorage {

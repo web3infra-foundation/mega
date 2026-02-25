@@ -157,3 +157,21 @@ pub enum ThreadStatusEnum {
     #[sea_orm(string_value = "open")]
     Open,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "permission_enum")]
+pub enum PermissionEnum {
+    #[sea_orm(string_value = "read")]
+    Read,
+    #[sea_orm(string_value = "write")]
+    Write,
+    #[sea_orm(string_value = "admin")]
+    Admin,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "resource_type_enum")]
+pub enum ResourceTypeEnum {
+    #[sea_orm(string_value = "note")]
+    Note,
+}
