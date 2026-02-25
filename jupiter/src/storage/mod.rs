@@ -270,6 +270,62 @@ impl Storage {
         self.app_service.mono_storage.clone()
     }
 
+    /// Best-effort classification/logging helper for object storage "not found" errors
+    /// when dealing with Git blobs.
+    ///
+    /// Behavior:
+    /// - If `err` is not `MegaError::ObjStorageNotFound`, it is returned unchanged.
+    /// - If it is `ObjStorageNotFound(msg)`, we:
+    ///   - Look up blob metadata via `mega_blob` table
+    ///   - Emit structured logs to distinguish:
+    ///       - "missing_in_db_and_s3" (likely never written / invalid request)
+    ///       - "missing_in_s3_but_has_meta" (data loss or external deletion)
+    ///   - Return a new `MegaError::ObjStorageNotFound` whose message is prefixed with
+    ///     a classification tag:
+    ///       - "[obj_missing_in_db_and_s3] ..."
+    ///       - "[obj_missing_in_s3_but_has_meta] ..."
+    ///       - "[obj_meta_lookup_failed] ..." (if metadata lookup itself fails)
+    pub async fn classify_blob_objstorage_not_found(
+        &self,
+        hash: &str,
+        err: MegaError,
+    ) -> MegaError {
+        match err {
+            MegaError::ObjStorageNotFound(_msg) => {
+                let mono_storage = self.mono_storage();
+
+                match mono_storage
+                    .get_mega_blobs_by_hashes(vec![hash.to_string()])
+                    .await
+                {
+                    Ok(blobs) if blobs.is_empty() => {
+                        let friendly = format!(
+                            "[obj_missing_in_db_and_s3] Blob {hash} not found in both object storage and metadata (likely never written or invalid request)"
+                        );
+                        tracing::warn!("{}", friendly);
+                        MegaError::ObjStorageNotFound(friendly)
+                    }
+                    Ok(mut blobs) => {
+                        let blob = blobs.pop().expect(
+                            "blobs is guaranteed non-empty here due to match guard on previous arm",
+                        );
+                        tracing::error!(
+                            "[obj_missing_in_s3_but_has_meta] Object with hash {hash} missing in S3 but metadata exists in DB for blob_id {}; possible data loss or misconfiguration",
+                            blob.blob_id,
+                        );
+                        MegaError::ObjStorageInconsistent(format!(
+                            "[obj_missing_in_s3_but_has_meta] Object {hash} missing in S3 but metadata exists; possible data loss or misconfiguration"
+                        ))
+                    }
+                    Err(_) => MegaError::ObjStorageInconsistent(format!(
+                        "[obj_meta_lookup_failed] Failed to query blob {hash} metadata while handling ObjStorageNotFound"
+                    )),
+                }
+            }
+            other => other,
+        }
+    }
+
     pub fn git_db_storage(&self) -> GitDbStorage {
         self.app_service.git_db_storage.clone()
     }

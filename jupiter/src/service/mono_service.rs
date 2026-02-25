@@ -70,12 +70,10 @@ impl MonoService {
             .batch_save_model_with_txn(mega_trees, Some(&txn))
             .await?;
         let mega_blobs = converter.mega_blobs.borrow().values().cloned().collect();
+        let raw_blobs = converter.raw_blobs.into_inner();
+        self.git_service.put_objects(raw_blobs).await?;
         self.mono_storage
             .batch_save_model_with_txn(mega_blobs, Some(&txn))
-            .await?;
-
-        self.git_service
-            .put_objects(converter.raw_blobs.into_inner())
             .await?;
         Ok(txn.commit().await?)
     }
@@ -154,6 +152,8 @@ impl MonoService {
         Ok(git_objects.commits)
     }
 
+    /// Writes blobs to object storage (S3) first, then to DB.
+    /// This order avoids leaving blob rows in DB when S3 write fails (same as save_entry).
     pub async fn save_blobs(&self, commit_id: &str, blobs: Vec<Blob>) -> Result<(), MegaError> {
         let mega_blobs: Vec<mega_blob::ActiveModel> = blobs
             .iter()
@@ -163,7 +163,7 @@ impl MonoService {
                 m.into_active_model()
             })
             .collect();
-        self.mono_storage.batch_save_model(mega_blobs).await?;
-        self.git_service.put_objects(blobs).await
+        self.git_service.put_objects(blobs).await?;
+        self.mono_storage.batch_save_model(mega_blobs).await
     }
 }

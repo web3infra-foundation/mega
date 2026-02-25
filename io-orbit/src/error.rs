@@ -1,4 +1,5 @@
 use common::errors::MegaError;
+use object_store::Error as ObjectStoreError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum IoOrbitError {
@@ -15,7 +16,15 @@ pub enum IoOrbitError {
 impl From<IoOrbitError> for MegaError {
     fn from(err: IoOrbitError) -> Self {
         match err {
-            IoOrbitError::ObjectStore(e) => MegaError::ObjStorage(e.to_string()),
+            IoOrbitError::ObjectStore(e) => match e {
+                ObjectStoreError::NotFound { .. } => {
+                    // Underlying object store reports that the object/key does not exist.
+                    MegaError::ObjStorageNotFound(e.to_string())
+                }
+
+                // Fallback for any other object_store errors.
+                _ => MegaError::ObjStorage(e.to_string()),
+            },
             IoOrbitError::WriteManifestPreconditionFailed => {
                 MegaError::Other("write manifest precondition failed".to_string())
             }

@@ -15,7 +15,7 @@ use reqwest::Method;
 use crate::{
     error::IoOrbitError,
     log_storage::{LogManifest, LogSegmentMeta, LogStorage},
-    object_storage::{MegaObjectStorage, ObjectByteStream, ObjectKey, ObjectMeta},
+    object_storage::{MegaObjectStorage, ObjectByteStream, ObjectKey, ObjectMeta, ObjectNamespace},
 };
 
 /// Strategy used for uploading objects to the underlying [`BackendStore`].
@@ -68,10 +68,14 @@ impl MegaObjectStorage for ObjectStoreAdapter {
         _meta: ObjectMeta,
     ) -> Result<(), MegaError> {
         let path = key.to_object_store_path();
-
-        match self.upload_strategy {
-            UploadStrategy::Multipart => self.put_multipart(&path, data).await,
-            UploadStrategy::SinglePut => self.put_single(&path, data).await,
+        match (key.namespace, &self.upload_strategy) {
+            (ObjectNamespace::Git, UploadStrategy::SinglePut) => {
+                self.put_idempotent(&path, data).await
+            }
+            _ => match self.upload_strategy {
+                UploadStrategy::Multipart => self.put_multipart(&path, data).await,
+                UploadStrategy::SinglePut => self.put_single(&path, data).await,
+            },
         }
     }
 
@@ -691,5 +695,45 @@ impl ObjectStoreAdapter {
             .map_err(IoOrbitError::from)?;
 
         Ok(())
+    }
+
+    /// Uploads an object using a single `PUT` in **create-only** mode.
+    ///
+    /// This helper is currently used only for **Git objects** (blob/pack data)
+    /// via `put_stream` when `ObjectNamespace::Git` + `UploadStrategy::SinglePut`
+    /// are selected.
+    ///
+    /// Semantics:
+    /// - Uses [`PutMode::Create`], so the backend will fail if the key already exists.
+    /// - This makes writes *idempotent* for content-addressed Git blobs: the first
+    ///   successful upload wins, and later attempts do not silently overwrite data.
+    /// - Callers must ensure that `path` is a content-hash-based key (Git object id),
+    ///   so that "already exists" is expected and safe to ignore at higher layers.
+    async fn put_idempotent(
+        &self,
+        path: &object_store::path::Path,
+        mut data: ObjectByteStream,
+    ) -> Result<(), MegaError> {
+        let mut buf = BytesMut::new();
+        while let Some(chunk) = data.try_next().await? {
+            buf.extend_from_slice(&chunk);
+        }
+
+        // Use `PutMode::Create` so we never overwrite an existing object.
+        // For Git blobs (content-addressed by hash), an "already exists"
+        // error is expected and treated as success by higher layers.
+        match self
+            .to_store()
+            .put_opts(
+                path,
+                PutPayload::from_bytes(buf.into()),
+                PutOptions::from(PutMode::Create),
+            )
+            .await
+        {
+            Ok(_) => Ok(()),
+            Err(object_store::Error::AlreadyExists { .. }) => Ok(()),
+            Err(e) => Err(IoOrbitError::from(e).into()),
+        }
     }
 }

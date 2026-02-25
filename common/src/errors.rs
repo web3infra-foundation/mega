@@ -64,6 +64,15 @@ pub enum MegaError {
     #[error("ObjStorage error: {0}")]
     ObjStorage(String),
 
+    /// Object not found in underlying object storage (S3/GCS/local).
+    /// Typically corresponds to a 404/NoSuchKey-style error.
+    #[error("ObjStorage not found: {0}")]
+    ObjStorageNotFound(String),
+
+    ///Object not found in underlying object storage (S3/GCS/local). but exists in the repository.
+    #[error("ObjStorage inconsistent: {0}")]
+    ObjStorageInconsistent(String),
+
     // --- Other ---
     #[error("Other error: {0}")]
     Other(String),
@@ -83,7 +92,14 @@ impl From<ParseErrors> for MegaError {
 
 impl From<MegaError> for GitError {
     fn from(val: MegaError) -> Self {
-        GitError::CustomError(val.to_string())
+        match val {
+            // Preserve HTTP semantics across crates: ApiError can parse [code:404].
+            MegaError::NotFound(msg) => GitError::CustomError(format!("[code:404] {msg}")),
+            MegaError::ObjStorageNotFound(msg) => {
+                GitError::CustomError(format!("[code:404] ObjStorage not found: {msg}"))
+            }
+            other => GitError::CustomError(other.to_string()),
+        }
     }
 }
 

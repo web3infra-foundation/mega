@@ -636,23 +636,23 @@ impl ApiHandler for MonoApiService {
     }
 
     async fn get_tree_by_hash(&self, hash: &str) -> Result<Tree, MegaError> {
-        Ok(Tree::from_mega_model(
-            self.storage
-                .mono_storage()
-                .get_tree_by_hash(hash)
-                .await?
-                .unwrap_or_else(|| panic!("can't fetch tree by hash {}", hash)),
-        ))
+        let model = self
+            .storage
+            .mono_storage()
+            .get_tree_by_hash(hash)
+            .await?
+            .ok_or_else(|| MegaError::NotFound(format!("tree not found: {}", hash)))?;
+        Ok(Tree::from_mega_model(model))
     }
 
     async fn get_commit_by_hash(&self, hash: &str) -> Result<Commit, MegaError> {
-        Ok(Commit::from_mega_model(
-            self.storage
-                .mono_storage()
-                .get_commit_by_hash(hash)
-                .await?
-                .unwrap_or_else(|| panic!("can't fetch commit by hash {}", hash)),
-        ))
+        let model = self
+            .storage
+            .mono_storage()
+            .get_commit_by_hash(hash)
+            .await?
+            .ok_or_else(|| MegaError::NotFound(format!("commit not found: {}", hash)))?;
+        Ok(Commit::from_mega_model(model))
     }
 
     async fn item_to_commit_map(

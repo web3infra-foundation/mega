@@ -136,6 +136,7 @@ where
 
             // Handle other MegaError variants
             match mega_err {
+                MegaError::NotFound(_) => return ApiError::not_found(anyhow_err),
                 MegaError::Db(_) | MegaError::Redis(_) | MegaError::Io(_) => {
                     // Hide internal details in production, return generic 500
                     tracing::error!(
