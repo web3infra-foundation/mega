@@ -60,7 +60,6 @@ RUN cargo install cargo-chef --version 0.1.73
 FROM chef-base AS planner
 
 COPY Cargo.toml ./
-COPY Cargo.lock ./
 COPY api-model/Cargo.toml api-model/
 COPY ceres/Cargo.toml ceres/
 COPY common/Cargo.toml common/
