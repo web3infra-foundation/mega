@@ -54,7 +54,7 @@ const NewCodeView = ({ currentPath = '', onClose, defaultType = 'file', version 
         author_email: currentUser?.email,
         author_username: currentUser?.username,
         mode: 'force_create',
-        skip_build: skipBuild,
+        skip_build: skipBuild
       },
       {
         onSuccess: async () => {
@@ -135,10 +135,7 @@ const NewCodeView = ({ currentPath = '', onClose, defaultType = 'file', version 
       <div className='flex min-h-14 w-full items-center justify-between pl-2 pr-4'>
         <PathInput pathState={[path, setPath]} nameState={[name, setName]} />
         <div className='flex gap-2'>
-          <Button
-            disabled={name === ''}
-            onClick={handleCommitClick}
-          >
+          <Button disabled={name === ''} onClick={handleCommitClick}>
             Create CL
           </Button>
           <Select
@@ -166,7 +163,6 @@ const NewCodeView = ({ currentPath = '', onClose, defaultType = 'file', version 
           <MarkdownEditor contentState={[content, setContent]} disabled={false} />
         </div>
       )}
-
 
       <Dialog.Root open={dialogOpen} onOpenChange={handleDialogClose}>
         <Dialog.Content>
@@ -227,7 +223,6 @@ const NewCodeView = ({ currentPath = '', onClose, defaultType = 'file', version 
           </Dialog.Footer>
         </Dialog.Content>
       </Dialog.Root>
-
     </div>
   )
 }
