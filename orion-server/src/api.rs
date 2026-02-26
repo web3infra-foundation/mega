@@ -43,7 +43,7 @@ use crate::{
     auto_retry::AutoRetryJudger,
     log::log_service::LogService,
     model::{
-        builds,
+        build_events, builds, orion_tasks,
         targets::{self, TargetState, TargetWithBuilds},
         tasks,
     },
@@ -120,7 +120,7 @@ pub fn routers() -> Router<AppState> {
         .route("/v2/health", get(health_check_handler))
         .route("/v2/task-retry/{id}", post(task_retry_handler))
         .route("/v2/task/{cl}", get(task_get_handler))
-        .route("/v2/build-event/{task_id}", get(build_event_get_handler))
+        .route("/v2/build-events/{task_id}", get(build_event_get_handler))
         .route("/v2/target/{task_id}", get(target_get_handler))
 }
 
@@ -1888,6 +1888,21 @@ pub struct BuildEventDTO {
     pub end_at: Option<String>,
 }
 
+impl From<build_events::Model> for BuildEventDTO {
+    fn from(model: build_events::Model) -> Self {
+        Self {
+            id: model.id.to_string(),
+            task_id: model.task_id.to_string(),
+            retry_count: model.retry_count,
+            exit_code: model.exit_code,
+            log: model.log,
+            log_output_file: model.log_output_file,
+            start_at: model.start_at.to_string(),
+            end_at: model.end_at.map(|dt| dt.to_string()),
+        }
+    }
+}
+
 #[derive(ToSchema, Serialize)]
 pub struct OrionTaskDTO {
     pub id: String,
@@ -1895,6 +1910,18 @@ pub struct OrionTaskDTO {
     pub repo_name: String,
     pub cl: String,
     pub created_at: String,
+}
+
+impl OrionTaskDTO {
+    fn from(model: &orion_tasks::Model) -> Self {
+        Self {
+            id: model.id.to_string(),
+            changes: model.changes.to_string(),
+            repo_name: model.repo_name.to_string(),
+            cl: model.cl.to_string(),
+            created_at: model.created_at.to_string(),
+        }
+    }
 }
 
 #[derive(ToSchema, Serialize)]
@@ -1931,36 +1958,97 @@ pub async fn task_retry_handler(
     params(("cl" = String, Path, description = "Change List")),
     responses(
         (status = 200, description = "Get task successfully", body = OrionTaskDTO),
+        (status = 300, description = "Many tasks", body = MessageResponse),
         (status = 404, description = "Not found task", body = MessageResponse),
+        (status = 500, description = "Database error", body = MessageResponse),
     )
 )]
 pub async fn task_get_handler(
-    State(_state): State<AppState>,
-    Path(_cl): Path<String>,
-) -> impl IntoResponse {
-    let result_message = MessageResponse {
-        message: "todo".to_string(),
-    };
-    (StatusCode::NOT_IMPLEMENTED, Json(result_message))
+    State(state): State<AppState>,
+    Path(cl): Path<String>,
+) -> Result<Json<OrionTaskDTO>, (StatusCode, Json<serde_json::Value>)> {
+    let tasks: Vec<orion_tasks::Model> = orion_tasks::Entity::find()
+        .filter(orion_tasks::Column::Cl.eq(&cl))
+        .all(&state.conn)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to fetch tasks by CL {}: {}", &cl, e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"message": "Database error"})),
+            )
+        })?;
+
+    match tasks.len() {
+        0 => Err((
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"message": "Not found task"})),
+        )),
+        1 => Ok(Json(OrionTaskDTO::from(tasks.first().unwrap()))),
+        _ => Err((
+            StatusCode::MULTIPLE_CHOICES,
+            Json(serde_json::json!({"message": "Multiple tasks"})),
+        )),
+    }
 }
 
 #[utoipa::path(
     get,
-    path = "/v2/build-event/{task_id}",
-    params(("task-id" = String, Path, description = "Task ID")),
+    path = "/v2/build-events/{task_id}",
+    params(("task_id" = String, Path, description = "Task ID")),
     responses(
-        (status = 200, description = "Get build event successfully", body = BuildEventDTO),
+        (status = 200, description = "Get build events successfully", body = Vec<BuildEventDTO>),
+        (status = 400, description = "Bad task id", body = MessageResponse),
         (status = 404, description = "Not found task", body = MessageResponse),
+        (status = 500, description = "Database error", body = MessageResponse),
     )
 )]
 pub async fn build_event_get_handler(
-    State(_state): State<AppState>,
-    Path(_task_id): Path<String>,
-) -> impl IntoResponse {
-    let result_message = MessageResponse {
-        message: "todo".to_string(),
-    };
-    (StatusCode::NOT_IMPLEMENTED, Json(result_message))
+    State(state): State<AppState>,
+    Path(task_id): Path<String>,
+) -> Result<Json<Vec<BuildEventDTO>>, (StatusCode, Json<serde_json::Value>)> {
+    let task_uuid = task_id.parse::<Uuid>().map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"message": "Invalid task ID"})),
+        )
+    })?;
+
+    // First, verify the task exists
+    let task_exists = tasks::Entity::find_by_id(task_uuid)
+        .one(&state.conn)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to verify task existence {}: {}", task_id, e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"message": "Database error"})),
+            )
+        })?
+        .is_some();
+
+    if !task_exists {
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"message": "Task not found"})),
+        ));
+    }
+
+    let build_events = build_events::Entity::find()
+        .filter(build_events::Column::TaskId.eq(task_uuid))
+        .all(&state.conn)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to fetch build events for task {}: {}", task_id, e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"message": "Database error"})),
+            )
+        })?;
+
+    let dtos: Vec<BuildEventDTO> = build_events.into_iter().map(BuildEventDTO::from).collect();
+
+    Ok(Json(dtos))
 }
 
 #[utoipa::path(
