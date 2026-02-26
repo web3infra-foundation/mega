@@ -280,6 +280,93 @@ pub async fn mount_antares_fs(
     Ok((mountpoint, mount_id))
 }
 
+/// Default timeout for waiting for a mount to become ready (deep preload complete).
+const MOUNT_READY_TIMEOUT_SECS: u64 = 600; // 10 minutes
+/// Polling interval for the mount ready check.
+const MOUNT_READY_POLL_INTERVAL_MS: u64 = 500;
+
+/// Wait for a newly created Antares mount to finish its background deep preload.
+///
+/// After `mount_antares_fs` returns, the scorpio daemon spawns a background task
+/// to walk the mounted directory tree and warm the kernel FUSE entry/attr caches.
+/// This function polls the `/mounts/{mount_id}/ready` endpoint until the mount
+/// transitions to `Ready` state, ensuring that heavy I/O workloads (e.g. buck2
+/// builds) don't hit cold FUSE caches and trigger per-directory network fetches
+/// (the "statx storm" problem).
+///
+/// # Arguments
+/// * `mount_id` - The mount ID returned by `mount_antares_fs`.
+///
+/// # Returns
+/// * `Ok(())` - The mount is ready for heavy I/O.
+/// * `Err(...)` - Timed out or failed to contact the scorpio daemon.
+pub async fn wait_for_mount_ready(
+    mount_id: &str,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .build()?;
+
+    let url = format!("{}/antares/mounts/{}/ready", scorpio_base_url(), mount_id);
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(MOUNT_READY_TIMEOUT_SECS);
+
+    tracing::info!(
+        mount_id = mount_id,
+        timeout_secs = MOUNT_READY_TIMEOUT_SECS,
+        "Waiting for mount to become ready (deep preload)"
+    );
+
+    loop {
+        if tokio::time::Instant::now() >= deadline {
+            tracing::warn!(
+                mount_id = mount_id,
+                "Mount ready wait timed out after {}s, proceeding anyway",
+                MOUNT_READY_TIMEOUT_SECS
+            );
+            return Ok(()); // Don't fail the build; proceed with best-effort caching
+        }
+
+        match client.get(&url).send().await {
+            Ok(resp) if resp.status().is_success() => {
+                if let Ok(body) = resp.json::<serde_json::Value>().await {
+                    if body.get("ready").and_then(|v| v.as_bool()).unwrap_or(false) {
+                        tracing::info!(
+                            mount_id = mount_id,
+                            "Mount is ready (deep preload complete)"
+                        );
+                        return Ok(());
+                    }
+                    let state = body
+                        .get("state")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("unknown");
+                    tracing::debug!(
+                        mount_id = mount_id,
+                        state = state,
+                        "Mount not yet ready, polling..."
+                    );
+                }
+            }
+            Ok(resp) => {
+                tracing::debug!(
+                    mount_id = mount_id,
+                    status = %resp.status(),
+                    "Unexpected response from mount ready check"
+                );
+            }
+            Err(e) => {
+                tracing::debug!(
+                    mount_id = mount_id,
+                    error = %e,
+                    "Failed to check mount readiness, will retry"
+                );
+            }
+        }
+
+        tokio::time::sleep(Duration::from_millis(MOUNT_READY_POLL_INTERVAL_MS)).await;
+    }
+}
+
 /// Asynchronously unmounts an Antares filesystem mount point.
 ///
 /// This function sends an HTTP DELETE request to the local Antares service
@@ -412,23 +499,25 @@ async fn unmount_fs(repo: &str, cl: Option<&str>) -> Result<bool, Box<dyn Error 
     Ok(true)
 }
 
-/// Buck2 targets stats every directory, which is slow on FUSE.
-/// We pre-warm metadata with `ls -lR` to reduce statx latency.
-/// TODO(perf): Replace this full-tree walk with a targeted preheat plan that
-/// only touches changed paths + ancestors and buck-critical files
-/// (PACKAGE/BUCK/.buckconfig) to avoid duplicated tree scans.
-/// TODO: Rewrite the targets logic in the monolith.
+/// Pre-warm FUSE metadata by walking the directory tree.
+///
+/// After the Antares `wait_for_mount_ready` integration, the heavy deep preload
+/// is performed by the scorpio daemon itself. This function serves as a secondary
+/// fallback to catch any directories that might have been missed or expired.
+///
+/// We use a shallow Rust-native walk (instead of `ls -lR`) for better control
+/// and error resilience.
 fn preheat(repo_path: &Path) -> anyhow::Result<()> {
-    let preheat_status = std::process::Command::new("ls")
-        .arg("-lR")
-        .current_dir(repo_path)
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()?;
-
-    if !preheat_status.success() {
-        tracing::warn!("Preheat command finished with non-zero status, continuing anyway...");
-    }
+    tracing::info!(repo = ?repo_path, "preheat: starting lightweight metadata warmup");
+    let start = std::time::Instant::now();
+    let depth = preheat_shallow_depth();
+    preheat_shallow(repo_path, depth)?;
+    tracing::info!(
+        repo = ?repo_path,
+        elapsed_ms = start.elapsed().as_millis(),
+        depth = depth,
+        "preheat: completed"
+    );
     Ok(())
 }
 
@@ -550,6 +639,37 @@ fn resolve_config_path() -> Option<PathBuf> {
 }
 
 /// Derive a stable per-mount buck2 isolation directory name.
+///
+/// # Why `--isolation-dir` is required
+///
+/// Although we always mount the **same monorepo** (`path = "/"`), every call
+/// to `mount_antares_fs()` goes through `POST /antares/mounts` which creates
+/// a **new UUID** and therefore a **new mountpoint path** each time:
+///
+/// ```text
+///   build task A  →  mount_antares_fs(job="A-1", path="/", cl=None)
+///                     → mountpoint = /var/lib/antares/mounts/<uuid-1>
+///
+///   build task A  →  mount_antares_fs(job="A-1", path="/", cl="CL-42")
+///                     → mountpoint = /var/lib/antares/mounts/<uuid-2>
+///
+///   build task B  →  mount_antares_fs(job="B-1", path="/", cl=None)
+///                     → mountpoint = /var/lib/antares/mounts/<uuid-3>
+/// ```
+///
+/// Without `--isolation-dir`, Buck2 uses a **single default daemon** per
+/// `<project_root>`.  Because the project root changes with every mount UUID,
+/// this usually just causes redundant daemon restarts.  But if two concurrent
+/// builds happen to share the same `project_root` (e.g., via retry in
+/// `MAX_TARGETS_ATTEMPTS`), the second buck2 invocation would talk to the
+/// first daemon whose internal paths point at a **stale** mountpoint — leading
+/// to `ESTALE` / `ENOENT` cascades.
+///
+/// By deriving `--isolation-dir` from `SHA256(repo_path)`, we get:
+/// - **Same mount path → same daemon** (avoids daemon startup cost on retry)
+/// - **Different mount paths → different daemons** (avoids cross-contamination)
+///
+/// # Format
 ///
 /// Buck2 `--isolation-dir` expects a plain directory **name** (no path
 /// separators).  Buck2 itself stores daemon state under
@@ -758,11 +878,21 @@ pub async fn build(
     let mut last_targets_error: Option<anyhow::Error> = None;
 
     for attempt in 1..=MAX_TARGETS_ATTEMPTS {
-        // We should also mount the repo before cl, for build target analyzing.
+        // Mount TWO independent views of the same monorepo:
+        //
+        //   old_repo  — base revision (no CL), used as the "before" snapshot
+        //   new_repo  — base + CL layer,       used as the "after"  snapshot
+        //
+        // Both mount the same monorepo root (`path = "/"`), but each call to
+        // `mount_antares_fs()` creates a **new UUID** on the Antares side, so
+        // the mountpoints are different (e.g. `/var/lib/antares/mounts/<uuid>`).
+        // This is why `--isolation-dir` (derived from the mountpoint path) is
+        // necessary — it prevents Buck2 daemons from cross-contaminating
+        // between the two mounts.  See `buck2_isolation_dir()` for details.
         let id_for_old_repo = format!("{id}-old-{attempt}");
         let (old_repo_mount_point, mount_id_old_repo) =
             mount_antares_fs(&id_for_old_repo, &mount_path, None).await?;
-        let guard_old_repo = MountGuard::new(mount_id_old_repo, id_for_old_repo);
+        let guard_old_repo = MountGuard::new(mount_id_old_repo.clone(), id_for_old_repo);
 
         let id_for_repo = format!("{id}-{attempt}");
         let (repo_mount_point, mount_id) =
@@ -775,6 +905,23 @@ pub async fn build(
             attempt,
             MAX_TARGETS_ATTEMPTS
         );
+
+        // Wait for Dicfuse background deep preload to finish so that
+        // buck2's statx storm hits warm kernel FUSE caches.
+        if let Err(e) = wait_for_mount_ready(&mount_id).await {
+            tracing::warn!(
+                "[Task {}] wait_for_mount_ready failed: {}, proceeding anyway",
+                id,
+                e
+            );
+        }
+        if let Err(e) = wait_for_mount_ready(&mount_id_old_repo).await {
+            tracing::warn!(
+                "[Task {}] wait_for_mount_ready (old repo) failed: {}, proceeding anyway",
+                id,
+                e
+            );
+        }
 
         // Resolve the sub-project paths within each mount for buck2.
         let old_project_root = PathBuf::from(&old_repo_mount_point).join(repo_prefix);
@@ -1068,6 +1215,26 @@ mod tests {
             result.unwrap_err().to_string(),
             "Missing 'state' in Antares mount response"
         );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_wait_for_mount_ready_success() {
+        let listener = TcpListener::bind("127.0.0.1:2725").unwrap();
+        let mock_server = MockServer::builder().listener(listener).start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/antares/mounts/mock_mount_id/ready"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "mount_id": "mock_mount_id",
+                "state": "Ready",
+                "ready": true
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let result = wait_for_mount_ready("mock_mount_id").await;
+        assert!(result.is_ok());
     }
 
     #[tokio::test]

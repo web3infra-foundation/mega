@@ -9,7 +9,6 @@ use std::{
     },
 };
 
-use api_model::git::commit::LatestCommitInfo;
 use async_recursion::async_recursion;
 use crossbeam::queue::SegQueue;
 use futures::future::join_all;
@@ -747,50 +746,6 @@ async fn _set_parent_commit(work_path: &Path, repo_path: &str) -> std::io::Resul
     Ok(())
 }
 
-// async fn fetch_code_nore(path:&GPath, save_path : impl AsRef<Path>){
-
-//         let queue = Arc::new(Mutex::new(VecDeque::new()));
-//         let queue_clone = queue.clone();
-
-//         let p = path.clone();
-//         let _handle = tokio::spawn(async move {
-//             // Initialize the queue with a path
-//             let mut queue = queue_clone.lock().await;
-//             queue.push_back( p);
-//         });
-//         let mut handles = vec![];
-//         let target_path: Arc<PathBuf> = Arc::new(save_path.as_ref().to_path_buf());
-
-//         // Create the save_path directory if it doesn't exist
-//         tokio::fs::create_dir_all(&save_path).await.unwrap();
-//         let rece;
-//         {
-//             let (s,r) = tokio::sync::mpsc::channel::<Tree>(100);
-//             rece = r;
-//             for i in 0..10 {
-//                 let p: GPath = path.clone();
-//                 let queue_clone = queue.clone();
-//                 let o = target_path.clone();
-//                 let ss = s.clone();
-//                 let handle = tokio::spawn(async move {
-//                     worker_thread(i, p, &o, queue_clone,ss).await;
-//                 });
-//                 handles.push(handle);
-//             }
-//         }
-
-//         // Clean up workers (depends on how you implement worker_thread termination)
-//         for handle in handles {
-//             let _ = handle.await;
-//         }
-//         let storepath = save_path.as_ref().parent().unwrap().join("tree.db");
-//         store::store_trees(storepath.to_str().unwrap(), rece).await;
-//         // Check if the queue has been populated
-//         let queue = queue.lock().await;
-//         assert!(queue.len() == 0);
-
-// }
-
 /// Network operations, extracting Blobs objects from HTTP byte streams and storing them
 async fn fetch_and_save_file(
     url: &ObjectHash,
@@ -841,6 +796,16 @@ pub async fn fetch_tree(path: &GPath) -> Result<Tree, String> {
     } else {
         Err(format!("Failed to fetch tree: {}", response.status()))
     }
+}
+
+/// Lightweight mirror of the server's latest-commit response so that scorpio
+/// does not depend on the `api-model` crate for a single deserialization site.
+#[derive(serde::Deserialize)]
+struct LatestCommitInfo {
+    oid: String,
+    short_message: String,
+    author: String,
+    committer: String,
 }
 
 /// Network operations, extracting parent commit Hash from HTTP byte streams

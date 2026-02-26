@@ -4,12 +4,16 @@
 //! AntaresService implementations. Includes graceful shutdown with cleanup.
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     ffi::CString,
     net::SocketAddr,
     os::unix::ffi::OsStrExt,
     path::{Component, Path, PathBuf},
-    sync::Arc,
+    sync::{
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+        Arc, Condvar, Mutex,
+    },
+    thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
@@ -24,7 +28,11 @@ use axum::{
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tokio::{io::AsyncWriteExt, sync::RwLock, time::timeout};
+use tokio::{
+    io::AsyncWriteExt,
+    sync::RwLock,
+    time::{sleep, timeout},
+};
 use uuid::Uuid;
 
 use crate::{
@@ -68,6 +76,7 @@ where
             .route("/mounts/{mount_id}", delete(Self::delete_mount))
             .route("/mounts/{mount_id}/cl", post(Self::build_cl))
             .route("/mounts/{mount_id}/cl", delete(Self::clear_cl))
+            .route("/mounts/{mount_id}/ready", get(Self::mount_ready))
             .with_state(self.service.clone())
     }
 
@@ -266,6 +275,23 @@ where
         }
         Ok(Json(status?))
     }
+
+    /// Check whether a mount is ready for heavy workloads.
+    ///
+    /// `ready=true` means Phase 1 (Dicfuse in-memory directory cache warmup)
+    /// has completed. Phase 2 kernel-cache warmup may still be running in
+    /// background as best-effort optimisation.
+    ///
+    /// Clients (e.g. Orion) should poll this endpoint before starting heavy
+    /// filesystem workloads (buck2 builds) to avoid statx storms against cold
+    /// FUSE caches.
+    async fn mount_ready(
+        State(service): State<Arc<S>>,
+        AxumPath(mount_id): AxumPath<Uuid>,
+    ) -> Result<Json<MountReadyResponse>, ApiError> {
+        let resp = service.check_mount_ready(mount_id).await?;
+        Ok(Json(resp))
+    }
 }
 
 /// Asynchronous service boundary that the HTTP layer depends on.
@@ -301,6 +327,13 @@ pub trait AntaresService: Send + Sync {
     async fn build_cl(&self, mount_id: Uuid, cl_link: String) -> Result<MountStatus, ServiceError>;
     /// Clear the CL layer for an existing mount
     async fn clear_cl(&self, mount_id: Uuid) -> Result<MountStatus, ServiceError>;
+
+    /// Check whether a mount is ready for heavy I/O workloads (e.g. buck2).
+    ///
+    /// Returns `MountReadyResponse` with `ready=true` once Phase 1 completes.
+    /// Background kernel warmup (Phase 2) is intentionally non-blocking.
+    async fn check_mount_ready(&self, mount_id: Uuid) -> Result<MountReadyResponse, ServiceError>;
+
     async fn health_info(&self) -> HealthResponse;
     async fn shutdown_cleanup(&self) -> Result<(), ServiceError>;
 }
@@ -386,13 +419,33 @@ pub struct MountLayers {
 }
 
 /// Lifecycle indicator used in responses and service contracts.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub enum MountLifecycle {
     Provisioning,
     Mounted,
+    /// Dicfuse directory tree has been fully pre-loaded; safe for heavy I/O
+    /// workloads (e.g. buck2 builds) that would otherwise trigger a statx storm
+    /// against cold caches.
+    Ready,
+    /// Mount is entering CL switch window; new control-plane operations should
+    /// be rejected until remount finishes.
+    Quiescing,
     Unmounting,
     Unmounted,
-    Failed { reason: String },
+    Failed {
+        reason: String,
+    },
+}
+
+/// Response for the `/mounts/{mount_id}/ready` readiness probe.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct MountReadyResponse {
+    pub mount_id: Uuid,
+    /// `true` when Phase 1 (Dicfuse memory cache warmup) has completed.
+    /// Phase 2 kernel-cache warmup may still be running in background.
+    pub ready: bool,
+    /// Current lifecycle state of the mount.
+    pub state: MountLifecycle,
 }
 
 /// Health check response payload.
@@ -505,6 +558,8 @@ struct MountEntry {
     state: MountLifecycle,
     created_at_epoch_ms: u64,
     last_seen_epoch_ms: u64,
+    /// Signal for the background deep-preload task to stop early (e.g. on unmount).
+    preload_cancel: Arc<AtomicBool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -720,6 +775,86 @@ impl AntaresServiceImpl {
             .timeout(Duration::from_secs(30))
             .build()
             .map_err(|e| ServiceError::Internal(format!("failed to build http client: {}", e)))
+    }
+
+    fn cl_quiesce_grace_duration() -> Duration {
+        const DEFAULT_MS: u64 = 150;
+        match std::env::var("ANTARES_CL_QUIESCE_GRACE_MS") {
+            Ok(raw) => match raw.trim().parse::<u64>() {
+                Ok(ms) => Duration::from_millis(ms.clamp(0, 3_000)),
+                Err(_) => {
+                    tracing::warn!(
+                        value = %raw,
+                        default_ms = DEFAULT_MS,
+                        "invalid ANTARES_CL_QUIESCE_GRACE_MS, using default"
+                    );
+                    Duration::from_millis(DEFAULT_MS)
+                }
+            },
+            Err(_) => Duration::from_millis(DEFAULT_MS),
+        }
+    }
+
+    /// Spawn a background deep-preload walk to warm FUSE kernel entry/attr caches.
+    ///
+    /// This is a **best-effort optimisation** — it does NOT block the mount from
+    /// being marked `Ready`.  By the time we call this, Dicfuse's internal
+    /// `load_dir_depth()` (Phase 1) has already populated the in-memory directory
+    /// cache.  Without this walk, FUSE `statx` calls still reach the daemon but
+    /// hit the Dicfuse memory cache (~1 ms each).  The walk pushes those entries
+    /// into the Linux kernel's FUSE cache so subsequent `statx` calls are served
+    /// at ~0 ms — a nice-to-have, not a prerequisite for correctness.
+    fn spawn_deep_preload_task(
+        &self,
+        mount_id: Uuid,
+        mountpoint: String,
+        cancel: Arc<AtomicBool>,
+        source: &'static str,
+    ) {
+        tokio::spawn(async move {
+            let start = Instant::now();
+            tracing::info!(
+                mount_id = %mount_id,
+                mountpoint = %mountpoint,
+                source = source,
+                "antares svc: starting background kernel cache warm (best-effort)"
+            );
+
+            let mp = mountpoint.clone();
+            let walk_result =
+                tokio::task::spawn_blocking(move || deep_preload_walk(&mp, &cancel)).await;
+
+            match walk_result {
+                Ok(Ok(stats)) => {
+                    tracing::info!(
+                        mount_id = %mount_id,
+                        source = source,
+                        entries_visited = stats.entries_visited,
+                        metadata_touches = stats.metadata_touches,
+                        budget_exhausted = stats.budget_exhausted,
+                        elapsed_ms = start.elapsed().as_millis(),
+                        "antares svc: kernel cache warm completed"
+                    );
+                }
+                Ok(Err(e)) => {
+                    tracing::warn!(
+                        mount_id = %mount_id,
+                        source = source,
+                        error = %e,
+                        elapsed_ms = start.elapsed().as_millis(),
+                        "antares svc: kernel cache warm finished with errors"
+                    );
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        mount_id = %mount_id,
+                        source = source,
+                        error = %e,
+                        "antares svc: kernel cache warm task panicked"
+                    );
+                }
+            }
+        });
     }
 
     async fn fetch_cl_files(&self, cl_link: &str) -> Result<Vec<ClFileEntry>, ServiceError> {
@@ -1005,7 +1140,7 @@ impl AntaresServiceImpl {
         let state = PersistedState {
             mounts: mounts
                 .values()
-                .filter(|e| matches!(e.state, MountLifecycle::Mounted))
+                .filter(|e| matches!(e.state, MountLifecycle::Mounted | MountLifecycle::Ready))
                 .map(|e| PersistedMountState {
                     mount_id: e.mount_id,
                     job_id: e.job_id.clone(),
@@ -1122,9 +1257,11 @@ impl AntaresServiceImpl {
                         upper_dir: persisted.upper_dir.clone(),
                         cl_dir: persisted.cl_dir.clone(),
                         fuse,
-                        state: MountLifecycle::Mounted,
+                        // Dicfuse is ready after AntaresFuse::new() completes import_arc.
+                        state: MountLifecycle::Ready,
                         created_at_epoch_ms: persisted.created_at_epoch_ms,
                         last_seen_epoch_ms: current_epoch_ms(),
+                        preload_cancel: Arc::new(AtomicBool::new(false)),
                     };
 
                     let mut mounts = self.mounts.write().await;
@@ -1182,6 +1319,7 @@ impl AntaresServiceImpl {
 
         for (mount_id, mut entry) in mounts.drain() {
             tracing::info!("Unmounting {} during shutdown", mount_id);
+            entry.preload_cancel.store(true, Ordering::Relaxed);
             if let Err(e) = entry.fuse.unmount().await {
                 tracing::warn!("Failed to unmount {} during shutdown: {}", mount_id, e);
                 // Continue with other mounts even if one fails
@@ -1249,7 +1387,7 @@ impl AntaresService for AntaresServiceImpl {
                     // If the mount is being torn down, do NOT treat this as an idempotent success.
                     // Otherwise we may return a mount_id that is about to be removed, causing
                     // follow-up describe/delete calls to 404.
-                    if !matches!(entry.state, MountLifecycle::Mounted) {
+                    if !matches!(entry.state, MountLifecycle::Mounted | MountLifecycle::Ready) {
                         return Err(ServiceError::InvalidRequest(format!(
                             "job_id/build_id '{}' is currently in state {:?}; retry after unmount completes",
                             job_id, entry.state
@@ -1403,6 +1541,7 @@ impl AntaresService for AntaresServiceImpl {
         }
 
         // Now it's safe to commit the mount into the in-memory state.
+        let preload_cancel = Arc::new(AtomicBool::new(false));
         let entry = MountEntry {
             mount_id,
             job_id: task_id.clone(),
@@ -1415,6 +1554,7 @@ impl AntaresService for AntaresServiceImpl {
             state: MountLifecycle::Mounted,
             created_at_epoch_ms: now,
             last_seen_epoch_ms: now,
+            preload_cancel: preload_cancel.clone(),
         };
 
         // Preserve path/cl for logging before moving into index
@@ -1452,6 +1592,38 @@ impl AntaresService for AntaresServiceImpl {
         // Persist state to file for recovery
         self.persist_state().await;
 
+        // Transition to Ready immediately.
+        //
+        // By this point Dicfuse's `import_arc()` → `load_dir_depth()` (Phase 1) has
+        // already populated the in-memory directory cache.  Any FUSE `statx` that
+        // arrives now will hit the Dicfuse memory cache (~1 ms) instead of making a
+        // network round-trip (~100 ms).  Waiting for `deep_preload_walk` (Phase 2)
+        // to push those entries into the **kernel** FUSE cache would save ~1 ms per
+        // statx but costs ~140 s of startup latency — unacceptable for CI.
+        //
+        // Phase 2 still runs in the background as a best-effort optimisation.
+        {
+            let mut mounts = self.mounts.write().await;
+            if let Some(entry) = mounts.get_mut(&mount_id) {
+                if matches!(entry.state, MountLifecycle::Mounted) {
+                    entry.state = MountLifecycle::Ready;
+                    entry.update_last_seen();
+                    tracing::info!(
+                        mount_id = %mount_id,
+                        "antares svc: mount is Ready (Dicfuse cache warm, kernel cache warming in background)"
+                    );
+                }
+            }
+        }
+
+        // Best-effort: warm FUSE kernel caches in the background.
+        self.spawn_deep_preload_task(
+            mount_id,
+            mountpoint_str.clone(),
+            preload_cancel.clone(),
+            "create_mount",
+        );
+
         Ok(MountCreated {
             mount_id,
             mountpoint: mountpoint_str,
@@ -1482,6 +1654,19 @@ impl AntaresService for AntaresServiceImpl {
         let entry = mounts
             .get_mut(&mount_id)
             .ok_or(ServiceError::NotFound(mount_id))?;
+
+        if matches!(
+            entry.state,
+            MountLifecycle::Quiescing | MountLifecycle::Unmounting
+        ) {
+            return Err(ServiceError::InvalidRequest(format!(
+                "mount {} is currently in state {:?}; retry after switch/unmount completes",
+                mount_id, entry.state
+            )));
+        }
+
+        // Cancel any in-flight deep-preload walk so it stops quickly.
+        entry.preload_cancel.store(true, Ordering::Relaxed);
 
         // Set state to Unmounting while still in the map
         entry.state = MountLifecycle::Unmounting;
@@ -1602,7 +1787,7 @@ impl AntaresService for AntaresServiceImpl {
         let entry = mounts
             .get_mut(&mount_id)
             .ok_or(ServiceError::NotFound(mount_id))?;
-        if !matches!(entry.state, MountLifecycle::Mounted) {
+        if !matches!(entry.state, MountLifecycle::Mounted | MountLifecycle::Ready) {
             return Err(ServiceError::InvalidRequest(format!(
                 "mount {} is currently in state {:?}; cannot build CL",
                 mount_id, entry.state
@@ -1612,6 +1797,7 @@ impl AntaresService for AntaresServiceImpl {
         let cl_root = crate::util::config::antares_cl_root();
         let cl_dir_str = format!("{}/{}", cl_root, mount_id);
         let cl_dir_path = PathBuf::from(&cl_dir_str);
+        let quiesce_grace = Self::cl_quiesce_grace_duration();
         let path = entry.path.clone();
         let job_id = entry.job_id.clone();
         let old_cl = entry.cl.clone();
@@ -1619,6 +1805,12 @@ impl AntaresService for AntaresServiceImpl {
         let upper_dir = PathBuf::from(&entry.upper_dir);
         let existing_cl_dir = entry.cl_dir.as_ref().map(PathBuf::from);
         let dicfuse = entry.fuse.dic.clone();
+        // Cancel any in-flight deep-preload walk before unmounting.
+        entry.preload_cancel.store(true, Ordering::Relaxed);
+        // Enter a short quiescing window so control-plane operations reject this mount
+        // while we prepare to remount with the new CL layer.
+        entry.state = MountLifecycle::Quiescing;
+        entry.update_last_seen();
         let mut old_fuse = std::mem::replace(&mut entry.fuse, {
             AntaresFuse::new(
                 mountpoint.clone(),
@@ -1632,9 +1824,16 @@ impl AntaresService for AntaresServiceImpl {
             })?
         });
 
-        entry.state = MountLifecycle::Unmounting;
         drop(mounts);
         drop(index);
+        if !quiesce_grace.is_zero() {
+            tracing::info!(
+                mount_id = %mount_id,
+                grace_ms = quiesce_grace.as_millis(),
+                "antares svc: build_cl quiescing before remount"
+            );
+            sleep(quiesce_grace).await;
+        }
 
         if let Err(e) = old_fuse.unmount().await {
             tracing::error!("Failed to unmount {}: {}", mount_id, e);
@@ -1718,10 +1917,14 @@ impl AntaresService for AntaresServiceImpl {
             .get_mut(&mount_id)
             .ok_or(ServiceError::NotFound(mount_id))?;
 
+        // Reset the cancel flag and assign a fresh one for the next preload cycle.
+        let new_cancel = Arc::new(AtomicBool::new(false));
         entry.fuse = new_fuse;
         entry.cl = Some(cl_link.clone());
         entry.cl_dir = Some(cl_dir_str);
-        entry.state = MountLifecycle::Mounted;
+        // Transition directly to Ready — Dicfuse cache is already warm.
+        entry.state = MountLifecycle::Ready;
+        entry.preload_cancel = new_cancel.clone();
         entry.update_last_seen();
 
         if job_id.is_none() && old_cl != entry.cl {
@@ -1730,6 +1933,7 @@ impl AntaresService for AntaresServiceImpl {
             index.insert((path, entry.cl.clone()), mount_id);
         }
 
+        let mountpoint_for_preload = entry.mountpoint.clone();
         let status = entry.to_status();
         tracing::info!(
             "Built CL layer for mount {} with link {}",
@@ -1742,6 +1946,9 @@ impl AntaresService for AntaresServiceImpl {
 
         self.persist_state().await;
 
+        // Best-effort: re-warm kernel FUSE caches after remount.
+        self.spawn_deep_preload_task(mount_id, mountpoint_for_preload, new_cancel, "build_cl");
+
         Ok(status)
     }
 
@@ -1752,7 +1959,7 @@ impl AntaresService for AntaresServiceImpl {
         let entry = mounts
             .get_mut(&mount_id)
             .ok_or(ServiceError::NotFound(mount_id))?;
-        if !matches!(entry.state, MountLifecycle::Mounted) {
+        if !matches!(entry.state, MountLifecycle::Mounted | MountLifecycle::Ready) {
             return Err(ServiceError::InvalidRequest(format!(
                 "mount {} is currently in state {:?}; cannot clear CL",
                 mount_id, entry.state
@@ -1768,10 +1975,17 @@ impl AntaresService for AntaresServiceImpl {
         let path = entry.path.clone();
         let job_id = entry.job_id.clone();
         let old_cl = entry.cl.clone();
+        let quiesce_grace = Self::cl_quiesce_grace_duration();
         let mountpoint = PathBuf::from(&entry.mountpoint);
         let upper_dir = PathBuf::from(&entry.upper_dir);
         let existing_cl_dir = entry.cl_dir.as_ref().map(PathBuf::from);
         let dicfuse = entry.fuse.dic.clone();
+        // Cancel any in-flight deep-preload walk before unmounting.
+        entry.preload_cancel.store(true, Ordering::Relaxed);
+        // Enter a short quiescing window so control-plane operations reject this mount
+        // while we prepare to remount without CL.
+        entry.state = MountLifecycle::Quiescing;
+        entry.update_last_seen();
         let mut old_fuse = std::mem::replace(&mut entry.fuse, {
             AntaresFuse::new(
                 mountpoint.clone(),
@@ -1785,9 +1999,16 @@ impl AntaresService for AntaresServiceImpl {
             })?
         });
 
-        entry.state = MountLifecycle::Unmounting;
         drop(mounts);
         drop(index);
+        if !quiesce_grace.is_zero() {
+            tracing::info!(
+                mount_id = %mount_id,
+                grace_ms = quiesce_grace.as_millis(),
+                "antares svc: clear_cl quiescing before remount"
+            );
+            sleep(quiesce_grace).await;
+        }
 
         if let Err(e) = old_fuse.unmount().await {
             tracing::error!("Failed to unmount {}: {}", mount_id, e);
@@ -1851,10 +2072,13 @@ impl AntaresService for AntaresServiceImpl {
             .get_mut(&mount_id)
             .ok_or(ServiceError::NotFound(mount_id))?;
 
+        let new_cancel = Arc::new(AtomicBool::new(false));
         entry.fuse = new_fuse;
         entry.cl = None;
         entry.cl_dir = None;
-        entry.state = MountLifecycle::Mounted;
+        // Transition directly to Ready — Dicfuse cache is already warm.
+        entry.state = MountLifecycle::Ready;
+        entry.preload_cancel = new_cancel.clone();
         entry.update_last_seen();
 
         if job_id.is_none() {
@@ -1862,6 +2086,7 @@ impl AntaresService for AntaresServiceImpl {
             index.insert((path, None), mount_id);
         }
 
+        let mountpoint_for_preload = entry.mountpoint.clone();
         let status = entry.to_status();
         tracing::info!("Cleared CL layer for mount {}", mount_id);
         drop(mounts);
@@ -1870,7 +2095,23 @@ impl AntaresService for AntaresServiceImpl {
 
         self.persist_state().await;
 
+        // Best-effort: re-warm kernel FUSE caches after remount.
+        self.spawn_deep_preload_task(mount_id, mountpoint_for_preload, new_cancel, "clear_cl");
+
         Ok(status)
+    }
+
+    async fn check_mount_ready(&self, mount_id: Uuid) -> Result<MountReadyResponse, ServiceError> {
+        let mounts = self.mounts.read().await;
+        let entry = mounts
+            .get(&mount_id)
+            .ok_or(ServiceError::NotFound(mount_id))?;
+        let ready = entry.state == MountLifecycle::Ready;
+        Ok(MountReadyResponse {
+            mount_id,
+            ready,
+            state: entry.state.clone(),
+        })
     }
 
     async fn health_info(&self) -> HealthResponse {
@@ -1880,6 +2121,348 @@ impl AntaresService for AntaresServiceImpl {
     async fn shutdown_cleanup(&self) -> Result<(), ServiceError> {
         self.shutdown_cleanup_impl().await
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum DeepPreloadMode {
+    ScanOnly,
+    Full,
+    Hotset,
+    DirsOnly,
+}
+
+impl DeepPreloadMode {
+    fn as_str(self) -> &'static str {
+        match self {
+            DeepPreloadMode::ScanOnly => "scan_only",
+            DeepPreloadMode::Full => "full",
+            DeepPreloadMode::Hotset => "hotset",
+            DeepPreloadMode::DirsOnly => "dirs_only",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct DeepPreloadStats {
+    entries_visited: usize,
+    metadata_touches: usize,
+    budget_exhausted: bool,
+}
+
+fn deep_preload_mode() -> DeepPreloadMode {
+    match std::env::var("ANTARES_DEEP_PRELOAD_MODE") {
+        Ok(raw) => {
+            let normalized = raw.trim().to_ascii_lowercase();
+            match normalized.as_str() {
+                "scan" | "scan_only" | "readdirplus" => DeepPreloadMode::ScanOnly,
+                "full" => DeepPreloadMode::Full,
+                "dirs" | "dirs_only" => DeepPreloadMode::DirsOnly,
+                "hotset" | "" => DeepPreloadMode::Hotset,
+                _ => {
+                    tracing::warn!(
+                        value = %raw,
+                        "invalid ANTARES_DEEP_PRELOAD_MODE, expected one of: scan|hotset|full|dirs"
+                    );
+                    DeepPreloadMode::ScanOnly
+                }
+            }
+        }
+        Err(_) => DeepPreloadMode::ScanOnly,
+    }
+}
+
+fn deep_preload_should_touch_metadata(
+    mode: DeepPreloadMode,
+    file_type: &std::fs::FileType,
+    path: &Path,
+) -> bool {
+    match mode {
+        DeepPreloadMode::ScanOnly => false,
+        DeepPreloadMode::Full => true,
+        DeepPreloadMode::DirsOnly => file_type.is_dir(),
+        DeepPreloadMode::Hotset => {
+            if file_type.is_dir() {
+                return true;
+            }
+            let name = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
+            if matches!(
+                name,
+                "BUCK"
+                    | "BUCK.v2"
+                    | "BUILD"
+                    | "BUILD.bazel"
+                    | "PACKAGE"
+                    | "TARGETS"
+                    | "TARGETS.v2"
+                    | "WORKSPACE"
+                    | "WORKSPACE.bazel"
+                    | ".buckconfig"
+            ) {
+                return true;
+            }
+            matches!(
+                path.extension().and_then(|s| s.to_str()),
+                Some("bzl") | Some("bxl")
+            )
+        }
+    }
+}
+
+fn deep_preload_worker_count() -> usize {
+    let default_workers = thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(4)
+        .clamp(2, 8);
+    match std::env::var("ANTARES_DEEP_PRELOAD_WORKERS") {
+        Ok(raw) => match raw.trim().parse::<usize>() {
+            Ok(n) => n.clamp(1, 64),
+            Err(_) => {
+                tracing::warn!(
+                    value = %raw,
+                    default_workers,
+                    "invalid ANTARES_DEEP_PRELOAD_WORKERS, using default"
+                );
+                default_workers
+            }
+        },
+        Err(_) => default_workers,
+    }
+}
+
+fn deep_preload_max_duration() -> Option<Duration> {
+    const DEFAULT_MS: u64 = 8_000;
+    match std::env::var("ANTARES_DEEP_PRELOAD_MAX_MS") {
+        Ok(raw) => match raw.trim().parse::<u64>() {
+            Ok(0) => None,
+            Ok(ms) => Some(Duration::from_millis(ms.min(120_000))),
+            Err(_) => {
+                tracing::warn!(
+                    value = %raw,
+                    default_ms = DEFAULT_MS,
+                    "invalid ANTARES_DEEP_PRELOAD_MAX_MS, using default"
+                );
+                Some(Duration::from_millis(DEFAULT_MS))
+            }
+        },
+        Err(_) => Some(Duration::from_millis(DEFAULT_MS)),
+    }
+}
+
+fn deep_preload_max_depth() -> usize {
+    const DEFAULT_DEPTH: usize = 4;
+    match std::env::var("ANTARES_DEEP_PRELOAD_MAX_DEPTH") {
+        Ok(raw) => match raw.trim().parse::<usize>() {
+            Ok(depth) => depth.min(64),
+            Err(_) => {
+                tracing::warn!(
+                    value = %raw,
+                    default_depth = DEFAULT_DEPTH,
+                    "invalid ANTARES_DEEP_PRELOAD_MAX_DEPTH, using default"
+                );
+                DEFAULT_DEPTH
+            }
+        },
+        Err(_) => DEFAULT_DEPTH,
+    }
+}
+
+/// Walk a directory tree with bounded parallelism to warm FUSE kernel caches.
+///
+/// Strategy is configurable:
+/// - `scan` (default): traverse directories only (readdir/readdirplus-driven)
+/// - `hotset`: touch metadata for directories + Buck hot files
+/// - `dirs`: touch metadata only for directories
+/// - `full`: touch metadata for every entry (most expensive)
+/// - `ANTARES_DEEP_PRELOAD_MAX_MS`: cap total background warmup time
+fn deep_preload_walk(root: &str, cancel: &AtomicBool) -> std::io::Result<DeepPreloadStats> {
+    use std::fs;
+
+    #[derive(Default)]
+    struct WalkState {
+        queue: VecDeque<(PathBuf, usize)>,
+        in_flight: usize,
+        done: bool,
+    }
+
+    // Bounded by default, but override-able for host-specific tuning.
+    let workers = deep_preload_worker_count();
+    let mode = deep_preload_mode();
+    let max_depth = deep_preload_max_depth();
+    let max_duration = deep_preload_max_duration();
+    tracing::info!(
+        root = root,
+        workers,
+        mode = mode.as_str(),
+        max_depth,
+        max_ms = max_duration.map(|d| d.as_millis()),
+        "deep_preload_walk: start"
+    );
+    let started_at = Instant::now();
+    let root_path = PathBuf::from(root);
+    let total_entries = Arc::new(AtomicUsize::new(0));
+    let total_touches = Arc::new(AtomicUsize::new(0));
+    let budget_exhausted = Arc::new(AtomicBool::new(false));
+    let state = Arc::new((
+        Mutex::new(WalkState {
+            queue: VecDeque::from([(root_path, 0)]),
+            in_flight: 0,
+            done: false,
+        }),
+        Condvar::new(),
+    ));
+
+    thread::scope(|scope| {
+        for _ in 0..workers {
+            let state = Arc::clone(&state);
+            let total_entries = Arc::clone(&total_entries);
+            let total_touches = Arc::clone(&total_touches);
+            let budget_exhausted = Arc::clone(&budget_exhausted);
+            scope.spawn(move || {
+                let mut local_entries = 0usize;
+                let mut local_touches = 0usize;
+
+                loop {
+                    if let Some(max_dur) = max_duration {
+                        if started_at.elapsed() >= max_dur {
+                            budget_exhausted.store(true, Ordering::Relaxed);
+                            let (lock, cv) = &*state;
+                            let mut guard = lock.lock().expect("deep_preload_walk lock poisoned");
+                            guard.done = true;
+                            cv.notify_all();
+                            break;
+                        }
+                    }
+                    if cancel.load(Ordering::Relaxed) {
+                        let (lock, cv) = &*state;
+                        let mut guard = lock.lock().expect("deep_preload_walk lock poisoned");
+                        guard.done = true;
+                        cv.notify_all();
+                        break;
+                    }
+
+                    let dir = {
+                        let (lock, cv) = &*state;
+                        let mut guard = lock.lock().expect("deep_preload_walk lock poisoned");
+                        loop {
+                            if guard.done {
+                                break None;
+                            }
+                            if let Some(dir) = guard.queue.pop_front() {
+                                guard.in_flight += 1;
+                                break Some(dir);
+                            }
+                            if guard.in_flight == 0 {
+                                guard.done = true;
+                                cv.notify_all();
+                                break None;
+                            }
+                            guard = cv.wait(guard).expect("deep_preload_walk lock poisoned");
+                        }
+                    };
+
+                    let Some((dir, depth)) = dir else {
+                        break;
+                    };
+
+                    let mut discovered_dirs: Vec<(PathBuf, usize)> = Vec::new();
+                    let entries = match fs::read_dir(&dir) {
+                        Ok(entries) => entries,
+                        Err(e) => {
+                            tracing::warn!(dir = ?dir, error = %e, "deep_preload_walk: read_dir failed");
+                            let (lock, cv) = &*state;
+                            let mut guard = lock.lock().expect("deep_preload_walk lock poisoned");
+                            guard.in_flight = guard.in_flight.saturating_sub(1);
+                            if guard.queue.is_empty() && guard.in_flight == 0 {
+                                guard.done = true;
+                            }
+                            cv.notify_all();
+                            continue;
+                        }
+                    };
+
+                    for entry in entries {
+                        if let Some(max_dur) = max_duration {
+                            if started_at.elapsed() >= max_dur {
+                                budget_exhausted.store(true, Ordering::Relaxed);
+                                break;
+                            }
+                        }
+                        if cancel.load(Ordering::Relaxed) {
+                            break;
+                        }
+                        let entry = match entry {
+                            Ok(e) => e,
+                            Err(e) => {
+                                tracing::warn!(dir = ?dir, error = %e, "deep_preload_walk: entry error");
+                                continue;
+                            }
+                        };
+
+                        let path = entry.path();
+                        let file_type = match entry.file_type() {
+                            Ok(ft) => ft,
+                            Err(e) => {
+                                tracing::warn!(
+                                    path = ?path,
+                                    error = %e,
+                                    "deep_preload_walk: file_type error"
+                                );
+                                continue;
+                            }
+                        };
+                        local_entries += 1;
+
+                        if file_type.is_dir() && depth < max_depth {
+                            discovered_dirs.push((path.clone(), depth + 1));
+                        }
+
+                        if deep_preload_should_touch_metadata(mode, &file_type, &path) {
+                            // Touch metadata to warm FUSE attr cache for selected hot paths.
+                            let _ = entry.metadata();
+                            local_touches += 1;
+                        }
+                    }
+
+                    let (lock, cv) = &*state;
+                    let mut guard = lock.lock().expect("deep_preload_walk lock poisoned");
+                    for subdir in discovered_dirs {
+                        guard.queue.push_back(subdir);
+                    }
+                    guard.in_flight = guard.in_flight.saturating_sub(1);
+                    if guard.queue.is_empty() && guard.in_flight == 0 {
+                        guard.done = true;
+                    }
+                    cv.notify_all();
+                }
+
+                total_entries.fetch_add(local_entries, Ordering::Relaxed);
+                total_touches.fetch_add(local_touches, Ordering::Relaxed);
+            });
+        }
+    });
+
+    let stats = DeepPreloadStats {
+        entries_visited: total_entries.load(Ordering::Relaxed),
+        metadata_touches: total_touches.load(Ordering::Relaxed),
+        budget_exhausted: budget_exhausted.load(Ordering::Relaxed),
+    };
+    if stats.budget_exhausted {
+        tracing::info!(
+            root = root,
+            visited = stats.entries_visited,
+            metadata_touches = stats.metadata_touches,
+            "deep_preload_walk: time budget exhausted"
+        );
+    }
+    if cancel.load(Ordering::Relaxed) {
+        tracing::info!(
+            root = root,
+            visited = stats.entries_visited,
+            metadata_touches = stats.metadata_touches,
+            "deep_preload_walk: cancelled"
+        );
+    }
+    Ok(stats)
 }
 
 // ============================================================================
@@ -1937,7 +2520,10 @@ mod tests {
                             job_id
                         )));
                     }
-                    if !matches!(existing.state, MountLifecycle::Mounted) {
+                    if !matches!(
+                        existing.state,
+                        MountLifecycle::Mounted | MountLifecycle::Ready
+                    ) {
                         return Err(ServiceError::InvalidRequest(format!(
                             "job_id/build_id '{}' is currently in state {:?}; retry after unmount completes",
                             job_id, existing.state
@@ -1982,7 +2568,7 @@ mod tests {
                     cl: cl_dir,
                     dicfuse: "mock".into(),
                 },
-                state: MountLifecycle::Mounted,
+                state: MountLifecycle::Ready,
                 created_at_epoch_ms: 0,
                 last_seen_epoch_ms: 0,
             };
@@ -2028,7 +2614,10 @@ mod tests {
             let status = mounts
                 .get_mut(&mount_id)
                 .ok_or(ServiceError::NotFound(mount_id))?;
-            if !matches!(status.state, MountLifecycle::Mounted) {
+            if !matches!(
+                status.state,
+                MountLifecycle::Mounted | MountLifecycle::Ready
+            ) {
                 return Err(ServiceError::InvalidRequest(format!(
                     "mount {} is currently in state {:?}; cannot build CL",
                     mount_id, status.state
@@ -2044,7 +2633,10 @@ mod tests {
             let status = mounts
                 .get_mut(&mount_id)
                 .ok_or(ServiceError::NotFound(mount_id))?;
-            if !matches!(status.state, MountLifecycle::Mounted) {
+            if !matches!(
+                status.state,
+                MountLifecycle::Mounted | MountLifecycle::Ready
+            ) {
                 return Err(ServiceError::InvalidRequest(format!(
                     "mount {} is currently in state {:?}; cannot clear CL",
                     mount_id, status.state
@@ -2067,6 +2659,21 @@ mod tests {
                 mount_count: mounts.len(),
                 uptime_secs: 0,
             }
+        }
+
+        async fn check_mount_ready(
+            &self,
+            mount_id: Uuid,
+        ) -> Result<MountReadyResponse, ServiceError> {
+            let mounts = self.mounts.read().await;
+            let status = mounts
+                .get(&mount_id)
+                .ok_or(ServiceError::NotFound(mount_id))?;
+            Ok(MountReadyResponse {
+                mount_id,
+                ready: status.state == MountLifecycle::Ready,
+                state: status.state.clone(),
+            })
         }
 
         async fn shutdown_cleanup(&self) -> Result<(), ServiceError> {
@@ -2639,6 +3246,30 @@ mod tests {
         assert!(matches!(result, Err(ServiceError::InvalidRequest(_))));
     }
 
+    #[tokio::test]
+    async fn test_build_cl_rejected_when_quiescing() {
+        let service = Arc::new(MockAntaresService::new());
+
+        let created = service
+            .create_mount(CreateMountRequest {
+                job_id: None,
+                build_id: None,
+                path: "/third-party/mega".into(),
+                cl: None,
+            })
+            .await
+            .unwrap();
+
+        {
+            let mut mounts = service.mounts.write().await;
+            let s = mounts.get_mut(&created.mount_id).unwrap();
+            s.state = MountLifecycle::Quiescing;
+        }
+
+        let result = service.build_cl(created.mount_id, "CL123".into()).await;
+        assert!(matches!(result, Err(ServiceError::InvalidRequest(_))));
+    }
+
     /// Test build_cl API - mount not found
     #[tokio::test]
     async fn test_build_cl_not_found() {
@@ -2693,6 +3324,30 @@ mod tests {
 
         // Try to clear non-existent CL layer
         let result = service.clear_cl(mount_id).await;
+        assert!(matches!(result, Err(ServiceError::InvalidRequest(_))));
+    }
+
+    #[tokio::test]
+    async fn test_clear_cl_rejected_when_quiescing() {
+        let service = Arc::new(MockAntaresService::new());
+
+        let created = service
+            .create_mount(CreateMountRequest {
+                job_id: None,
+                build_id: None,
+                path: "/third-party/mega".into(),
+                cl: Some("CL123".into()),
+            })
+            .await
+            .unwrap();
+
+        {
+            let mut mounts = service.mounts.write().await;
+            let s = mounts.get_mut(&created.mount_id).unwrap();
+            s.state = MountLifecycle::Quiescing;
+        }
+
+        let result = service.clear_cl(created.mount_id).await;
         assert!(matches!(result, Err(ServiceError::InvalidRequest(_))));
     }
 

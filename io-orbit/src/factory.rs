@@ -1,5 +1,5 @@
 use std::{
-    fs::{create_dir, exists},
+    fs::{create_dir_all, exists},
     sync::Arc,
 };
 
@@ -31,7 +31,7 @@ impl MegaObjectStorageWrapper {
 
     pub fn mock() -> Self {
         if !exists("/tmp/mega_test_object_storage").expect("mock err") {
-            create_dir("/tmp/mega_test_object_storage").expect("init mock file err")
+            create_dir_all("/tmp/mega_test_object_storage").expect("init mock file err")
         }
         let fs = LocalFileSystem::new_with_prefix("/tmp/mega_test_object_storage")
             .expect("mock init error");
@@ -120,7 +120,7 @@ async fn build_gcs(cfg: &ObjectStorageConfig) -> Result<MegaObjectStorageWrapper
 
 async fn build_local(cfg: &ObjectStorageConfig) -> Result<MegaObjectStorageWrapper, MegaError> {
     if !exists(&cfg.local.root_dir)? {
-        create_dir(&cfg.local.root_dir)?
+        create_dir_all(&cfg.local.root_dir)?
     }
     let fs = LocalFileSystem::new_with_prefix(&cfg.local.root_dir)
         .map_err(|e| MegaError::Other(e.to_string()))?;

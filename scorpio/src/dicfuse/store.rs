@@ -215,6 +215,24 @@ impl From<reqwest::Error> for DictionaryError {
     }
 }
 
+/// Normalize a filesystem path into a URL-safe query-parameter value for the Mega API.
+///
+/// The Mega tree API expects a `path` query parameter like `?path=/foo/bar`.
+/// Special characters — in particular `+` (common in crate versions such as
+/// `2.0.16+zstd.1.5.7`) — must be percent-encoded, otherwise the HTTP server
+/// interprets `+` as a space and returns an empty result.
+fn encode_api_path(path: &str) -> String {
+    let clean = path.trim_start_matches('/');
+    let normalized = if clean.is_empty() {
+        "/".to_string()
+    } else {
+        format!("/{clean}")
+    };
+    // Percent-encode characters that are problematic in URL query strings.
+    // '+' → '%2B' is the critical fix; we also encode other reserved chars.
+    normalized.replace('+', "%2B").replace('#', "%23")
+}
+
 // Get Mega dictionary tree from server
 #[allow(unused)]
 async fn fetch_tree(path: &str) -> Result<ApiResponse, DictionaryError> {
@@ -227,9 +245,9 @@ async fn fetch_tree(path: &str) -> Result<ApiResponse, DictionaryError> {
             .unwrap_or_else(|_| Client::new()) // Fallback to default client if builder fails
     });
     let client = CLIENT.clone();
-    // Remove leading slash from path to avoid double slashes in URL
-    let clean_path = path.trim_start_matches('/');
-    let url = format!("{}/api/v1/tree?path=/{}", config::base_url(), clean_path);
+    // Encode path for URL safety (e.g., '+' in crate versions → '%2B').
+    let encoded_path = encode_api_path(path);
+    let url = format!("{}/api/v1/tree?path={}", config::base_url(), encoded_path);
     let kk = client.get(&url).send().await;
     if kk.is_err() {
         return Err(DictionaryError {
@@ -472,11 +490,12 @@ async fn fetch_dir(path: &str) -> Result<ApiResponseExt, DictionaryError> {
     });
     let client = CLIENT.clone();
 
-    let clean_path = path.trim_start_matches('/');
+    // Encode path for URL safety (e.g., '+' in crate versions → '%2B').
+    let encoded_path = encode_api_path(path);
     let url = format!(
-        "{}/api/v1/tree/content-hash?path=/{}",
+        "{}/api/v1/tree/content-hash?path={}",
         config::base_url(),
-        clean_path
+        encoded_path
     );
 
     let max_retries = config::dicfuse_fetch_dir_max_retries().max(1);
@@ -650,11 +669,12 @@ async fn fetch_get_dir_hash(path: &str) -> Result<ApiResponseExt, DictionaryErro
     });
     let client = CLIENT.clone();
 
-    let clean_path = path.trim_start_matches('/');
+    // Encode path for URL safety (e.g., '+' in crate versions → '%2B').
+    let encoded_path = encode_api_path(path);
     let url = format!(
-        "{}/api/v1/tree/dir-hash?path=/{}",
+        "{}/api/v1/tree/dir-hash?path={}",
         config::base_url(),
-        clean_path
+        encoded_path
     );
 
     let response = match client.get(&url).send().await {
