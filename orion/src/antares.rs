@@ -32,7 +32,9 @@ async fn get_manager() -> Result<&'static Arc<AntaresManager>, DynError> {
             let config_path = resolve_or_generate_config_path()?;
             let config_path_str = config_path
                 .to_str()
-                .ok_or_else(|| io_other("Invalid SCORPIO_CONFIG path (non-UTF8)") as DynError)?;
+                .ok_or_else(|| -> DynError {
+                    Box::new(io_other("Invalid SCORPIO_CONFIG path (non-UTF8)"))
+                })?;
 
             tracing::info!("Initializing Antares with config: {}", config_path_str);
 
