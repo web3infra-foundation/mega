@@ -10,11 +10,11 @@ on:
       - "orion/entrypoint.sh"
       - "orion/scorpio.toml.template"
       - "orion/**"
-      - "scorpio/**"
       - "ceres/**"
       - "jupiter/**"
       - "common/**"
       - "context/**"
+    # Note: scorpio/** removed - moved to https://github.com/web3infra-foundation/scorpiofs
 
 permissions:
   id-token: write

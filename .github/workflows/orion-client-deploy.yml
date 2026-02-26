@@ -10,8 +10,8 @@ on:
     paths:
       - ".github/workflows/orion-client-deploy.yml"
       - "orion/**"
-      - "scorpio/**"
   workflow_dispatch:
+  # Note: scorpio has been moved to https://github.com/web3infra-foundation/scorpiofs
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -40,25 +40,21 @@ jobs:
       - name: Build Orion
         run: cargo build --release -p orion --bin orion
 
-      - name: Build Scorpio
-        run: cargo build --release -p scorpio --bin scorpio
+      # Note: Scorpio is no longer built here - moved to https://github.com/web3infra-foundation/scorpiofs
 
       - name: Verify build artifacts
         run: |
           set -e
           ls -lh target/release
           test -f target/release/orion
-          test -f target/release/scorpio
           file target/release/orion
-          file target/release/scorpio
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: orion-scorpio-bins
+          name: orion-bins
           path: |
             target/release/orion
-            target/release/scorpio
           retention-days: 7
 
   deploy:
@@ -86,11 +82,11 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
-          name: orion-scorpio-bins
+          name: orion-bins
           path: ./artifacts
 
       - name: Make artifacts executable
-        run: chmod +x ./artifacts/orion ./artifacts/scorpio
+        run: chmod +x ./artifacts/orion
 
       - name: Prepare SSH key
         run: |
@@ -107,7 +103,6 @@ jobs:
         run: |
           scp -i ~/.ssh/orion_deploy_key \
             ./artifacts/orion \
-            ./artifacts/scorpio \
             "${ORION_DEPLOY_SSH_USER}@${ORION_DEPLOY_HOST}:/tmp/"
 
       - name: Install binaries and restart service
@@ -115,10 +110,10 @@ jobs:
           ssh -i ~/.ssh/orion_deploy_key \
             "${ORION_DEPLOY_SSH_USER}@${ORION_DEPLOY_HOST}" \
             "sudo mv /tmp/orion /usr/local/bin/orion && \
-             sudo mv /tmp/scorpio /usr/local/bin/scorpio && \
-             sudo chmod +x /usr/local/bin/orion /usr/local/bin/scorpio && \
+             sudo chmod +x /usr/local/bin/orion && \
              sudo systemctl restart orion-worker.service && \
              sudo systemctl status orion-worker.service --no-pager"
+        # Note: scorpio deployment removed - now maintained at https://github.com/web3infra-foundation/scorpiofs
 
       - name: Cleanup SSH key
         if: always()
