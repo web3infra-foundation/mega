@@ -1906,7 +1906,7 @@ impl From<build_events::Model> for BuildEventDTO {
 #[derive(ToSchema, Serialize)]
 pub struct OrionTaskDTO {
     pub id: String,
-    pub changes: String,
+    pub changes: Value,
     pub repo_name: String,
     pub cl: String,
     pub created_at: String,
@@ -1916,7 +1916,7 @@ impl From<&orion_tasks::Model> for OrionTaskDTO {
     fn from(model: &orion_tasks::Model) -> Self {
         Self {
             id: model.id.to_string(),
-            changes: model.changes.to_string(),
+            changes: model.changes.clone(),
             repo_name: model.repo_name.to_string(),
             cl: model.cl.to_string(),
             created_at: model.created_at.to_string(),
