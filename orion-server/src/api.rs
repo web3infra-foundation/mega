@@ -1958,7 +1958,7 @@ pub async fn task_retry_handler(
     params(("cl" = String, Path, description = "Change List")),
     responses(
         (status = 200, description = "Get task successfully", body = OrionTaskDTO),
-        (status = 300, description = "Many tasks", body = MessageResponse),
+        (status = 400, description = "", body = MessageResponse),
         (status = 404, description = "Not found task", body = MessageResponse),
         (status = 500, description = "Database error", body = MessageResponse),
     )
@@ -1986,7 +1986,7 @@ pub async fn task_get_handler(
         )),
         1 => Ok(Json(OrionTaskDTO::from(tasks.first().unwrap()))),
         _ => Err((
-            StatusCode::MULTIPLE_CHOICES,
+            StatusCode::BAD_REQUEST,
             Json(serde_json::json!({"message": "Multiple tasks"})),
         )),
     }
