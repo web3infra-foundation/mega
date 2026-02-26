@@ -89,16 +89,6 @@ impl GroupStorage {
             .await?)
     }
 
-    pub async fn get_group_by_name(
-        &self,
-        name: &str,
-    ) -> Result<Option<mega_group::Model>, MegaError> {
-        Ok(mega_group::Entity::find()
-            .filter(mega_group::Column::Name.eq(name))
-            .one(self.get_connection())
-            .await?)
-    }
-
     pub async fn delete_group_with_relations(
         &self,
         group_id: i64,
@@ -169,8 +159,7 @@ impl GroupStorage {
             Err(e) => {
                 return Err(map_fk_to_not_found(
                     e,
-                    "fk_mega_group_member_group_id",
-                    format!("[code:404] Group not found: {group_id}"),
+                    format!("Group not found: {group_id}"),
                 ));
             }
         }
@@ -285,11 +274,7 @@ impl GroupStorage {
                 .exec(&txn)
                 .await
                 .map_err(|e| {
-                    map_fk_to_not_found(
-                        e,
-                        "fk_mega_resource_permission_group_id",
-                        "[code:404] Group not found".to_string(),
-                    )
+                    map_fk_to_not_found(e, "Group not found in permission binding".to_string())
                 })?;
         }
 
@@ -351,8 +336,7 @@ impl GroupStorage {
             Err(e) => {
                 return Err(map_fk_to_not_found(
                     e,
-                    "fk_mega_resource_permission_group_id",
-                    "[code:404] Group not found".to_string(),
+                    "Group not found in permission binding".to_string(),
                 ));
             }
         }
@@ -369,18 +353,6 @@ impl GroupStorage {
         let result = mega_resource_permission::Entity::delete_many()
             .filter(mega_resource_permission::Column::ResourceType.eq(resource_type))
             .filter(mega_resource_permission::Column::ResourceId.eq(resource_id))
-            .exec(self.get_connection())
-            .await?;
-
-        Ok(result.rows_affected)
-    }
-
-    pub async fn delete_resource_permissions_by_group_id(
-        &self,
-        group_id: i64,
-    ) -> Result<u64, MegaError> {
-        let result = mega_resource_permission::Entity::delete_many()
-            .filter(mega_resource_permission::Column::GroupId.eq(group_id))
             .exec(self.get_connection())
             .await?;
 
@@ -442,19 +414,21 @@ fn normalize_permission_bindings(
         .collect()
 }
 
-fn map_fk_to_not_found(err: DbErr, constraint_name: &str, msg: String) -> MegaError {
-    if is_fk_constraint_error(&err, constraint_name) {
-        MegaError::Other(msg)
+/// Returns true when the database error indicates a foreign-key violation.
+fn is_fk_constraint_error(err: &DbErr) -> bool {
+    let msg = err.to_string().to_lowercase();
+    msg.contains("foreign key constraint")
+        || msg.contains("foreign key constraint failed")
+        || msg.contains("violates foreign key")
+        || msg.contains("cannot add or update a child row")
+}
+
+fn map_fk_to_not_found(err: DbErr, msg: String) -> MegaError {
+    if is_fk_constraint_error(&err) {
+        MegaError::NotFound(msg)
     } else {
         err.into()
     }
-}
-
-fn is_fk_constraint_error(err: &DbErr, constraint_name: &str) -> bool {
-    let msg = err.to_string();
-    msg.contains(constraint_name)
-        || msg.contains("foreign key constraint")
-        || msg.contains("FOREIGN KEY constraint failed")
 }
 
 #[cfg(test)]
@@ -498,7 +472,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn add_group_members_returns_404_when_group_missing() {
+    async fn add_group_members_returns_not_found_when_group_missing() {
         let temp_dir = tempfile::tempdir().expect("failed to create temp dir");
         let storage = crate::tests::test_storage(temp_dir.path()).await;
         let group_storage = storage.group_storage();
@@ -508,13 +482,13 @@ mod tests {
             .await;
 
         match result {
-            Err(MegaError::Other(msg)) => assert!(msg.contains("[code:404]")),
+            Err(MegaError::NotFound(msg)) => assert!(msg.contains("Group not found")),
             other => panic!("unexpected result: {other:?}"),
         }
     }
 
     #[tokio::test]
-    async fn upsert_resource_permissions_returns_404_when_group_missing() {
+    async fn upsert_resource_permissions_returns_not_found_when_group_missing() {
         let temp_dir = tempfile::tempdir().expect("failed to create temp dir");
         let storage = crate::tests::test_storage(temp_dir.path()).await;
         let group_storage = storage.group_storage();
@@ -531,13 +505,13 @@ mod tests {
             .await;
 
         match result {
-            Err(MegaError::Other(msg)) => assert!(msg.contains("[code:404]")),
+            Err(MegaError::NotFound(msg)) => assert!(msg.contains("Group not found")),
             other => panic!("unexpected result: {other:?}"),
         }
     }
 
     #[tokio::test]
-    async fn replace_resource_permissions_returns_404_when_group_missing() {
+    async fn replace_resource_permissions_returns_not_found_when_group_missing() {
         let temp_dir = tempfile::tempdir().expect("failed to create temp dir");
         let storage = crate::tests::test_storage(temp_dir.path()).await;
         let group_storage = storage.group_storage();
@@ -554,7 +528,7 @@ mod tests {
             .await;
 
         match result {
-            Err(MegaError::Other(msg)) => assert!(msg.contains("[code:404]")),
+            Err(MegaError::NotFound(msg)) => assert!(msg.contains("Group not found")),
             other => panic!("unexpected result: {other:?}"),
         }
     }

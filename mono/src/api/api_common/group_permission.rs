@@ -13,7 +13,10 @@ pub async fn ensure_admin(state: &MonoApiServiceState, user: &LoginUser) -> Resu
         return Ok(());
     }
 
-    tracing::warn!("admin check failed: access forbidden");
+    tracing::warn!(
+        actor = %user.username,
+        "admin check failed: access forbidden"
+    );
 
     Err(ApiError::with_status(
         StatusCode::FORBIDDEN,
@@ -30,12 +33,12 @@ pub fn parse_resource_context(
         ApiError::bad_request(anyhow!(err))
     })?;
 
-    let normalized_resource_id = normalize_resource_id(resource_type_value, resource_id)?;
+    let validated_resource_id = validate_resource_id(resource_type_value, resource_id)?;
 
     Ok((
         resource_type_value.into(),
         resource_type_value,
-        normalized_resource_id,
+        validated_resource_id,
     ))
 }
 
@@ -59,7 +62,7 @@ pub fn build_user_effective_permission_response(
     }
 }
 
-fn normalize_resource_id(
+fn validate_resource_id(
     resource_type: ResourceTypeValue,
     resource_id: &str,
 ) -> Result<String, ApiError> {
@@ -67,10 +70,10 @@ fn normalize_resource_id(
         ResourceTypeValue::Note => {
             let note_id = resource_id.parse::<i64>().map_err(|_| {
                 tracing::warn!("invalid resource_id format");
-                ApiError::bad_request(anyhow!(format!(
+                ApiError::bad_request(anyhow!(
                     "Invalid note resource_id: {}, expected i64 note.id",
                     resource_id
-                )))
+                ))
             })?;
             Ok(note_id.to_string())
         }

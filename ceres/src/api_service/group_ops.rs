@@ -37,9 +37,20 @@ impl MonoApiService {
     }
 
     pub async fn delete_group(&self, group_id: i64) -> Result<DeleteGroupStats, MegaError> {
-        let group_storage = self.storage.group_storage();
-        self.ensure_group_exists(group_id).await?;
-        group_storage.delete_group_with_relations(group_id).await
+        let stats = self
+            .storage
+            .group_storage()
+            .delete_group_with_relations(group_id)
+            .await?;
+
+        if stats.deleted_groups_count == 0 {
+            return Err(MegaError::NotFound(format!(
+                "Group not found: {}",
+                group_id
+            )));
+        }
+
+        Ok(stats)
     }
 
     pub async fn add_group_members(
@@ -57,7 +68,12 @@ impl MonoApiService {
         username: &str,
     ) -> Result<bool, MegaError> {
         let group_storage = self.storage.group_storage();
-        self.ensure_group_exists(group_id).await?;
+        if group_storage.get_group_by_id(group_id).await?.is_none() {
+            return Err(MegaError::NotFound(format!(
+                "Group not found: {}",
+                group_id
+            )));
+        }
         group_storage.remove_group_member(group_id, username).await
     }
 
@@ -67,7 +83,12 @@ impl MonoApiService {
         page: Pagination,
     ) -> Result<(Vec<mega_group_member::Model>, u64), MegaError> {
         let group_storage = self.storage.group_storage();
-        self.ensure_group_exists(group_id).await?;
+        if group_storage.get_group_by_id(group_id).await?.is_none() {
+            return Err(MegaError::NotFound(format!(
+                "Group not found: {}",
+                group_id
+            )));
+        }
         group_storage.list_group_members(group_id, page).await
     }
 
@@ -141,7 +162,10 @@ impl MonoApiService {
         }
 
         let group_storage = self.storage.group_storage();
-        let group_ids = group_storage.find_group_ids_by_username(username).await?;
+        let group_ids = group_storage
+            .find_group_ids_by_username(username)
+            .await
+            .map_err(|_| MegaError::Other("Failed to query user group memberships".to_string()))?;
         if group_ids.is_empty() {
             return Ok(EffectiveResourcePermission {
                 is_admin: false,
@@ -151,7 +175,8 @@ impl MonoApiService {
 
         let permissions = group_storage
             .find_permissions_by_resource(resource_type, resource_id, &group_ids)
-            .await?;
+            .await
+            .map_err(|_| MegaError::Other("Failed to query resource permissions".to_string()))?;
 
         let permission = permissions
             .iter()
@@ -184,16 +209,6 @@ impl MonoApiService {
             Some(permission) => permission_satisfies(&permission, &required_permission),
             None => false,
         })
-    }
-
-    async fn ensure_group_exists(&self, group_id: i64) -> Result<(), MegaError> {
-        if self.get_group_by_id(group_id).await?.is_some() {
-            return Ok(());
-        }
-        Err(MegaError::Other(format!(
-            "[code:404] Group not found: {}",
-            group_id
-        )))
     }
 }
 

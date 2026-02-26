@@ -75,6 +75,15 @@ async fn create_group(
             "Group name must not be empty"
         )));
     }
+    if name.len() > 255 {
+        tracing::warn!(
+            actor = %user.username,
+            "group.create rejected: name too long"
+        );
+        return Err(ApiError::bad_request(anyhow!(
+            "Group name must not exceed 255 characters"
+        )));
+    }
 
     let description = req
         .description
@@ -152,7 +161,7 @@ async fn get_group(
                 group_id,
                 "group.get failed: group not found"
             );
-            ApiError::not_found(anyhow!(format!("Group not found: {}", group_id)))
+            ApiError::not_found(anyhow!("Group not found: {}", group_id))
         })?;
 
     Ok(Json(CommonResult::success(Some(group.into()))))
