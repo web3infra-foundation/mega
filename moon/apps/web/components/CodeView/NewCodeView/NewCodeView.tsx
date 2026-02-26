@@ -1,18 +1,12 @@
 import { useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
-import { useAtom } from 'jotai'
-import { useRouter } from 'next/router'
 import toast from 'react-hot-toast'
 
 import { Button } from '@gitmono/ui/Button'
 import { Dialog } from '@gitmono/ui/Dialog'
 import { Select, SelectTrigger, SelectValue } from '@gitmono/ui/Select'
 
-import { expandedNodesAtom } from '@/components/CodeView/TreeView/codeTreeAtom'
-import { useScope } from '@/contexts/scope'
 import { useCreateEntry } from '@/hooks/useCreateEntry'
 import { useGetCurrentUser } from '@/hooks/useGetCurrentUser'
-import { legacyApiClient } from '@/utils/queryClient'
 
 import MarkdownEditor from './MarkdownEditor'
 import PathInput from './PathInput'
@@ -21,14 +15,9 @@ interface NewCodeViewProps {
   currentPath?: string
   onClose?: () => void
   defaultType?: 'folder' | 'file'
-  version?: string
 }
 
-const NewCodeView = ({ currentPath = '', onClose, defaultType = 'file', version }: NewCodeViewProps) => {
-  const router = useRouter()
-  const { scope } = useScope()
-  const queryClient = useQueryClient()
-  const [expandedNodes, setExpandedNodes] = useAtom(expandedNodesAtom)
+const NewCodeView = ({ currentPath = '', onClose, defaultType = 'file' }: NewCodeViewProps) => {
   const [path, setPath] = useState(currentPath)
   const [name, setName] = useState('')
 
@@ -54,42 +43,8 @@ const NewCodeView = ({ currentPath = '', onClose, defaultType = 'file', version 
       },
       {
         onSuccess: async () => {
-          toast.success('Create Success!')
+          toast.success('Create Change List Success!')
           setDialogOpen(false)
-
-          if (fileType === 'folder') {
-            const pathParts = path.split('/').filter(Boolean)
-
-            const pathsToExpand = ['/', ...pathParts.map((_, i) => '/' + pathParts.slice(0, i + 1).join('/'))]
-
-            setExpandedNodes(Array.from(new Set([...expandedNodes, ...pathsToExpand])))
-          }
-
-          await Promise.all([
-            queryClient.refetchQueries({
-              queryKey: legacyApiClient.v1.getApiTree().requestKey({ path: path })
-            }),
-            queryClient.refetchQueries({
-              queryKey: legacyApiClient.v1.getApiTreeCommitInfo().requestKey({ path: path })
-            }),
-            ...(fileType === 'folder'
-              ? [
-                  queryClient.refetchQueries({
-                    queryKey: legacyApiClient.v1.getApiTree().requestKey({ path: path })
-                  }),
-                  queryClient.refetchQueries({
-                    queryKey: legacyApiClient.v1.getApiTreeCommitInfo().requestKey({ path: path })
-                  })
-                ]
-              : [])
-          ])
-
-          if (fileType === 'file') {
-            router.push(`/${scope}/code/blob/${version}${path}`)
-          } else {
-            router.push(`/${scope}/code/tree/${version}${path}`)
-          }
-
           onClose?.()
         },
         onError: (error: any) => {
