@@ -48,7 +48,6 @@ import { atomWithWebStorage } from '@/utils/atomWithWebStorage'
 import { IndexPageContainer, IndexPageContent } from '../IndexPages/components'
 import { Pagination } from '../Issues/Pagenation'
 import { clIdAtom } from '../Issues/utils/store'
-import { useDraftClList } from './hook/useDraftClList'
 
 type ItemsType = NonNullable<PostApiClListData['data']>['items']
 
@@ -66,7 +65,6 @@ export default function CLView() {
   const [_clid, setClid] = useAtom(clIdAtom)
 
   const { mutate: fetchClList } = usePostClList()
-  const { mutate: fetchDraftClList } = useDraftClList()
   const { members } = useSyncedMembers()
 
   const filterState = useFilterState({ scope: scope as string, type: 'cl' })
@@ -104,121 +102,37 @@ export default function CLView() {
 
     const params = filterStateRef.current.toApiParams()
     const currentOrder = orderRef.current
-    const baseAdditional: any = {
+    const additional: any = {
       sort_by: handleSort(currentOrder.sort),
+      asc: currentOrder.time === 'Oldest',
+      status: status, // 始终传递 status，open 时后端会返回 open + draft
       ...params
     }
 
-    if (status === 'draft') {
-      fetchDraftClList(
-        {
-          data: {
-            pagination: { page, per_page: pageSize },
-            additional: baseAdditional
-          }
-        },
-        {
-          onSuccess: (response) => {
-            const data = response.data
-
-            setClList((data?.items ?? []) as ItemsType)
-            setNumTotal(data?.total ?? 0)
-          },
-          onError: apiErrorToast,
-          onSettled: () => setIsLoading(false)
+    fetchClList(
+      {
+        data: {
+          pagination: { page, per_page: pageSize },
+          additional
         }
-      )
-    } else if (status === 'open') {
-      const additional: any = {
-        ...baseAdditional,
-        status: 'open',
-        asc: currentOrder.time === 'Oldest'
+      },
+      {
+        onSuccess: (response) => {
+          const data = response.data
+
+          setClList((data?.items ?? []) as ItemsType)
+          setNumTotal(data?.total ?? 0)
+        },
+        onError: apiErrorToast,
+        onSettled: () => setIsLoading(false)
       }
-
-      let openData: PostApiClListData['data'] | undefined
-      let draftData: PostApiClListData['data'] | undefined
-      let openFinished = false
-      let draftFinished = false
-
-      const finalize = () => {
-        if (!openFinished || !draftFinished) return
-
-        const openItems = (openData?.items ?? []) as ItemsType
-        const draftItems = (draftData?.items ?? []) as ItemsType
-
-        setClList([...openItems, ...draftItems])
-        setNumTotal((openData?.total ?? 0) + (draftData?.total ?? 0))
-        setIsLoading(false)
-      }
-
-      fetchClList(
-        {
-          data: {
-            pagination: { page, per_page: pageSize },
-            additional
-          }
-        },
-        {
-          onSuccess: (response) => {
-            openData = response.data
-          },
-          onError: apiErrorToast,
-          onSettled: () => {
-            openFinished = true
-            finalize()
-          }
-        }
-      )
-
-      fetchDraftClList(
-        {
-          data: {
-            pagination: { page, per_page: pageSize },
-            additional: baseAdditional
-          }
-        },
-        {
-          onSuccess: (response) => {
-            draftData = response.data
-          },
-          onError: apiErrorToast,
-          onSettled: () => {
-            draftFinished = true
-            finalize()
-          }
-        }
-      )
-    } else {
-      const additional: any = {
-        ...baseAdditional,
-        status,
-        asc: currentOrder.time === 'Oldest'
-      }
-
-      fetchClList(
-        {
-          data: {
-            pagination: { page, per_page: pageSize },
-            additional
-          }
-        },
-        {
-          onSuccess: (response) => {
-            const data = response.data
-
-            setClList((data?.items ?? []) as ItemsType)
-            setNumTotal(data?.total ?? 0)
-          },
-          onError: apiErrorToast,
-          onSettled: () => setIsLoading(false)
-        }
-      )
-    }
-  }, [page, pageSize, status, fetchClList, fetchDraftClList])
+    )
+  }, [page, pageSize, status, fetchClList])
 
   useEffect(() => {
     fetchClListData()
-  }, [page, pageSize, status, fetchClListData])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, pageSize, status])
 
   const handleSort = (str: string): string => {
     switch (str) {

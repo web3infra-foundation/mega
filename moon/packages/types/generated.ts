@@ -3515,6 +3515,25 @@ export type CommonResultCompleteResponse = {
      * @min 0
      */
     files_count: number
+    /** Base commit hash before upload (for build trigger context) */
+    from_hash: string
+    /** Repository path (for build trigger context) */
+    repo_path: string
+  }
+  err_message: string
+  req_result: boolean
+}
+
+export type CommonResultCreateEntryResult = {
+  /** Response body after creating a file or directory */
+  data?: {
+    cl_link?: string | null
+    /** New commit id created by this operation */
+    commit_id: string
+    /** New blob oid for the created entry */
+    new_oid: string
+    /** Created entry path */
+    path: string
   }
   err_message: string
   req_result: boolean
@@ -4016,6 +4035,10 @@ export type CompleteResponse = {
    * @min 0
    */
   files_count: number
+  /** Base commit hash before upload (for build trigger context) */
+  from_hash: string
+  /** Repository path (for build trigger context) */
+  repo_path: string
 }
 
 export type Condition = {
@@ -4085,8 +4108,23 @@ export type CreateEntryInfo = {
   content?: string | null
   /** can be a file or directory */
   is_directory: boolean
+  /** Controls how CL is created or reused for this change. */
+  mode?: EditCLMode
   name: string
   /** leave empty if it's under root */
+  path: string
+  /** if true, skip build */
+  skip_build?: boolean
+}
+
+/** Response body after creating a file or directory */
+export type CreateEntryResult = {
+  cl_link?: string | null
+  /** New commit id created by this operation */
+  commit_id: string
+  /** New blob oid for the created entry */
+  new_oid: string
+  /** Created entry path */
   path: string
 }
 
@@ -4388,7 +4426,7 @@ export type ListTriggersParams = {
   start_time?: string | null
   /** Filter by trigger source (user, system, service) */
   trigger_source?: string | null
-  /** Filter by trigger type (git_push, manual, retry, webhook, schedule) */
+  /** Filter by trigger type (git_push, manual, retry, webhook, schedule, buck_file_upload) */
   trigger_type?: string | null
   /** Filter by who triggered (username) */
   triggered_by?: string | null
@@ -4573,7 +4611,7 @@ export type PageParamsListTriggersParams = {
     start_time?: string | null
     /** Filter by trigger source (user, system, service) */
     trigger_source?: string | null
-    /** Filter by trigger type (git_push, manual, retry, webhook, schedule) */
+    /** Filter by trigger type (git_push, manual, retry, webhook, schedule, buck_file_upload) */
     trigger_type?: string | null
     /** Filter by who triggered (username) */
     triggered_by?: string | null
@@ -6522,7 +6560,7 @@ export type DeleteApiConversationByCommentIdData = CommonResultString
 
 export type PostApiConversationReactionsData = CommonResultString
 
-export type PostApiCreateEntryData = CommonResultString
+export type PostApiCreateEntryData = CommonResultCreateEntryResult
 
 export type PostApiEditDiffPreviewData = CommonResultDiffItemSchema
 
