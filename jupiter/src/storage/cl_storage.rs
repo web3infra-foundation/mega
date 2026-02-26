@@ -74,11 +74,9 @@ impl ClStorage {
         let cond = filter_by_assignees(cond, params.assignees);
 
         let status = if params.status == "open" {
-            vec![MergeStatusEnum::Open]
+            vec![MergeStatusEnum::Open, MergeStatusEnum::Draft]
         } else if params.status == "closed" {
             vec![MergeStatusEnum::Closed, MergeStatusEnum::Merged]
-        } else if params.status == "draft" {
-            vec![MergeStatusEnum::Draft]
         } else {
             vec![
                 MergeStatusEnum::Open,
