@@ -30,17 +30,10 @@ const NewCodeView = ({ currentPath = '', onClose, defaultType = 'file' }: NewCod
   const { data: currentUser } = useGetCurrentUser()
 
   const handleSubmit = () => {
-    let entryPath = path
-
-    if (entryPath.endsWith('/' + name)) {
-      entryPath = entryPath.slice(0, -(name.length + 1))
-    }
-    entryPath = entryPath || '/'
-
     createEntryHook.mutate(
       {
-        name: name,
-        path: entryPath,
+        name: path,
+        path: '/',
         is_directory: fileType === 'folder',
         content: fileType === 'file' ? content : '',
         author_email: currentUser?.email,
