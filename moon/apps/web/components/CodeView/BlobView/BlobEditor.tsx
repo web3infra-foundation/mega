@@ -31,7 +31,6 @@ export default function BlobEditor({ fileContent, filePath, fileName, onCancel }
 
   const [editedFileName, setEditedFileName] = useState(fileName)
   const [commitMessage, setCommitMessage] = useState(`Update ${fileName}`)
-  const [commitDescription, setCommitDescription] = useState('')
 
   const [viewMode, setViewMode] = useState<ViewMode>('edit')
 
@@ -114,7 +113,7 @@ export default function BlobEditor({ fileContent, filePath, fileName, onCancel }
     await updateBlobMutation.mutateAsync({
       path: fullEditedPath,
       content: content,
-      commit_message: commitDescription ? `${commitMessage}\n\n${commitDescription}` : commitMessage,
+      commit_message: commitMessage,
       author_email: currentUser?.email,
       author_username: currentUser?.username,
       mode: 'force_create',
@@ -127,7 +126,6 @@ export default function BlobEditor({ fileContent, filePath, fileName, onCancel }
     updateBlobMutation,
     fullEditedPath,
     content,
-    commitDescription,
     commitMessage,
     currentUser?.email,
     currentUser?.username,
@@ -317,22 +315,10 @@ export default function BlobEditor({ fileContent, filePath, fileName, onCancel }
               />
             </div>
 
-            <div className='flex flex-col gap-2'>
-              <label className='text-sm font-medium text-gray-700'>Extended description (optional)</label>
-              <textarea
-                value={commitDescription}
-                onChange={(e) => setCommitDescription(e.target.value)}
-                placeholder='Add an optional extended description...'
-                rows={4}
-                className='w-full resize-none rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500'
-                disabled={updateBlobMutation.isPending}
-              />
-            </div>
-
             <div className='flex items-center gap-2'>
               <input
                 type='checkbox'
-                id='skipBuild'
+                id='skipBuild_editor'
                 checked={skipBuild}
                 onChange={(e) => setSkipBuild(e.target.checked)}
                 className='h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500'

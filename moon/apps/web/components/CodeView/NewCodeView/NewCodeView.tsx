@@ -37,18 +37,14 @@ const NewCodeView = ({ currentPath = '', onClose, defaultType = 'file', version 
   const [fileType, setFileType] = useState<'folder' | 'file'>(defaultType)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [content, setContent] = useState('')
-  const [commitMessage, setCommitMessage] = useState('')
-  const [commitDescription, setCommitDescription] = useState('')
   const createEntryHook = useCreateEntry()
   const { data: currentUser } = useGetCurrentUser()
 
-  const handlerSubmit = () => {
-    const entryPath = '/' + path.replace('/' + name, '')
-
+  const handleSubmit = () => {
     createEntryHook.mutate(
       {
         name: name,
-        path: entryPath,
+        path: currentPath,
         is_directory: fileType === 'folder',
         content: fileType === 'file' ? content : '',
         author_email: currentUser?.email,
@@ -61,10 +57,8 @@ const NewCodeView = ({ currentPath = '', onClose, defaultType = 'file', version 
           toast.success('Create Success!')
           setDialogOpen(false)
 
-          const fullPath = entryPath === '/' ? `/${name}` : `${entryPath}/${name}`
-
           if (fileType === 'folder') {
-            const pathParts = fullPath.split('/').filter(Boolean)
+            const pathParts = path.split('/').filter(Boolean)
 
             const pathsToExpand = ['/', ...pathParts.map((_, i) => '/' + pathParts.slice(0, i + 1).join('/'))]
 
@@ -73,27 +67,27 @@ const NewCodeView = ({ currentPath = '', onClose, defaultType = 'file', version 
 
           await Promise.all([
             queryClient.refetchQueries({
-              queryKey: legacyApiClient.v1.getApiTree().requestKey({ path: entryPath })
+              queryKey: legacyApiClient.v1.getApiTree().requestKey({ path: path })
             }),
             queryClient.refetchQueries({
-              queryKey: legacyApiClient.v1.getApiTreeCommitInfo().requestKey({ path: entryPath })
+              queryKey: legacyApiClient.v1.getApiTreeCommitInfo().requestKey({ path: path })
             }),
             ...(fileType === 'folder'
               ? [
                   queryClient.refetchQueries({
-                    queryKey: legacyApiClient.v1.getApiTree().requestKey({ path: fullPath })
+                    queryKey: legacyApiClient.v1.getApiTree().requestKey({ path: path })
                   }),
                   queryClient.refetchQueries({
-                    queryKey: legacyApiClient.v1.getApiTreeCommitInfo().requestKey({ path: fullPath })
+                    queryKey: legacyApiClient.v1.getApiTreeCommitInfo().requestKey({ path: path })
                   })
                 ]
               : [])
           ])
 
           if (fileType === 'file') {
-            router.push(`/${scope}/code/blob/${version}${fullPath}`)
+            router.push(`/${scope}/code/blob/${version}${path}`)
           } else {
-            router.push(`/${scope}/code/tree/${version}${fullPath}`)
+            router.push(`/${scope}/code/tree/${version}${path}`)
           }
 
           onClose?.()
@@ -112,20 +106,13 @@ const NewCodeView = ({ currentPath = '', onClose, defaultType = 'file', version 
   }
 
   const handleCommitClick = () => {
-    if (name === '') {
-      return
-    }
     setDialogOpen(true)
-    setCommitMessage(`Create ${name}`)
-    setCommitDescription('')
     setSkipBuild(false)
   }
 
   const handleDialogClose = (open: boolean) => {
     setDialogOpen(open)
     if (!open) {
-      setCommitMessage('')
-      setCommitDescription('')
       setSkipBuild(false)
     }
   }
@@ -168,38 +155,14 @@ const NewCodeView = ({ currentPath = '', onClose, defaultType = 'file', version 
         <Dialog.Content>
           <Dialog.CloseButton />
           <Dialog.Header>
-            <Dialog.Title>Commit changes</Dialog.Title>
+            <Dialog.Title>Create {fileType === 'folder' ? 'Folder' : 'File'}</Dialog.Title>
           </Dialog.Header>
 
           <div className='flex flex-col gap-4 py-4'>
-            <div className='flex flex-col gap-2'>
-              <label className='text-sm font-medium text-gray-700'>Commit message *</label>
-              <input
-                type='text'
-                value={commitMessage}
-                onChange={(e) => setCommitMessage(e.target.value)}
-                placeholder={`Create ${name}`}
-                className='w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500'
-                disabled={createEntryHook.isPending}
-              />
-            </div>
-
-            <div className='flex flex-col gap-2'>
-              <label className='text-sm font-medium text-gray-700'>Extended description (optional)</label>
-              <textarea
-                value={commitDescription}
-                onChange={(e) => setCommitDescription(e.target.value)}
-                placeholder='Add an optional extended description...'
-                rows={4}
-                className='w-full resize-none rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500'
-                disabled={createEntryHook.isPending}
-              />
-            </div>
-
             <div className='flex items-center gap-2'>
               <input
                 type='checkbox'
-                id='skipBuild'
+                id='skipBuild_creat'
                 checked={skipBuild}
                 onChange={(e) => setSkipBuild(e.target.checked)}
                 className='h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500'
@@ -216,8 +179,8 @@ const NewCodeView = ({ currentPath = '', onClose, defaultType = 'file', version 
               <Button variant='flat' onClick={() => handleDialogClose(false)} disabled={createEntryHook.isPending}>
                 Cancel
               </Button>
-              <Button onClick={handlerSubmit} disabled={createEntryHook.isPending || !commitMessage.trim()}>
-                {createEntryHook.isPending ? 'Submitting...' : 'Confirm submission'}
+              <Button onClick={handleSubmit} disabled={createEntryHook.isPending}>
+                {createEntryHook.isPending ? 'Creating...' : 'Confirm'}
               </Button>
             </Dialog.TrailingActions>
           </Dialog.Footer>
