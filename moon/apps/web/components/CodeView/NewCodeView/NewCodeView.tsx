@@ -5,6 +5,7 @@ import { useRouter } from 'next/router'
 import toast from 'react-hot-toast'
 
 import { Button } from '@gitmono/ui/Button'
+import { Dialog } from '@gitmono/ui/Dialog'
 import { Select, SelectTrigger, SelectValue } from '@gitmono/ui/Select'
 
 import { expandedNodesAtom } from '@/components/CodeView/TreeView/codeTreeAtom'
@@ -30,33 +31,34 @@ const NewCodeView = ({ currentPath = '', onClose, defaultType = 'file', version 
   const [expandedNodes, setExpandedNodes] = useAtom(expandedNodesAtom)
   const [path, setPath] = useState(currentPath)
   const [name, setName] = useState('')
+
+  const [skipBuild, setSkipBuild] = useState(false)
+
   const [fileType, setFileType] = useState<'folder' | 'file'>(defaultType)
-  // const [dialogOpen, setDialogOpen] = useState(false)
+  const [dialogOpen, setDialogOpen] = useState(false)
   const [content, setContent] = useState('')
   const createEntryHook = useCreateEntry()
   const { data: currentUser } = useGetCurrentUser()
 
-  const handlerSubmit = () => {
-    const entryPath = '/' + path.replace('/' + name, '')
-
+  const handleSubmit = () => {
     createEntryHook.mutate(
       {
         name: name,
-        path: entryPath,
+        path: currentPath,
         is_directory: fileType === 'folder',
         content: fileType === 'file' ? content : '',
         author_email: currentUser?.email,
-        author_username: currentUser?.username
+        author_username: currentUser?.username,
+        mode: 'force_create',
+        skip_build: skipBuild
       },
       {
         onSuccess: async () => {
           toast.success('Create Success!')
-          // setDialogOpen(false)
-
-          const fullPath = entryPath === '/' ? `/${name}` : `${entryPath}/${name}`
+          setDialogOpen(false)
 
           if (fileType === 'folder') {
-            const pathParts = fullPath.split('/').filter(Boolean)
+            const pathParts = path.split('/').filter(Boolean)
 
             const pathsToExpand = ['/', ...pathParts.map((_, i) => '/' + pathParts.slice(0, i + 1).join('/'))]
 
@@ -65,27 +67,27 @@ const NewCodeView = ({ currentPath = '', onClose, defaultType = 'file', version 
 
           await Promise.all([
             queryClient.refetchQueries({
-              queryKey: legacyApiClient.v1.getApiTree().requestKey({ path: entryPath })
+              queryKey: legacyApiClient.v1.getApiTree().requestKey({ path: path })
             }),
             queryClient.refetchQueries({
-              queryKey: legacyApiClient.v1.getApiTreeCommitInfo().requestKey({ path: entryPath })
+              queryKey: legacyApiClient.v1.getApiTreeCommitInfo().requestKey({ path: path })
             }),
             ...(fileType === 'folder'
               ? [
                   queryClient.refetchQueries({
-                    queryKey: legacyApiClient.v1.getApiTree().requestKey({ path: fullPath })
+                    queryKey: legacyApiClient.v1.getApiTree().requestKey({ path: path })
                   }),
                   queryClient.refetchQueries({
-                    queryKey: legacyApiClient.v1.getApiTreeCommitInfo().requestKey({ path: fullPath })
+                    queryKey: legacyApiClient.v1.getApiTreeCommitInfo().requestKey({ path: path })
                   })
                 ]
               : [])
           ])
 
           if (fileType === 'file') {
-            router.push(`/${scope}/code/blob/${version}${fullPath}`)
+            router.push(`/${scope}/code/blob/${version}${path}`)
           } else {
-            router.push(`/${scope}/code/tree/${version}${fullPath}`)
+            router.push(`/${scope}/code/tree/${version}${path}`)
           }
 
           onClose?.()
@@ -103,42 +105,25 @@ const NewCodeView = ({ currentPath = '', onClose, defaultType = 'file', version 
     )
   }
 
+  const handleCommitClick = () => {
+    setDialogOpen(true)
+    setSkipBuild(false)
+  }
+
+  const handleDialogClose = (open: boolean) => {
+    setDialogOpen(open)
+    if (!open) {
+      setSkipBuild(false)
+    }
+  }
+
   return (
     <div className='flex h-full w-full flex-col gap-2'>
-      {/*<Dialog.Root open={dialogOpen} onOpenChange={setDialogOpen}>*/}
-      {/*  <Dialog.Content>*/}
-      {/*    <Dialog.Header>*/}
-      {/*      <Dialog.Title>Create folder</Dialog.Title>*/}
-      {/*    </Dialog.Header>*/}
-      {/*    <Dialog.Content>*/}
-      {/*      Creating a folder will clear the current content in the editor, and this action cannot be undone. Do you*/}
-      {/*      want to continue?*/}
-      {/*    </Dialog.Content>*/}
-      {/*    <Dialog.Footer>*/}
-      {/*      <Dialog.TrailingActions>*/}
-      {/*        <Button variant='flat' onClick={() => setDialogOpen(false)}>*/}
-      {/*          Cancel*/}
-      {/*        </Button>*/}
-      {/*        <Button onClick={handlerSubmit}>Create</Button>*/}
-      {/*      </Dialog.TrailingActions>*/}
-      {/*    </Dialog.Footer>*/}
-      {/*  </Dialog.Content>*/}
-      {/*</Dialog.Root>*/}
       <div className='flex min-h-14 w-full items-center justify-between pl-2 pr-4'>
         <PathInput pathState={[path, setPath]} nameState={[name, setName]} />
         <div className='flex gap-2'>
-          <Button
-            disabled={name === ''}
-            onClick={() => {
-              if (fileType === 'folder') {
-                handlerSubmit()
-                // setDialogOpen(true)
-              } else {
-                handlerSubmit()
-              }
-            }}
-          >
-            Create
+          <Button disabled={name === ''} onClick={handleCommitClick}>
+            Create CL
           </Button>
           <Select
             typeAhead
@@ -165,6 +150,42 @@ const NewCodeView = ({ currentPath = '', onClose, defaultType = 'file', version 
           <MarkdownEditor contentState={[content, setContent]} disabled={false} />
         </div>
       )}
+
+      <Dialog.Root open={dialogOpen} onOpenChange={handleDialogClose}>
+        <Dialog.Content>
+          <Dialog.CloseButton />
+          <Dialog.Header>
+            <Dialog.Title>Create {fileType === 'folder' ? 'Folder' : 'File'}</Dialog.Title>
+          </Dialog.Header>
+
+          <div className='flex flex-col gap-4 py-4'>
+            <div className='flex items-center gap-2'>
+              <input
+                type='checkbox'
+                id='skipBuild_creat'
+                checked={skipBuild}
+                onChange={(e) => setSkipBuild(e.target.checked)}
+                className='h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500'
+                disabled={createEntryHook.isPending}
+              />
+              <label htmlFor='skipBuild' className='text-sm font-medium text-gray-700'>
+                Skip automatic build after commit
+              </label>
+            </div>
+          </div>
+
+          <Dialog.Footer>
+            <Dialog.TrailingActions>
+              <Button variant='flat' onClick={() => handleDialogClose(false)} disabled={createEntryHook.isPending}>
+                Cancel
+              </Button>
+              <Button onClick={handleSubmit} disabled={createEntryHook.isPending}>
+                {createEntryHook.isPending ? 'Creating...' : 'Confirm'}
+              </Button>
+            </Dialog.TrailingActions>
+          </Dialog.Footer>
+        </Dialog.Content>
+      </Dialog.Root>
     </div>
   )
 }
