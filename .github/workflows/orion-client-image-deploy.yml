@@ -10,7 +10,6 @@ on:
       - "orion/entrypoint.sh"
       - "orion/scorpio.toml.template"
       - "orion/**"
-      - "scorpio/**"
       - "ceres/**"
       - "jupiter/**"
       - "common/**"

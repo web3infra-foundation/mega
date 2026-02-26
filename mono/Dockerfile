@@ -24,7 +24,6 @@ COPY orion/buck/Cargo.toml orion/buck/
 COPY orion-server/Cargo.toml orion-server/
 COPY orion-server/bellatrix/Cargo.toml orion-server/bellatrix/
 COPY saturn/Cargo.toml saturn/
-COPY scorpio/Cargo.toml scorpio/
 COPY vault/Cargo.toml vault/
 
 

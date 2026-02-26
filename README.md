@@ -26,7 +26,9 @@ Mono will support conventional commits, which are a set of rules for creating cl
 
 ### FUSE File System of Monorepo
 
-Mega has a component named [scorpio](https://github.com/web3infra-foundation/mega/tree/main/scorpio), which is a FUSE file system for monorepo. Scorpio allows users to mount a monorepo folder as a local filesystem. This enables users to work with their codebase as if it were a local filesystem, while still benefiting from the features of a monorepo. 
+Mega has a component named Scorpio, which is a FUSE file system for monorepo. Scorpio allows users to mount a monorepo folder as a local filesystem. This enables users to work with their codebase as if it were a local filesystem, while still benefiting from the features of a monorepo.
+
+**Scorpio has been moved to its own repository: [scorpiofs](https://github.com/web3infra-foundation/scorpiofs)** 
 
 ### Buck2 Integration
 

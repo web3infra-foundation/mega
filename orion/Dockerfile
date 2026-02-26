@@ -3,8 +3,10 @@
 # =============================================================================
 # This Dockerfile builds a unified development image containing:
 # - Orion Worker (build execution client)
-# - Scorpio (FUSE filesystem service)
 # - Buck2 (build tool)
+#
+# Note: Scorpio (FUSE filesystem) has been moved to:
+# https://github.com/web3infra-foundation/scorpiofs
 #
 # Supports: linux/amd64, linux/arm64
 # Final stage: runtime (slim, default)
@@ -75,7 +77,6 @@ COPY orion/buck/Cargo.toml orion/buck/
 COPY orion-server/Cargo.toml orion-server/
 COPY orion-server/bellatrix/Cargo.toml orion-server/bellatrix/
 COPY saturn/Cargo.toml saturn/
-COPY scorpio/Cargo.toml scorpio/
 COPY vault/Cargo.toml vault/
 
 RUN cargo chef prepare --recipe-path recipe.json
@@ -103,10 +104,9 @@ RUN --mount=type=cache,id=mega-cargo-registry-${TARGETARCH},target=/usr/local/ca
     CARGO_TARGET_DIR=/build/target \
     CARGO_INCREMENTAL=0 \
     CARGO_PROFILE_RELEASE_DEBUG=0 \
-    cargo build --release --package orion --package scorpio \
-    && strip /build/target/release/orion /build/target/release/scorpio \
-    && install -m 0755 /build/target/release/orion /build/bin/orion \
-    && install -m 0755 /build/target/release/scorpio /build/bin/scorpio
+    cargo build --release --package orion \
+    && strip /build/target/release/orion \
+    && install -m 0755 /build/target/release/orion /build/bin/orion
 
 # =============================================================================
 # Stage 2: Buck2 Downloader - Fetch Buck2 binary
@@ -152,30 +152,25 @@ ARG BUCK2_VERSION
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
-    fuse3 \
     libssl3 \
     gettext-base \
     netcat-openbsd \
-    && rm -rf /var/lib/apt/lists/* \
-    # Configure FUSE to allow other users
-    && echo "user_allow_other" >> /etc/fuse.conf
+    && rm -rf /var/lib/apt/lists/*
 
 # Create necessary directories
 RUN mkdir -p \
     /app/bin \
     /app/config \
-    /data/scorpio/store \
-    /data/scorpio/antares/upper \
-    /data/scorpio/antares/cl \
-    /data/scorpio/antares/mnt \
-    /workspace/mount
+    /workspace
 
 # Copy Buck2 binary
 COPY --from=buck2-downloader /buck2/buck2 /usr/local/bin/
 
-# Copy configuration templates and scripts
-COPY orion/scorpio.toml.template /app/config/
+# Copy entrypoint script
 COPY orion/entrypoint.sh /app/
+
+# Copy scorpio configuration template
+COPY orion/scorpio.toml.template /app/config/
 
 # Write a small metadata file that the entrypoint can print for debugging.
 RUN printf "GIT_COMMIT=%s\nBUILD_DATE=%s\nBUCK2_VERSION=%s\n" "${GIT_COMMIT}" "${BUILD_DATE}" "${BUCK2_VERSION}" > /etc/mega-image-info
@@ -185,10 +180,7 @@ RUN chmod +x /app/entrypoint.sh
 
 # Set environment variables
 ENV PATH="/app/bin:/usr/local/bin:${PATH}" \
-    RUST_LOG=info \
-    # Scorpio defaults
-    SCORPIO_STORE_PATH=/data/scorpio/store \
-    SCORPIO_WORKSPACE=/workspace/mount
+    RUST_LOG=info
 
 WORKDIR /workspace
 
@@ -201,4 +193,3 @@ CMD ["help"]
 FROM runtime-base AS runtime
 
 COPY --from=builder /build/bin/orion /app/bin/
-COPY --from=builder /build/bin/scorpio /app/bin/

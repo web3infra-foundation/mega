@@ -1,0 +1,253 @@
+# Orion Scorpio 重构计划
+
+## 目标
+将 orion 中对 scorpio 的 HTTP 调用替换为 scorpiofs crate 直接调用。  
+mega 仓库后续会删除 scorpio 代码，orion 将依赖外部 crate `scorpiofs = "0.1.0"`。
+
+## 当前状态
+- HTTP 调用位于 `buck_controller.rs`：
+  - `mount_antares_fs()` → POST /antares/mounts
+  - `unmount_antares_fs()` → DELETE /antares/mounts/{id}
+  - `wait_for_mount_ready()` → GET /antares/mounts/{id}/ready
+- 配置：`SCORPIO_API_BASE_URL` 环境变量
+
+---
+
+## 配置方案：独立 scorpio.toml
+
+### 配置文件位置
+- 默认路径：`/etc/scorpio/scorpio.toml`
+- 通过环境变量覆盖：`SCORPIO_CONFIG=/path/to/scorpio.toml`
+
+### 最小化配置示例
+```toml
+# Mega 服务器配置
+base_url = "http://localhost:8000"
+lfs_url = "http://localhost:8000"
+
+# Dicfuse 数据存储
+store_path = "/var/lib/scorpio/store"
+
+# Antares overlay 目录
+antares_upper_root = "/var/lib/scorpio/antares/upper"
+antares_cl_root = "/var/lib/scorpio/antares/cl"
+antares_mount_root = "/var/lib/scorpio/antares/mounts"
+antares_state_file = "/var/lib/scorpio/antares/state.toml"
+
+# 预加载深度
+antares_load_dir_depth = "3"
+
+# Dicfuse 性能调优（可选）
+antares_dicfuse_stat_mode = "fast"
+antares_dicfuse_open_buff_max_bytes = "67108864"
+antares_dicfuse_open_buff_max_files = "1024"
+```
+
+### 部署清单
+1. 创建目录：
+   ```bash
+   mkdir -p /var/lib/scorpio/{store,antares/{upper,cl,mounts}}
+   mkdir -p /etc/scorpio
+   ```
+
+2. 复制配置文件：
+   ```bash
+   cp scorpio/scorpio.toml /etc/scorpio/scorpio.toml
+   # 或设置环境变量 SCORPIO_CONFIG
+   ```
+
+3. 配置权限（如需要）：
+   ```bash
+   chown -R orion:orion /var/lib/scorpio
+   ```
+
+---
+
+## 重构实现
+
+### 1. 新建 `src/antares.rs`
+封装 `scorpiofs::AntaresManager` 的单例访问，在首次调用时初始化配置：
+
+```rust
+use scorpiofs::{AntaresManager, AntaresPaths, AntaresConfig};
+use tokio::sync::OnceCell;
+use std::sync::Arc;
+
+static MANAGER: OnceCell<Arc<AntaresManager>> = OnceCell::const_new();
+
+/// 获取全局 AntaresManager 实例
+async fn get_manager() -> &'static Arc<AntaresManager> {
+    MANAGER.get_or_init(|| async {
+        // 读取配置文件路径
+        let config_path = std::env::var("SCORPIO_CONFIG")
+            .unwrap_or_else(|_| "/etc/scorpio/scorpio.toml".to_string());
+        
+        tracing::info!("Initializing Antares with config: {}", config_path);
+        
+        // 初始化 scorpiofs 全局配置
+        scorpiofs::util::config::init_config(&config_path)
+            .expect("Failed to load scorpio config");
+        
+        // 从全局配置构建路径
+        let paths = AntaresPaths::from_global_config();
+        
+        // 创建 AntaresManager（异步初始化 Dicfuse）
+        let manager = AntaresManager::new(paths).await;
+        Arc::new(manager)
+    }).await
+}
+
+/// 挂载 job，返回挂载配置
+pub async fn mount_job(job_id: &str, cl: Option<&str>) -> std::io::Result<AntaresConfig> {
+    get_manager().await.mount_job(job_id, cl).await
+}
+
+/// 卸载 job
+pub async fn unmount_job(job_id: &str) -> std::io::Result<Option<AntaresConfig>> {
+    get_manager().await.umount_job(job_id).await
+}
+```
+
+### 2. 修改 `buck_controller.rs`
+
+#### 修改 `mount_antares_fs()` 函数
+```rust
+// 原函数签名（移除 repo 参数）：
+pub async fn mount_antares_fs(
+    job_id: &str,
+    cl: Option<&str>,
+) -> Result<(String, String), Box<dyn std::error::Error + Send + Sync>>
+
+// 实现：
+pub async fn mount_antares_fs(
+    job_id: &str,
+    cl: Option<&str>,
+) -> Result<(String, String), Box<dyn std::error::Error + Send + Sync>> {
+    let config = crate::antares::mount_job(job_id, cl).await?;
+    
+    let mountpoint = config.mountpoint.to_string_lossy().to_string();
+    let mount_id = config.job_id.clone(); // job_id 即为 mount_id
+    
+    tracing::info!(
+        "Antares mounted: job_id={}, mountpoint={}, cl={:?}",
+        mount_id, mountpoint, cl
+    );
+    
+    Ok((mountpoint, mount_id))
+}
+```
+
+#### 修改 `unmount_antares_fs()` 函数
+```rust
+pub async fn unmount_antares_fs(mount_id: &str) -> Result<bool, Box<dyn Error + Send + Sync>> {
+    crate::antares::unmount_job(mount_id).await?;
+    tracing::info!("Antares unmounted: job_id={}", mount_id);
+    Ok(true)
+}
+```
+
+#### 删除 `wait_for_mount_ready()` 函数
+scorpiofs 的 `mount_job()` 同步完成挂载，无需额外等待。相关调用直接移除或改为 no-op。
+
+#### 更新调用点
+在 `build()` 函数中：
+```rust
+// 移除 repo 参数
+let (old_repo_mount_point, mount_id_old_repo) =
+    mount_antares_fs(&id_for_old_repo, None).await?;
+
+let (repo_mount_point, mount_id) =
+    mount_antares_fs(&id_for_repo, cl_arg).await?;
+
+// 移除 wait_for_mount_ready 调用
+// if let Err(e) = wait_for_mount_ready(&mount_id).await { ... }
+```
+
+### 3. 清理遗留代码
+
+#### 删除文件
+- `src/scorpio_api.rs` — 仅包含 `base_url()` 辅助函数，不再需要
+
+#### 修改 `lib.rs`
+```rust
+mod api;
+mod buck_controller;
+mod antares;  // 新增
+pub mod repo;
+// mod scorpio_api;  // 删除
+mod util;
+pub mod ws;
+```
+
+#### 清理 `fs.rs`（可选）
+删除已标记为 deprecated 的函数：
+- `mount_fs()` 
+- `unmount_fs()`
+
+这些是遗留的旧 API，保留也无害。
+
+#### 更新 `Cargo.toml`
+检查 `reqwest` 是否仅用于 scorpio HTTP 调用：
+```bash
+grep -r "reqwest::" orion/src/ --exclude-dir=target
+```
+如果仅用于 scorpio，可从依赖中移除。
+
+---
+
+## API 映射
+
+| 原 HTTP 接口 | 新直接调用 | 变化 |
+|-------------|-----------|------|
+| `mount_antares_fs(job_id, repo, cl)` | `antares::mount_job(job_id, cl)` | 移除 `repo` 参数 |
+| `unmount_antares_fs(mount_id)` | `antares::unmount_job(mount_id)` | mount_id 即 job_id |
+| `wait_for_mount_ready(mount_id)` | *删除* | 不再需要 |
+
+---
+
+## 测试与验证
+
+### 构建测试
+```bash
+cd orion
+cargo build
+cargo test
+```
+
+### 集成测试调整
+`tests/antares_api_integration_test.rs` 需要更新：
+- 设置测试用 scorpio.toml
+- 使用直接调用替代 HTTP mock
+
+### 手动验证
+```bash
+# 设置配置文件
+export SCORPIO_CONFIG=/path/to/test-scorpio.toml
+
+# 运行 orion
+./target/debug/orion
+
+# 检查挂载点
+ls /var/lib/scorpio/antares/mounts/
+```
+
+---
+
+## 回滚方案（如需要）
+
+如果直接调用出现问题，可临时切换回 HTTP 模式：
+1. 保留原 HTTP 函数代码（注释掉）
+2. 通过 feature flag 切换：`cfg(feature = "direct-mount")`
+3. 部署独立的 scorpiofs HTTP daemon
+
+---
+
+## 依赖版本
+
+```toml
+[dependencies]
+scorpiofs = "0.1.0"
+tokio = { version = "1.0", features = ["sync"] }
+```
+
+确保 scorpiofs 版本与目标部署环境一致。
