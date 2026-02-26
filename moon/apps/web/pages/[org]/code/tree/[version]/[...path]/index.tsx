@@ -174,12 +174,7 @@ function TreeDetailPage() {
             </div>
           ) : (
             <div className='pb-18 bg-primary flex-1 overflow-hidden'>
-              <NewCodeView
-                currentPath={new_path}
-                onClose={handleCloseClick}
-                defaultType={newEntryType}
-                version={version}
-              />
+              <NewCodeView currentPath={new_path} onClose={handleCloseClick} defaultType={newEntryType} />
             </div>
           )}
         </div>

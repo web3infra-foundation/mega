@@ -30,10 +30,17 @@ const NewCodeView = ({ currentPath = '', onClose, defaultType = 'file' }: NewCod
   const { data: currentUser } = useGetCurrentUser()
 
   const handleSubmit = () => {
+    let entryPath = path
+
+    if (entryPath.endsWith('/' + name)) {
+      entryPath = entryPath.slice(0, -(name.length + 1))
+    }
+    entryPath = entryPath || '/'
+
     createEntryHook.mutate(
       {
         name: name,
-        path: currentPath,
+        path: entryPath,
         is_directory: fileType === 'folder',
         content: fileType === 'file' ? content : '',
         author_email: currentUser?.email,
@@ -101,7 +108,6 @@ const NewCodeView = ({ currentPath = '', onClose, defaultType = 'file' }: NewCod
       {/*The second parameter of MarkdownEditor is to disable the editor, which is currently hidden directly.  */}
       {fileType === 'file' && (
         <div className='w-full flex-1 overflow-y-auto'>
-          {/*<MarkdownEditor contentState={[content, setContent]} disabled={fileType === 'folder'} />*/}
           <MarkdownEditor contentState={[content, setContent]} disabled={false} />
         </div>
       )}
@@ -123,7 +129,7 @@ const NewCodeView = ({ currentPath = '', onClose, defaultType = 'file' }: NewCod
                 className='h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500'
                 disabled={createEntryHook.isPending}
               />
-              <label htmlFor='skipBuild' className='text-sm font-medium text-gray-700'>
+              <label htmlFor='skipBuild_creat' className='text-sm font-medium text-gray-700'>
                 Skip automatic build after commit
               </label>
             </div>

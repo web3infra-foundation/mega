@@ -21,10 +21,9 @@ export default function PathInput({ pathState, nameState }: PathInputProps) {
   // update pathState
   const updatePath = (b: string[], u: string[], c: string) => {
     const full = [...b, ...u, c].filter(Boolean).join('/')
-    const userInput = [...u, c].filter(Boolean).join('/')
 
     setPath(full)
-    setName(userInput || c)
+    setName(c) // Update name when path changes
   }
 
   useEffect(() => {

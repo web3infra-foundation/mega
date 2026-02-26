@@ -324,7 +324,7 @@ export default function BlobEditor({ fileContent, filePath, fileName, onCancel }
                 className='h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500'
                 disabled={updateBlobMutation.isPending}
               />
-              <label htmlFor='skipBuild' className='text-sm font-medium text-gray-700'>
+              <label htmlFor='skipBuild_editor' className='text-sm font-medium text-gray-700'>
                 Skip automatic build after commit
               </label>
             </div>
