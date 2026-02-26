@@ -1912,7 +1912,7 @@ pub struct OrionTaskDTO {
     pub created_at: String,
 }
 
-impl OrionTaskDTO {
+impl From<&orion_tasks::Model> for OrionTaskDTO {
     fn from(model: &orion_tasks::Model) -> Self {
         Self {
             id: model.id.to_string(),
@@ -1958,7 +1958,7 @@ pub async fn task_retry_handler(
     params(("cl" = String, Path, description = "Change List")),
     responses(
         (status = 200, description = "Get task successfully", body = OrionTaskDTO),
-        (status = 400, description = "", body = MessageResponse),
+        (status = 400, description = "Multiple tasks", body = MessageResponse),
         (status = 404, description = "Not found task", body = MessageResponse),
         (status = 500, description = "Database error", body = MessageResponse),
     )
@@ -1984,7 +1984,7 @@ pub async fn task_get_handler(
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({"message": "Not found task"})),
         )),
-        1 => Ok(Json(OrionTaskDTO::from(tasks.first().unwrap()))),
+        1 => Ok(Json(OrionTaskDTO::from(&tasks[0]))),
         _ => Err((
             StatusCode::BAD_REQUEST,
             Json(serde_json::json!({"message": "Multiple tasks"})),
