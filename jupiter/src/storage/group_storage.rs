@@ -9,8 +9,8 @@ use callisto::{
 };
 use common::{errors::MegaError, utils::generate_id};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DbErr, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
-    QuerySelect, Set, TransactionTrait, sea_query::OnConflict,
+    ColumnTrait, DbErr, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set,
+    TransactionTrait, sea_query::OnConflict,
 };
 
 use crate::{
@@ -36,16 +36,35 @@ impl GroupStorage {
         &self,
         payload: CreateGroupPayload,
     ) -> Result<mega_group::Model, MegaError> {
+        let CreateGroupPayload { name, description } = payload;
+        let group_id = generate_id();
         let now = chrono::Utc::now().naive_utc();
         let group = mega_group::ActiveModel {
-            id: Set(generate_id()),
-            name: Set(payload.name),
-            description: Set(payload.description),
+            id: Set(group_id),
+            name: Set(name.clone()),
+            description: Set(description),
             created_at: Set(now),
             updated_at: Set(now),
         };
 
-        Ok(group.insert(self.get_connection()).await?)
+        let on_conflict = OnConflict::column(mega_group::Column::Name)
+            .do_nothing()
+            .to_owned();
+
+        mega_group::Entity::insert(group)
+            .on_conflict(on_conflict)
+            .exec(self.get_connection())
+            .await
+            .map_err(|e| match e {
+                DbErr::RecordNotInserted => {
+                    MegaError::Other(format!("[code:409] Group already exists: {name}"))
+                }
+                _ => e.into(),
+            })?;
+
+        self.get_group_by_id(group_id)
+            .await?
+            .ok_or_else(|| MegaError::Other("[code:500] Failed to load created group".to_string()))
     }
 
     pub async fn list_groups(
@@ -147,7 +166,13 @@ impl GroupStorage {
             .await
         {
             Ok(_) | Err(DbErr::RecordNotInserted) => {}
-            Err(e) => return Err(e.into()),
+            Err(e) => {
+                return Err(map_fk_to_not_found(
+                    e,
+                    "fk_mega_group_member_group_id",
+                    format!("[code:404] Group not found: {group_id}"),
+                ));
+            }
         }
 
         Ok(mega_group_member::Entity::find()
@@ -258,7 +283,14 @@ impl GroupStorage {
 
             mega_resource_permission::Entity::insert_many(models)
                 .exec(&txn)
-                .await?;
+                .await
+                .map_err(|e| {
+                    map_fk_to_not_found(
+                        e,
+                        "fk_mega_resource_permission_group_id",
+                        "[code:404] Group not found".to_string(),
+                    )
+                })?;
         }
 
         let result = mega_resource_permission::Entity::find()
@@ -316,7 +348,13 @@ impl GroupStorage {
             .await
         {
             Ok(_) | Err(DbErr::RecordNotInserted) => {}
-            Err(e) => return Err(e.into()),
+            Err(e) => {
+                return Err(map_fk_to_not_found(
+                    e,
+                    "fk_mega_resource_permission_group_id",
+                    "[code:404] Group not found".to_string(),
+                ));
+            }
         }
 
         self.list_resource_permissions(resource_type, resource_id)
@@ -402,4 +440,122 @@ fn normalize_permission_bindings(
             permission,
         })
         .collect()
+}
+
+fn map_fk_to_not_found(err: DbErr, constraint_name: &str, msg: String) -> MegaError {
+    if is_fk_constraint_error(&err, constraint_name) {
+        MegaError::Other(msg)
+    } else {
+        err.into()
+    }
+}
+
+fn is_fk_constraint_error(err: &DbErr, constraint_name: &str) -> bool {
+    let msg = err.to_string();
+    msg.contains(constraint_name)
+        || msg.contains("foreign key constraint")
+        || msg.contains("FOREIGN KEY constraint failed")
+}
+
+#[cfg(test)]
+mod tests {
+    use callisto::sea_orm_active_enums::PermissionEnum;
+    use common::errors::MegaError;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn create_group_conflicts_on_duplicate_name_concurrently() {
+        let temp_dir = tempfile::tempdir().expect("failed to create temp dir");
+        let storage = crate::tests::test_storage(temp_dir.path()).await;
+
+        let group_storage = storage.group_storage();
+        let payload = CreateGroupPayload {
+            name: "concurrent-dup-group".to_string(),
+            description: Some("test".to_string()),
+        };
+
+        let left = group_storage.clone();
+        let right = group_storage.clone();
+        let (res_a, res_b) = tokio::join!(
+            left.create_group(payload.clone()),
+            right.create_group(payload),
+        );
+
+        let mut success_count = 0;
+        let mut conflict_count = 0;
+
+        for result in [res_a, res_b] {
+            match result {
+                Ok(_) => success_count += 1,
+                Err(MegaError::Other(msg)) if msg.contains("[code:409]") => conflict_count += 1,
+                Err(e) => panic!("unexpected error: {e}"),
+            }
+        }
+
+        assert_eq!(success_count, 1);
+        assert_eq!(conflict_count, 1);
+    }
+
+    #[tokio::test]
+    async fn add_group_members_returns_404_when_group_missing() {
+        let temp_dir = tempfile::tempdir().expect("failed to create temp dir");
+        let storage = crate::tests::test_storage(temp_dir.path()).await;
+        let group_storage = storage.group_storage();
+
+        let result = group_storage
+            .add_group_members(999_999, &["alice".to_string()])
+            .await;
+
+        match result {
+            Err(MegaError::Other(msg)) => assert!(msg.contains("[code:404]")),
+            other => panic!("unexpected result: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn upsert_resource_permissions_returns_404_when_group_missing() {
+        let temp_dir = tempfile::tempdir().expect("failed to create temp dir");
+        let storage = crate::tests::test_storage(temp_dir.path()).await;
+        let group_storage = storage.group_storage();
+
+        let result = group_storage
+            .upsert_resource_permissions(
+                ResourceTypeEnum::Note,
+                "1001",
+                &[ResourcePermissionBinding {
+                    group_id: 999_999,
+                    permission: PermissionEnum::Read,
+                }],
+            )
+            .await;
+
+        match result {
+            Err(MegaError::Other(msg)) => assert!(msg.contains("[code:404]")),
+            other => panic!("unexpected result: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn replace_resource_permissions_returns_404_when_group_missing() {
+        let temp_dir = tempfile::tempdir().expect("failed to create temp dir");
+        let storage = crate::tests::test_storage(temp_dir.path()).await;
+        let group_storage = storage.group_storage();
+
+        let result = group_storage
+            .replace_resource_permissions(
+                ResourceTypeEnum::Note,
+                "1002",
+                &[ResourcePermissionBinding {
+                    group_id: 999_999,
+                    permission: PermissionEnum::Write,
+                }],
+            )
+            .await;
+
+        match result {
+            Err(MegaError::Other(msg)) => assert!(msg.contains("[code:404]")),
+            other => panic!("unexpected result: {other:?}"),
+        }
+    }
 }
