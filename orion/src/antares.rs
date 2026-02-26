@@ -53,7 +53,7 @@ Hint: set SCORPIO_CONFIG=/path/to/scorpio.toml or create /etc/scorpio/scorpio.to
 }
 
 fn io_other(message: impl Into<String>) -> io::Error {
-    io::Error::new(io::ErrorKind::Other, message.into())
+    io::Error::other(message.into())
 }
 
 fn resolve_or_generate_config_path() -> Result<PathBuf, DynError> {
