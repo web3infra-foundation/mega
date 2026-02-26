@@ -1898,7 +1898,7 @@ impl From<&build_events::Model> for BuildEventDTO {
             log: model.log.clone(),
             log_output_file: model.log_output_file.clone(),
             start_at: model.start_at.to_string(),
-            end_at: model.end_at.map(|dt| dt.to_string()),
+            end_at: model.end_at.map(|dt| dt.with_timezone(&Utc).to_string()),
         }
     }
 }
@@ -1917,9 +1917,9 @@ impl From<&orion_tasks::Model> for OrionTaskDTO {
         Self {
             id: model.id.to_string(),
             changes: model.changes.clone(),
-            repo_name: model.repo_name.to_string(),
-            cl: model.cl.to_string(),
-            created_at: model.created_at.to_string(),
+            repo_name: model.repo_name.clone(),
+            cl: model.cl.clone(),
+            created_at: model.created_at.with_timezone(&Utc).to_string(),
         }
     }
 }
@@ -2056,7 +2056,7 @@ pub async fn build_event_get_handler(
 
 #[utoipa::path(
     get,
-    path = "/v2/target/{task_id}",
+    path = "/v2/target/{task-id}",
     params(("task-id" = String, Path, description = "Task ID")),
     responses(
         (status = 200, description = "Get target successfully", body = BuildTargetDTO),
