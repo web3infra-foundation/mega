@@ -8,6 +8,7 @@ pub mod conversation;
 pub mod dynamic_sidebar;
 pub mod git;
 pub mod gpg;
+pub mod group;
 pub mod issue;
 pub mod label;
 pub mod merge_queue;

@@ -1945,16 +1945,24 @@ impl MonoApiService {
             .ok_or_else(|| GitError::CustomError(format!("Commit not found: {}", cl.to_hash)))?;
         let commit: Commit = Commit::from_mega_model(commit_model);
 
-        if cl.path != "/" {
-            let path = PathBuf::from(cl.path.clone());
-            // because only parent tree is needed so we skip current directory
-            let update_chain = self.search_tree_for_update(path.parent().unwrap()).await?;
-            let result =
-                MonoServiceLogic::build_result_by_chain(path, update_chain, commit.tree_id)?;
-            self.apply_update_result(&result, "cl merge generated commit", Some(cl.link.as_str()))
-                .await?;
+        let normalized_path = MonoServiceLogic::clean_path_str(&cl.path);
+        let (path, update_chain) = if normalized_path == "/" {
+            (PathBuf::from("/"), Vec::new())
+        } else {
+            let path = PathBuf::from(&normalized_path);
+            let parent = path.parent().ok_or_else(|| {
+                GitError::CustomError(format!("Invalid CL path: {}", normalized_path))
+            })?;
+            let update_chain = self.search_tree_for_update(parent).await?;
+            (path, update_chain)
+        };
+        let result = MonoServiceLogic::build_result_by_chain(path, update_chain, commit.tree_id)?;
+        self.apply_update_result(&result, "cl merge generated commit", Some(cl.link.as_str()))
+            .await?;
+
+        if normalized_path != "/" {
             storage
-                .remove_none_cl_refs(&cl.path)
+                .remove_none_cl_refs(&normalized_path)
                 .await
                 .map_err(|e| GitError::CustomError(format!("Failed to remove refs: {}", e)))?;
             // TODO: self.clean_dangling_commits().await;
@@ -3332,6 +3340,68 @@ mod test {
 
         assert_eq!(updates[0].ref_name, refs[0].ref_name);
         assert_eq!(updates[0].commit_id, new_commit_id);
+    }
+
+    #[tokio::test]
+    async fn test_root_merge_flow_updates_cl_ref_and_main() {
+        let merged_tree_id =
+            ObjectHash::from_str("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
+        let root_result =
+            MonoServiceLogic::build_result_by_chain(PathBuf::from("/"), vec![], merged_tree_id)
+                .expect("root path should build a valid update result");
+
+        assert_eq!(root_result.ref_updates.len(), 1);
+        assert_eq!(root_result.ref_updates[0].path, "/");
+
+        let refs = vec![
+            mega_refs::Model {
+                id: 1,
+                path: "/".to_string(),
+                ref_name: "refs/cl/abcd1234".to_string(),
+                ref_commit_hash: "1111111111111111111111111111111111111111".to_string(),
+                ref_tree_hash: "2222222222222222222222222222222222222222".to_string(),
+                created_at: chrono::Utc::now().naive_utc(),
+                updated_at: chrono::Utc::now().naive_utc(),
+                is_cl: true,
+            },
+            mega_refs::Model {
+                id: 2,
+                path: "/".to_string(),
+                ref_name: MEGA_BRANCH_NAME.to_string(),
+                ref_commit_hash: "3333333333333333333333333333333333333333".to_string(),
+                ref_tree_hash: "4444444444444444444444444444444444444444".to_string(),
+                created_at: chrono::Utc::now().naive_utc(),
+                updated_at: chrono::Utc::now().naive_utc(),
+                is_cl: false,
+            },
+        ];
+
+        let mut commits = Vec::new();
+        let mut updates = Vec::new();
+        let mut new_commit_id = String::new();
+
+        MonoServiceLogic::process_ref_updates(
+            &root_result,
+            &refs,
+            "merge root cl",
+            &mut commits,
+            &mut updates,
+            &mut new_commit_id,
+        )
+        .expect("root merge flow should produce ref updates");
+
+        assert_eq!(commits.len(), 1);
+        assert_eq!(updates.len(), 2);
+        assert!(!new_commit_id.is_empty());
+
+        assert_eq!(updates[0].ref_name, "refs/cl/abcd1234");
+        assert_eq!(updates[1].ref_name, MEGA_BRANCH_NAME);
+        assert!(updates.iter().all(|u| u.path == "/"));
+        assert!(
+            updates
+                .iter()
+                .all(|u| u.tree_hash == merged_tree_id.to_string())
+        );
     }
 
     #[test]

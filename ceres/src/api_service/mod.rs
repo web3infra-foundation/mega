@@ -36,6 +36,7 @@ pub mod blob_ops;
 pub mod buck_tree_builder;
 pub mod cache;
 pub mod commit_ops;
+pub mod group_ops;
 pub mod history;
 pub mod import_api_service;
 pub mod mono_api_service;
