@@ -153,6 +153,7 @@ ARG BUCK2_VERSION
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     libssl3 \
+    libfuse3-3 \
     gettext-base \
     netcat-openbsd \
     && rm -rf /var/lib/apt/lists/*

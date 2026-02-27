@@ -52,6 +52,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: orion-bins
+          include-hidden-files: true
           path: |
             target/release/orion
             orion/runner-config/.env.prod

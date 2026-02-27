@@ -123,18 +123,21 @@ setup_directories() {
     mkdir -p /etc/scorpio
 }
 
-# Generate scorpio.toml from template
+# Generate scorpio.toml from template or use user-provided config
 setup_scorpio_config() {
     local template="/app/config/scorpio.toml.template"
     local config="/etc/scorpio/scorpio.toml"
     
-    if [ -f "$template" ]; then
+    # Honour user-provided config first
+    if [ -n "${SCORPIO_CONFIG:-}" ] && [ -f "${SCORPIO_CONFIG}" ]; then
+        log_info "Using provided SCORPIO_CONFIG: ${SCORPIO_CONFIG}"
+    elif [ -f "$template" ]; then
         log_info "Generating scorpio configuration from template..."
+        # Export variables for envsubst (child process needs exported vars)
+        export MEGA_BASE_URL MEGA_LFS_URL
         envsubst < "$template" > "$config"
         export SCORPIO_CONFIG="$config"
         log_info "Scorpio config written to: $config"
-    elif [ -n "${SCORPIO_CONFIG:-}" ] && [ -f "${SCORPIO_CONFIG}" ]; then
-        log_info "Using existing scorpio config: ${SCORPIO_CONFIG}"
     else
         log_warn "No scorpio config template or SCORPIO_CONFIG found"
     fi
