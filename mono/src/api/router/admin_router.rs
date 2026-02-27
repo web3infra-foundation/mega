@@ -15,7 +15,10 @@ use utoipa::ToSchema;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{
-    api::{MonoApiServiceState, error::ApiError, oauth::model::LoginUser},
+    api::{
+        MonoApiServiceState, api_common::group_permission::ensure_admin, error::ApiError,
+        oauth::model::LoginUser,
+    },
     server::http_server::USER_TAG,
 };
 
@@ -80,13 +83,7 @@ async fn admin_list(
     user: LoginUser,
     State(state): State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<AdminListResponse>>, ApiError> {
-    // User must be admin to view the admin list
-    if !state.monorepo().check_is_admin(&user.username).await? {
-        return Err(ApiError::with_status(
-            http::StatusCode::FORBIDDEN,
-            anyhow::anyhow!("Admin access required"),
-        ));
-    }
+    ensure_admin(&state, &user).await?;
 
     let admins = state.monorepo().get_all_admins().await?;
 
