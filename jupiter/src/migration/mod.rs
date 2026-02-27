@@ -163,9 +163,16 @@ impl MigratorTrait for Migrator {
             Box::new(m20260209_064016_remove_default_dynamic_sidebar::Migration),
             Box::new(m20260210_062050_create_target_state_history::Migration),
             Box::new(m20260211_102158_add_username_to_mega_cl_sqlite::Migration),
+<<<<<<< HEAD
             Box::new(m20260216_013852_create_group_permission_tables::Migration),
+<<<<<<< HEAD
             Box::new(m20260224_142019_create_target_build_status::Migration),
             Box::new(m20260228_100254_change_build_target_and_add_index_for_build_event_start_at::Migration),
+=======
+=======
+            Box::new(m20260224_142019_create_target_build_status::Migration),
+>>>>>>> bc2e6a0b (feat: finish api function)
+>>>>>>> c6ac9462 (feat: finish api function)
         ]
     }
 }
