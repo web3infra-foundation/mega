@@ -3,13 +3,7 @@
 //! This module provides a singleton wrapper around `scorpiofs::AntaresManager`
 //! for managing overlay filesystem mounts used during build operations.
 
-use std::{
-    error::Error,
-    fs, io,
-    path::{Path, PathBuf},
-    sync::Arc,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::{error::Error, io, path::PathBuf, sync::Arc};
 
 use scorpiofs::{AntaresConfig, AntaresManager, AntaresPaths};
 use tokio::sync::OnceCell;
@@ -18,23 +12,22 @@ static MANAGER: OnceCell<Arc<AntaresManager>> = OnceCell::const_new();
 
 type DynError = Box<dyn Error + Send + Sync>;
 
-/// Default configuration file path.
-const DEFAULT_CONFIG_PATH: &str = "/etc/scorpio/scorpio.toml";
-
 /// Get the global AntaresManager instance.
 ///
 /// Initializes the manager on first call by loading the scorpio configuration
-/// from the path specified by `SCORPIO_CONFIG` environment variable, or
-/// `/etc/scorpio/scorpio.toml` if not set.
+/// from the path specified by `SCORPIO_CONFIG` environment variable.
+///
+/// If `SCORPIO_CONFIG` is not set, Orion will look for `scorpio.toml` in the
+/// process working directory, then next to the running executable.
+///
+/// If no config file is found, Orion will panic (fail-fast).
 async fn get_manager() -> Result<&'static Arc<AntaresManager>, DynError> {
     MANAGER
         .get_or_try_init(|| async {
-            let config_path = resolve_or_generate_config_path()?;
-            let config_path_str = config_path
-                .to_str()
-                .ok_or_else(|| -> DynError {
-                    Box::new(io_other("Invalid SCORPIO_CONFIG path (non-UTF8)"))
-                })?;
+            let config_path = resolve_config_path();
+            let config_path_str = config_path.to_str().ok_or_else(|| -> DynError {
+                Box::new(io_other("Invalid SCORPIO_CONFIG path (non-UTF8)"))
+            })?;
 
             tracing::info!("Initializing Antares with config: {}", config_path_str);
 
@@ -56,96 +49,38 @@ fn io_other(message: impl Into<String>) -> io::Error {
     io::Error::other(message.into())
 }
 
-fn resolve_or_generate_config_path() -> Result<PathBuf, DynError> {
+fn resolve_config_path() -> PathBuf {
     if let Ok(path) = std::env::var("SCORPIO_CONFIG") {
         let config_path = PathBuf::from(path);
         if config_path.exists() {
-            return Ok(config_path);
+            return config_path;
         }
-        return Err(io_other(format!(
+
+        panic!(
             "SCORPIO_CONFIG is set but file does not exist: {}",
             config_path.display()
-        ))
-        .into());
+        );
     }
 
-    let default_path = PathBuf::from(DEFAULT_CONFIG_PATH);
-    if default_path.exists() {
-        return Ok(default_path);
+    let cwd = std::env::current_dir().expect("Failed to get current working directory");
+    let cwd_candidate = cwd.join("scorpio.toml");
+    if cwd_candidate.exists() {
+        return cwd_candidate;
     }
 
-    // Fall back to generating a minimal config under BUILD_TMP so the worker can
-    // run even when /etc is not provisioned (e.g. ad-hoc local runs or CI smoke).
-    generate_minimal_config()
-}
-
-fn generate_minimal_config() -> Result<PathBuf, DynError> {
-    let build_tmp = std::env::var("BUILD_TMP").unwrap_or_else(|_| "/tmp/orion-builds".to_string());
-    let runtime_root = PathBuf::from(build_tmp).join("scorpio-runtime");
-
-    let store_path = runtime_root.join("store");
-    let antares_root = runtime_root.join("antares");
-    let antares_upper_root = antares_root.join("upper");
-    let antares_cl_root = antares_root.join("cl");
-    let antares_mount_root = antares_root.join("mnt");
-    let antares_state_file = antares_root.join("state.toml");
-
-    for dir in [
-        &store_path,
-        &antares_upper_root,
-        &antares_cl_root,
-        &antares_mount_root,
-    ] {
-        fs::create_dir_all(dir)?;
+    let exe_candidate = std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(|dir| dir.join("scorpio.toml")));
+    if let Some(exe_candidate) = exe_candidate
+        && exe_candidate.exists()
+    {
+        return exe_candidate;
     }
 
-    let base_url =
-        std::env::var("MEGA_BASE_URL").unwrap_or_else(|_| "http://git.gitmega.com".to_string());
-    let lfs_url = std::env::var("MEGA_LFS_URL").unwrap_or_else(|_| base_url.clone());
-
-    let stamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos();
-    let config_path = runtime_root.join(format!("scorpio.{stamp}.toml"));
-
-    let contents = format!(
-        "base_url = \"{base_url}\"\n\
-lfs_url = \"{lfs_url}\"\n\
-store_path = \"{}\"\n\
-antares_upper_root = \"{}\"\n\
-antares_cl_root = \"{}\"\n\
-antares_mount_root = \"{}\"\n\
-antares_state_file = \"{}\"\n\
-antares_load_dir_depth = \"3\"\n\
-antares_dicfuse_stat_mode = \"fast\"\n\
-antares_dicfuse_open_buff_max_bytes = \"67108864\"\n\
-antares_dicfuse_open_buff_max_files = \"1024\"\n\
-antares_dicfuse_dir_sync_ttl_secs = \"120\"\n\
-antares_dicfuse_reply_ttl_secs = \"60\"\n",
-        store_path.display(),
-        antares_upper_root.display(),
-        antares_cl_root.display(),
-        antares_mount_root.display(),
-        antares_state_file.display(),
+    panic!(
+        "Scorpio config not found. Set SCORPIO_CONFIG=/path/to/scorpio.toml or place scorpio.toml in the working directory ({}).",
+        cwd.display()
     );
-
-    write_file_atomic(&config_path, contents.as_bytes())?;
-
-    tracing::warn!(
-        "Scorpio config not found; generated a minimal config at {}. \
-Set SCORPIO_CONFIG to a persistent path for production deployments.",
-        config_path.display()
-    );
-
-    Ok(config_path)
-}
-
-fn write_file_atomic(path: &Path, contents: &[u8]) -> Result<(), DynError> {
-    let tmp_path = path.with_extension("tmp");
-    fs::write(&tmp_path, contents)?;
-    fs::rename(tmp_path, path)?;
-    Ok(())
 }
 
 /// Mount a job overlay filesystem.
