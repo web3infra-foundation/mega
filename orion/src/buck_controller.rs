@@ -11,7 +11,7 @@ use anyhow::anyhow;
 use api_model::buck2::{
     status::Status,
     types::{ProjectRelativePath, TaskPhase},
-    ws::{WSMessage, WSTargetBuildStatusUpdate},
+    ws::{WSBuildContext, WSMessage, WSTargetBuildStatusEvent},
 };
 use common::config::BuildConfig;
 use once_cell::sync::Lazy;
@@ -393,6 +393,7 @@ pub fn start_build_status_tracker(
     project_root: &Path,
     sender: UnboundedSender<WSMessage>,
     cl_id: &str,
+    task_id: &str,
 ) -> BuildStatusTracker {
     let event_jsonl_path = project_root.join(EVENT_LOG_FILE);
     tracing::info!("Track target build status at {:?}", event_jsonl_path);
@@ -423,6 +424,7 @@ pub fn start_build_status_tracker(
             sender_clone,
             cancellation_clone,
             cl_id.to_owned(),
+            task_id.to_owned(),
         ))
     };
 
@@ -440,6 +442,7 @@ async fn run_processing_loop(
     sender: UnboundedSender<WSMessage>,
     cancellation: CancellationToken,
     cl_id: String,
+    task_id: String,
 ) {
     let mut build_state = BuildState::default();
     let mut buffer: HashMap<LogicalActionId, TargetBuildStatusUpdate> = HashMap::with_capacity(256);
@@ -453,11 +456,10 @@ async fn run_processing_loop(
                         if let Some(update) = build_state.handle_event(&event) {
                             buffer.insert(update.action_id.clone(), update);
 
-                            if buffer.len() >= MAX_BATCH_SIZE {
-                                if !flush_buffer(&sender, &mut buffer, &cl_id).await {
+                             if buffer.len() >= MAX_BATCH_SIZE
+                                && !flush_buffer(&sender, &mut buffer, &cl_id, &task_id).await {
                                     break;
                                 }
-                            }
                         }
                     }
                     Err(e) => {
@@ -467,11 +469,10 @@ async fn run_processing_loop(
             }
 
             _ = flush_interval.tick() => {
-                if !buffer.is_empty() {
-                    if !flush_buffer(&sender, &mut buffer, &cl_id).await {
+                if !buffer.is_empty()
+                   && !flush_buffer(&sender, &mut buffer, &cl_id, &task_id).await {
                         break;
                     }
-                }
             }
 
             _ = cancellation.cancelled() => {
@@ -483,7 +484,7 @@ async fn run_processing_loop(
 
     // Flush remaining updates
     if !buffer.is_empty() {
-        let _ = flush_buffer(&sender, &mut buffer, &cl_id).await;
+        let _ = flush_buffer(&sender, &mut buffer, &cl_id, &task_id).await;
     }
 
     tracing::info!("Build status processing loop stopped");
@@ -495,33 +496,54 @@ async fn flush_buffer(
     sender: &UnboundedSender<WSMessage>,
     buffer: &mut HashMap<LogicalActionId, TargetBuildStatusUpdate>,
     cl_id: &str,
+    task_id: &str,
 ) -> bool {
     if buffer.is_empty() {
-        tracing::trace!("Buffer empty for CL {}, skipping flush", cl_id);
+        tracing::trace!(task_id, cl_id, "Buffer empty, skipping flush");
         return true;
     }
 
     let update_count = buffer.len();
-    tracing::debug!("Flushing {} updates for CL {}", update_count, cl_id);
 
-    let batch: Vec<WSTargetBuildStatusUpdate> =
-        buffer.drain().map(|(_, update)| update.into()).collect();
+    tracing::debug!(
+        task_id,
+        cl_id,
+        update_count,
+        "Flushing target build status updates"
+    );
 
-    match sender.send(WSMessage::TargetBuildStatusBatch(batch)) {
+    let context = WSBuildContext {
+        task_id: task_id.to_string(),
+        cl_id: cl_id.to_string(),
+    };
+
+    let events: Vec<WSTargetBuildStatusEvent> = buffer
+        .drain()
+        .map(|(_, update)| WSTargetBuildStatusEvent {
+            context: context.clone(),
+            target: update.into(),
+        })
+        .collect();
+
+    let message = WSMessage::TargetBuildStatusBatch { events };
+
+    match sender.send(message) {
         Ok(_) => {
             tracing::trace!(
-                "Successfully flushed {} updates for CL {}",
+                task_id,
+                cl_id,
                 update_count,
-                cl_id
+                "Successfully flushed target build status updates"
             );
             true
         }
         Err(e) => {
             tracing::warn!(
-                "WebSocket sender closed for CL {}, failed to send {} updates: {}",
+                task_id,
                 cl_id,
                 update_count,
-                e
+                error = %e,
+                "Failed to send target build status batch"
             );
             false
         }
@@ -609,6 +631,7 @@ pub async fn build(
 ) -> Result<ExitStatus, Box<dyn Error + Send + Sync>> {
     tracing::info!("[Task {}] Building in repo {}", id, repo);
 
+    let task_id = id.trim();
     // Handle empty cl string as None to mount the base repo without a CL layer.
     let cl_trimmed = cl.trim();
     let cl_arg = (!cl_trimmed.is_empty()).then_some(cl_trimmed);
@@ -753,7 +776,7 @@ pub async fn build(
             tracing::error!("Failed to send RunningBuild phase update: {}", e);
         }
 
-        let target_build_track = start_build_status_tracker(&project_root, sender.clone(), cl_trimmed);
+        let target_build_track = start_build_status_tracker(&project_root, sender.clone(), cl_trimmed, task_id);
 
         let stdout = child.stdout.take().unwrap();
         let stderr = child.stderr.take().unwrap();

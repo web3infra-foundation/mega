@@ -60,7 +60,15 @@ pub enum WSMessage {
         message: String,
     },
     /// Batch of target build status updates for real-time build progress tracking.
-    TargetBuildStatusBatch(Vec<WSTargetBuildStatusUpdate>),
+    TargetBuildStatusBatch {
+        events: Vec<WSTargetBuildStatusEvent>,
+    },
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct WSBuildContext {
+    pub task_id: String,
+    pub cl_id: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -73,4 +81,10 @@ pub struct WSTargetBuildStatusUpdate {
     pub action: String,
     pub old_status: String,
     pub new_status: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct WSTargetBuildStatusEvent {
+    pub context: WSBuildContext,
+    pub target: WSTargetBuildStatusUpdate,
 }

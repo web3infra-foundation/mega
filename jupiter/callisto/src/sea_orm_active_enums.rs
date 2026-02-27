@@ -79,6 +79,22 @@ pub enum MergeStatusEnum {
 #[sea_orm(
     rs_type = "String",
     db_type = "Enum",
+    enum_name = "orion_target_status_enum"
+)]
+pub enum OrionTargetStatusEnum {
+    #[sea_orm(string_value = "pending")]
+    Pending,
+    #[sea_orm(string_value = "running")]
+    Running,
+    #[sea_orm(string_value = "success")]
+    Success,
+    #[sea_orm(string_value = "failed")]
+    Failed,
+}
+#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[sea_orm(
+    rs_type = "String",
+    db_type = "Enum",
     enum_name = "position_status_enum"
 )]
 pub enum PositionStatusEnum {

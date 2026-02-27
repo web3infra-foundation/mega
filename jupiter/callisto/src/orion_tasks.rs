@@ -21,6 +21,8 @@ pub enum Relation {
     BuildEvents,
     #[sea_orm(has_many = "super::build_targets::Entity")]
     BuildTargets,
+    #[sea_orm(has_many = "super::target_build_status::Entity")]
+    TargetBuildStatus,
 }
 
 impl Related<super::build_events::Entity> for Entity {
@@ -32,6 +34,12 @@ impl Related<super::build_events::Entity> for Entity {
 impl Related<super::build_targets::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::BuildTargets.def()
+    }
+}
+
+impl Related<super::target_build_status::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::TargetBuildStatus.def()
     }
 }
 

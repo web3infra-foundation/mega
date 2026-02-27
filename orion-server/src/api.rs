@@ -9,9 +9,9 @@ use api_model::buck2::{
     status::Status,
     types::{
         LogErrorResponse, LogEvent, LogLinesResponse, LogReadMode, ProjectRelativePath,
-        TargetLogLinesResponse, TargetLogQuery, TaskHistoryQuery, TaskPhase,
+        TargetLogLinesResponse, TargetLogQuery, TargetStatusResponse, TaskHistoryQuery, TaskPhase,
     },
-    ws::WSMessage,
+    ws::{WSMessage, WSTargetBuildStatusEvent},
 };
 use axum::{
     Json, Router,
@@ -23,6 +23,7 @@ use axum::{
     response::{IntoResponse, Sse, sse::Event},
     routing::{any, get, post},
 };
+use callisto::{sea_orm_active_enums::OrionTargetStatusEnum, target_build_status};
 use chrono::{FixedOffset, Utc};
 use dashmap::DashMap;
 use futures::stream::select;
@@ -34,7 +35,11 @@ use sea_orm::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use tokio::sync::{mpsc, mpsc::UnboundedSender, watch};
+use tokio::sync::{
+    RwLock,
+    mpsc::{self, UnboundedSender},
+    watch,
+};
 use tokio_stream::wrappers::IntervalStream;
 use utoipa::ToSchema;
 use uuid::Uuid;
@@ -74,6 +79,9 @@ pub struct AppState {
     pub scheduler: TaskScheduler,
     pub conn: DatabaseConnection,
     pub log_service: LogService,
+    pub target_status_cache: TargetStatusCache,
+
+    shutdown_tx: watch::Sender<bool>,
 }
 
 impl AppState {
@@ -86,12 +94,27 @@ impl AppState {
         let workers = Arc::new(DashMap::new());
         let active_builds = Arc::new(DashMap::new());
         let scheduler = TaskScheduler::new(conn.clone(), workers, active_builds, queue_config);
+        let target_status_cache = TargetStatusCache::new();
+
+        let (shutdown_tx, _) = watch::channel(false);
 
         Self {
             scheduler,
             conn,
             log_service,
+            target_status_cache,
+            shutdown_tx,
         }
+    }
+
+    pub fn start_background_tasks(&self) {
+        let conn = self.conn.clone();
+        let cache = self.target_status_cache.clone();
+        let shutdown_rx = self.shutdown_tx.subscribe();
+
+        tokio::spawn(async move {
+            cache.auto_flush_loop(conn, shutdown_rx).await;
+        });
     }
 }
 
@@ -122,6 +145,11 @@ pub fn routers() -> Router<AppState> {
         .route("/v2/task/{cl}", get(task_get_handler))
         .route("/v2/build-events/{task_id}", get(build_event_get_handler))
         .route("/v2/target/{task_id}", get(target_get_handler))
+        .route("/all-target-status/{task_id}", get(targets_status_handler))
+        .route(
+            "/target-status/{target_id}",
+            get(single_target_status_handle),
+        )
 }
 
 /// Start queue management background task (event-driven + periodic cleanup)
@@ -1131,6 +1159,16 @@ async fn process_message(
                         );
                     }
                 }
+                WSMessage::TargetBuildStatusBatch { events } => {
+                    tracing::info!(
+                        "Target build status updated by orion worker {current_worker_id}, {} items",
+                        events.len()
+                    );
+
+                    for update in events {
+                        state.target_status_cache.insert_event(update).await;
+                    }
+                }
                 _ => {}
             }
         }
@@ -2071,6 +2109,258 @@ pub async fn target_get_handler(
         message: "todo".to_string(),
     };
     (StatusCode::NOT_IMPLEMENTED, Json(result_message))
+}
+
+#[derive(Clone)]
+pub struct TargetStatusCache {
+    /// task_id -> (action -> ActiveModel)
+    inner: Arc<RwLock<HashMap<Uuid, HashMap<String, target_build_status::ActiveModel>>>>,
+}
+
+impl TargetStatusCache {
+    pub fn new() -> Self {
+        Self {
+            inner: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
+
+    /// Insert a single WebSocket event into the cache
+    pub async fn insert_event(&self, event: WSTargetBuildStatusEvent) {
+        let task_id = match Uuid::parse_str(&event.context.task_id) {
+            Ok(id) => id,
+            Err(_) => {
+                tracing::error!("Invalid task_id: {}", event.context.task_id);
+                return;
+            }
+        };
+
+        let status = OrionTargetStatusEnum::from_ws_status(&event.target.new_status);
+
+        let active_model = target_build_status::Model::new_active_model(
+            Uuid::new_v4(), // id is not auto-incremented
+            task_id,
+            event.target.configured_target_package,
+            event.target.configured_target_name,
+            event.target.configured_target_configuration,
+            event.target.category,
+            event.target.identifier,
+            event.target.action.clone(),
+            status,
+        );
+
+        let mut guard = self.inner.write().await;
+        let task_map = guard.entry(task_id).or_default();
+
+        // Overwrite if the same action already exists
+        task_map.insert(event.target.action, active_model);
+    }
+
+    /// Flush all cached entries
+    pub async fn flush_all(&self) -> Vec<target_build_status::ActiveModel> {
+        let mut guard = self.inner.write().await;
+        let mut result = Vec::new();
+
+        for (_, action_map) in guard.drain() {
+            result.extend(action_map.into_values());
+        }
+
+        result
+    }
+
+    /// Flush cached entries for a specific task
+    pub async fn _flush_task(&self, task_id: Uuid) -> Vec<target_build_status::ActiveModel> {
+        let mut guard = self.inner.write().await;
+
+        guard
+            .remove(&task_id)
+            .map(|m| m.into_values().collect())
+            .unwrap_or_default()
+    }
+
+    pub async fn auto_flush_loop(
+        self,
+        conn: DatabaseConnection,
+        mut shutdown: tokio::sync::watch::Receiver<bool>,
+    ) {
+        let mut ticker = tokio::time::interval(std::time::Duration::from_millis(500));
+
+        loop {
+            tokio::select! {
+                _ = ticker.tick() => {
+                    let models = self.flush_all().await;
+
+                    if models.is_empty() {
+                        continue;
+                    }
+
+                    if let Err(e) =
+                        target_build_status::Entity::upsert_batch(&conn, models).await
+                    {
+                        tracing::error!("Auto flush failed: {:?}", e);
+                    }
+                }
+
+                _ = shutdown.changed() => {
+                    tracing::info!("TargetStatusCache auto flush shutting down");
+                    let models = self.flush_all().await;
+                    if !models.is_empty() {
+                        let _ = target_build_status::Entity::upsert_batch(&conn, models).await;
+                    }
+
+                    break;
+                }
+            }
+        }
+    }
+}
+
+impl Default for TargetStatusCache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+pub trait FromWsStatus {
+    fn from_ws_status(status: &str) -> Self;
+    fn as_str(&self) -> &str;
+}
+
+impl FromWsStatus for OrionTargetStatusEnum {
+    fn from_ws_status(status: &str) -> Self {
+        match status {
+            "PENDING" => Self::Pending,
+            "RUNNING" => Self::Running,
+            "SUCCESS" => Self::Success,
+            "FAILED" => Self::Failed,
+            _ => Self::Pending,
+        }
+    }
+
+    fn as_str(&self) -> &str {
+        match self {
+            Self::Pending => "PENDING",
+            Self::Running => "RUNNING",
+            Self::Success => "SUCCESS",
+            Self::Failed => "FAILED",
+        }
+    }
+}
+
+/// Get target status with task_id
+#[utoipa::path(
+    get,
+    path = "/all-target-status/{task_id}",
+    params(
+        ("task_id" = String, Path, description = "Task ID whose target belong"),
+    ),
+     responses(
+        (status = 200, description = "Target status"),
+        (status = 404, description = "Target status not found")
+    )
+)]
+pub async fn targets_status_handler(
+    State(state): State<AppState>,
+    Path(task_id): Path<String>,
+) -> Result<Json<Vec<TargetStatusResponse>>, (StatusCode, String)> {
+    use sea_orm::prelude::Uuid;
+
+    let task_uuid = match Uuid::parse_str(&task_id) {
+        Ok(uuid) => uuid,
+        Err(_) => return Err((StatusCode::BAD_REQUEST, "Invalid task_id".to_string())),
+    };
+
+    let targets = match target_build_status::Entity::fetch_by_task_id(&state.conn, task_uuid).await
+    {
+        Ok(list) => list,
+        Err(e) => {
+            tracing::error!(
+                "Failed to fetch target status for task_id {}: {:?}",
+                task_id,
+                e
+            );
+            return Err((StatusCode::INTERNAL_SERVER_ERROR, "Database error".into()));
+        }
+    };
+
+    if targets.is_empty() {
+        return Err((StatusCode::NOT_FOUND, "No target status found".to_string()));
+    }
+
+    let response: Vec<TargetStatusResponse> = targets
+        .into_iter()
+        .map(|t| TargetStatusResponse {
+            id: t.id.to_string(),
+            task_id: t.task_id.to_string(),
+            package: t.target_package,
+            name: t.target_name,
+            configuration: t.target_configuration,
+            category: t.category,
+            identifier: t.identifier,
+            action: t.action,
+            status: t.status.as_str().to_owned(),
+        })
+        .collect();
+
+    Ok(Json(response))
+}
+
+/// Get target status with target id
+#[utoipa::path(
+    get,
+    path = "/target-status/{target_id}",
+    params(
+        ("target_id" = String, Path, description = "target_id ID"),
+    ),
+     responses(
+        (status = 200, description = "Target status"),
+        (status = 404, description = "Target status not found")
+    )
+)]
+pub async fn single_target_status_handle(
+    State(state): State<AppState>,
+    Path(target_id): Path<String>,
+) -> Result<Json<TargetStatusResponse>, (StatusCode, String)> {
+    // 解析 target_id 为 UUID
+    let target_uuid = match Uuid::parse_str(&target_id) {
+        Ok(id) => id,
+        Err(e) => {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                format!("Invalid target_id '{}': {}", target_id, e),
+            ));
+        }
+    };
+
+    // 查询数据库
+    let target = match target_build_status::Entity::find()
+        .filter(target_build_status::Column::Id.eq(target_uuid))
+        .one(&state.conn)
+        .await
+    {
+        Ok(Some(t)) => t,
+        Ok(None) => return Err((StatusCode::NOT_FOUND, "Target not found".to_string())),
+        Err(e) => {
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Database query failed: {}", e),
+            ));
+        }
+    };
+
+    // 构建响应
+    let response = TargetStatusResponse {
+        id: target.id.to_string(),
+        task_id: target.task_id.to_string(),
+        package: target.target_package,
+        name: target.target_name,
+        configuration: target.target_configuration,
+        category: target.category,
+        identifier: target.identifier,
+        action: target.action,
+        status: target.status.as_str().to_string(),
+    };
+
+    Ok(Json(response))
 }
 
 #[cfg(test)]
