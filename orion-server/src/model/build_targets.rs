@@ -9,10 +9,9 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
     pub task_id: Uuid,
-    #[sea_orm(column_type = "JsonBinary")]
-    pub path: Json,
+    pub path: String,
     #[sea_orm(column_type = "Text")]
-    pub target_state: String,
+    pub lastest_state: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -25,11 +24,19 @@ pub enum Relation {
         on_delete = "Cascade"
     )]
     OrionTasks,
+    #[sea_orm(has_many = "super::target_state_histories::Entity")]
+    TargetStateHistories,
 }
 
 impl Related<super::orion_tasks::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::OrionTasks.def()
+    }
+}
+
+impl Related<super::target_state_histories::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::TargetStateHistories.def()
     }
 }
 

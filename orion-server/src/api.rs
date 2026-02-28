@@ -144,7 +144,7 @@ pub fn routers() -> Router<AppState> {
         .route("/v2/task-retry/{id}", post(task_retry_handler))
         .route("/v2/task/{cl}", get(task_get_handler))
         .route("/v2/build-events/{task_id}", get(build_event_get_handler))
-        .route("/v2/target/{task_id}", get(target_get_handler))
+        .route("/v2/targets/{task_id}", get(target_get_handler))
         .route("/all-target-status/{task_id}", get(targets_status_handler))
         .route(
             "/target-status/{target_id}",
@@ -2094,7 +2094,7 @@ pub async fn build_event_get_handler(
 
 #[utoipa::path(
     get,
-    path = "/v2/target/{task-id}",
+    path = "/v2/targets/{task-id}",
     params(("task-id" = String, Path, description = "Task ID")),
     responses(
         (status = 200, description = "Get target successfully", body = BuildTargetDTO),
