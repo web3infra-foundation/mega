@@ -40,10 +40,6 @@ use crate::repo::diff;
 const MAX_BATCH_SIZE: usize = 100;
 const FLUSH_INTERVAL_MS: u64 = 100;
 
-fn scorpio_base_url() -> String {
-    crate::scorpio_api::base_url()
-}
-
 #[allow(dead_code)]
 static PROJECT_ROOT: Lazy<String> =
     Lazy::new(|| std::env::var("BUCK_PROJECT_ROOT").expect("BUCK_PROJECT_ROOT must be set"));
