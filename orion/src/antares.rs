@@ -17,14 +17,16 @@ type DynError = Box<dyn Error + Send + Sync>;
 /// Initializes the manager on first call by loading the scorpio configuration
 /// from the path specified by `SCORPIO_CONFIG` environment variable.
 ///
-/// If `SCORPIO_CONFIG` is not set, Orion will look for `scorpio.toml` in the
-/// process working directory, then next to the running executable.
+/// If `SCORPIO_CONFIG` is not set, Orion will look for `scorpio.toml` in:
+/// 1. Current working directory
+/// 2. Next to the executable
+/// 3. `/etc/scorpio/scorpio.toml` (system default)
 ///
-/// If no config file is found, Orion will panic (fail-fast).
+/// Returns an error if no config file is found.
 async fn get_manager() -> Result<&'static Arc<AntaresManager>, DynError> {
     MANAGER
         .get_or_try_init(|| async {
-            let config_path = resolve_config_path();
+            let config_path = resolve_config_path()?;
             let config_path_str = config_path.to_str().ok_or_else(|| -> DynError {
                 Box::new(io_other("Invalid SCORPIO_CONFIG path (non-UTF8)"))
             })?;
@@ -49,38 +51,52 @@ fn io_other(message: impl Into<String>) -> io::Error {
     io::Error::other(message.into())
 }
 
-fn resolve_config_path() -> PathBuf {
+fn resolve_config_path() -> Result<PathBuf, DynError> {
+    // 1. Check SCORPIO_CONFIG environment variable
     if let Ok(path) = std::env::var("SCORPIO_CONFIG") {
-        let config_path = PathBuf::from(path);
+        let config_path = PathBuf::from(&path);
         if config_path.exists() {
-            return config_path;
+            return Ok(config_path);
         }
-
-        panic!(
+        return Err(Box::new(io_other(format!(
             "SCORPIO_CONFIG is set but file does not exist: {}",
             config_path.display()
-        );
+        ))));
     }
 
-    let cwd = std::env::current_dir().expect("Failed to get current working directory");
+    // 2. Check current working directory
+    let cwd = std::env::current_dir().map_err(|e| {
+        Box::new(io_other(format!(
+            "Failed to get current working directory: {e}"
+        ))) as DynError
+    })?;
     let cwd_candidate = cwd.join("scorpio.toml");
     if cwd_candidate.exists() {
-        return cwd_candidate;
+        return Ok(cwd_candidate);
     }
 
-    let exe_candidate = std::env::current_exe()
-        .ok()
-        .and_then(|exe| exe.parent().map(|dir| dir.join("scorpio.toml")));
-    if let Some(exe_candidate) = exe_candidate
-        && exe_candidate.exists()
+    // 3. Check next to executable
+    if let Ok(exe) = std::env::current_exe()
+        && let Some(exe_dir) = exe.parent()
     {
-        return exe_candidate;
+        let exe_candidate = exe_dir.join("scorpio.toml");
+        if exe_candidate.exists() {
+            return Ok(exe_candidate);
+        }
     }
 
-    panic!(
-        "Scorpio config not found. Set SCORPIO_CONFIG=/path/to/scorpio.toml or place scorpio.toml in the working directory ({}).",
+    // 4. Check system default path
+    let system_candidate = PathBuf::from("/etc/scorpio/scorpio.toml");
+    if system_candidate.exists() {
+        return Ok(system_candidate);
+    }
+
+    Err(Box::new(io_other(format!(
+        "Scorpio config not found. Set SCORPIO_CONFIG=/path/to/scorpio.toml, \
+         place scorpio.toml in the working directory ({}), \
+         or create /etc/scorpio/scorpio.toml",
         cwd.display()
-    );
+    ))))
 }
 
 /// Mount a job overlay filesystem.
