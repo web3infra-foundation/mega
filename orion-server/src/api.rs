@@ -2111,10 +2111,20 @@ pub async fn target_get_handler(
     (StatusCode::NOT_IMPLEMENTED, Json(result_message))
 }
 
+#[derive(Hash, Eq, PartialEq, Clone)]
+struct ActionKey {
+    package: String,
+    name: String,
+    configuration: String,
+    category: String,
+    identifier: String,
+    action: String,
+}
+
 #[derive(Clone)]
 pub struct TargetStatusCache {
-    /// task_id -> (action -> ActiveModel)
-    inner: Arc<RwLock<HashMap<Uuid, HashMap<String, target_build_status::ActiveModel>>>>,
+    /// task_id -> (ActionKey -> ActiveModel)
+    inner: Arc<RwLock<HashMap<Uuid, HashMap<ActionKey, target_build_status::ActiveModel>>>>,
 }
 
 impl TargetStatusCache {
@@ -2136,6 +2146,15 @@ impl TargetStatusCache {
 
         let status = OrionTargetStatusEnum::from_ws_status(&event.target.new_status);
 
+        let key = ActionKey {
+            package: event.target.configured_target_package.clone(),
+            name: event.target.configured_target_name.clone(),
+            configuration: event.target.configured_target_configuration.clone(),
+            category: event.target.category.clone(),
+            identifier: event.target.identifier.clone(),
+            action: event.target.action.clone(),
+        };
+
         let active_model = target_build_status::Model::new_active_model(
             Uuid::new_v4(), // id is not auto-incremented
             task_id,
@@ -2144,15 +2163,14 @@ impl TargetStatusCache {
             event.target.configured_target_configuration,
             event.target.category,
             event.target.identifier,
-            event.target.action.clone(),
+            event.target.action,
             status,
         );
 
         let mut guard = self.inner.write().await;
         let task_map = guard.entry(task_id).or_default();
 
-        // Overwrite if the same action already exists
-        task_map.insert(event.target.action, active_model);
+        task_map.insert(key, active_model);
     }
 
     /// Flush all cached entries
@@ -2202,7 +2220,9 @@ impl TargetStatusCache {
 
                 _ = shutdown.changed() => {
                     tracing::info!("TargetStatusCache auto flush shutting down");
+
                     let models = self.flush_all().await;
+
                     if !models.is_empty() {
                         let _ = target_build_status::Entity::upsert_batch(&conn, models).await;
                     }
@@ -2227,11 +2247,11 @@ pub trait FromWsStatus {
 
 impl FromWsStatus for OrionTargetStatusEnum {
     fn from_ws_status(status: &str) -> Self {
-        match status {
-            "PENDING" => Self::Pending,
-            "RUNNING" => Self::Running,
-            "SUCCESS" => Self::Success,
-            "FAILED" => Self::Failed,
+        match status.trim().to_ascii_lowercase().as_str() {
+            "pending" => Self::Pending,
+            "running" => Self::Running,
+            "success" | "succeeded" => Self::Success,
+            "failed" => Self::Failed,
             _ => Self::Pending,
         }
     }

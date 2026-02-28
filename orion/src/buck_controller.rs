@@ -15,7 +15,6 @@ use api_model::buck2::{
 };
 use common::config::BuildConfig;
 use once_cell::sync::Lazy;
-use serde_json::{Value, json};
 use td_util::{command::spawn, file_io::file_writer, file_tail::tail_compressed_buck2_events};
 use td_util_buck::{
     cells::CellInfo,

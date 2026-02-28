@@ -101,6 +101,23 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
+        manager
+            .create_index(
+                Index::create()
+                    .name("uq_target_build_status_identity")
+                    .table(TargetBuildStatus::Table)
+                    .col(TargetBuildStatus::TaskId)
+                    .col(TargetBuildStatus::TargetPackage)
+                    .col(TargetBuildStatus::TargetName)
+                    .col(TargetBuildStatus::TargetConfiguration)
+                    .col(TargetBuildStatus::Category)
+                    .col(TargetBuildStatus::Identifier)
+                    .col(TargetBuildStatus::Action)
+                    .unique()
+                    .to_owned(),
+            )
+            .await?;
+
         Ok(())
     }
 

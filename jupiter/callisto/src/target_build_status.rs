@@ -92,9 +92,17 @@ impl Model {
 
         Entity::insert_many(models)
             .on_conflict(
-                OnConflict::columns([Column::TaskId, Column::Action])
-                    .update_columns([Column::Status, Column::UpdatedAt])
-                    .to_owned(),
+                OnConflict::columns([
+                    Column::TaskId,
+                    Column::TargetPackage,
+                    Column::TargetName,
+                    Column::TargetConfiguration,
+                    Column::Category,
+                    Column::Identifier,
+                    Column::Action,
+                ])
+                .update_columns([Column::Status, Column::UpdatedAt])
+                .to_owned(),
             )
             .exec(conn)
             .await?;
