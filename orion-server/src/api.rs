@@ -144,7 +144,7 @@ pub fn routers() -> Router<AppState> {
         .route("/v2/task-retry/{id}", post(task_retry_handler))
         .route("/v2/task/{cl}", get(task_get_handler))
         .route("/v2/build-events/{task_id}", get(build_event_get_handler))
-        .route("/v2/targets/{task_id}", get(target_get_handler))
+        .route("/v2/targets/{task_id}", get(targets_get_handler))
         .route("/all-target-status/{task_id}", get(targets_status_handler))
         .route(
             "/target-status/{target_id}",
@@ -1967,7 +1967,7 @@ pub struct BuildTargetDTO {
     pub id: String,
     pub task_id: String,
     pub path: String,
-    pub target_state: String,
+    pub lastest_state: String,
 }
 
 #[utoipa::path(
@@ -2101,7 +2101,7 @@ pub async fn build_event_get_handler(
         (status = 404, description = "Not found task", body = MessageResponse),
     )
 )]
-pub async fn target_get_handler(
+pub async fn targets_get_handler(
     State(_state): State<AppState>,
     Path(_task_id): Path<String>,
 ) -> impl IntoResponse {
