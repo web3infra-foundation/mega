@@ -495,6 +495,76 @@ pub async fn target_logs_handler(
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/v2/task",
+    path = "/task",
+    request_body = TaskBuildRequest,
+    responses(
+        (status = 200, description = "Task created", body = serde_json::Value),
+        (status = 503, description = "Queue is full", body = serde_json::Value)
+    )
+)]
+/// Handling task creation and returns the task ID with status (immediate or queued)
+pub async fn task_handler_v2(
+    State(state): State<AppState>,
+    Json(req): Json<TaskBuildRequest>,
+) -> impl IntoResponse {
+    let task_id = Uuid::now_v7();
+    let _task_name = format!("CL-{}-{}", req.cl_link, task_id);
+
+    // Create a new task in the database
+    if let Err(err) = callisto::orion_tasks::Model::insert_task(
+        task_id,
+        &req.cl_link,
+        &req.repo,
+        &req.changes,
+        &state.conn,
+    )
+    .await
+    {
+        tracing::error!("Failed to insert task into DB: {}", err);
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({
+                "message": format!("Failed to insert task into database: {}", err)
+            })),
+        )
+            .into_response();
+    }
+
+    // Check for available worker
+    let result: OrionBuildResult;
+    if state.scheduler.has_idle_workers() {
+        result = handle_immediate_task_dispatch_v2(
+            state.clone(),
+            task_id,
+            &req.repo,
+            &req.cl_link,
+            req.changes.clone(),
+            None,
+        )
+        .await;
+
+        return (
+            StatusCode::OK,
+            Json(OrionServerResponse {
+                task_id: task_id.to_string(),
+                results: vec![result],
+            }),
+        )
+            .into_response();
+    }
+    // TODO: to be implemented for queuing logic
+    return (
+        StatusCode::SERVICE_UNAVAILABLE,
+        Json(serde_json::json!({
+            "message": "No available workers at the moment, please try again later"
+        })),
+    )
+        .into_response();
+}
+
 /// Creates build tasks and returns the task ID and status (immediate or queued)
 #[utoipa::path(
     post,
@@ -596,6 +666,157 @@ pub async fn task_handler(
         .into_response()
 }
 
+async fn handle_immediate_task_dispatch_v2(
+    state: AppState,
+    task_id: Uuid,
+    repo: &str,
+    cl_link: &str,
+    changes: Vec<Status<ProjectRelativePath>>,
+    // TODO: if reused for retry here, use targets
+    _targets: Option<Vec<String>>,
+) -> OrionBuildResult {
+    // Find all idle workers
+    let idle_workers = state.scheduler.get_idle_workers();
+
+    // Return error if no workers are available (this shouldn't happen theoretically since we already checked)
+    if idle_workers.is_empty() {
+        return OrionBuildResult {
+            build_id: "".to_string(),
+            status: "error".to_string(),
+            message: "No available workers at the moment".to_string(),
+        };
+    }
+
+    // Randomly select an idle worker
+    let chosen_index = {
+        let mut rng = rand::rng();
+        rng.random_range(0..idle_workers.len())
+    };
+    let chosen_id = idle_workers[chosen_index].clone();
+
+    // create and insert target path
+    let target_id = Uuid::now_v7();
+    let target_path: String;
+    match callisto::build_targets::Model::insert_default_target(target_id, task_id, &state.conn)
+        .await
+    {
+        Ok(default_path) => {
+            target_path = default_path;
+        }
+        Err(err) => {
+            tracing::error!("Failed to prepare target for task {}: {}", task_id, err);
+            return OrionBuildResult {
+                build_id: "".to_string(),
+                status: "error".to_string(),
+                message: format!("Failed to prepare target for task {}", task_id),
+            };
+        }
+    }
+
+    // Create new build event for initial try
+    let build_event_id = Uuid::now_v7();
+    let event = BuildEventPayload::new(
+        build_event_id,
+        task_id,
+        cl_link.to_string(),
+        repo.to_string(),
+        0,
+    );
+
+    let start_at = chrono::Utc::now();
+    let _start_at_tz = start_at.with_timezone(&FixedOffset::east_opt(0).unwrap());
+    let build_info = BuildInfo {
+        event_payload: event.clone(),
+        changes: changes.clone(),
+        target_id,
+        target_path,
+        worker_id: chosen_id.clone(),
+        auto_retry_judger: AutoRetryJudger::new(),
+        started_at: start_at,
+    };
+
+    // Store build event using BuildInfo structure
+    match callisto::build_events::Model::insert_build(
+        build_event_id,
+        task_id,
+        repo.to_string(),
+        &state.conn,
+    )
+    .await
+    {
+        Ok(_) => {
+            tracing::info!(
+                "Created build event record in DB with ID {} for task {}",
+                build_info.event_payload.build_event_id,
+                task_id,
+            );
+        }
+        Err(e) => {
+            tracing::error!(
+                "Failed to insert build event into DB for task {} exit with error: {}",
+                task_id,
+                e
+            );
+            return OrionBuildResult {
+                build_id: "".to_string(),
+                status: "error".to_string(),
+                message: format!(
+                    "Failed to insert build event into database for task {}: {}",
+                    task_id, e
+                ),
+            };
+        }
+    }
+
+    return activate_worker(&build_info, &state.scheduler).await;
+}
+
+async fn activate_worker(build_info: &BuildInfo, scheduler: &TaskScheduler) -> OrionBuildResult {
+    // Create WS Message
+    let msg = WSMessage::TaskBuild {
+        build_id: build_info.event_payload.build_event_id.to_string(),
+        repo: build_info.event_payload.repo.clone(),
+        changes: build_info.changes.clone(),
+        cl_link: build_info.event_payload.cl_link.clone(),
+    };
+
+    // Send task to the selected worker
+    if let Some(mut worker) = scheduler.workers.get_mut(&build_info.worker_id)
+        && worker.sender.send(msg).is_ok()
+    {
+        worker.status = WorkerStatus::Busy {
+            build_id: build_info.event_payload.build_event_id.to_string(),
+            phase: None,
+        };
+        scheduler.active_builds.insert(
+            build_info.event_payload.build_event_id.to_string(),
+            build_info.clone(),
+        );
+        tracing::info!(
+            "Build {}/{} dispatched immediately to worker {}",
+            build_info.event_payload.task_id,
+            build_info.event_payload.build_event_id,
+            build_info.worker_id
+        );
+        return OrionBuildResult {
+            build_id: build_info.event_payload.build_event_id.to_string(),
+            status: "dispatched".to_string(),
+            message: format!("Build dispatched to worker {}", build_info.worker_id),
+        };
+    }
+
+    tracing::error!(
+        "Failed to dispatch task {} to worker {}",
+        build_info.event_payload.task_id,
+        build_info.worker_id
+    );
+    return OrionBuildResult {
+        build_id: build_info.event_payload.build_event_id.to_string(),
+        status: "error".to_string(),
+        message: "Failed to dispatch task to worker".to_string(),
+    };
+}
+
 async fn handle_immediate_task_dispatch(
     state: AppState,
     task_id: Uuid,
@@ -666,13 +887,13 @@ async fn handle_immediate_task_dispatch(
         changes: changes.clone(),
         target_id: target_model.id,
         target_path: target_model.target_path.clone(),
-        _worker_id: chosen_id.clone(),
+        worker_id: chosen_id.clone(),
         auto_retry_judger: AutoRetryJudger::new(),
         started_at: start_at,
     };
 
     // Use the model's insert_build method for direct insertion
-    if let Err(err) = builds::Model::insert_build(
+    if let Err(err) = crate::model::builds::Model::insert_build(
         build_id,
         task_id,
         target_model.id,
@@ -1856,7 +2077,7 @@ async fn immediate_work(
         target_id: target.id,
         target_path: target.target_path.clone(),
         changes: req.changes.clone(),
-        _worker_id: chosen_id.clone(),
+        worker_id: chosen_id.clone(),
         auto_retry_judger: AutoRetryJudger::new(),
         started_at: start_at,
     };

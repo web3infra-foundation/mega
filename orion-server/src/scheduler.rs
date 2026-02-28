@@ -167,7 +167,7 @@ pub struct BuildInfo {
     #[allow(dead_code)]
     pub started_at: DateTimeUtc,
     pub auto_retry_judger: AutoRetryJudger,
-    pub _worker_id: String,
+    pub worker_id: String,
 }
 
 impl BuildEventPayload {
@@ -449,7 +449,7 @@ impl TaskScheduler {
             changes: pending_build_event.changes.clone(),
             target_id: pending_build_event.target_id.unwrap_or(Uuid::nil()),
             target_path: pending_build_event.target_path.clone().unwrap_or_default(),
-            _worker_id: chosen_id.clone(),
+            worker_id: chosen_id.clone(),
             auto_retry_judger: AutoRetryJudger::new(),
             started_at: start_at,
         };
