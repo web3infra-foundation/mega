@@ -119,7 +119,27 @@ jobs:
           remote_host: ${{ secrets.ORION_DEPLOY_HOST }}
           remote_user: root
           remote_key: ${{ secrets.ORION_DEPLOY_SSH_KEY }}
-      - name: Restart service to orion_vm
+      - name: Stop service on orion_vm (before deployment)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.ORION_DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.ORION_DEPLOY_SSH_KEY }}
+          script: |
+            # Stop service to allow binary replacement
+            systemctl stop orion-runner.service || echo "Service not running"
+      
+      - name: Upload binaries and configs via rsync to orion_vm
+        uses: burnett01/rsync-deployments@8.0.4
+        with:
+          switches: -avz --progress
+          path: artifacts/
+          remote_path: /root/orion-runner/
+          remote_host: ${{ secrets.ORION_DEPLOY_HOST }}
+          remote_user: root
+          remote_key: ${{ secrets.ORION_DEPLOY_SSH_KEY }}
+      
+      - name: Start service on orion_vm
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.ORION_DEPLOY_HOST }}
@@ -134,11 +154,21 @@ jobs:
             chmod +x /root/orion-runner/orion
             chmod +x /root/orion-runner/run.sh
             
-            # Restart service
+            # Start service
             systemctl daemon-reload
-            systemctl restart orion-runner.service
+            systemctl start orion-runner.service
             systemctl status orion-runner.service --no-pager
 
+      - name: Stop service on gcp_vm (before deployment)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.ORION_GCP_VM_HOST }}
+          username: orion
+          key: ${{ secrets.ORION_GCP_VM_SSH_KEY }}
+          script: |
+            # Stop service to allow binary replacement
+            sudo systemctl stop orion-runner.service || echo "Service not running"
+      
       - name: Upload binaries and configs via rsync to gcp_vm
         uses: burnett01/rsync-deployments@8.0.4
         with:
@@ -148,7 +178,8 @@ jobs:
           remote_host: ${{ secrets.ORION_GCP_VM_HOST }}
           remote_user: orion
           remote_key: ${{ secrets.ORION_GCP_VM_SSH_KEY }}
-      - name: Restart service to gcp_vm
+      
+      - name: Start service on gcp_vm
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.ORION_GCP_VM_HOST }}
@@ -164,7 +195,7 @@ jobs:
             chmod +x /home/orion/orion-runner/orion
             chmod +x /home/orion/orion-runner/run.sh
             
-            # Restart service
+            # Start service
             sudo systemctl daemon-reload
-            sudo systemctl restart orion-runner.service
+            sudo systemctl start orion-runner.service
             sudo systemctl status orion-runner.service --no-pager
