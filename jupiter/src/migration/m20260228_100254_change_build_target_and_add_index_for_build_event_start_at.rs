@@ -28,6 +28,7 @@ impl MigrationTrait for Migration {
         manager
             .create_table(
                 Table::create()
+                    .if_not_exists()
                     .table(BuildTargets::Table)
                     .if_not_exists()
                     .col(
@@ -54,6 +55,7 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
+                    .if_not_exists()
                     .name("idx_build_targets_task_id")
                     .table(BuildTargets::Table)
                     .col(BuildTargets::TaskId)
@@ -65,6 +67,7 @@ impl MigrationTrait for Migration {
         manager
             .create_table(
                 Table::create()
+                    .if_not_exists()
                     .table(TargetStateHistories::Table)
                     .if_not_exists()
                     .col(
@@ -122,6 +125,7 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
+                    .if_not_exists()
                     .name("idx_target_state_histories_build_target_id")
                     .table(TargetStateHistories::Table)
                     .col(TargetStateHistories::BuildTargetId)
@@ -131,6 +135,7 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
+                    .if_not_exists()
                     .name("idx_target_state_histories_build_event_id")
                     .table(TargetStateHistories::Table)
                     .col(TargetStateHistories::BuildEventId)
