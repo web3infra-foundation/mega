@@ -133,3 +133,17 @@ pub struct TargetLogLinesResponse {
 pub struct LogErrorResponse {
     pub message: String,
 }
+
+/// Target status for buck2 build
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct TargetStatusResponse {
+    pub id: String,
+    pub task_id: String,
+    pub package: String,
+    pub name: String,
+    pub configuration: String,
+    pub category: String,
+    pub identifier: String,
+    pub action: String,
+    pub status: String,
+}

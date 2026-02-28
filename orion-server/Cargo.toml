@@ -14,7 +14,8 @@ orion = { workspace = true }
 common = { workspace = true }
 io-orbit = { workspace = true }
 api-model = { workspace = true }
-jupiter = {workspace = true}
+jupiter = { workspace = true }
+callisto = { workspace = true }
 
 http = { workspace = true }
 axum = { workspace = true, features = ["macros", "ws"] }

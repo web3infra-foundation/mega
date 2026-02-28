@@ -41,5 +41,6 @@ pub mod package_resolver;
 pub mod run;
 pub mod target_graph;
 pub mod target_map;
+pub mod target_status;
 pub mod targets;
 pub mod types;

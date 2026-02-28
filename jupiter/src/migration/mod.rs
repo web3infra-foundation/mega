@@ -86,6 +86,7 @@ mod m20260209_064016_remove_default_dynamic_sidebar;
 mod m20260210_062050_create_target_state_history;
 mod m20260211_102158_add_username_to_mega_cl_sqlite;
 mod m20260216_013852_create_group_permission_tables;
+mod m20260224_142019_create_target_build_status;
 
 /// Creates a primary key column definition with big integer type.
 ///
@@ -162,6 +163,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260210_062050_create_target_state_history::Migration),
             Box::new(m20260211_102158_add_username_to_mega_cl_sqlite::Migration),
             Box::new(m20260216_013852_create_group_permission_tables::Migration),
+            Box::new(m20260224_142019_create_target_build_status::Migration),
         ]
     }
 }

@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     error::Error,
     io::BufReader,
     path::{Path, PathBuf},
@@ -10,22 +11,33 @@ use anyhow::anyhow;
 use api_model::buck2::{
     status::Status,
     types::{ProjectRelativePath, TaskPhase},
-    ws::WSMessage,
+    ws::{WSBuildContext, WSMessage, WSTargetBuildStatusEvent},
 };
 use common::config::BuildConfig;
 use once_cell::sync::Lazy;
-use td_util::{command::spawn, file_io::file_writer};
+use td_util::{command::spawn, file_io::file_writer, file_tail::tail_compressed_buck2_events};
 use td_util_buck::{
     cells::CellInfo,
     run::{Buck2, targets_arguments},
+    target_status::{BuildState, EVENT_LOG_FILE, Event, LogicalActionId, TargetBuildStatusUpdate},
     targets::Targets,
     types::TargetLabel,
 };
-use tokio::{io::AsyncBufReadExt, process::Command, sync::mpsc::UnboundedSender};
+use tokio::{
+    io::AsyncBufReadExt,
+    process::Command,
+    sync::mpsc::{self, UnboundedSender},
+    task::JoinHandle,
+    time::{Duration, interval},
+};
+use tokio_util::sync::CancellationToken;
 
 // Import complete Error trait for better error handling
 use crate::repo::changes::Changes;
 use crate::repo::diff;
+
+const MAX_BATCH_SIZE: usize = 100;
+const FLUSH_INTERVAL_MS: u64 = 100;
 
 #[allow(dead_code)]
 static PROJECT_ROOT: Lazy<String> =
@@ -363,6 +375,176 @@ async fn get_build_targets(
         .collect())
 }
 
+#[derive(Debug)]
+pub struct BuildStatusTracker {
+    pub cancellation: CancellationToken,
+    pub tail_handle: JoinHandle<()>,
+    pub process_handle: JoinHandle<()>,
+}
+
+/// Start the build status tracker.
+/// Returns a `BuildStatusTracker` for lifecycle management.
+pub fn start_build_status_tracker(
+    project_root: &Path,
+    sender: UnboundedSender<WSMessage>,
+    cl_id: &str,
+    task_id: &str,
+) -> BuildStatusTracker {
+    let event_jsonl_path = project_root.join(EVENT_LOG_FILE);
+    tracing::info!("Track target build status at {:?}", event_jsonl_path);
+
+    let (tx, rx) = mpsc::channel::<String>(4096);
+    let cancellation = CancellationToken::new();
+
+    // Spawn tail task: reads the event log file and sends each line into channel
+    let tail_handle = {
+        let event_log_path = event_jsonl_path.clone();
+        let tx_clone = tx.clone();
+        tokio::spawn(async move {
+            let poll_interval = Duration::from_millis(200);
+            if let Err(e) =
+                tail_compressed_buck2_events(event_log_path, tx_clone, poll_interval).await
+            {
+                tracing::error!("Failed to tail buck2 events: {:?}", e);
+            }
+        })
+    };
+
+    // Spawn processing task: handles events, updates state, flushes WebSocket
+    let process_handle = {
+        let sender_clone = sender.clone();
+        let cancellation_clone = cancellation.clone();
+        tokio::spawn(run_processing_loop(
+            rx,
+            sender_clone,
+            cancellation_clone,
+            cl_id.to_owned(),
+            task_id.to_owned(),
+        ))
+    };
+
+    BuildStatusTracker {
+        cancellation,
+        tail_handle,
+        process_handle,
+    }
+}
+
+/// Event processing loop.
+/// Reads event lines, updates BuildState, and flushes WebSocket in batches or intervals.
+async fn run_processing_loop(
+    mut rx: mpsc::Receiver<String>,
+    sender: UnboundedSender<WSMessage>,
+    cancellation: CancellationToken,
+    cl_id: String,
+    task_id: String,
+) {
+    let mut build_state = BuildState::default();
+    let mut buffer: HashMap<LogicalActionId, TargetBuildStatusUpdate> = HashMap::with_capacity(256);
+    let mut flush_interval = interval(Duration::from_millis(FLUSH_INTERVAL_MS));
+
+    loop {
+        tokio::select! {
+            Some(line) = rx.recv() => {
+                match serde_json::from_str::<Event>(&line) {
+                    Ok(event) => {
+                        if let Some(update) = build_state.handle_event(&event) {
+                            buffer.insert(update.action_id.clone(), update);
+
+                             if buffer.len() >= MAX_BATCH_SIZE
+                                && !flush_buffer(&sender, &mut buffer, &cl_id, &task_id).await {
+                                    break;
+                                }
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!("Failed to parse event line: {:?}", e);
+                    }
+                }
+            }
+
+            _ = flush_interval.tick() => {
+                if !buffer.is_empty()
+                   && !flush_buffer(&sender, &mut buffer, &cl_id, &task_id).await {
+                        break;
+                    }
+            }
+
+            _ = cancellation.cancelled() => {
+                tracing::info!("Cancellation received, stopping processing loop");
+                break;
+            }
+        }
+    }
+
+    // Flush remaining updates
+    if !buffer.is_empty() {
+        let _ = flush_buffer(&sender, &mut buffer, &cl_id, &task_id).await;
+    }
+
+    tracing::info!("Build status processing loop stopped");
+}
+
+/// Flush the buffer of updates to the WebSocket.
+/// Returns false if the WebSocket is closed.
+async fn flush_buffer(
+    sender: &UnboundedSender<WSMessage>,
+    buffer: &mut HashMap<LogicalActionId, TargetBuildStatusUpdate>,
+    cl_id: &str,
+    task_id: &str,
+) -> bool {
+    if buffer.is_empty() {
+        tracing::trace!(task_id, cl_id, "Buffer empty, skipping flush");
+        return true;
+    }
+
+    let update_count = buffer.len();
+
+    tracing::debug!(
+        task_id,
+        cl_id,
+        update_count,
+        "Flushing target build status updates"
+    );
+
+    let context = WSBuildContext {
+        task_id: task_id.to_string(),
+        cl_id: cl_id.to_string(),
+    };
+
+    let events: Vec<WSTargetBuildStatusEvent> = buffer
+        .drain()
+        .map(|(_, update)| WSTargetBuildStatusEvent {
+            context: context.clone(),
+            target: update.into(),
+        })
+        .collect();
+
+    let message = WSMessage::TargetBuildStatusBatch { events };
+
+    match sender.send(message) {
+        Ok(_) => {
+            tracing::trace!(
+                task_id,
+                cl_id,
+                update_count,
+                "Successfully flushed target build status updates"
+            );
+            true
+        }
+        Err(e) => {
+            tracing::warn!(
+                task_id,
+                cl_id,
+                update_count,
+                error = %e,
+                "Failed to send target build status batch"
+            );
+            false
+        }
+    }
+}
+
 /// RAII guard for automatically unmounting Antares filesystem when dropped
 struct MountGuard {
     mount_id: String,
@@ -444,6 +626,7 @@ pub async fn build(
 ) -> Result<ExitStatus, Box<dyn Error + Send + Sync>> {
     tracing::info!("[Task {}] Building in repo {}", id, repo);
 
+    let task_id = id.trim();
     // Handle empty cl string as None to mount the base repo without a CL layer.
     let cl_trimmed = cl.trim();
     let cl_arg = (!cl_trimmed.is_empty()).then_some(cl_trimmed);
@@ -558,7 +741,12 @@ pub async fn build(
         let project_root = PathBuf::from(&mount_point).join(repo_prefix);
         let isolation_dir = buck2_isolation_dir(&project_root)?;
         let mut cmd = Command::new("buck2");
-        cmd.args(["--isolation-dir", &isolation_dir]);
+        // --event-log and --build-report are used to collect build execution status
+        // at target level (e.g. pending / running / succeeded / failed).
+        cmd.args([
+            "--isolation-dir", &isolation_dir,
+            "--event-log", EVENT_LOG_FILE,
+        ]);
         let cmd = cmd
             .arg("build")
             .args(&targets)
@@ -582,6 +770,8 @@ pub async fn build(
         }) {
             tracing::error!("Failed to send RunningBuild phase update: {}", e);
         }
+
+        let target_build_track = start_build_status_tracker(&project_root, sender.clone(), cl_trimmed, task_id);
 
         let stdout = child.stdout.take().unwrap();
         let stderr = child.stderr.take().unwrap();
@@ -635,6 +825,11 @@ pub async fn build(
         }
 
         let status = child.wait().await?;
+
+        target_build_track.cancellation.cancel();
+        let _ = target_build_track.tail_handle.await;
+        let _ = target_build_track.process_handle.await;
+        tracing::info!("Target build status track finished");
         Ok(status)
     }
     .await;

@@ -209,6 +209,9 @@ pub async fn start_server() {
     // Start queue manager
     tokio::spawn(api::start_queue_manager(state.clone()));
 
+    // Start background dp operation
+    state.start_background_tasks();
+
     let origins: Vec<HeaderValue> = oauth_cfg
         .allowed_cors_origins
         .into_iter()
