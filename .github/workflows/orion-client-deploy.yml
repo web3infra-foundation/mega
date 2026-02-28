@@ -64,7 +64,7 @@ jobs:
 
   # Deploy to legacy orion_vm (root user, backward compatibility)
   deploy-legacy:
-    if: ${{ github.repository == 'web3infra-foundation/mega' }}
+    if: false  # Temporarily disabled
     runs-on: ubuntu-latest
     needs: build
     timeout-minutes: 10
@@ -167,7 +167,7 @@ jobs:
 
   # Deploy to new GCP VM (orion user, best practice)
   deploy-gcp:
-    if: ${{ github.repository == 'Ivanbeethoven/mega' }}
+    if: ${{ github.repository == 'web3infra-foundation/mega' }}
     runs-on: ubuntu-latest
     needs: build
     timeout-minutes: 10
