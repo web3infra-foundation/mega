@@ -58,9 +58,12 @@ jobs:
             orion/runner-config/.env.prod
             orion/runner-config/scorpio.toml
             orion/runner-config/run.sh
+            orion/runner-config/cleanup.sh
+            orion/systemd/orion-runner.service
           retention-days: 7
 
-  deploy:
+  # Deploy to legacy orion_vm (root user, backward compatibility)
+  deploy-legacy:
     if: ${{ github.repository == 'web3infra-foundation/mega' }}
     runs-on: ubuntu-latest
     needs: build
@@ -87,17 +90,26 @@ jobs:
           #                 artifacts/orion/runner-config/run.sh
           
           # Move files to artifacts root for deployment
-          mv artifacts/target/release/orion artifacts/
+          # IMPORTANT: Move config files first (while orion/ directory still exists)
           mv artifacts/orion/runner-config/.env.prod artifacts/.env
           mv artifacts/orion/runner-config/scorpio.toml artifacts/
           mv artifacts/orion/runner-config/run.sh artifacts/
+          mv artifacts/orion/runner-config/cleanup.sh artifacts/
           
-          # Clean up empty directories
-          rm -rf artifacts/target artifacts/orion
+          # Move systemd service file
+          mv artifacts/orion/systemd/orion-runner.service artifacts/
+          
+          # Clean up empty orion directory before moving binary
+          rm -rf artifacts/orion
+          
+          # Now move the binary (orion/ directory has been removed)
+          mv artifacts/target/release/orion artifacts/orion
+          rm -rf artifacts/target
           
           # Set executable permissions
           chmod +x artifacts/orion
           chmod +x artifacts/run.sh
+          chmod +x artifacts/cleanup.sh
           
           echo "==> Final artifact structure:"
           ls -la artifacts/
@@ -106,19 +118,6 @@ jobs:
       # The legacy orion_vm was provisioned with root-only SSH access.
       # For backward compatibility and to avoid breaking existing
       # production automation, deployment continues to use the root user.
-      #
-      # The new GCP VM correctly uses a non-root `orion` user.
-      # Future infrastructure revisions should migrate orion_vm
-      # to a least-privilege deployment user.
-      - name: Upload binaries and configs via rsync to orion_vm
-        uses: burnett01/rsync-deployments@8.0.4
-        with:
-          switches: -avz --progress
-          path: artifacts/
-          remote_path: /root/orion-runner/
-          remote_host: ${{ secrets.ORION_DEPLOY_HOST }}
-          remote_user: root
-          remote_key: ${{ secrets.ORION_DEPLOY_SSH_KEY }}
       - name: Stop service on orion_vm (before deployment)
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -128,6 +127,10 @@ jobs:
           script: |
             # Stop service to allow binary replacement
             systemctl stop orion-runner.service || echo "Service not running"
+            sleep 2
+            
+            # Force cleanup if service is stuck
+            pkill -9 orion || true
       
       - name: Upload binaries and configs via rsync to orion_vm
         uses: burnett01/rsync-deployments@8.0.4
@@ -153,11 +156,60 @@ jobs:
             # Set permissions
             chmod +x /root/orion-runner/orion
             chmod +x /root/orion-runner/run.sh
+            chmod +x /root/orion-runner/cleanup.sh
             
             # Start service
             systemctl daemon-reload
             systemctl start orion-runner.service
+            
+            echo "✓ Service start command completed"
             systemctl status orion-runner.service --no-pager
+
+  # Deploy to new GCP VM (orion user, best practice)
+  deploy-gcp:
+    if: ${{ github.repository == 'Ivanbeethoven/mega' }}
+    runs-on: ubuntu-latest
+    needs: build
+    timeout-minutes: 10
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: orion-bins
+          path: ./artifacts
+
+      - name: Prepare deployment files
+        run: |
+          set -e
+          echo "==> Listing downloaded artifacts structure:"
+          find artifacts -type f -ls
+          
+          echo "==> Preparing deployment files..."
+          # Move files to artifacts root for deployment
+          # IMPORTANT: Move config files first (while orion/ directory still exists)
+          mv artifacts/orion/runner-config/.env.prod artifacts/.env
+          mv artifacts/orion/runner-config/scorpio.toml artifacts/
+          mv artifacts/orion/runner-config/run.sh artifacts/
+          mv artifacts/orion/runner-config/cleanup.sh artifacts/
+          
+          # Move systemd service file
+          mv artifacts/orion/systemd/orion-runner.service artifacts/
+          
+          # Clean up empty directories before moving binary
+          rm -rf artifacts/orion
+          
+          # Now move the binary (orion/ directory has been removed)
+          mv artifacts/target/release/orion artifacts/orion
+          rm -rf artifacts/target
+          
+          # Set executable permissions
+          chmod +x artifacts/orion
+          chmod +x artifacts/run.sh
+          chmod +x artifacts/cleanup.sh
+          
+          echo "==> Final artifact structure:"
+          ls -la artifacts/
 
       - name: Stop service on gcp_vm (before deployment)
         uses: appleboy/ssh-action@v1.0.3
@@ -168,6 +220,14 @@ jobs:
           script: |
             # Stop service to allow binary replacement
             sudo systemctl stop orion-runner.service || echo "Service not running"
+            sleep 2
+            
+            # Force cleanup if service is stuck
+            sudo pkill -9 orion || true
+            
+            # Force unmount FUSE if still mounted
+            fusermount -uz /workspace/mount 2>/dev/null || true
+            sudo umount -lf /workspace/mount 2>/dev/null || true
       
       - name: Upload binaries and configs via rsync to gcp_vm
         uses: burnett01/rsync-deployments@8.0.4
@@ -194,8 +254,16 @@ jobs:
             # Set permissions
             chmod +x /home/orion/orion-runner/orion
             chmod +x /home/orion/orion-runner/run.sh
+            chmod +x /home/orion/orion-runner/cleanup.sh
             
-            # Start service
+            # Update systemd service file if changed
+            if [ -f /home/orion/orion-runner/orion-runner.service ]; then
+                sudo cp /home/orion/orion-runner/orion-runner.service /etc/systemd/system/
+                echo "✓ Updated systemd service file"
+            fi
+            
+            # Reload systemd and start service
             sudo systemctl daemon-reload
             sudo systemctl start orion-runner.service
-            sudo systemctl status orion-runner.service --no-pager
+            
+            echo "✓ Service start command completed"
