@@ -28,8 +28,11 @@ cargo nextest run -p <crate> when suggesting fast local test runs
 
 This is a monorepo containing many components. Some key ones include:
 
-* **`scorpio`**: A FUSE (Filesystem in Userspace) implementation, allowing the monorepo to be mounted as a local filesystem. This is a complex Rust component.
 * **`mono` / `ceres` / `jupiter` / `moon`**: These are various services and libraries within the monorepo, primarily written in Rust and TypeScript.
+* **`orion`**: Build orchestration and workspace management.
+* **`saturn`**: Policy and permission management.
+
+**Note**: `scorpio` (FUSE filesystem) has been moved to its own repository at [scorpiofs](https://github.com/web3infra-foundation/scorpiofs).
 
 ## Coding style & quality
 
@@ -43,11 +46,11 @@ This is a monorepo containing many components. Some key ones include:
 - Mega targets huge repos; prioritize O(n) single-pass algorithms, streaming IO, mmap when safe, and bounded allocations.
 - When dealing with Git objects/packs, consider delta-chain depth, fanout tables, OID (SHA-1 vs SHA-256), and zstd/deflate trade-offs. Include micro-benchmarks for hot paths via criterion.
 
-## Filesystems & FUSE (Scorpio)
+## Filesystems & FUSE
 
-- Treat FUSE paths as authoritative views over the monorepo; keep operations atomic and consistent.
-- Minimize kernel round-trips; batch lookups and use negative dentry caching where possible.
-- Add tests that simulate rename/replace, deep trees, and large directory fanout.
+**Note**: Scorpio (FUSE implementation) has been moved to https://github.com/web3infra-foundation/scorpiofs
+
+For FUSE-related development, refer to the scorpiofs repository.
 
 ## API & CLI guidelines
 

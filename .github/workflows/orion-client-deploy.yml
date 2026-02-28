@@ -10,7 +10,7 @@ on:
     paths:
       - ".github/workflows/orion-client-deploy.yml"
       - "orion/**"
-      - "scorpio/**"
+      
   workflow_dispatch:
 
 concurrency:
@@ -39,25 +39,25 @@ jobs:
       - name: Build Orion
         run: cargo build --release -p orion --bin orion
 
-      - name: Build Scorpio
-        run: cargo build --release -p scorpio --bin scorpio
-
       - name: Verify build artifacts
         run: |
           set -e
           ls -lh target/release
           test -f target/release/orion
-          test -f target/release/scorpio
           file target/release/orion
-          file target/release/scorpio
+          echo "Checking runner-config files:"
+          ls -la orion/runner-config/
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: orion-scorpio-bins
+          name: orion-bins
+          include-hidden-files: true
           path: |
             target/release/orion
-            target/release/scorpio
+            orion/runner-config/.env.prod
+            orion/runner-config/scorpio.toml
+            orion/runner-config/run.sh
           retention-days: 7
 
   deploy:
@@ -70,8 +70,37 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
-          name: orion-scorpio-bins
+          name: orion-bins
           path: ./artifacts
+
+      - name: Prepare deployment files
+        run: |
+          set -e
+          echo "==> Listing downloaded artifacts structure:"
+          find artifacts -type f -ls
+          
+          echo "==> Preparing deployment files..."
+          # GitHub Actions preserves directory structure in artifacts
+          # File structure: artifacts/target/release/orion
+          #                 artifacts/orion/runner-config/.env.prod
+          #                 artifacts/orion/runner-config/scorpio.toml
+          #                 artifacts/orion/runner-config/run.sh
+          
+          # Move files to artifacts root for deployment
+          mv artifacts/target/release/orion artifacts/
+          mv artifacts/orion/runner-config/.env.prod artifacts/.env
+          mv artifacts/orion/runner-config/scorpio.toml artifacts/
+          mv artifacts/orion/runner-config/run.sh artifacts/
+          
+          # Clean up empty directories
+          rm -rf artifacts/target artifacts/orion
+          
+          # Set executable permissions
+          chmod +x artifacts/orion
+          chmod +x artifacts/run.sh
+          
+          echo "==> Final artifact structure:"
+          ls -la artifacts/
 
       # NOTE:
       # The legacy orion_vm was provisioned with root-only SSH access.
@@ -81,42 +110,92 @@ jobs:
       # The new GCP VM correctly uses a non-root `orion` user.
       # Future infrastructure revisions should migrate orion_vm
       # to a least-privilege deployment user.
-      - name: Upload binaries via rsync to orion_vm
+      - name: Upload binaries and configs via rsync to orion_vm
         uses: burnett01/rsync-deployments@8.0.4
         with:
           switches: -avz --progress
-          path: artifacts/orion artifacts/scorpio
+          path: artifacts/
           remote_path: /root/orion-runner/
           remote_host: ${{ secrets.ORION_DEPLOY_HOST }}
           remote_user: root
           remote_key: ${{ secrets.ORION_DEPLOY_SSH_KEY }}
-      - name: Restart service  to orion_vm
+      - name: Stop service on orion_vm (before deployment)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.ORION_DEPLOY_HOST }}
           username: root
           key: ${{ secrets.ORION_DEPLOY_SSH_KEY }}
           script: |
-            systemctl daemon-reload
-            systemctl restart orion-runner.service
-            systemctl status orion-runner.service --no-pager
-
-      - name: Upload binaries via rsync to gcp_vm
+            # Stop service to allow binary replacement
+            systemctl stop orion-runner.service || echo "Service not running"
+      
+      - name: Upload binaries and configs via rsync to orion_vm
         uses: burnett01/rsync-deployments@8.0.4
         with:
           switches: -avz --progress
-          path: artifacts/orion artifacts/scorpio
-          remote_path: /home/orion/orion-runner/
-          remote_host: ${{ secrets.ORION_GCP_VM_HOST }}
-          remote_user: orion
-          remote_key: ${{ secrets.ORION_GCP_VM_SSH_KEY }}
-      - name: Restart service to gcp_vm
+          path: artifacts/
+          remote_path: /root/orion-runner/
+          remote_host: ${{ secrets.ORION_DEPLOY_HOST }}
+          remote_user: root
+          remote_key: ${{ secrets.ORION_DEPLOY_SSH_KEY }}
+      
+      - name: Start service on orion_vm
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.ORION_DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.ORION_DEPLOY_SSH_KEY }}
+          script: |
+            # Create runtime directories
+            mkdir -p /data/scorpio/{store,antares/{upper,cl,mnt}}
+            mkdir -p /workspace/mount
+            
+            # Set permissions
+            chmod +x /root/orion-runner/orion
+            chmod +x /root/orion-runner/run.sh
+            
+            # Start service
+            systemctl daemon-reload
+            systemctl start orion-runner.service
+            systemctl status orion-runner.service --no-pager
+
+      - name: Stop service on gcp_vm (before deployment)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.ORION_GCP_VM_HOST }}
           username: orion
           key: ${{ secrets.ORION_GCP_VM_SSH_KEY }}
           script: |
+            # Stop service to allow binary replacement
+            sudo systemctl stop orion-runner.service || echo "Service not running"
+      
+      - name: Upload binaries and configs via rsync to gcp_vm
+        uses: burnett01/rsync-deployments@8.0.4
+        with:
+          switches: -avz --progress
+          path: artifacts/
+          remote_path: /home/orion/orion-runner/
+          remote_host: ${{ secrets.ORION_GCP_VM_HOST }}
+          remote_user: orion
+          remote_key: ${{ secrets.ORION_GCP_VM_SSH_KEY }}
+      
+      - name: Start service on gcp_vm
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.ORION_GCP_VM_HOST }}
+          username: orion
+          key: ${{ secrets.ORION_GCP_VM_SSH_KEY }}
+          script: |
+            # Create runtime directories
+            sudo mkdir -p /data/scorpio/{store,antares/{upper,cl,mnt}}
+            sudo mkdir -p /workspace/mount
+            sudo chown -R orion:orion /data/scorpio /workspace/mount
+            
+            # Set permissions
+            chmod +x /home/orion/orion-runner/orion
+            chmod +x /home/orion/orion-runner/run.sh
+            
+            # Start service
             sudo systemctl daemon-reload
-            sudo systemctl restart orion-runner.service
+            sudo systemctl start orion-runner.service
             sudo systemctl status orion-runner.service --no-pager

@@ -14,7 +14,6 @@ use api_model::buck2::{
 };
 use common::config::BuildConfig;
 use once_cell::sync::Lazy;
-use serde_json::{Value, json};
 use td_util::{command::spawn, file_io::file_writer};
 use td_util_buck::{
     cells::CellInfo,
@@ -22,254 +21,45 @@ use td_util_buck::{
     targets::Targets,
     types::TargetLabel,
 };
-use tokio::{io::AsyncBufReadExt, process::Command, sync::mpsc::UnboundedSender, time::Duration};
+use tokio::{io::AsyncBufReadExt, process::Command, sync::mpsc::UnboundedSender};
 
 // Import complete Error trait for better error handling
 use crate::repo::changes::Changes;
 use crate::repo::diff;
 
-fn scorpio_base_url() -> String {
-    crate::scorpio_api::base_url()
-}
-
 #[allow(dead_code)]
 static PROJECT_ROOT: Lazy<String> =
     Lazy::new(|| std::env::var("BUCK_PROJECT_ROOT").expect("BUCK_PROJECT_ROOT must be set"));
 
-const MOUNT_TIMEOUT_SECS: u64 = 7200;
 const DEFAULT_PREHEAT_SHALLOW_DEPTH: usize = 3;
 static BUILD_CONFIG: Lazy<Option<BuildConfig>> = Lazy::new(load_build_config);
 
-/// Mounts filesystem via remote API for repository access.
+/// Mount an Antares overlay filesystem for a build job.
 ///
-/// Initiates mount request and polls for completion with exponential backoff.
-/// Required for accessing repository files during build process.
-///
-/// # Arguments
-/// * `repo` - Repository path to mount
-/// * `cl` - Change List identifier
-///
-/// # Returns
-/// * `Ok(true)` - Mount operation completed successfully
-/// * `Err(_)` - Mount request failed or timed out
-#[allow(dead_code)]
-#[deprecated(note = "This function is deprecated; use `mount_antares_fs` instead")]
-pub async fn mount_fs(
-    repo: &str,
-    cl: Option<&str>,
-    sender: Option<UnboundedSender<WSMessage>>,
-    build_id: Option<String>,
-) -> Result<bool, Box<dyn Error + Send + Sync>> {
-    // Mount operations may trigger remote repo fetching, dependency downloads,
-    // or other network-heavy steps. To avoid premature timeouts when the network
-    // is slow, we use a generous 2-hour timeout here. This can be tuned later.
-    if let (Some(sender), Some(build_id)) = (&sender, &build_id)
-        && let Err(err) = sender.send(WSMessage::TaskPhaseUpdate {
-            build_id: build_id.clone(),
-            phase: TaskPhase::DownloadingSource,
-        })
-    {
-        tracing::error!("failed to send TaskPhaseUpdate (DownloadingSource): {err}");
-    }
-
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(MOUNT_TIMEOUT_SECS))
-        .build()?;
-
-    let mount_payload = if let Some(cl_id) = cl {
-        json!({ "path": repo, "cl": cl_id })
-    } else {
-        json!({ "path": repo })
-    };
-    let mount_res = client
-        .post(format!("{}/api/fs/mount", scorpio_base_url()))
-        .header("Content-Type", "application/json")
-        .body(mount_payload.to_string())
-        .send()
-        .await?;
-
-    let mut mount_body: Value = mount_res.json().await?;
-
-    if mount_body.get("status").and_then(|v| v.as_str()) != Some("Success") {
-        let err_msg = mount_body
-            .get("message")
-            .and_then(|v| v.as_str())
-            .unwrap_or("Mount request failed");
-        if err_msg == "please unmount" {
-            // Unmount first
-            #[allow(deprecated)]
-            unmount_fs(repo, cl).await?;
-
-            // Then retry the mount operation once
-            let retry_mount_res = client
-                .post(format!("{}/api/fs/mount", scorpio_base_url()))
-                .header("Content-Type", "application/json")
-                .body(mount_payload.to_string())
-                .send()
-                .await?;
-
-            let retry_mount_body: Value = retry_mount_res.json().await?;
-
-            // Check if retry was successful
-            if retry_mount_body.get("status").and_then(|v| v.as_str()) != Some("Success") {
-                let retry_err_msg = retry_mount_body
-                    .get("message")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("Mount request failed after unmount");
-                return Err(retry_err_msg.into());
-            }
-
-            // If retry was successful, continue with the new response
-            mount_body = retry_mount_body;
-        } else {
-            return Err(err_msg.into());
-        }
-    }
-
-    let request_id = mount_body
-        .get("request_id")
-        .and_then(|v| v.as_str())
-        .ok_or("Missing request_id in mount response")?
-        .to_string();
-
-    tracing::debug!("Mount request initiated with request_id: {}", request_id);
-
-    // Check task status
-    let select_url = format!("{}/api/fs/select/{request_id}", scorpio_base_url());
-    let select_res = client.get(&select_url).send().await?;
-    let select_body: Value = select_res.json().await?;
-
-    tracing::debug!("Polling mount status : {:?}", select_body);
-
-    if select_body.get("status").and_then(|v| v.as_str()) != Some("Success") {
-        let err_msg = select_body
-            .get("message")
-            .and_then(|v| v.as_str())
-            .unwrap_or("Select request failed");
-        return Err(err_msg.into());
-    }
-
-    match select_body.get("task_status").and_then(|v| v.as_str()) {
-        Some("finished") => {
-            tracing::info!(
-                "Mount task completed successfully for request_id: {}",
-                request_id
-            );
-            Ok(true)
-        }
-        Some("error") => {
-            let message = select_body
-                .get("message")
-                .and_then(|v| v.as_str())
-                .unwrap_or("Unknown error");
-            Err(format!("Mount task failed: {message}").into())
-        }
-        #[allow(deprecated)]
-        _ => unmount_fs(repo, cl).await,
-    }
-}
-
-/// Mount an Antares File System (FS) repository.
+/// Creates a new Antares overlay mount using scorpiofs. The underlying Dicfuse
+/// layer provides read-only access to the repository, while the overlay allows
+/// copy-on-write modifications during the build.
 ///
 /// # Arguments
-/// - `repo`: The repository path to mount, e.g., `"my_repo"`.
-/// - `cl`: Optional changelist ID. If provided, mounts the specified CL; otherwise, mounts the latest version.
+/// * `job_id` - Unique identifier for this build job
+/// * `cl` - Optional changelist layer name
 ///
 /// # Returns
-/// Returns a tuple `(mountpoint, mount_id)`:
-/// - `mountpoint`: The path where the FS is mounted.
-/// - `mount_id`: The unique ID of the mount operation.
-///
-/// # Errors
-/// This function may return errors in the following cases:
-/// - `reqwest::Error`: HTTP request failed or timed out.
-/// - `serde_json::Error`: Failed to parse the response JSON.
-/// - `Box<dyn Error + Send + Sync>`: Missing `mountpoint` or `mount_id` in the response.
-///
-/// # Example
-/// ```no_run
-/// use tokio;
-/// use your_crate::mount_antares_fs;
-///
-/// #[tokio::main]
-/// async fn main() -> Result<(), Box<dyn std::error::Error>> {
-///     let (mountpoint, mount_id) = mount_antares_fs("my_repo", Some("12345")).await?;
-///     println!("Mounted at {} with id {}", mountpoint, mount_id);
-///     Ok(())
-/// }
-/// ```
-///
-/// # Logging
-/// - `debug`: Before sending request and payload details.
-/// - `info`: Successfully mounted repository.
-/// - `error`: HTTP request failure or missing fields in response.
+/// Returns a tuple `(mountpoint, mount_id)` on success.
 pub async fn mount_antares_fs(
     job_id: &str,
-    repo: &str,
     cl: Option<&str>,
 ) -> Result<(String, String), Box<dyn std::error::Error + Send + Sync>> {
     tracing::debug!(
-        "Preparing to mount Antares FS for repo: {}, cl: {:?}",
-        repo,
+        "Preparing to mount Antares FS: job_id={}, cl={:?}",
+        job_id,
         cl
     );
 
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(MOUNT_TIMEOUT_SECS))
-        .build()
-        .map_err(|e| {
-            tracing::error!("Failed to build HTTP client: {:?}", e);
-            e
-        })?;
+    let config = crate::antares::mount_job(job_id, cl).await?;
 
-    let mount_payload = if let Some(cl_id) = cl {
-        json!({ "path": repo, "cl": cl_id, "job_id": job_id })
-    } else {
-        json!({ "path": repo ,"job_id": job_id })
-    };
-
-    tracing::debug!("Sending mount request with payload: {}", mount_payload);
-
-    let base = scorpio_base_url();
-    let mount_res = client
-        .post(format!("{base}/antares/mounts"))
-        .header("Content-Type", "application/json")
-        .body(mount_payload.to_string())
-        .send()
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to send mount request: {:?}", e);
-            e
-        })?;
-
-    let mount_body: Value = mount_res.json().await.map_err(|e| {
-        tracing::error!("Failed to parse mount response JSON: {:?}", e);
-        e
-    })?;
-
-    let mountpoint = mount_body
-        .get("mountpoint")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| {
-            tracing::error!(
-                "Missing 'mountpoint' in Antares mount response: {:?}",
-                mount_body
-            );
-            "Missing mountpoint in Antares mount response"
-        })?
-        .to_string();
-
-    let mount_id = mount_body
-        .get("mount_id")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| {
-            tracing::error!(
-                "Missing 'mount_id' in Antares mount response: {:?}",
-                mount_body
-            );
-            "Missing mount_id in Antares mount response"
-        })?
-        .to_string();
+    let mountpoint = config.mountpoint.to_string_lossy().to_string();
+    let mount_id = config.job_id.clone();
 
     tracing::info!(
         "Antares mount created successfully: mountpoint={}, mount_id={}",
@@ -280,222 +70,20 @@ pub async fn mount_antares_fs(
     Ok((mountpoint, mount_id))
 }
 
-/// Default timeout for waiting for a mount to become ready (deep preload complete).
-const MOUNT_READY_TIMEOUT_SECS: u64 = 600; // 10 minutes
-/// Polling interval for the mount ready check.
-const MOUNT_READY_POLL_INTERVAL_MS: u64 = 500;
-
-/// Wait for a newly created Antares mount to finish its background deep preload.
-///
-/// After `mount_antares_fs` returns, the scorpio daemon spawns a background task
-/// to walk the mounted directory tree and warm the kernel FUSE entry/attr caches.
-/// This function polls the `/mounts/{mount_id}/ready` endpoint until the mount
-/// transitions to `Ready` state, ensuring that heavy I/O workloads (e.g. buck2
-/// builds) don't hit cold FUSE caches and trigger per-directory network fetches
-/// (the "statx storm" problem).
+/// Unmount an Antares overlay filesystem.
 ///
 /// # Arguments
-/// * `mount_id` - The mount ID returned by `mount_antares_fs`.
+/// * `mount_id` - The job/mount ID to unmount
 ///
 /// # Returns
-/// * `Ok(())` - The mount is ready for heavy I/O.
-/// * `Err(...)` - Timed out or failed to contact the scorpio daemon.
-pub async fn wait_for_mount_ready(
-    mount_id: &str,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(30))
-        .build()?;
-
-    let url = format!("{}/antares/mounts/{}/ready", scorpio_base_url(), mount_id);
-    let deadline = tokio::time::Instant::now() + Duration::from_secs(MOUNT_READY_TIMEOUT_SECS);
-
-    tracing::info!(
-        mount_id = mount_id,
-        timeout_secs = MOUNT_READY_TIMEOUT_SECS,
-        "Waiting for mount to become ready (deep preload)"
-    );
-
-    loop {
-        if tokio::time::Instant::now() >= deadline {
-            tracing::warn!(
-                mount_id = mount_id,
-                "Mount ready wait timed out after {}s, proceeding anyway",
-                MOUNT_READY_TIMEOUT_SECS
-            );
-            return Ok(()); // Don't fail the build; proceed with best-effort caching
-        }
-
-        match client.get(&url).send().await {
-            Ok(resp) if resp.status().is_success() => {
-                if let Ok(body) = resp.json::<serde_json::Value>().await {
-                    if body.get("ready").and_then(|v| v.as_bool()).unwrap_or(false) {
-                        tracing::info!(
-                            mount_id = mount_id,
-                            "Mount is ready (deep preload complete)"
-                        );
-                        return Ok(());
-                    }
-                    let state = body
-                        .get("state")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("unknown");
-                    tracing::debug!(
-                        mount_id = mount_id,
-                        state = state,
-                        "Mount not yet ready, polling..."
-                    );
-                }
-            }
-            Ok(resp) => {
-                tracing::debug!(
-                    mount_id = mount_id,
-                    status = %resp.status(),
-                    "Unexpected response from mount ready check"
-                );
-            }
-            Err(e) => {
-                tracing::debug!(
-                    mount_id = mount_id,
-                    error = %e,
-                    "Failed to check mount readiness, will retry"
-                );
-            }
-        }
-
-        tokio::time::sleep(Duration::from_millis(MOUNT_READY_POLL_INTERVAL_MS)).await;
-    }
-}
-
-/// Asynchronously unmounts an Antares filesystem mount point.
-///
-/// This function sends an HTTP DELETE request to the local Antares service
-/// to unmount the specified mount point.
-///
-/// # Arguments
-/// - `mount_id`: The ID of the mount point to unmount. Usually assigned by the Antares service.
-///
-/// # Returns
-/// - `Ok(true)`: Unmount succeeded and the state is `"Unmounted"`.
-/// - `Err`: Unmount failed, which could be due to network errors, HTTP request failure,
-///   or the mount state not being `"Unmounted"`.
-///
-/// # Error
-/// - `Box<dyn Error + Send + Sync>`: Encapsulates various possible errors such as
-///   request build failure, timeout, or JSON parsing failure.
-///
-/// # Example
-/// ```no_run
-/// use tracing_subscriber;
-///
-/// #[tokio::main]
-/// async fn main() {
-///     tracing_subscriber::fmt::init();
-///     
-///     match unmount_antares_fs("mount-1234").await {
-///         Ok(true) => println!("Unmount succeeded"),
-///         Err(e) => eprintln!("Unmount failed: {}", e),
-///     }
-/// }
-/// ```
+/// * `Ok(true)` - Unmount succeeded
+/// * `Err` - Unmount failed
 pub async fn unmount_antares_fs(mount_id: &str) -> Result<bool, Box<dyn Error + Send + Sync>> {
     tracing::info!("Starting unmount for mount_id: {}", mount_id);
 
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(MOUNT_TIMEOUT_SECS))
-        .build()?;
+    crate::antares::unmount_job(mount_id).await?;
 
-    let url = format!("{}/antares/mounts/{}", scorpio_base_url(), mount_id);
-    tracing::debug!("Constructed DELETE URL: {}", url);
-
-    let unmount_res = match client
-        .delete(&url)
-        .header("Content-Type", "application/json")
-        .send()
-        .await
-    {
-        Ok(res) => {
-            tracing::info!(
-                "HTTP DELETE request sent successfully for mount_id: {}",
-                mount_id
-            );
-            res
-        }
-        Err(err) => {
-            tracing::error!(
-                "Failed to send HTTP DELETE request for mount_id {}: {}",
-                mount_id,
-                err
-            );
-            return Err(err.into());
-        }
-    };
-
-    let unmount_body: Value = match unmount_res.json().await {
-        Ok(json) => {
-            tracing::debug!("Received response JSON: {}", json);
-            json
-        }
-        Err(err) => {
-            tracing::error!(
-                "Failed to parse JSON response for mount_id {}: {}",
-                mount_id,
-                err
-            );
-            return Err(err.into());
-        }
-    };
-
-    let unmount_state = unmount_body
-        .get("state")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| {
-            let msg = "Missing 'state' in Antares mount response";
-            tracing::error!("{}", msg);
-            msg
-        })?
-        .to_string();
-
-    if unmount_state == "Unmounted" {
-        tracing::info!("Unmount succeeded for mount_id: {}", mount_id);
-        Ok(true)
-    } else {
-        let err_msg = format!("Unmount failed, state: {}", unmount_state);
-        tracing::error!("{}", err_msg);
-        Err(err_msg.into())
-    }
-}
-
-#[deprecated(note = "This function is deprecated; use `unmount_antares_fs` instead")]
-async fn unmount_fs(repo: &str, cl: Option<&str>) -> Result<bool, Box<dyn Error + Send + Sync>> {
-    let client = reqwest::Client::new();
-    let unmount_payload = if let Some(cl_id) = cl {
-        serde_json::json!({
-            "path": format!("{}_{}", repo.trim_start_matches('/'), cl_id)
-        })
-    } else {
-        serde_json::json!({
-            "path": format!("{}", repo.trim_start_matches('/'))
-        })
-    };
-
-    let unmount_res = client
-        .post(format!("{}/api/fs/unmount", scorpio_base_url()))
-        .header("Content-Type", "application/json")
-        .body(unmount_payload.to_string())
-        .send()
-        .await?;
-
-    let unmount_body: serde_json::Value = unmount_res.json().await?;
-
-    if unmount_body.get("status").and_then(|v| v.as_str()) != Some("Success") {
-        let err_msg = unmount_body
-            .get("message")
-            .and_then(|v| v.as_str())
-            .unwrap_or("Unmount request failed");
-        return Err(err_msg.into());
-    }
-
+    tracing::info!("Unmount succeeded for mount_id: {}", mount_id);
     Ok(true)
 }
 
@@ -860,9 +448,6 @@ pub async fn build(
     let cl_trimmed = cl.trim();
     let cl_arg = (!cl_trimmed.is_empty()).then_some(cl_trimmed);
 
-    // Mount the entire monorepo root so all cells/toolchains are available,
-    // but run buck2 from the specific sub-project directory.
-    let mount_path = "/".to_string();
     // `repo_prefix` is the relative path from monorepo root to the buck2 project.
     // e.g., repo="/project/git-internal/git-internal" → repo_prefix="project/git-internal/git-internal"
     let repo_prefix = repo.strip_prefix('/').unwrap_or(&repo);
@@ -891,12 +476,11 @@ pub async fn build(
         // between the two mounts.  See `buck2_isolation_dir()` for details.
         let id_for_old_repo = format!("{id}-old-{attempt}");
         let (old_repo_mount_point, mount_id_old_repo) =
-            mount_antares_fs(&id_for_old_repo, &mount_path, None).await?;
+            mount_antares_fs(&id_for_old_repo, None).await?;
         let guard_old_repo = MountGuard::new(mount_id_old_repo.clone(), id_for_old_repo);
 
         let id_for_repo = format!("{id}-{attempt}");
-        let (repo_mount_point, mount_id) =
-            mount_antares_fs(&id_for_repo, &mount_path, cl_arg).await?;
+        let (repo_mount_point, mount_id) = mount_antares_fs(&id_for_repo, cl_arg).await?;
         let guard = MountGuard::new(mount_id.clone(), id_for_repo);
 
         tracing::info!(
@@ -905,23 +489,6 @@ pub async fn build(
             attempt,
             MAX_TARGETS_ATTEMPTS
         );
-
-        // Wait for Dicfuse background deep preload to finish so that
-        // buck2's statx storm hits warm kernel FUSE caches.
-        if let Err(e) = wait_for_mount_ready(&mount_id).await {
-            tracing::warn!(
-                "[Task {}] wait_for_mount_ready failed: {}, proceeding anyway",
-                id,
-                e
-            );
-        }
-        if let Err(e) = wait_for_mount_ready(&mount_id_old_repo).await {
-            tracing::warn!(
-                "[Task {}] wait_for_mount_ready (old repo) failed: {}, proceeding anyway",
-                id,
-                e
-            );
-        }
 
         // Resolve the sub-project paths within each mount for buck2.
         let old_project_root = PathBuf::from(&old_repo_mount_point).join(repo_prefix);
@@ -1080,162 +647,7 @@ pub async fn build(
 
 #[cfg(test)]
 mod tests {
-    use std::net::TcpListener;
-
-    use serde_json::json;
-    use serial_test::serial;
-    use wiremock::{
-        Mock, MockServer, ResponseTemplate,
-        matchers::{method, path},
-    };
-
     use super::*;
-
-    #[tokio::test]
-    #[serial]
-    async fn test_mount_antares_fs_success() {
-        let listener = TcpListener::bind("127.0.0.1:2725").unwrap();
-        let mock_server = MockServer::builder().listener(listener).start().await;
-
-        Mock::given(method("POST"))
-            .and(path("/antares/mounts"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-                "mountpoint": "/mock/mountpoint",
-                "mount_id": "mock_mount_id"
-            })))
-            .mount(&mock_server)
-            .await;
-
-        let result = mount_antares_fs("job1", &mock_server.uri(), None)
-            .await
-            .unwrap();
-        assert_eq!(result.0, "/mock/mountpoint");
-        assert_eq!(result.1, "mock_mount_id");
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_mount_antares_fs_missing_mountpoint() {
-        let listener = TcpListener::bind("127.0.0.1:2725").unwrap();
-        let mock_server = MockServer::builder().listener(listener).start().await;
-
-        Mock::given(method("POST"))
-            .and(path("/antares/mounts"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-                "mount_id": "mock_mount_id"
-            })))
-            .mount(&mock_server)
-            .await;
-
-        let result = mount_antares_fs("job1", &mock_server.uri(), None).await;
-        assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err().to_string(),
-            "Missing mountpoint in Antares mount response"
-        );
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_mount_antares_fs_missing_mount_id() {
-        let listener = TcpListener::bind("127.0.0.1:2725").unwrap();
-        let mock_server = MockServer::builder().listener(listener).start().await;
-
-        Mock::given(method("POST"))
-            .and(path("/antares/mounts"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-                "mountpoint": "/mock/mountpoint"
-            })))
-            .mount(&mock_server)
-            .await;
-
-        let result = mount_antares_fs("job1", &mock_server.uri(), None).await;
-        assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err().to_string(),
-            "Missing mount_id in Antares mount response"
-        );
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_unmount_antares_fs_success() {
-        let listener = TcpListener::bind("127.0.0.1:2725").unwrap();
-        let mock_server = MockServer::builder().listener(listener).start().await;
-
-        Mock::given(method("DELETE"))
-            .and(path("/antares/mounts/mock_mount_id"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-                "state": "Unmounted"
-            })))
-            .mount(&mock_server)
-            .await;
-
-        let result = unmount_antares_fs("mock_mount_id").await.unwrap();
-        assert!(result);
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_unmount_antares_fs_failure() {
-        let listener = TcpListener::bind("127.0.0.1:2725").unwrap();
-        let mock_server = MockServer::builder().listener(listener).start().await;
-
-        Mock::given(method("DELETE"))
-            .and(path("/antares/mounts/mock_mount_id"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-                "state": "Mounted"
-            })))
-            .mount(&mock_server)
-            .await;
-
-        let result = unmount_antares_fs("mock_mount_id").await;
-        assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err().to_string(),
-            "Unmount failed, state: Mounted"
-        );
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_unmount_antares_fs_missing_state() {
-        let listener = TcpListener::bind("127.0.0.1:2725").unwrap();
-        let mock_server = MockServer::builder().listener(listener).start().await;
-
-        Mock::given(method("DELETE"))
-            .and(path("/antares/mounts/mock_mount_id"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
-            .mount(&mock_server)
-            .await;
-
-        let result = unmount_antares_fs("mock_mount_id").await;
-        assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err().to_string(),
-            "Missing 'state' in Antares mount response"
-        );
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_wait_for_mount_ready_success() {
-        let listener = TcpListener::bind("127.0.0.1:2725").unwrap();
-        let mock_server = MockServer::builder().listener(listener).start().await;
-
-        Mock::given(method("GET"))
-            .and(path("/antares/mounts/mock_mount_id/ready"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-                "mount_id": "mock_mount_id",
-                "state": "Ready",
-                "ready": true
-            })))
-            .mount(&mock_server)
-            .await;
-
-        let result = wait_for_mount_ready("mock_mount_id").await;
-        assert!(result.is_ok());
-    }
 
     #[tokio::test]
     async fn test_mount_guard_creation() {
@@ -1244,17 +656,6 @@ mod tests {
         assert_eq!(mount_guard.task_id, "test_task_id");
     }
 
-    #[tokio::test]
-    async fn test_mount_guard_drop_behavior() {
-        let mount_guard = MountGuard::new("test_mount_id".to_string(), "test_task_id".to_string());
-        assert_eq!(mount_guard.mount_id, "test_mount_id");
-        assert_eq!(mount_guard.task_id, "test_task_id");
-
-        let mount_id = mount_guard.mount_id.clone();
-        tokio::spawn(async move {
-            let _ = unmount_antares_fs(&mount_id).await;
-        })
-        .await
-        .unwrap();
-    }
+    // Note: mount/unmount tests removed - they now use scorpiofs direct calls
+    // which require actual filesystem setup. See integration tests instead.
 }

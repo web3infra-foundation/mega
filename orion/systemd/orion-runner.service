@@ -1,0 +1,30 @@
+[Unit]
+Description=Mega Orion runner (Buck2 worker)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=orion
+Group=orion
+WorkingDirectory=/home/orion/orion-runner
+
+# Optional runtime config. Create this file on the VM to set SERVER_WS,
+# BUCK_PROJECT_ROOT, ORION_WORKER_ID, etc.
+EnvironmentFile=-/etc/orion/orion-runner.env
+
+# Scorpiofs config path (stable default expected by orion/src/antares.rs)
+Environment=SCORPIO_CONFIG=/etc/scorpio/scorpio.toml
+ExecStartPre=/usr/bin/test -f /etc/scorpio/scorpio.toml
+
+ExecStart=/home/orion/orion-runner/orion
+Restart=always
+RestartSec=2
+
+# Basic hardening (keep minimal to avoid breaking buck2/scorpiofs IO)
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

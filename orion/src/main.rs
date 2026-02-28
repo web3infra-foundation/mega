@@ -1,8 +1,8 @@
 // Orion worker client modules
+mod antares;
 mod api;
 mod buck_controller;
 pub mod repo;
-mod scorpio_api;
 mod util;
 mod ws;
 

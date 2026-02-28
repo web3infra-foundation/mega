@@ -1,5 +1,10 @@
 # Preliminary proposal
 
+> **⚠️ IMPORTANT: Scorpio has been moved to a separate repository**
+>
+> This documentation is kept for historical reference. For the latest Scorpio/ScorpioFS development, please visit:
+> **https://github.com/web3infra-foundation/scorpiofs**
+
 The following figure shows the preliminary design proposal of Scorpio. The `Repo Manager` is responsible for recording the mount point. 
 
 Each Part Checkout corresponds to a `Checkout-Mounter`. It includes a Readonly Store and a `Mutable Overlay` and a `Readonly Store`.

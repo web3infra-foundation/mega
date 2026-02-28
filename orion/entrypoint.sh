@@ -4,10 +4,12 @@
 # =============================================================================
 # This script handles container startup for different services:
 # - orion: Start the Orion worker (build execution client)
-# - scorpio: Start the Scorpio FUSE filesystem service (daemon)
 # - buck2: Run Buck2 commands
 # - bash/sh: Interactive shell
 # - help: Show usage information
+#
+# Note: Scorpio (FUSE filesystem) has been moved to:
+# https://github.com/web3infra-foundation/scorpiofs
 # =============================================================================
 
 set -e
@@ -16,8 +18,6 @@ set -e
 # Configuration
 # -----------------------------------------------------------------------------
 CONFIG_DIR="/app/config"
-SCORPIO_CONFIG="/app/config/scorpio.toml"
-SCORPIO_TEMPLATE="/app/config/scorpio.toml.template"
 
 # Colors for output
 RED='\033[0;31m'
@@ -58,105 +58,39 @@ Usage: docker run [OPTIONS] mega-dev:<tag> <COMMAND> [ARGS...]
 Commands:
   orion           Start the Orion worker (build execution client)
   orion-worker    Alias for `orion`
-  scorpio         Start the Scorpio FUSE filesystem service
   buck2 [ARGS]    Run Buck2 with specified arguments
   bash, sh        Start an interactive shell
   help            Show this help message
 
 Examples:
-  # Start Scorpio (requires privileged mode for FUSE)
-  docker run -d --name scorpio \
-    --privileged \
-    -e SCORPIO_BASE_URL=http://mega-server:8000 \
-    -p 2725:2725 \
-    mega-dev:latest scorpio
-
-  # Mount repo and run Buck2 (mountpoints are visible only inside the Scorpio container)
-  #   MOUNTPOINT=$(curl -s -X POST http://localhost:2725/antares/mounts \
-  #     -H "Content-Type: application/json" \
-  #     -d '{"path":"your/real/repo/path","job_id":"manual"}' | jq -r '.mountpoint')
-  #   docker exec scorpio bash -lc "cd '${MOUNTPOINT}' && buck2 build //..."
-
-  # Start Orion Worker (includes Buck2 execution; typically needs Scorpio + FUSE)
+  # Start Orion Worker (build execution client)
   docker run -d --name orion-worker \
-    --privileged \
     -e SERVER_WS=ws://your-orion-server:8004/ws \
-    -e SCORPIO_BASE_URL=http://mega-server:8000 \
     mega-dev:latest orion
 
   # Run Buck2 build
   docker run --rm -v $(pwd):/workspace mega-dev:latest buck2 build //...
 
-Environment Variables:
-  See .env.example for full list of configurable options.
+  # Interactive shell
+  docker run --rm -it mega-dev:latest bash
 
-For more information, see the README(orion-client-image).md in orion/
+Environment Variables:
+  SERVER_WS             - WebSocket URL for Orion server
+  BUCK_PROJECT_ROOT     - Buck2 project root (default: /workspace)
+  BUILD_TMP             - Temporary build directory
+  RUST_LOG              - Logging level (default: info)
+  MEGA_BASE_URL         - Mega server base URL (default: http://localhost:8000)
+  MEGA_LFS_URL          - Mega LFS URL (default: same as MEGA_BASE_URL)
+  SCORPIO_CONFIG        - Custom scorpio.toml path (optional, auto-generated if not set)
+
+Note: Scorpio (FUSE filesystem) has been moved to a separate repository:
+      https://github.com/web3infra-foundation/scorpiofs
+
+For more information, see the documentation in orion/
 EOF
 }
 
-# Generate Scorpio config from template
-generate_scorpio_config() {
-    log_info "Generating Scorpio configuration..."
 
-    if [ -f "$SCORPIO_TEMPLATE" ]; then
-        # Defaults (must be set before envsubst; it does not support "${VAR:-default}" syntax)
-        : "${SCORPIO_BASE_URL:=http://host.docker.internal:8000}"
-        : "${SCORPIO_LFS_URL:=${SCORPIO_BASE_URL}}"
-        : "${SCORPIO_STORE_PATH:=/data/scorpio/store}"
-        : "${SCORPIO_WORKSPACE:=/workspace/mount}"
-        : "${SCORPIO_GIT_AUTHOR:=MEGA}"
-        : "${SCORPIO_GIT_EMAIL:=admin@mega.org}"
-        : "${SCORPIO_DICFUSE_READABLE:=true}"
-        : "${SCORPIO_LOAD_DIR_DEPTH:=3}"
-        : "${SCORPIO_FETCH_FILE_THREAD:=10}"
-        : "${SCORPIO_DICFUSE_IMPORT_CONCURRENCY:=4}"
-        : "${SCORPIO_DICFUSE_DIR_SYNC_TTL_SECS:=5}"
-        : "${SCORPIO_DICFUSE_STAT_MODE:=accurate}"
-        : "${SCORPIO_DICFUSE_OPEN_BUFF_MAX_BYTES:=268435456}"
-        : "${SCORPIO_DICFUSE_OPEN_BUFF_MAX_FILES:=4096}"
-
-        : "${ANTARES_LOAD_DIR_DEPTH:=0}"
-        : "${ANTARES_DICFUSE_STAT_MODE:=fast}"
-        : "${ANTARES_DICFUSE_OPEN_BUFF_MAX_BYTES:=67108864}"
-        : "${ANTARES_DICFUSE_OPEN_BUFF_MAX_FILES:=1024}"
-        : "${ANTARES_DICFUSE_DIR_SYNC_TTL_SECS:=5}"
-        : "${ANTARES_UPPER_ROOT:=/data/scorpio/antares/upper}"
-        : "${ANTARES_CL_ROOT:=/data/scorpio/antares/cl}"
-        : "${ANTARES_MOUNT_ROOT:=/data/scorpio/antares/mnt}"
-        : "${ANTARES_STATE_FILE:=/data/scorpio/antares/state.toml}"
-
-        export \
-            SCORPIO_BASE_URL \
-            SCORPIO_LFS_URL \
-            SCORPIO_STORE_PATH \
-            SCORPIO_WORKSPACE \
-            SCORPIO_GIT_AUTHOR \
-            SCORPIO_GIT_EMAIL \
-            SCORPIO_DICFUSE_READABLE \
-            SCORPIO_LOAD_DIR_DEPTH \
-            SCORPIO_FETCH_FILE_THREAD \
-            SCORPIO_DICFUSE_IMPORT_CONCURRENCY \
-            SCORPIO_DICFUSE_DIR_SYNC_TTL_SECS \
-            SCORPIO_DICFUSE_STAT_MODE \
-            SCORPIO_DICFUSE_OPEN_BUFF_MAX_BYTES \
-            SCORPIO_DICFUSE_OPEN_BUFF_MAX_FILES \
-            ANTARES_LOAD_DIR_DEPTH \
-            ANTARES_DICFUSE_STAT_MODE \
-            ANTARES_DICFUSE_OPEN_BUFF_MAX_BYTES \
-            ANTARES_DICFUSE_OPEN_BUFF_MAX_FILES \
-            ANTARES_DICFUSE_DIR_SYNC_TTL_SECS \
-            ANTARES_UPPER_ROOT \
-            ANTARES_CL_ROOT \
-            ANTARES_MOUNT_ROOT \
-            ANTARES_STATE_FILE
-
-        # Use envsubst to replace environment variables in template
-        envsubst < "$SCORPIO_TEMPLATE" > "$SCORPIO_CONFIG"
-        log_info "Scorpio config generated at: $SCORPIO_CONFIG"
-    else
-        log_warn "Scorpio template not found at $SCORPIO_TEMPLATE"
-    fi
-}
 
 # Wait for a TCP service to be available
 wait_for_service() {
@@ -180,27 +114,33 @@ wait_for_service() {
     return 0
 }
 
-# Create required directories
 setup_directories() {
     log_info "Setting up directories..."
-
-    mkdir -p "${SCORPIO_STORE_PATH:-/data/scorpio/store}"
-    mkdir -p "${SCORPIO_WORKSPACE:-/workspace/mount}"
-    mkdir -p "${ANTARES_UPPER_ROOT:-/data/scorpio/antares/upper}"
-    mkdir -p "${ANTARES_CL_ROOT:-/data/scorpio/antares/cl}"
-    mkdir -p "${ANTARES_MOUNT_ROOT:-/data/scorpio/antares/mnt}"
+    mkdir -p /workspace
+    
+    # Setup scorpio directories for Antares overlay filesystem
+    mkdir -p /var/lib/scorpio/{store,antares/{upper,cl,mnt}}
+    mkdir -p /etc/scorpio
 }
 
-# Check FUSE availability for Scorpio
-check_fuse() {
-    if [ ! -e /dev/fuse ]; then
-        log_error "/dev/fuse not found!"
-        log_error "Scorpio requires FUSE support. Please run the container with:"
-        log_error "  --privileged"
-        log_error "  or: --device /dev/fuse --cap-add SYS_ADMIN"
-        exit 1
+# Generate scorpio.toml from template or use user-provided config
+setup_scorpio_config() {
+    local template="/app/config/scorpio.toml.template"
+    local config="/etc/scorpio/scorpio.toml"
+    
+    # Honour user-provided config first
+    if [ -n "${SCORPIO_CONFIG:-}" ] && [ -f "${SCORPIO_CONFIG}" ]; then
+        log_info "Using provided SCORPIO_CONFIG: ${SCORPIO_CONFIG}"
+    elif [ -f "$template" ]; then
+        log_info "Generating scorpio configuration from template..."
+        # Export variables for envsubst (child process needs exported vars)
+        export MEGA_BASE_URL MEGA_LFS_URL
+        envsubst < "$template" > "$config"
+        export SCORPIO_CONFIG="$config"
+        log_info "Scorpio config written to: $config"
+    else
+        log_warn "No scorpio config template or SCORPIO_CONFIG found"
     fi
-    log_info "FUSE device available"
 }
 
 # Print version information
@@ -213,11 +153,6 @@ print_versions() {
     else
         echo "  Orion Worker: missing"
     fi
-    if command -v scorpio &>/dev/null; then
-        echo "  Scorpio:      installed"
-    else
-        echo "  Scorpio:      missing"
-    fi
     echo "  Buck2:        $(buck2 --version 2>/dev/null || echo 'unknown')"
     echo ""
     echo "Image Labels:"
@@ -225,38 +160,13 @@ print_versions() {
         cat /etc/mega-image-info
     fi
     echo ""
+    echo "Note: Scorpio (FUSE) moved to https://github.com/web3infra-foundation/scorpiofs"
+    echo ""
 }
 
 # -----------------------------------------------------------------------------
 # Service Start Functions
 # -----------------------------------------------------------------------------
-
-start_scorpio() {
-    log_header "Starting Scorpio"
-
-    print_versions
-    check_fuse
-    setup_directories
-    generate_scorpio_config
-
-    log_info "Configuration:"
-    echo "  BASE_URL: ${SCORPIO_BASE_URL:-http://localhost:8000}"
-    echo "  STORE_PATH: ${SCORPIO_STORE_PATH:-/data/scorpio/store}"
-    echo "  WORKSPACE: ${SCORPIO_WORKSPACE:-/workspace/mount}"
-    echo ""
-
-    log_info "Starting scorpio..."
-    local extra_args=()
-    # Optional: bind HTTP server to a custom address/port (supported by newer scorpio binaries).
-    # If user already passed --http-addr in args, do not add a duplicate flag.
-    if [ -n "${SCORPIO_HTTP_ADDR:-}" ]; then
-        case " $* " in
-            *" --http-addr "*|*" --http-addr="*) ;;
-            *) extra_args+=(--http-addr "${SCORPIO_HTTP_ADDR}") ;;
-        esac
-    fi
-    exec scorpio -c "$SCORPIO_CONFIG" "${extra_args[@]}" "$@"
-}
 
 start_orion_worker() {
     log_header "Starting Orion Worker"
@@ -267,64 +177,23 @@ start_orion_worker() {
     : "${SERVER_WS:=ws://127.0.0.1:8004/ws}"
     : "${BUCK_PROJECT_ROOT:=/workspace}"
     : "${BUILD_TMP:=/tmp/orion-builds}"
-    : "${SCORPIO_API_BASE_URL:=http://127.0.0.1:2725}"
-    : "${ORION_WORKER_START_SCORPIO:=true}"
+
+    # Scorpiofs config defaults
+    : "${MEGA_BASE_URL:=http://git.gitmega.com}"
+    : "${MEGA_LFS_URL:=${MEGA_BASE_URL}}"
 
     setup_directories
+    setup_scorpio_config
     mkdir -p "${BUILD_TMP}"
-
-    # Most workflows require Scorpio to run in the same container namespace as the worker,
-    # so the mounted Antares/FUSE mount points are accessible to Buck2.
-    if [ "${ORION_WORKER_START_SCORPIO}" != "false" ] && [ "${ORION_WORKER_START_SCORPIO}" != "0" ]; then
-        log_info "Starting embedded Scorpio for worker..."
-        check_fuse
-        generate_scorpio_config
-
-        local extra_args=()
-        local http_addr="${SCORPIO_HTTP_ADDR:-0.0.0.0:2725}"
-        # NOTE: Simple IPv4-style parsing. For IPv6 bind addresses, set SCORPIO_API_BASE_URL manually.
-        local http_port="${http_addr##*:}"
-        case "$http_port" in
-            ''|*[!0-9]*)
-                http_port="2725"
-                ;;
-        esac
-
-        # Ensure the worker talks to the embedded Scorpio by default (respecting http port override).
-        export SCORPIO_API_BASE_URL="http://127.0.0.1:${http_port}"
-
-        # Optional: pass through --http-addr if provided (and not already present in args).
-        if [ -n "${SCORPIO_HTTP_ADDR:-}" ]; then
-            case " $* " in
-                *" --http-addr "*|*" --http-addr="*) ;;
-                *) extra_args+=(--http-addr "${SCORPIO_HTTP_ADDR}") ;;
-            esac
-        fi
-
-        scorpio -c "$SCORPIO_CONFIG" "${extra_args[@]}" &
-        local scorpio_pid=$!
-
-        cleanup() {
-            if kill -0 "${scorpio_pid}" 2>/dev/null; then
-                log_info "Stopping embedded Scorpio (pid=${scorpio_pid})..."
-                kill "${scorpio_pid}" 2>/dev/null || true
-            fi
-        }
-
-        trap cleanup EXIT INT TERM
-
-        wait_for_service "127.0.0.1" "${http_port}" 60 || exit 1
-    else
-        log_warn "ORION_WORKER_START_SCORPIO disabled; ensure Scorpio mountpoints are accessible to this container."
-    fi
 
     log_info "Configuration:"
     echo "  SERVER_WS: ${SERVER_WS}"
     echo "  ORION_WORKER_ID: ${ORION_WORKER_ID:-(auto)}"
     echo "  BUCK_PROJECT_ROOT: ${BUCK_PROJECT_ROOT}"
     echo "  BUILD_TMP: ${BUILD_TMP}"
-    echo "  SCORPIO_API_BASE_URL: ${SCORPIO_API_BASE_URL}"
-    echo "  SCORPIO_BASE_URL: ${SCORPIO_BASE_URL:-(not set)}"
+    echo "  MEGA_BASE_URL: ${MEGA_BASE_URL}"
+    echo "  MEGA_LFS_URL: ${MEGA_LFS_URL}"
+    echo "  SCORPIO_CONFIG: ${SCORPIO_CONFIG:-not set}"
     echo ""
 
     log_info "Starting orion worker..."
@@ -347,9 +216,6 @@ main() {
     case "$command" in
         orion|orion-worker)
             start_orion_worker "$@"
-            ;;
-        scorpio)
-            start_scorpio "$@"
             ;;
         buck2)
             run_buck2 "$@"
