@@ -191,7 +191,7 @@ async fn call_users_me(vm: &mut qlean::Machine, cookie: &str) -> Result<(u16, Op
     } else {
         format!("_campsite_api_session={}", cookie)
     };
-    
+
     let cmd = if cookie.is_empty() {
         format!(
             "curl -s -w '\\nHTTP_CODE:%{{http_code}}' http://127.0.0.1:{}/v1/users/me",
