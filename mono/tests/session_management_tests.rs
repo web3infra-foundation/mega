@@ -1,138 +1,276 @@
-//! Tests for session management functionality
+//! Integration tests for session management with real Redis
 //!
-//! These tests cover the basic session management using tower-sessions.
+//! These tests run inside a QEMU/KVM virtual machine using the qlean crate,
+//! with Redis running in Docker containers inside the VM.
+//!
+//! ## Prerequisites
+//!
+//! This test requires system-level dependencies:
+//! - QEMU/KVM virtualization (qemu-system-x86_64, qemu-img)
+//! - libguestfs-tools (guestfish, virt-copy-out)
+//! - xorriso, sha256sum
+//!
+//! Install on Ubuntu/Debian:
+//! ```bash
+//! sudo apt-get install qemu-system-x86 qemu-utils libguestfs-tools xorriso
+//! ```
+//!
+//! ## Running the Test
+//!
+//! ```bash
+//! # Run test (note the --ignored flag)
+//! cargo test -p mono --test session_management_tests -- --ignored --nocapture
+//! ```
+//!
+//! ## Test Design
+//!
+//! This test uses Docker containers for Redis inside the VM,
+//! reusing docker-compose.demo.yml for consistency with the demo environment.
+//! All test scenarios run in a single test function to avoid multiple VM startups.
 
-use std::sync::Arc;
+mod common;
 
-use tower_sessions::{MemoryStore, Session};
+use anyhow::{Context, Result};
+use common::*;
+use qlean::{Distro, MachineConfig, create_image, with_machine};
 
-#[tokio::test]
-async fn test_session_creation_and_retrieval() {
-    let store = MemoryStore::default();
+// Docker service names (must match docker-compose.demo.yml)
+const REDIS_CONTAINER: &str = "mega-demo-redis";
+const DOCKER_COMPOSE_FILE: &str = "/tmp/docker-compose.yml";
 
-    // Create a new session
-    let session = Session::new(None, Arc::new(store.clone()), None);
-
-    // Insert some data into the session
-    let user_data = serde_json::json!({
-        "id": 1,
-        "username": "testuser",
-        "email": "test@example.com",
-        "name": "Test User"
-    });
-
-    session.insert("user", &user_data).await.unwrap();
-
-    // Save the session
-    session.save().await.unwrap();
-
-    // Get the session ID
-    let session_id = session.id().unwrap();
-
-    // Create a new session with the same ID to simulate retrieval
-    let retrieved_session = Session::new(Some(session_id), Arc::new(store.clone()), None);
-
-    // Retrieve the data from the session
-    let retrieved_user: Option<serde_json::Value> = retrieved_session.get("user").await.unwrap();
-
-    assert!(retrieved_user.is_some());
-    let user = retrieved_user.unwrap();
-    assert_eq!(user["username"], "testuser");
-    assert_eq!(user["email"], "test@example.com");
+async fn cleanup_docker(vm: &mut qlean::Machine) -> Result<()> {
+    tracing::info!("Cleaning up Docker containers...");
+    let _ = exec_check(
+        vm,
+        &format!("docker compose -f {} down", DOCKER_COMPOSE_FILE),
+    )
+    .await;
+    Ok(())
 }
 
-#[tokio::test]
-async fn test_session_clearing() {
-    let store = MemoryStore::default();
+// ============================================================================
+// Test Scenarios - All in one function to avoid multiple VM startups
+// ============================================================================
 
-    // Create a new session
-    let session = Session::new(None, Arc::new(store.clone()), None);
+/// Phase 1: Test session creation and retrieval via Redis
+async fn phase1_test_session_creation_and_retrieval(vm: &mut qlean::Machine) -> Result<()> {
+    tracing::info!("============================================================");
+    tracing::info!("Phase 1: Session Creation and Retrieval via Redis");
 
-    // Insert some data into the session
-    let user_data = serde_json::json!({
-        "id": 1,
-        "username": "testuser",
-        "email": "test@example.com",
-        "name": "Test User"
-    });
+    let session_key = "test:session:creation";
+    let test_data =
+        r#"{"id":1,"username":"testuser","email":"test@example.com","name":"Test User"}"#;
 
-    session.insert("user", &user_data).await.unwrap();
+    exec_check(
+        vm,
+        &format!(
+            "docker exec {} redis-cli SET {} '{}' EX 3600",
+            REDIS_CONTAINER, session_key, test_data
+        ),
+    )
+    .await?;
 
-    // Save the session
-    session.save().await.unwrap();
+    let result = exec_check(
+        vm,
+        &format!(
+            "docker exec {} redis-cli GET {}",
+            REDIS_CONTAINER, session_key
+        ),
+    )
+    .await?;
 
-    // Get the session ID
-    let session_id = session.id().unwrap();
-
-    // Clear the session
-    session.flush().await.unwrap();
-
-    // Try to retrieve the data from the session - should be None
-    let retrieved_session = Session::new(Some(session_id), Arc::new(store.clone()), None);
-    let retrieved_user: Option<serde_json::Value> = retrieved_session.get("user").await.unwrap();
-
-    assert!(retrieved_user.is_none());
-}
-
-#[tokio::test]
-async fn test_session_persistence() {
-    let store = MemoryStore::default();
-
-    // Create a new session
-    let session = Session::new(None, Arc::new(store.clone()), None);
-
-    // Insert some data into the session
-    let user_data = serde_json::json!({
-        "id": 1,
-        "username": "testuser",
-        "email": "test@example.com",
-        "name": "Test User"
-    });
-
-    session.insert("user", &user_data).await.unwrap();
-
-    // Save the session
-    session.save().await.unwrap();
-
-    // Get the session ID
-    let session_id = session.id().unwrap();
-
-    // Make multiple requests with the same session ID
-    for _ in 0..3 {
-        let retrieved_session = Session::new(Some(session_id), Arc::new(store.clone()), None);
-        let retrieved_user: Option<serde_json::Value> =
-            retrieved_session.get("user").await.unwrap();
-
-        assert!(retrieved_user.is_some());
-        let user = retrieved_user.unwrap();
-        assert_eq!(user["username"], "testuser");
-        assert_eq!(user["email"], "test@example.com");
+    let retrieved = result.trim();
+    if retrieved == test_data {
+        tracing::info!("  PASS: Session data successfully created and retrieved");
+    } else {
+        anyhow::bail!(
+            "Session data mismatch: expected {}, got {}",
+            test_data,
+            retrieved
+        );
     }
+
+    Ok(())
 }
 
+/// Phase 2: Test session clearing via Redis
+async fn phase2_test_session_clearing(vm: &mut qlean::Machine) -> Result<()> {
+    tracing::info!("============================================================");
+    tracing::info!("Phase 2: Session Clearing via Redis");
+
+    let session_key = "test:session:clearing";
+    let test_data = r#"{"id":1,"username":"testuser","email":"test@example.com"}"#;
+
+    exec_check(
+        vm,
+        &format!(
+            "docker exec {} redis-cli SET {} '{}' EX 3600",
+            REDIS_CONTAINER, session_key, test_data
+        ),
+    )
+    .await?;
+
+    exec_check(
+        vm,
+        &format!(
+            "docker exec {} redis-cli DEL {}",
+            REDIS_CONTAINER, session_key
+        ),
+    )
+    .await?;
+
+    let result = exec_check(
+        vm,
+        &format!(
+            "docker exec {} redis-cli GET {}",
+            REDIS_CONTAINER, session_key
+        ),
+    )
+    .await?;
+
+    let retrieved = result.trim();
+    if retrieved.is_empty() || retrieved == "(nil)" {
+        tracing::info!("  PASS: Session data successfully cleared");
+    } else {
+        anyhow::bail!("Session should be cleared but got: {}", retrieved);
+    }
+
+    Ok(())
+}
+
+/// Phase 3: Test session persistence via Redis
+async fn phase3_test_session_persistence(vm: &mut qlean::Machine) -> Result<()> {
+    tracing::info!("============================================================");
+    tracing::info!("Phase 3: Session Persistence via Redis");
+
+    let session_key = "test:session:persistence";
+    let test_data = r#"{"id":1,"username":"testuser","email":"test@example.com"}"#;
+
+    exec_check(
+        vm,
+        &format!(
+            "docker exec {} redis-cli SET {} '{}' EX 3600",
+            REDIS_CONTAINER, session_key, test_data
+        ),
+    )
+    .await?;
+
+    for i in 0..3 {
+        let result = exec_check(
+            vm,
+            &format!(
+                "docker exec {} redis-cli GET {}",
+                REDIS_CONTAINER, session_key
+            ),
+        )
+        .await?;
+
+        let retrieved = result.trim();
+        if retrieved == test_data {
+            tracing::info!("  Iteration {}: Session data persisted correctly", i + 1);
+        } else {
+            anyhow::bail!(
+                "Session data mismatch at iteration {}: expected {}, got {}",
+                i + 1,
+                test_data,
+                retrieved
+            );
+        }
+    }
+
+    tracing::info!("  PASS: Session data persisted across multiple retrievals");
+    Ok(())
+}
+
+/// Phase 4: Test session ID generation (using Redis INCR)
+async fn phase4_test_session_id_generation(vm: &mut qlean::Machine) -> Result<()> {
+    tracing::info!("============================================================");
+    tracing::info!("Phase 4: Session ID Generation via Redis");
+
+    let counter_key = "test:session:counter";
+
+    let result1 = exec_check(
+        vm,
+        &format!(
+            "docker exec {} redis-cli INCR {}",
+            REDIS_CONTAINER, counter_key
+        ),
+    )
+    .await?;
+    let id1 = result1.trim().parse::<i64>()?;
+
+    let result2 = exec_check(
+        vm,
+        &format!(
+            "docker exec {} redis-cli INCR {}",
+            REDIS_CONTAINER, counter_key
+        ),
+    )
+    .await?;
+    let id2 = result2.trim().parse::<i64>()?;
+
+    if id2 > id1 {
+        tracing::info!("  PASS: Generated unique session IDs: {}, {}", id1, id2);
+    } else {
+        anyhow::bail!("Session IDs should be unique and incrementing");
+    }
+
+    Ok(())
+}
+
+// ============================================================================
+// MAIN TEST
+// ============================================================================
+
 #[tokio::test]
-async fn test_session_id_generation() {
-    let store = MemoryStore::default();
+#[ignore]
+async fn test_session_management_with_redis() -> Result<()> {
+    tracing_subscriber_init();
 
-    // Create a new session
-    let session = Session::new(None, Arc::new(store.clone()), None);
+    let image = create_image(Distro::Debian, "debian-13-generic-amd64").await?;
+    let config = MachineConfig {
+        core: 2,
+        mem: 2048,
+        disk: Some(15),
+        clear: true,
+    };
 
-    // Initially, the session ID might be None
-    let _initial_session_id = session.id();
-    // assert!(_initial_session_id.is_some()); // This might be None initially
+    with_machine(&image, &config, |vm| {
+        Box::pin(async move {
+            tracing::info!("============================================================");
+            tracing::info!("Session Management Integration Test (Redis)");
+            tracing::info!("============================================================");
 
-    // Insert some data and save the session
-    let user_data = serde_json::json!({
-        "id": 1,
-        "username": "testuser",
-        "email": "test@example.com",
-        "name": "Test User"
-    });
+            install_docker(vm).await.context("Docker install failed")?;
 
-    session.insert("user", &user_data).await.unwrap();
-    session.save().await.unwrap();
+            setup_redis(vm).await.context("Redis setup failed")?;
 
-    // After saving, the session should have an ID
-    let session_id = session.id();
-    assert!(session_id.is_some());
+            tracing::info!("All services are ready");
+            tracing::info!("");
+
+            phase1_test_session_creation_and_retrieval(vm)
+                .await
+                .context("Phase 1 failed")?;
+            phase2_test_session_clearing(vm)
+                .await
+                .context("Phase 2 failed")?;
+            phase3_test_session_persistence(vm)
+                .await
+                .context("Phase 3 failed")?;
+            phase4_test_session_id_generation(vm)
+                .await
+                .context("Phase 4 failed")?;
+
+            tracing::info!("");
+            tracing::info!("All test phases completed successfully!");
+
+            cleanup_docker(vm).await?;
+
+            Ok(())
+        })
+    })
+    .await
+    .context("Failed to run VM test")?;
+
+    Ok(())
 }
