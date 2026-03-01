@@ -22,7 +22,11 @@ use crate::{
     api::CoreWorkerStatus,
     auto_retry::AutoRetryJudger,
     log::log_service::LogService,
-    model::{builds, targets, targets::TargetState},
+    model::{
+        builds,
+        targets::{self, TargetState},
+    },
+    scheduler,
 };
 
 /// Request payload for creating a new build task
@@ -167,7 +171,7 @@ pub struct BuildInfo {
     #[allow(dead_code)]
     pub started_at: DateTimeUtc,
     pub auto_retry_judger: AutoRetryJudger,
-    pub _worker_id: String,
+    pub worker_id: String,
 }
 
 impl BuildEventPayload {
@@ -382,6 +386,37 @@ impl TaskScheduler {
             .collect()
     }
 
+    /// Search available worker and claim the worker for current build
+    pub fn search_and_claim_worker(&self, build_id: &str) -> Option<String> {
+        let idle_workers: Vec<String> = self
+            .workers
+            .iter()
+            .filter(|entry| matches!(entry.value().status, WorkerStatus::Idle))
+            .map(|entry| entry.key().clone())
+            .collect();
+        let chosen_worker_idx = {
+            let mut rng = rand::rng();
+            rng.random_range(0..idle_workers.len())
+        };
+        let chosen_worker_id = idle_workers[chosen_worker_idx].clone();
+        if let Some(mut worker) = self.workers.get_mut(&chosen_worker_id) {
+            worker.status = WorkerStatus::Busy {
+                build_id: build_id.to_string(),
+                phase: None,
+            };
+            Some(chosen_worker_id)
+        } else {
+            None
+        }
+    }
+
+    pub async fn release_worker(&self, worker_id: &str) {
+        tracing::info!("Releasing worker {} back to idle", worker_id);
+        if let Some(mut worker) = self.workers.get_mut(worker_id) {
+            worker.status = WorkerStatus::Idle;
+        }
+    }
+
     /// Try to dispatch queued task-bound builds (concurrent safe)
     pub async fn process_pending_tasks(&self) {
         // Get available workers
@@ -449,7 +484,7 @@ impl TaskScheduler {
             changes: pending_build_event.changes.clone(),
             target_id: pending_build_event.target_id.unwrap_or(Uuid::nil()),
             target_path: pending_build_event.target_path.clone().unwrap_or_default(),
-            _worker_id: chosen_id.clone(),
+            worker_id: chosen_id.clone(),
             auto_retry_judger: AutoRetryJudger::new(),
             started_at: start_at,
         };
