@@ -22,7 +22,11 @@ use crate::{
     api::CoreWorkerStatus,
     auto_retry::AutoRetryJudger,
     log::log_service::LogService,
-    model::{builds, targets, targets::TargetState},
+    model::{
+        builds,
+        targets::{self, TargetState},
+    },
+    scheduler,
 };
 
 /// Request payload for creating a new build task
@@ -380,6 +384,37 @@ impl TaskScheduler {
             .filter(|entry| matches!(entry.value().status, WorkerStatus::Idle))
             .map(|entry| entry.key().clone())
             .collect()
+    }
+
+    /// Search available worker and claim the worker for current build
+    pub fn search_and_claim_worker(&self, build_id: &str) -> Option<String> {
+        let idle_workers: Vec<String> = self
+            .workers
+            .iter()
+            .filter(|entry| matches!(entry.value().status, WorkerStatus::Idle))
+            .map(|entry| entry.key().clone())
+            .collect();
+        let chosen_worker_idx = {
+            let mut rng = rand::rng();
+            rng.random_range(0..idle_workers.len())
+        };
+        let chosen_worker_id = idle_workers[chosen_worker_idx].clone();
+        if let Some(mut worker) = self.workers.get_mut(&chosen_worker_id) {
+            worker.status = WorkerStatus::Busy {
+                build_id: build_id.to_string(),
+                phase: None,
+            };
+            Some(chosen_worker_id)
+        } else {
+            None
+        }
+    }
+
+    pub async fn release_worker(&self, worker_id: &str) {
+        tracing::info!("Releasing worker {} back to idle", worker_id);
+        if let Some(mut worker) = self.workers.get_mut(worker_id) {
+            worker.status = WorkerStatus::Idle;
+        }
     }
 
     /// Try to dispatch queued task-bound builds (concurrent safe)

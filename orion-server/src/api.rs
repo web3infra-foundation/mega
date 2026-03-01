@@ -54,7 +54,7 @@ use crate::{
     },
     orion_common::model::{CommonPage, PageParams},
     scheduler::{
-        BuildEventPayload, BuildInfo, TaskQueueStats, TaskScheduler, WorkerInfo, WorkerStatus,
+        self, BuildEventPayload, BuildInfo, TaskQueueStats, TaskScheduler, WorkerInfo, WorkerStatus,
     },
 };
 
@@ -498,7 +498,6 @@ pub async fn target_logs_handler(
 #[utoipa::path(
     post,
     path = "/v2/task",
-    path = "/task",
     request_body = TaskBuildRequest,
     responses(
         (status = 200, description = "Task created", body = serde_json::Value),
@@ -556,13 +555,13 @@ pub async fn task_handler_v2(
             .into_response();
     }
     // TODO: to be implemented for queuing logic
-    return (
+    (
         StatusCode::SERVICE_UNAVAILABLE,
         Json(serde_json::json!({
             "message": "No available workers at the moment, please try again later"
         })),
     )
-        .into_response();
+        .into_response()
 }
 
 /// Creates build tasks and returns the task ID and status (immediate or queued)
@@ -675,11 +674,18 @@ async fn handle_immediate_task_dispatch_v2(
     // TODO: if reused for retry here, use targets
     _targets: Option<Vec<String>>,
 ) -> OrionBuildResult {
-    // Find all idle workers
-    let idle_workers = state.scheduler.get_idle_workers();
+    // Create new build event ID
+    let build_event_id = Uuid::now_v7();
 
-    // Return error if no workers are available (this shouldn't happen theoretically since we already checked)
-    if idle_workers.is_empty() {
+    // Select an idle worker
+    if let Some(chosen_id) = state
+        .scheduler
+        .search_and_claim_worker(&build_event_id.to_string())
+        .await
+    {
+        tracing::info!("Selected idle worker {} for task {}", chosen_id, task_id);
+    } else {
+        tracing::error!("No idle workers available for task {}", task_id);
         return OrionBuildResult {
             build_id: "".to_string(),
             status: "error".to_string(),
@@ -687,34 +693,28 @@ async fn handle_immediate_task_dispatch_v2(
         };
     }
 
-    // Randomly select an idle worker
-    let chosen_index = {
-        let mut rng = rand::rng();
-        rng.random_range(0..idle_workers.len())
-    };
-    let chosen_id = idle_workers[chosen_index].clone();
-
     // create and insert target path
     let target_id = Uuid::now_v7();
-    let target_path: String;
-    match callisto::build_targets::Model::insert_default_target(target_id, task_id, &state.conn)
-        .await
+    let target_path = match callisto::build_targets::Model::insert_default_target(
+        target_id,
+        task_id,
+        &state.conn,
+    )
+    .await
     {
-        Ok(default_path) => {
-            target_path = default_path;
-        }
+        Ok(default_path) => default_path,
         Err(err) => {
             tracing::error!("Failed to prepare target for task {}: {}", task_id, err);
+            scheduler.release_worker(&chosen_id).await;
             return OrionBuildResult {
                 build_id: "".to_string(),
                 status: "error".to_string(),
                 message: format!("Failed to prepare target for task {}", task_id),
             };
         }
-    }
+    };
 
     // Create new build event for initial try
-    let build_event_id = Uuid::now_v7();
     let event = BuildEventPayload::new(
         build_event_id,
         task_id,
@@ -757,6 +757,7 @@ async fn handle_immediate_task_dispatch_v2(
                 task_id,
                 e
             );
+            scheduler.release_worker(&chosen_id).await;
             return OrionBuildResult {
                 build_id: "".to_string(),
                 status: "error".to_string(),
@@ -784,10 +785,6 @@ async fn activate_worker(build_info: &BuildInfo, scheduler: &TaskScheduler) -> O
     if let Some(mut worker) = scheduler.workers.get_mut(&build_info.worker_id)
         && worker.sender.send(msg).is_ok()
     {
-        worker.status = WorkerStatus::Busy {
-            build_id: build_info.event_payload.build_event_id.to_string(),
-            phase: None,
-        };
         scheduler.active_builds.insert(
             build_info.event_payload.build_event_id.to_string(),
             build_info.clone(),
@@ -810,11 +807,12 @@ async fn activate_worker(build_info: &BuildInfo, scheduler: &TaskScheduler) -> O
         build_info.event_payload.task_id,
         build_info.worker_id
     );
-    return OrionBuildResult {
+    scheduler.release_worker(&build_info.worker_id).await;
+    OrionBuildResult {
         build_id: build_info.event_payload.build_event_id.to_string(),
         status: "error".to_string(),
         message: "Failed to dispatch task to worker".to_string(),
-    };
+    }
 }
 
 async fn handle_immediate_task_dispatch(
@@ -1280,6 +1278,7 @@ async fn process_message(
 
                     // Update database with final state
                     let end_at = Utc::now().with_timezone(&FixedOffset::east_opt(0).unwrap());
+                    // TODO: update to jupiter's build_event's model
                     let _ = builds::Entity::update_many()
                         .set(builds::ActiveModel {
                             exit_code: Set(exit_code),
