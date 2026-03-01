@@ -28,265 +28,21 @@
 //! reusing docker-compose.demo.yml for consistency with the demo environment.
 //! All test scenarios run in a single test function to avoid multiple VM startups.
 
-use std::{
-    path::{Path, PathBuf},
-    sync::Once,
-    time::Duration,
-};
+mod common;
+
+use std::time::Duration;
 
 use anyhow::{Context, Result};
+use common::*;
 use qlean::{Distro, MachineConfig, create_image, with_machine};
 use serde_json::Value;
-use tracing_subscriber::EnvFilter;
 
 // Docker service names (must match docker-compose.demo.yml)
 const CAMPSITE_API_CONTAINER: &str = "mega-demo-campsite-api";
-const MYSQL_CONTAINER: &str = "mega-demo-mysql";
-const REDIS_CONTAINER: &str = "mega-demo-redis";
 const DOCKER_COMPOSE_FILE: &str = "/tmp/docker-compose.yml";
 
 // Campsite API port mapping (host -> container)
 const CAMPSITE_API_PORT: u16 = 8080;
-
-// Path to compose file on host (relative to workspace root)
-const DOCKER_COMPOSE_HOST_PATH: &str = "docker/demo/docker-compose.demo.yml";
-
-fn tracing_subscriber_init() {
-    static INIT: Once = Once::new();
-    INIT.call_once(|| {
-        tracing_subscriber::fmt()
-            .with_env_filter(EnvFilter::from_default_env())
-            .init();
-    });
-}
-
-/// Helper to run a command and check its exit status
-async fn exec_check(vm: &mut qlean::Machine, cmd: &str) -> Result<String> {
-    let result = vm.exec(cmd).await?;
-    if !result.status.success() {
-        let stderr = String::from_utf8_lossy(&result.stderr);
-        let stdout = String::from_utf8_lossy(&result.stdout);
-        anyhow::bail!(
-            "Command '{}' failed with exit code {:?}\nstdout: {}\nstderr: {}",
-            cmd,
-            result.status.code(),
-            stdout,
-            stderr
-        );
-    }
-    Ok(String::from_utf8_lossy(&result.stdout).to_string())
-}
-
-/// Generic retry helper with success predicate
-async fn retry_until<F>(
-    vm: &mut qlean::Machine,
-    cmd: &str,
-    success_predicate: F,
-    service_name: &str,
-    max_retries: u32,
-    delay_secs: u64,
-) -> Result<()>
-where
-    F: Fn(&str) -> bool,
-{
-    let mut retries = 0;
-    let mut last_error: Option<String> = None;
-    let mut last_output: Option<String> = None;
-
-    loop {
-        match exec_check(vm, cmd).await {
-            Ok(output) => {
-                if success_predicate(&output) {
-                    tracing::info!("{} is ready.", service_name);
-                    return Ok(());
-                }
-                tracing::debug!(
-                    "{} check attempt {}/{}: predicate not met, output: {}",
-                    service_name,
-                    retries + 1,
-                    max_retries,
-                    output.trim()
-                );
-                last_output = Some(output);
-            }
-            Err(e) => {
-                tracing::debug!(
-                    "{} check attempt {}/{} failed: {}",
-                    service_name,
-                    retries + 1,
-                    max_retries,
-                    e
-                );
-                last_error = Some(e.to_string());
-            }
-        }
-
-        retries += 1;
-        if retries >= max_retries {
-            let mut msg = format!(
-                "{} did not become ready after {} seconds",
-                service_name,
-                (max_retries as u64) * delay_secs
-            );
-            if let Some(err) = &last_error {
-                msg.push_str(&format!("\nLast error: {}", err));
-            }
-            if let Some(output) = &last_output {
-                msg.push_str(&format!("\nLast output: {}", output.trim()));
-            }
-            anyhow::bail!(msg);
-        }
-
-        tokio::time::sleep(Duration::from_secs(delay_secs)).await;
-    }
-}
-
-/// Install Docker in the VM
-async fn install_docker(vm: &mut qlean::Machine) -> Result<()> {
-    tracing::info!("Installing Docker in VM...");
-
-    // Update package list
-    exec_check(vm, "apt-get update -qq").await?;
-
-    // Install prerequisites
-    exec_check(
-        vm,
-        "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
-            ca-certificates \
-            curl \
-            gnupg \
-            lsb-release",
-    )
-    .await?;
-
-    // Add Docker's official GPG key
-    exec_check(vm, "install -m 0755 -d /etc/apt/keyrings").await?;
-
-    exec_check(
-        vm,
-        "curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg",
-    )
-    .await?;
-
-    exec_check(vm, "chmod a+r /etc/apt/keyrings/docker.gpg").await?;
-
-    // Set up Docker repository
-    exec_check(
-        vm,
-        "echo \"deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
-            https://download.docker.com/linux/debian $(. /etc/os-release && echo $VERSION_CODENAME) stable\" \
-            > /etc/apt/sources.list.d/docker.list",
-    )
-    .await?;
-
-    // Update package list again
-    exec_check(vm, "apt-get update -qq").await?;
-
-    // Install Docker Engine
-    exec_check(
-        vm,
-        "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
-            docker-ce \
-            docker-ce-cli \
-            containerd.io \
-            docker-compose-plugin",
-    )
-    .await?;
-
-    // Start Docker service
-    exec_check(vm, "service docker start").await?;
-
-    // Verify Docker is running
-    exec_check(vm, "docker info > /dev/null").await?;
-
-    tracing::info!("Docker installed and started successfully.");
-    Ok(())
-}
-
-/// Upload docker-compose.demo.yml to VM
-async fn upload_docker_compose(vm: &mut qlean::Machine) -> Result<()> {
-    tracing::info!("Uploading docker-compose.demo.yml to VM...");
-
-    // Find the compose file path from workspace root
-    let host_compose_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("..")
-        .join(DOCKER_COMPOSE_HOST_PATH);
-
-    // Read compose file from host
-    let content = std::fs::read_to_string(&host_compose_path).with_context(|| {
-        format!(
-            "Failed to read docker-compose.demo.yml from {}",
-            host_compose_path.display()
-        )
-    })?;
-
-    vm.write(Path::new(DOCKER_COMPOSE_FILE), content.as_bytes())
-        .await?;
-
-    tracing::info!(
-        "Uploaded docker-compose.demo.yml from {} to {}",
-        host_compose_path.display(),
-        DOCKER_COMPOSE_FILE
-    );
-    Ok(())
-}
-
-/// Setup MySQL using Docker in VM
-async fn setup_mysql(vm: &mut qlean::Machine) -> Result<()> {
-    tracing::info!("Setting up MySQL using Docker...");
-
-    // Start MySQL container
-    exec_check(
-        vm,
-        &format!("docker compose -f {} up -d mysql", DOCKER_COMPOSE_FILE),
-    )
-    .await?;
-
-    // Wait for MySQL to be ready
-    tracing::info!("Waiting for MySQL to be ready...");
-    retry_until(
-        vm,
-        &format!(
-            "docker exec {} mysqladmin ping -h localhost -u root -pmysqladmin 2>&1",
-            MYSQL_CONTAINER
-        ),
-        |output| output.contains("alive") || output.contains("ready"),
-        "MySQL",
-        60,
-        3,
-    )
-    .await?;
-
-    tracing::info!("MySQL setup complete.");
-    Ok(())
-}
-
-/// Setup Redis using Docker in VM
-async fn setup_redis(vm: &mut qlean::Machine) -> Result<()> {
-    tracing::info!("Setting up Redis using Docker...");
-
-    // Start Redis container
-    exec_check(
-        vm,
-        &format!("docker compose -f {} up -d redis", DOCKER_COMPOSE_FILE),
-    )
-    .await?;
-
-    // Wait for Redis to be ready
-    tracing::info!("Waiting for Redis to be ready...");
-    retry_until(
-        vm,
-        &format!("docker exec {} redis-cli ping", REDIS_CONTAINER),
-        |output| output.trim() == "PONG",
-        "Redis",
-        15,
-        2,
-    )
-    .await?;
-
-    tracing::info!("Redis setup complete.");
-    Ok(())
-}
 
 /// Setup Campsite API using Docker in VM
 async fn setup_campsite_api(vm: &mut qlean::Machine) -> Result<()> {
@@ -429,10 +185,24 @@ async fn cleanup_docker(vm: &mut qlean::Machine) -> Result<()> {
 
 /// Call Campsite API /v1/users/me endpoint
 async fn call_users_me(vm: &mut qlean::Machine, cookie: &str) -> Result<(u16, Option<Value>)> {
-    let cmd = format!(
-        "curl -s -w '\\nHTTP_CODE:%{{http_code}}' -H 'Cookie: {}' http://127.0.0.1:{}/v1/users/me",
-        cookie, CAMPSITE_API_PORT
-    );
+    // Format cookie with prefix: _campsite_api_session=<value>
+    let cookie_header = if cookie.is_empty() {
+        "".to_string()
+    } else {
+        format!("_campsite_api_session={}", cookie)
+    };
+    
+    let cmd = if cookie.is_empty() {
+        format!(
+            "curl -s -w '\\nHTTP_CODE:%{{http_code}}' http://127.0.0.1:{}/v1/users/me",
+            CAMPSITE_API_PORT
+        )
+    } else {
+        format!(
+            "curl -s -w '\\nHTTP_CODE:%{{http_code}}' -H 'Cookie: {}' http://127.0.0.1:{}/v1/users/me",
+            cookie_header, CAMPSITE_API_PORT
+        )
+    };
 
     let output = exec_check(vm, &cmd).await?;
 
@@ -652,9 +422,6 @@ async fn test_login_user_extractor_integration() -> Result<()> {
 
             // Setup environment
             install_docker(vm).await.context("Docker install failed")?;
-            upload_docker_compose(vm)
-                .await
-                .context("Upload docker-compose failed")?;
 
             // Start services
             setup_mysql(vm).await.context("MySQL setup failed")?;

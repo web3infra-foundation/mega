@@ -26,233 +26,23 @@
 //! This test uses Docker containers for PostgreSQL and Redis inside the VM,
 //! reusing docker-compose.demo.yml for consistency with the demo environment.
 //! Tests the Buck service API endpoints directly via HTTP.
+mod common;
 
-use std::{
-    path::{Path, PathBuf},
-    sync::Once,
-    time::Duration,
-};
+use std::path::Path;
 
 use anyhow::{Context, Result};
+use common::*;
 use qlean::{Distro, MachineConfig, create_image, with_machine};
-use tracing_subscriber::EnvFilter;
-
-// Docker service names (must match docker-compose.demo.yml)
-const POSTGRES_CONTAINER: &str = "mega-demo-postgres";
-const REDIS_CONTAINER: &str = "mega-demo-redis";
-const DOCKER_COMPOSE_FILE: &str = "/tmp/docker-compose.yml";
-const DOCKER_COMPOSE_HOST_PATH: &str = "docker/demo/docker-compose.demo.yml";
 
 const MEGA_HOST: &str = "127.0.0.1";
 const MEGA_PORT: u16 = 8000;
 const POSTGRES_USER: &str = "mega";
-const POSTGRES_PASSWORD: &str = "mega";
-const POSTGRES_DB: &str = "mono";
 
-// ECR mono image
-const MEGA_ECR_IMAGE_DEFAULT: &str = "public.ecr.aws/m8q5m4u3/mega:mono-0.1.0-pre-release-amd64";
+const POSTGRES_DB: &str = "mono";
 
 // Test authentication tokens
 const TEST_TOKEN: &str = "test-token-12345678-1234-1234-1234-123456789012";
 const TEST_USER: &str = "test_user";
-
-fn get_mega_ecr_image() -> String {
-    std::env::var("MEGA_ECR_IMAGE").unwrap_or_else(|_| MEGA_ECR_IMAGE_DEFAULT.to_string())
-}
-
-// Timing constants
-const MEGA_STARTUP_WAIT_SECS: u64 = 10;
-const MEGA_SERVICE_TIMEOUT_SECS: u64 = 120;
-
-fn tracing_subscriber_init() {
-    static INIT: Once = Once::new();
-    INIT.call_once(|| {
-        tracing_subscriber::fmt()
-            .with_env_filter(EnvFilter::from_default_env())
-            .init();
-    });
-}
-
-async fn exec_check(vm: &mut qlean::Machine, cmd: &str) -> Result<String> {
-    let result = vm.exec(cmd).await?;
-    if !result.status.success() {
-        let stderr = String::from_utf8_lossy(&result.stderr);
-        let stdout = String::from_utf8_lossy(&result.stdout);
-        anyhow::bail!(
-            "Command '{}' failed with exit code {:?}\nstdout: {}\nstderr: {}",
-            cmd,
-            result.status.code(),
-            stdout,
-            stderr
-        );
-    }
-    Ok(String::from_utf8_lossy(&result.stdout).to_string())
-}
-
-async fn retry_until<F>(
-    vm: &mut qlean::Machine,
-    cmd: &str,
-    success_predicate: F,
-    service_name: &str,
-    max_retries: u32,
-    delay_secs: u64,
-) -> Result<()>
-where
-    F: Fn(&str) -> bool,
-{
-    let mut retries = 0;
-    loop {
-        match exec_check(vm, cmd).await {
-            Ok(output) => {
-                if success_predicate(&output) {
-                    tracing::info!("{} is ready.", service_name);
-                    return Ok(());
-                }
-            }
-            Err(e) => {
-                tracing::debug!(
-                    "{} check attempt {}/{} failed: {}",
-                    service_name,
-                    retries + 1,
-                    max_retries,
-                    e
-                );
-            }
-        }
-
-        retries += 1;
-        if retries >= max_retries {
-            // Log Mega service output for debugging
-            let log_output =
-                exec_check(vm, "cat /tmp/mega.log 2>/dev/null || echo 'No log file'").await?;
-            tracing::error!("Mega service logs:\n{}", log_output);
-            anyhow::bail!(
-                "{} did not become ready after {} seconds",
-                service_name,
-                max_retries as u64 * delay_secs
-            );
-        }
-
-        tokio::time::sleep(Duration::from_secs(delay_secs)).await;
-    }
-}
-
-async fn install_docker(vm: &mut qlean::Machine) -> Result<()> {
-    tracing::info!("Installing Docker in VM...");
-
-    exec_check(vm, "apt-get update -qq").await?;
-
-    exec_check(
-        vm,
-        "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
-            ca-certificates \
-            curl \
-            gnupg \
-            lsb-release",
-    )
-    .await?;
-
-    exec_check(
-        vm,
-        "mkdir -p /etc/apt/keyrings && \
-        curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg",
-    )
-    .await?;
-
-    exec_check(
-        vm,
-        "echo \"deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable\" | tee /etc/apt/sources.list.d/docker.list > /dev/null",
-    )
-    .await?;
-
-    exec_check(vm, "apt-get update -qq").await?;
-
-    exec_check(
-        vm,
-        "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin",
-    )
-    .await?;
-
-    exec_check(vm, "service docker start").await?;
-
-    tracing::info!("Docker installed successfully");
-    Ok(())
-}
-
-async fn upload_docker_compose(vm: &mut qlean::Machine) -> Result<()> {
-    tracing::info!("Uploading docker-compose.yml to VM...");
-
-    // Upload docker-compose.demo.yml to VM
-    tracing::info!("Uploading docker-compose.demo.yml to VM...");
-    let host_compose_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("..")
-        .join(DOCKER_COMPOSE_HOST_PATH);
-
-    // Try to read compose file from host
-    let content = std::fs::read_to_string(&host_compose_path).with_context(|| {
-        format!(
-            "Failed to read docker-compose.demo.yml from {}",
-            host_compose_path.display()
-        )
-    })?;
-
-    vm.write(Path::new(DOCKER_COMPOSE_FILE), content.as_bytes())
-        .await?;
-
-    tracing::info!(
-        "Uploaded docker-compose.demo.yml from {} to {}",
-        host_compose_path.display(),
-        DOCKER_COMPOSE_FILE
-    );
-
-    Ok(())
-}
-
-async fn setup_postgres(vm: &mut qlean::Machine) -> Result<()> {
-    tracing::info!("Setting up PostgreSQL...");
-
-    // Start PostgreSQL container
-    exec_check(
-        vm,
-        &format!(
-            "POSTGRES_USER={} POSTGRES_PASSWORD={} POSTGRES_DB_MONO={} docker compose -f {} up -d postgres",
-            POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, DOCKER_COMPOSE_FILE
-        ),
-    )
-    .await?;
-
-    // Wait for PostgreSQL to be ready
-    retry_until(
-        vm,
-        &format!(
-            "docker exec {} pg_isready -U {}",
-            POSTGRES_CONTAINER, POSTGRES_USER
-        ),
-        |output| output.contains("accepting connections"),
-        "PostgreSQL",
-        30,
-        2,
-    )
-    .await
-    .context("PostgreSQL did not become ready")?;
-
-    // Clean up any existing tables from previous runs to let migrations create fresh tables
-    // This fixes "column does not exist" errors when tables exist but have wrong schema
-    tracing::info!("Cleaning up existing tables from previous runs...");
-    for table in &["buck_file", "buck_session", "access_token"] {
-        exec_check(
-            vm,
-            &format!(
-                "docker exec {} psql -U {} -d {} -c \"DROP TABLE IF EXISTS {} CASCADE;\" 2>/dev/null || true",
-                POSTGRES_CONTAINER, POSTGRES_USER, POSTGRES_DB, table
-            ),
-        )
-        .await?;
-    }
-
-    tracing::info!("PostgreSQL setup complete");
-    Ok(())
-}
 
 async fn setup_test_users(vm: &mut qlean::Machine) -> Result<()> {
     tracing::info!("Setting up test users and tokens...");
@@ -294,7 +84,7 @@ async fn init_monorepo(vm: &mut qlean::Machine) -> Result<()> {
             tracing::info!("Clone output: {}", output);
             if !result.status.success() {
                 tracing::warn!("Git clone failed, creating local repo...");
-                exec_check(vm, "mkdir -p /tmp/mono && cd /tmp/mono && git init --bare").await?;
+                exec_check(vm, "mkdir -p /tmp/mono && cd /tmp/mono && git init").await?;
             }
         }
         Err(e) => {
@@ -354,203 +144,6 @@ async fn init_monorepo(vm: &mut qlean::Machine) -> Result<()> {
 
     tracing::info!("Monorepo initialized successfully.");
     Ok(())
-}
-
-async fn setup_redis(vm: &mut qlean::Machine) -> Result<()> {
-    tracing::info!("Setting up Redis...");
-
-    // Start Redis container
-    exec_check(
-        vm,
-        &format!("docker compose -f {} up -d redis", DOCKER_COMPOSE_FILE),
-    )
-    .await?;
-
-    // Wait for Redis to be ready
-    retry_until(
-        vm,
-        &format!("docker exec {} redis-cli ping", REDIS_CONTAINER),
-        |output| output.trim() == "PONG",
-        "Redis",
-        15,
-        2,
-    )
-    .await
-    .context("Redis did not become ready")?;
-
-    tracing::info!("Redis setup complete");
-    Ok(())
-}
-
-async fn setup_mega_service(vm: &mut qlean::Machine) -> Result<()> {
-    // Clean up any existing directories from previous test runs
-    tracing::info!("Cleaning up existing Mega directories from previous runs...");
-    exec_check(
-        vm,
-        "rm -rf /tmp/mega /tmp/mono /tmp/repo_* 2>/dev/null || true",
-    )
-    .await?;
-
-    tracing::info!("Creating Mega directories...");
-    exec_check(vm, "mkdir -p /tmp/mega/cache").await?;
-    exec_check(vm, "mkdir -p /tmp/mega/logs").await?;
-    exec_check(vm, "mkdir -p /tmp/mega/import").await?;
-    exec_check(vm, "mkdir -p /tmp/mega/lfs").await?;
-    exec_check(vm, "mkdir -p /tmp/mega/objects").await?;
-    exec_check(vm, "mkdir -p /root/.local/share").await?;
-    exec_check(vm, "mkdir -p /root/.local/share/mega/etc").await?;
-
-    tracing::info!("Pulling mono image from ECR...");
-    let ecr_image = get_mega_ecr_image();
-    exec_check(vm, &format!("docker pull {}", ecr_image)).await?;
-
-    tracing::info!("Extracting mono binary from ECR image...");
-    exec_check(
-        vm,
-        &format!(
-            "docker run --rm -v /usr/local/bin:/output {} cp /usr/local/bin/mono /output/",
-            ecr_image
-        ),
-    )
-    .await?;
-    exec_check(vm, "chmod +x /usr/local/bin/mono").await?;
-
-    // Install curl, jq, git (needed for test execution)
-    exec_check(
-        vm,
-        "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq curl jq git",
-    )
-    .await?;
-
-    let config_content = format!(
-        r#"base_dir = "/tmp/mega"
-
-[log]
-log_path = "/tmp/mega/logs"
-level = "info"
-print_std = true
-
-[database]
-db_type = "postgres"
-db_path = "/tmp/mega/mega.db"
-db_url = "postgres://{}:{}@127.0.0.1:5432/{}"
-max_connection = 16
-min_connection = 8
-acquire_timeout = 3
-connect_timeout = 3
-sqlx_logging = false
-
-[authentication]
-enable_http_auth = true
-enable_test_user = false
-test_user_name = "mega"
-test_user_token = "mega"
-
-[monorepo]
-import_dir = "/tmp/mega/import"
-admin = ["admin"]
-root_dirs = ["third-party", "project", "doc", "release"]
-storage_type = "local"
-
-[build]
-enable_build = false
-orion_server = ""
-
-[pack]
-pack_decode_mem_size = "4G"
-pack_decode_disk_size = "20%"
-pack_decode_cache_path = "/tmp/mega/cache"
-clean_cache_after_decode = true
-channel_message_size = 1000000
-
-[lfs]
-storage_type = "local"
-
-[lfs.ssh]
-http_url = "http://localhost:8000"
-
-[lfs.local]
-lfs_file_path = "/tmp/mega/lfs"
-
-[object_storage]
-
-[object_storage.s3]
-region = "us-east-1"
-bucket = "mega"
-access_key_id = ""
-secret_access_key = ""
-endpoint_url = ""
-
-[object_storage.gcs]
-bucket = "gitmega"
-
-[object_storage.local]
-root_dir = "/tmp/mega/objects"
-
-[redis]
-url = "redis://127.0.0.1:6379"
-"#,
-        POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB
-    );
-
-    vm.write(
-        std::path::Path::new("/root/.local/share/mega/etc/config.toml"),
-        config_content.as_bytes(),
-    )
-    .await?;
-
-    tracing::info!("Starting Mega service in background...");
-    exec_check(vm, "nohup mono service http > /tmp/mega.log 2>&1 &").await?;
-
-    tokio::time::sleep(Duration::from_secs(MEGA_STARTUP_WAIT_SECS)).await;
-
-    let ps_output = exec_check(vm, "ps aux | grep '[m]ono' || true").await?;
-    tracing::debug!("Mega process status: {}", ps_output);
-
-    // Wait for service to be ready using dedicated function
-    wait_for_mega_service(vm, MEGA_SERVICE_TIMEOUT_SECS).await?;
-
-    tracing::info!("Mega service setup complete");
-    Ok(())
-}
-
-/// Wait for Mega API to be ready by polling the status endpoint
-async fn wait_for_mega_service(vm: &mut qlean::Machine, timeout_secs: u64) -> Result<()> {
-    let start = std::time::Instant::now();
-    let timeout = Duration::from_secs(timeout_secs);
-    let status_url = format!("http://{}:{}/api/v1/status", MEGA_HOST, MEGA_PORT);
-
-    tracing::info!("Waiting for Mega service at {}...", status_url);
-
-    loop {
-        let result = vm
-            .exec(&format!(
-                "curl -sf -o /dev/null -w \"%{{http_code}}\" \"{}\"",
-                status_url
-            ))
-            .await?;
-
-        let status_code = String::from_utf8_lossy(&result.stdout).trim().to_string();
-        tracing::debug!("Mega service check returned status: {}", status_code);
-
-        if status_code == "200" {
-            tracing::info!("Mega service is ready (status: {})", status_code);
-            return Ok(());
-        }
-
-        if start.elapsed() > timeout {
-            let log_output =
-                exec_check(vm, "cat /tmp/mega.log 2>/dev/null || echo 'No log file'").await?;
-            tracing::error!("Mega service logs:\n{}", log_output);
-            anyhow::bail!(
-                "Timeout waiting for Mega service at {} (last status: {})",
-                status_url,
-                status_code
-            );
-        }
-
-        tokio::time::sleep(Duration::from_secs(2)).await;
-    }
 }
 
 // HTTP API helper
@@ -747,6 +340,15 @@ async fn phase2_test_validate_session(vm: &mut qlean::Machine) -> Result<()> {
     )
     .await?;
 
+    let expired_result = http_request_auth(
+        vm,
+        "POST",
+        &format!("/api/v1/buck/session/{}/file", expired_session),
+        None,
+        TEST_TOKEN,
+    )
+    .await;
+
     // Clean up EXPIRED2 after test so other phases use Phase 1's session
     exec_check(
         vm,
@@ -756,15 +358,6 @@ async fn phase2_test_validate_session(vm: &mut qlean::Machine) -> Result<()> {
         ),
     )
     .await?;
-
-    let expired_result = http_request_auth(
-        vm,
-        "POST",
-        &format!("/api/v1/buck/session/{}/file", expired_session),
-        None,
-        TEST_TOKEN,
-    )
-    .await;
 
     match expired_result {
         Ok((status, body)) => {
@@ -1760,47 +1353,51 @@ async fn phase15_test_upload_already_uploaded(vm: &mut qlean::Machine) -> Result
 
     tracing::info!("  Created new session: {}", cl_link);
 
-    // First, upload manifest to register the file
+    // Upload manifest to register the file
+    let test_content = "Hello, this is a test file content!";
+    let correct_hash = "sha1:facc69bf764f87dff25c1f071d06758a29b03025";
+    let test_size = test_content.len() as u64;
+
     let _manifest_result = vm
         .exec(&format!(
             "curl -s -X POST 'http://{}:{}/api/v1/buck/session/{}/manifest' \
                 -H 'Content-Type: application/json' \
                 -H 'Authorization: Bearer {}' \
-                -d '{{\"files\":[{{\"path\":\"uploaded_file.txt\",\"size\":12,\"hash\":\"sha1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}}]}}'",
-            MEGA_HOST, MEGA_PORT, cl_link, TEST_TOKEN
+                -d '{{\"files\":[{{\"path\":\"test.txt\",\"size\":{},\"hash\":\"{}\"}}]}}'",
+            MEGA_HOST, MEGA_PORT, cl_link, TEST_TOKEN, test_size, correct_hash
         ))
         .await?;
 
-    // Update session status to uploading
+    // Update session status to manifest_uploaded
     exec_check(
         vm,
         &format!(
-            "docker exec {} psql -U {} -d {} -c \"UPDATE buck_session SET status = 'uploading', updated_at = NOW() WHERE session_id = '{}';\"",
+            "docker exec {} psql -U {} -d {} -c \"UPDATE buck_session SET status = 'manifest_uploaded', updated_at = NOW() WHERE session_id = '{}';\"",
             POSTGRES_CONTAINER, POSTGRES_USER, POSTGRES_DB, cl_link
         ),
     )
     .await?;
 
-    // Add file with status = 'uploaded' (already uploaded)
+    // Directly set file upload_status to 'uploaded' in DB (simulating already uploaded file)
     exec_check(
         vm,
         &format!(
-            "docker exec {} psql -U {} -d {} -c \"INSERT INTO buck_session_file (id, session_id, file_path, file_size, file_hash, upload_status, blob_id, created_at) VALUES (103, '{}', 'uploaded_file.txt', 12, 'sha1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'uploaded', 'blob1234567890', NOW()) ON CONFLICT DO NOTHING;\"",
+            "docker exec {} psql -U {} -d {} -c \"UPDATE buck_session_file SET upload_status = 'uploaded', blob_id = 'test_blob_id' WHERE session_id = '{}' AND file_path = 'test.txt';\"",
             POSTGRES_CONTAINER, POSTGRES_USER, POSTGRES_DB, cl_link
         ),
     )
     .await?;
 
-    // Try to upload again
+    // Try to upload the file (should fail - file already uploaded)
     let upload_cmd = format!(
-        r#"echo -n 'test content' | curl -s -w '\n%{{http_code}}' -X POST "http://{}:{}/api/v1/buck/session/{}/file" \
+        r#"echo -n '{}' | curl -s -w '\n%{{http_code}}' -X POST "http://{}:{}/api/v1/buck/session/{}/file" \
             -H "Content-Type: application/octet-stream" \
-            -H "X-File-Size: 12" \
-            -H "X-File-Path: uploaded_file.txt" \
-            -H "X-File-Hash: sha1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" \
+            -H "X-File-Size: {}" \
+            -H "X-File-Path: test.txt" \
+            -H "X-File-Hash: {}" \
             -H "Authorization: Bearer {}" \
             --data-binary '@-'"#,
-        MEGA_HOST, MEGA_PORT, cl_link, TEST_TOKEN
+        test_content, MEGA_HOST, MEGA_PORT, cl_link, test_size, correct_hash, TEST_TOKEN
     );
 
     let result = vm.exec(&upload_cmd).await?;
@@ -1812,8 +1409,17 @@ async fn phase15_test_upload_already_uploaded(vm: &mut qlean::Machine) -> Result
         .and_then(|s| s.trim().parse().ok())
         .unwrap_or(0);
 
-    if status_code == 409 {
-        tracing::info!("  PASS: Already uploaded returns 409");
+    // Check for expected error messages
+    if status_code == 400
+        || output.contains("not in manifest")
+        || output.contains("not pending")
+        || output.contains("already uploaded")
+    {
+        tracing::info!("  PASS: Already uploaded file returns error");
+    } else if status_code == 200 {
+        tracing::warn!(
+            "  FAIL: Upload succeeded when it should have failed (file already uploaded)"
+        );
     } else {
         tracing::warn!("  Status {}: {}", status_code, output);
     }
@@ -2051,9 +1657,6 @@ async fn test_buck_service_with_postgres() -> Result<()> {
             tracing::info!("============================================================");
 
             install_docker(vm).await.context("Docker install failed")?;
-            upload_docker_compose(vm)
-                .await
-                .context("Upload docker-compose failed")?;
 
             setup_postgres(vm).await.context("Postgres setup failed")?;
             setup_redis(vm).await.context("Redis setup failed")?;

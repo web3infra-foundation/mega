@@ -28,206 +28,15 @@
 //! reusing docker-compose.demo.yml for consistency with the demo environment.
 //! All test scenarios run in a single test function to avoid multiple VM startups.
 
-use std::{path::Path, sync::Once, time::Duration};
+mod common;
 
 use anyhow::{Context, Result};
+use common::*;
 use qlean::{Distro, MachineConfig, create_image, with_machine};
-use tracing_subscriber::EnvFilter;
 
 // Docker service names (must match docker-compose.demo.yml)
 const REDIS_CONTAINER: &str = "mega-demo-redis";
 const DOCKER_COMPOSE_FILE: &str = "/tmp/docker-compose.yml";
-const DOCKER_COMPOSE_HOST_PATH: &str = "docker/demo/docker-compose.demo.yml";
-
-fn tracing_subscriber_init() {
-    static INIT: Once = Once::new();
-    INIT.call_once(|| {
-        tracing_subscriber::fmt()
-            .with_env_filter(EnvFilter::from_default_env())
-            .init();
-    });
-}
-
-async fn exec_check(vm: &mut qlean::Machine, cmd: &str) -> Result<String> {
-    let result = vm.exec(cmd).await?;
-    if !result.status.success() {
-        let stderr = String::from_utf8_lossy(&result.stderr);
-        let stdout = String::from_utf8_lossy(&result.stdout);
-        anyhow::bail!(
-            "Command '{}' failed with exit code {:?}\nstdout: {}\nstderr: {}",
-            cmd,
-            result.status.code(),
-            stdout,
-            stderr
-        );
-    }
-    Ok(String::from_utf8_lossy(&result.stdout).to_string())
-}
-
-async fn retry_until<F>(
-    vm: &mut qlean::Machine,
-    cmd: &str,
-    success_predicate: F,
-    service_name: &str,
-    max_retries: u32,
-    delay_secs: u64,
-) -> Result<()>
-where
-    F: Fn(&str) -> bool,
-{
-    let mut retries = 0;
-    let mut last_error: Option<String> = None;
-    let mut last_output: Option<String> = None;
-
-    loop {
-        match exec_check(vm, cmd).await {
-            Ok(output) => {
-                if success_predicate(&output) {
-                    tracing::info!("{} is ready.", service_name);
-                    return Ok(());
-                }
-                tracing::debug!(
-                    "{} check attempt {}/{}: predicate not met, output: {}",
-                    service_name,
-                    retries + 1,
-                    max_retries,
-                    output.trim()
-                );
-                last_output = Some(output);
-            }
-            Err(e) => {
-                tracing::debug!(
-                    "{} check attempt {}/{} failed: {}",
-                    service_name,
-                    retries + 1,
-                    max_retries,
-                    e
-                );
-                last_error = Some(e.to_string());
-            }
-        }
-
-        retries += 1;
-        if retries >= max_retries {
-            let mut msg = format!(
-                "{} did not become ready after {} seconds",
-                service_name,
-                (max_retries as u64) * delay_secs
-            );
-            if let Some(err) = &last_error {
-                msg.push_str(&format!("\nLast error: {}", err));
-            }
-            if let Some(output) = &last_output {
-                msg.push_str(&format!("\nLast output: {}", output.trim()));
-            }
-            anyhow::bail!(msg);
-        }
-
-        tokio::time::sleep(Duration::from_secs(delay_secs)).await;
-    }
-}
-
-async fn install_docker(vm: &mut qlean::Machine) -> Result<()> {
-    tracing::info!("Installing Docker in VM...");
-
-    exec_check(vm, "apt-get update -qq").await?;
-
-    exec_check(
-        vm,
-        "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
-            ca-certificates \
-            curl \
-            gnupg \
-            lsb-release",
-    )
-    .await?;
-
-    exec_check(vm, "install -m 0755 -d /etc/apt/keyrings").await?;
-
-    exec_check(
-        vm,
-        "curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg",
-    )
-    .await?;
-
-    exec_check(vm, "chmod a+r /etc/apt/keyrings/docker.gpg").await?;
-
-    exec_check(
-        vm,
-        "echo \"deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
-            https://download.docker.com/linux/debian $(. /etc/os-release && echo $VERSION_CODENAME) stable\" \
-            > /etc/apt/sources.list.d/docker.list",
-    )
-    .await?;
-
-    exec_check(vm, "apt-get update -qq").await?;
-
-    exec_check(
-        vm,
-        "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
-            docker-ce \
-            docker-ce-cli \
-            containerd.io \
-            docker-compose-plugin",
-    )
-    .await?;
-
-    exec_check(vm, "service docker start").await?;
-
-    exec_check(vm, "docker info > /dev/null").await?;
-
-    tracing::info!("Docker installed and started successfully.");
-    Ok(())
-}
-
-async fn upload_docker_compose(vm: &mut qlean::Machine) -> Result<()> {
-    tracing::info!("Uploading docker-compose.demo.yml to VM...");
-
-    let host_compose_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("..")
-        .join(DOCKER_COMPOSE_HOST_PATH);
-
-    let content = std::fs::read_to_string(&host_compose_path).with_context(|| {
-        format!(
-            "Failed to read docker-compose.demo.yml from {}",
-            host_compose_path.display()
-        )
-    })?;
-
-    vm.write(Path::new(DOCKER_COMPOSE_FILE), content.as_bytes())
-        .await?;
-
-    tracing::info!(
-        "Uploaded docker-compose.demo.yml from {} to {}",
-        host_compose_path.display(),
-        DOCKER_COMPOSE_FILE
-    );
-    Ok(())
-}
-
-async fn setup_redis(vm: &mut qlean::Machine) -> Result<()> {
-    tracing::info!("Setting up Redis using Docker...");
-
-    exec_check(
-        vm,
-        &format!("docker compose -f {} up -d redis", DOCKER_COMPOSE_FILE),
-    )
-    .await?;
-
-    tracing::info!("Waiting for Redis to be ready...");
-    retry_until(
-        vm,
-        &format!("docker exec {} redis-cli ping", REDIS_CONTAINER),
-        |output| output.trim() == "PONG",
-        "Redis",
-        15,
-        2,
-    )
-    .await?;
-
-    tracing::info!("Redis setup complete.");
-    Ok(())
-}
 
 async fn cleanup_docker(vm: &mut qlean::Machine) -> Result<()> {
     tracing::info!("Cleaning up Docker containers...");
@@ -433,9 +242,6 @@ async fn test_session_management_with_redis() -> Result<()> {
             tracing::info!("============================================================");
 
             install_docker(vm).await.context("Docker install failed")?;
-            upload_docker_compose(vm)
-                .await
-                .context("Upload docker-compose failed")?;
 
             setup_redis(vm).await.context("Redis setup failed")?;
 
