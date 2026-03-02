@@ -140,6 +140,29 @@ jobs:
           remote_key: ${{ secrets.ORION_DEPLOY_SSH_KEY }}
           strict_hostkeys_checking: no
 
+      - name: Patch .env for legacy orion_vm
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.ORION_DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.ORION_DEPLOY_SSH_KEY }}
+          script: |
+            if [ -f /home/orion/orion-runner/.env ]; then
+              sed -i 's|^SERVER_WS=.*|SERVER_WS="wss://orion.gitmega.com/ws" # aws-dev|' /home/orion/orion-runner/.env
+              echo "✓ Updated SERVER_WS for legacy orion_vm"
+            else
+              echo "✗ /home/orion/orion-runner/.env not found"
+              exit 1
+            fi
+
+            if [ -f /home/orion/orion-runner/scorpio.toml ]; then
+              sed -i 's|buck2hub|gitmega|g' /home/orion/orion-runner/scorpio.toml
+              echo "✓ Updated scorpio.toml host for legacy orion_vm"
+            else
+              echo "✗ /home/orion/orion-runner/scorpio.toml not found"
+              exit 1
+            fi
+
       - name: Start service on orion_vm
         uses: appleboy/ssh-action@v1.0.3
         with:
