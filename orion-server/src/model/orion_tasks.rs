@@ -1,5 +1,4 @@
-use serde_json::to_value;
-use serde_json::Value;
+use serde_json::{Value, to_value};
 
 pub struct OrionTask;
 
