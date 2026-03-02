@@ -48,7 +48,7 @@ use crate::{
     auto_retry::AutoRetryJudger,
     log::log_service::LogService,
     model::{
-        build_events::{self, BuildEventDTO},
+        build_events::{BuildEventDTO},
         build_targets::BuildTarget,
         builds,
         orion_tasks::{OrionTask, OrionTaskDTO},

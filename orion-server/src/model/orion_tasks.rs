@@ -1,6 +1,6 @@
 use api_model::buck2::{status::Status, types::ProjectRelativePath};
 use chrono::Utc;
-use sea_orm::{ConnectionTrait, DbErr, IntoActiveModel};
+use sea_orm::{ActiveModelTrait, ConnectionTrait, DbErr, IntoActiveModel};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, to_value};
 use utoipa::ToSchema;
