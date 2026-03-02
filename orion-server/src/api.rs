@@ -685,7 +685,7 @@ async fn handle_immediate_task_dispatch_v2(
         Some(chosen_id) => {
             tracing::info!("Selected idle worker {} for task {}", chosen_id, task_id);
             chosen_id
-        },
+        }
         None => {
             tracing::error!("No idle workers available for task {}", task_id);
             return OrionBuildResult {
