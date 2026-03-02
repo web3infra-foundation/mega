@@ -153,9 +153,10 @@ jobs:
             mkdir -p /workspace/mount
 
             # Set permissions
-            chmod +x /home/orion/orion-runner/orion
-            chmod +x /home/orion/orion-runner/run.sh
-            chmod +x /home/orion/orion-runner/cleanup.sh
+            sudo chown -R orion:orion /home/orion/orion-runner
+            sudo chmod +x /home/orion/orion-runner/orion
+            sudo chmod +x /home/orion/orion-runner/run.sh
+            sudo chmod +x /home/orion/orion-runner/cleanup.sh
 
             # Update systemd service file if changed
             if [ -f /home/orion/orion-runner/orion-runner.service ]; then
@@ -256,9 +257,10 @@ jobs:
             sudo chown -R orion:orion /data/scorpio /workspace/mount
 
             # Set permissions
-            chmod +x /home/orion/orion-runner/orion
-            chmod +x /home/orion/orion-runner/run.sh
-            chmod +x /home/orion/orion-runner/cleanup.sh
+            sudo chown -R orion:orion /home/orion/orion-runner
+            sudo chmod +x /home/orion/orion-runner/orion
+            sudo chmod +x /home/orion/orion-runner/run.sh
+            sudo chmod +x /home/orion/orion-runner/cleanup.sh
 
             # Update systemd service file if changed
             if [ -f /home/orion/orion-runner/orion-runner.service ]; then
