@@ -2094,8 +2094,8 @@ pub async fn build_event_get_handler(
 
 #[utoipa::path(
     get,
-    path = "/v2/targets/{task-id}",
-    params(("task-id" = String, Path, description = "Task ID")),
+    path = "/v2/targets/{task_id}",
+    params(("task_id" = String, Path, description = "Task ID")),
     responses(
         (status = 200, description = "Get target successfully", body = BuildTargetDTO),
         (status = 404, description = "Not found task", body = MessageResponse),
