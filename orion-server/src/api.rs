@@ -48,7 +48,10 @@ use crate::{
     auto_retry::AutoRetryJudger,
     log::log_service::LogService,
     model::{
-        build_events, builds, orion_tasks,
+        build_events,
+        build_targets::BuildTarget,
+        builds,
+        orion_tasks::{self, OrionTask},
         targets::{self, TargetState, TargetWithBuilds},
         tasks,
     },
@@ -513,14 +516,8 @@ pub async fn task_handler_v2(
     let _task_name = format!("CL-{}-{}", req.cl_link, task_id);
 
     // Create a new task in the database
-    if let Err(err) = callisto::orion_tasks::Model::insert_task(
-        task_id,
-        &req.cl_link,
-        &req.repo,
-        &req.changes,
-        &state.conn,
-    )
-    .await
+    if let Err(err) =
+        OrionTask::insert_task(task_id, &req.cl_link, &req.repo, &req.changes, &state.conn).await
     {
         tracing::error!("Failed to insert task into DB: {}", err);
         return (
@@ -698,24 +695,19 @@ async fn handle_immediate_task_dispatch_v2(
 
     // create and insert target path
     let target_id = Uuid::now_v7();
-    let target_path = match callisto::build_targets::Model::insert_default_target(
-        target_id,
-        task_id,
-        &state.conn,
-    )
-    .await
-    {
-        Ok(default_path) => default_path,
-        Err(err) => {
-            tracing::error!("Failed to prepare target for task {}: {}", task_id, err);
-            scheduler::release_worker(&chosen_id).await;
-            return OrionBuildResult {
-                build_id: "".to_string(),
-                status: "error".to_string(),
-                message: format!("Failed to prepare target for task {}", task_id),
-            };
-        }
-    };
+    let target_path =
+        match BuildTarget::insert_default_target(target_id, task_id, &state.conn).await {
+            Ok(default_path) => default_path,
+            Err(err) => {
+                tracing::error!("Failed to prepare target for task {}: {}", task_id, err);
+                scheduler::release_worker(&chosen_id).await;
+                return OrionBuildResult {
+                    build_id: "".to_string(),
+                    status: "error".to_string(),
+                    message: format!("Failed to prepare target for task {}", task_id),
+                };
+            }
+        };
 
     // Create new build event for initial try
     let event = BuildEventPayload::new(
