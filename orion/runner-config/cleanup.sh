@@ -12,6 +12,11 @@ set +e  # 允许命令失败，不中断脚本
 
 SCORPIO_TOML="${SCORPIO_CONFIG:-/home/orion/orion-runner/scorpio.toml}"
 
+if [ ! -f "./config.toml" ]; then
+    echo "==> [清理] 未发现 ./config.toml，正在创建..."
+    printf 'works = []\n' > "./config.toml"
+fi
+
 # 从 scorpio.toml 读取路径
 read_scorpio_path() {
     local key="$1"
