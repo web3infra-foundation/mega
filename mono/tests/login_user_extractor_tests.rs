@@ -39,149 +39,9 @@ use serde_json::Value;
 
 // Docker service names (must match docker-compose.demo.yml)
 const CAMPSITE_API_CONTAINER: &str = "mega-demo-campsite-api";
-const DOCKER_COMPOSE_FILE: &str = "/tmp/docker-compose.yml";
 
 // Campsite API port mapping (host -> container)
 const CAMPSITE_API_PORT: u16 = 8080;
-
-/// Setup Campsite API using Docker in VM
-async fn setup_campsite_api(vm: &mut qlean::Machine) -> Result<()> {
-    tracing::info!("Setting up Campsite API using Docker...");
-
-    // Pull the Campsite API image
-    tracing::info!("Pulling Campsite API image...");
-    exec_check(
-        vm,
-        "docker pull public.ecr.aws/m8q5m4u3/mega:campsite-0.1.0-pre-release",
-    )
-    .await?;
-    tracing::info!("Image pulled successfully");
-
-    // Start Campsite API container
-    tracing::info!("Starting Campsite API container...");
-    exec_check(
-        vm,
-        &format!(
-            "docker compose -f {} up -d campsite_api",
-            DOCKER_COMPOSE_FILE
-        ),
-    )
-    .await?;
-
-    // Wait a few seconds for container to start before checking logs
-    tokio::time::sleep(Duration::from_secs(3)).await;
-
-    // Check container status first
-    let container_status = vm
-        .exec(&format!(
-            "docker inspect -f '{{{{.State.Status}}}}' {} 2>/dev/null || echo 'unknown'",
-            CAMPSITE_API_CONTAINER
-        ))
-        .await?;
-    let status = String::from_utf8_lossy(&container_status.stdout);
-    tracing::info!("Container status: {}", status.trim());
-
-    if status.trim() != "running" {
-        let logs = vm
-            .exec(&format!(
-                "docker logs {} 2>&1 | tail -30",
-                CAMPSITE_API_CONTAINER
-            ))
-            .await?;
-        tracing::error!(
-            "Container failed to start. Logs:\n{}",
-            String::from_utf8_lossy(&logs.stdout)
-        );
-        anyhow::bail!("Campsite API container is not running");
-    }
-
-    // Wait for API to be ready with faster polling
-    // Note: First startup may take 5-10 minutes due to database migrations
-    tracing::info!(
-        "Waiting for Campsite API to be ready (this may take 5-10 minutes on first run due to DB migrations)..."
-    );
-
-    // Show container logs periodically while waiting
-    let start_time = std::time::Instant::now();
-    let check_interval = Duration::from_secs(2);
-    let log_interval = Duration::from_secs(30); // Log every 30 seconds to reduce noise
-    let mut last_log_time = start_time;
-
-    loop {
-        // Check if service is ready
-        let check_cmd = format!(
-            "curl -s -o /dev/null -w '%{{http_code}}' http://127.0.0.1:{}/health 2>/dev/null || echo 'not_ready'",
-            CAMPSITE_API_PORT
-        );
-
-        match exec_check(vm, &check_cmd).await {
-            Ok(output) if output.trim() == "200" => {
-                let elapsed = start_time.elapsed().as_secs();
-                tracing::info!("Campsite API is ready after {} seconds", elapsed);
-                break;
-            }
-            _ => {
-                // Print logs every 30 seconds to show progress
-                if last_log_time.elapsed() >= log_interval {
-                    let logs_result = vm
-                        .exec(&format!(
-                            "docker logs --tail 5 {} 2>&1 || echo 'No logs yet'",
-                            CAMPSITE_API_CONTAINER
-                        ))
-                        .await;
-                    if let Ok(logs) = logs_result {
-                        let stdout = String::from_utf8_lossy(&logs.stdout);
-                        if !stdout.trim().is_empty() && stdout != "No logs yet" {
-                            tracing::info!(
-                                "Campsite API is still starting... Last log:\n{}",
-                                stdout.trim()
-                            );
-                        } else {
-                            tracing::info!(
-                                "Campsite API is still starting... (elapsed: {}s)",
-                                start_time.elapsed().as_secs()
-                            );
-                        }
-                    }
-                    last_log_time = std::time::Instant::now();
-                }
-            }
-        }
-
-        // Timeout after 15 minutes (900 seconds) - migrations can take a while
-        if start_time.elapsed() > Duration::from_secs(900) {
-            // Get final logs before failing
-            let logs = vm
-                .exec(&format!(
-                    "docker logs {} 2>&1 | tail -50",
-                    CAMPSITE_API_CONTAINER
-                ))
-                .await?;
-            let stdout = String::from_utf8_lossy(&logs.stdout);
-            tracing::error!(
-                "Campsite API failed to start within 15 minutes. Last logs:\n{}",
-                stdout
-            );
-            anyhow::bail!("Campsite API failed to start within 15 minutes");
-        }
-
-        tokio::time::sleep(check_interval).await;
-    }
-
-    tracing::info!("Campsite API setup complete.");
-    Ok(())
-}
-
-/// Cleanup Docker containers
-async fn cleanup_docker(vm: &mut qlean::Machine) -> Result<()> {
-    tracing::info!("Cleaning up Docker containers...");
-    let _ = exec_check(
-        vm,
-        &format!("docker compose -f {} down", DOCKER_COMPOSE_FILE),
-    )
-    .await;
-    Ok(())
-}
 
 /// Call Campsite API /v1/users/me endpoint
 async fn call_users_me(vm: &mut qlean::Machine, cookie: &str) -> Result<(u16, Option<Value>)> {
@@ -251,6 +111,11 @@ async fn phase1_test_api_health(vm: &mut qlean::Machine) -> Result<()> {
 
 /// Phase 2: Test successful user retrieval (valid cookie scenario)
 /// Corresponds to: test_login_user_extractor_success
+///
+/// NOTE: This test runs in demo mode (RAILS_ENV=demo) which bypasses authentication.
+/// The API returns 200 for any cookie because demo mode does not enforce session validation.
+/// For proper session validation testing, need RAILS_ENV=production and a real session
+/// inserted into the Campsite API MySQL database.
 async fn phase2_test_valid_request(vm: &mut qlean::Machine) -> Result<()> {
     tracing::info!("============================================================");
     tracing::info!("Phase 2: Testing Valid Request (test_login_user_extractor_success)");
@@ -450,9 +315,6 @@ async fn test_login_user_extractor_integration() -> Result<()> {
 
             tracing::info!("");
             tracing::info!("All test phases completed successfully!");
-
-            // Cleanup
-            cleanup_docker(vm).await?;
 
             Ok(())
         })

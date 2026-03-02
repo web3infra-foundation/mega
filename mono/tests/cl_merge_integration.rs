@@ -50,10 +50,6 @@ use common::*;
 use qlean::{Distro, MachineConfig, create_image, with_machine};
 use serde_json::Value;
 
-const POSTGRES_USER: &str = "mega";
-
-const POSTGRES_DB: &str = "mono";
-
 // Timing constants for test operations
 const CL_CREATE_WAIT_SECS: u64 = 1; // Wait time after CL creation
 
@@ -64,15 +60,6 @@ const TEST_USER_B: &str = "user_b";
 const TEST_TOKEN_A: &str = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
 const TEST_TOKEN_B: &str = "b2c3d4e5-f6a7-8901-bcde-f12345678901";
 
-// Docker service names (must match docker-compose.demo.yml)
-const POSTGRES_CONTAINER: &str = "mega-demo-postgres";
-
-const DOCKER_COMPOSE_FILE: &str = "/tmp/docker-compose.yml";
-// Path to compose file on host (relative to workspace root)
-
-/// Install Docker in the VM
-/// Setup test users and tokens in database
-///
 /// This function inserts pre-defined constant tokens for test users.
 /// Tokens are constants defined at the top of the file for simplicity.
 async fn setup_test_users(vm: &mut qlean::Machine) -> Result<()> {

@@ -34,119 +34,13 @@
 
 mod common;
 
-use std::time::Duration;
-
 use anyhow::{Context, Result};
 use common::*;
 use qlean::{Distro, MachineConfig, create_image, with_machine};
 use serde_json::Value;
 
-const CAMPSITE_API_CONTAINER: &str = "mega-demo-campsite-api";
-
-const DOCKER_COMPOSE_FILE: &str = "/tmp/docker-compose.yml";
-
-const CAMPSITE_API_PORT: u16 = 8080;
-
 const TEST_COOKIE: &str = "test_session_cookie";
 const CAMPSITE_API_COOKIE_NAME: &str = "_campsite_api_session";
-
-async fn setup_campsite_api(vm: &mut qlean::Machine) -> Result<()> {
-    tracing::info!("Setting up Campsite API using Docker...");
-
-    tracing::info!("Pulling Campsite API image...");
-    exec_check(
-        vm,
-        "docker pull public.ecr.aws/m8q5m4u3/mega:campsite-0.1.0-pre-release-amd64",
-    )
-    .await?;
-    tracing::info!("Image pulled successfully");
-
-    tracing::info!("Starting Campsite API container...");
-    exec_check(
-        vm,
-        &format!(
-            "docker compose -f {} up -d campsite_api",
-            DOCKER_COMPOSE_FILE
-        ),
-    )
-    .await?;
-
-    tokio::time::sleep(Duration::from_secs(3)).await;
-
-    let container_status = vm
-        .exec(&format!(
-            "docker inspect -f '{{{{.State.Status}}}}' {} 2>/dev/null || echo 'unknown'",
-            CAMPSITE_API_CONTAINER
-        ))
-        .await?;
-    let status = String::from_utf8_lossy(&container_status.stdout);
-    tracing::info!("Container status: {}", status.trim());
-
-    if status.trim() != "running" {
-        let logs = vm
-            .exec(&format!(
-                "docker logs {} 2>&1 | tail -30",
-                CAMPSITE_API_CONTAINER
-            ))
-            .await?;
-        tracing::error!(
-            "Container failed to start. Logs:\n{}",
-            String::from_utf8_lossy(&logs.stdout)
-        );
-        anyhow::bail!("Campsite API container is not running");
-    }
-
-    tracing::info!("Waiting for Campsite API to be ready...");
-
-    let start_time = std::time::Instant::now();
-    let check_interval = Duration::from_secs(2);
-    let log_interval = Duration::from_secs(30);
-    let mut last_log_time = start_time;
-
-    loop {
-        let check_cmd = format!(
-            "curl -s -o /dev/null -w '%{{http_code}}' http://127.0.0.1:{}/health 2>/dev/null || echo 'not_ready'",
-            CAMPSITE_API_PORT
-        );
-
-        match exec_check(vm, &check_cmd).await {
-            Ok(output) if output.trim() == "200" => {
-                let elapsed = start_time.elapsed().as_secs();
-                tracing::info!("Campsite API is ready after {} seconds", elapsed);
-                break;
-            }
-            _ => {
-                if last_log_time.elapsed() >= log_interval {
-                    let logs_result = vm
-                        .exec(&format!(
-                            "docker logs --tail 5 {} 2>&1 || echo 'No logs yet'",
-                            CAMPSITE_API_CONTAINER
-                        ))
-                        .await;
-                    if let Ok(logs) = logs_result {
-                        let stdout = String::from_utf8_lossy(&logs.stdout);
-                        if !stdout.trim().is_empty() && stdout != "No logs yet" {
-                            tracing::info!(
-                                "Campsite API is still starting... Last log:\n{}",
-                                stdout.trim()
-                            );
-                        }
-                    }
-                    last_log_time = std::time::Instant::now();
-                }
-            }
-        }
-
-        if start_time.elapsed() > Duration::from_secs(900) {
-            anyhow::bail!("Campsite API failed to start within 15 minutes");
-        }
-
-        tokio::time::sleep(check_interval).await;
-    }
-
-    tracing::info!("Campsite API setup complete.");
-    Ok(())
-}
 
 // ============================================================================
 // Test phases - directly calling Campsite API
@@ -285,7 +179,7 @@ async fn phase4_test_server_error(vm: &mut qlean::Machine) -> Result<()> {
     if status == 404 {
         tracing::info!("  PASS: Got 404 Not Found for nonexistent endpoint");
     } else {
-        tracing::info!("  Got status: {} (expected 404)", status);
+        anyhow::bail!("  Got status: {} (expected 404)", status);
     }
 
     Ok(())
@@ -307,10 +201,10 @@ async fn phase5_test_network_error(vm: &mut qlean::Machine) -> Result<()> {
     retry_until(
         vm,
         &format!(
-            "docker exec {} curl -sf -o /dev/null http://localhost:8080/health",
+            "docker exec {} curl -sf -o /dev/null -w '%{{http_code}}' http://localhost:8080/health",
             CAMPSITE_API_CONTAINER
         ),
-        |output| output.is_empty(),
+        |output| output.trim() == "200",
         "Campsite API",
         60,
         2,

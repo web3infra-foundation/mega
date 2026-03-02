@@ -34,20 +34,6 @@ use anyhow::{Context, Result};
 use common::*;
 use qlean::{Distro, MachineConfig, create_image, with_machine};
 
-// Docker service names (must match docker-compose.demo.yml)
-const REDIS_CONTAINER: &str = "mega-demo-redis";
-const DOCKER_COMPOSE_FILE: &str = "/tmp/docker-compose.yml";
-
-async fn cleanup_docker(vm: &mut qlean::Machine) -> Result<()> {
-    tracing::info!("Cleaning up Docker containers...");
-    let _ = exec_check(
-        vm,
-        &format!("docker compose -f {} down", DOCKER_COMPOSE_FILE),
-    )
-    .await;
-    Ok(())
-}
-
 // ============================================================================
 // Test Scenarios - All in one function to avoid multiple VM startups
 // ============================================================================
@@ -263,8 +249,6 @@ async fn test_session_management_with_redis() -> Result<()> {
 
             tracing::info!("");
             tracing::info!("All test phases completed successfully!");
-
-            cleanup_docker(vm).await?;
 
             Ok(())
         })

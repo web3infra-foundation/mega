@@ -34,12 +34,6 @@ use anyhow::{Context, Result};
 use common::*;
 use qlean::{Distro, MachineConfig, create_image, with_machine};
 
-const MEGA_HOST: &str = "127.0.0.1";
-const MEGA_PORT: u16 = 8000;
-const POSTGRES_USER: &str = "mega";
-
-const POSTGRES_DB: &str = "mono";
-
 // Test authentication tokens
 const TEST_TOKEN: &str = "test-token-12345678-1234-1234-1234-123456789012";
 const TEST_USER: &str = "test_user";
@@ -51,7 +45,7 @@ async fn setup_test_users(vm: &mut qlean::Machine) -> Result<()> {
     exec_check(
         vm,
         &format!(
-            "docker exec {} psql -U {} -d {} -c \"INSERT INTO access_token (id, username, token, created_at) VALUES (floor(random() * 1000000000000)::bigint, '{}', '{}', NOW());\"",
+            "docker exec {} psql -U {} -d {} -c \"INSERT INTO access_token (id, username, token, created_at) VALUES (1, '{}', '{}', NOW());\"",
             POSTGRES_CONTAINER, POSTGRES_USER, POSTGRES_DB, TEST_USER, TEST_TOKEN
         ),
     )
@@ -89,7 +83,7 @@ async fn init_monorepo(vm: &mut qlean::Machine) -> Result<()> {
         }
         Err(e) => {
             tracing::warn!("Git clone error: {}, creating local bare repo", e);
-            exec_check(vm, "mkdir -p /tmp/mono && cd /tmp/mono && git init --bare").await?;
+            exec_check(vm, "mkdir -p /tmp/mono && cd /tmp/mono && git init").await?;
         }
     }
 
@@ -124,22 +118,27 @@ async fn init_monorepo(vm: &mut qlean::Machine) -> Result<()> {
         .await;
 
     if let (Ok(commit_ok), Ok(tree_ok)) = (commit_result, tree_result) {
-        let commit_hash = String::from_utf8_lossy(&commit_ok.stdout)
-            .trim()
-            .to_string();
-        let tree_hash = String::from_utf8_lossy(&tree_ok.stdout).trim().to_string();
-        tracing::info!("Commit hash: {}, Tree hash: {}", commit_hash, tree_hash);
+        // Check command success before using output
+        if !commit_ok.status.success() || !tree_ok.status.success() {
+            tracing::warn!("Failed to get git commit/tree hash, skipping DB insert");
+        } else {
+            let commit_hash = String::from_utf8_lossy(&commit_ok.stdout)
+                .trim()
+                .to_string();
+            let tree_hash = String::from_utf8_lossy(&tree_ok.stdout).trim().to_string();
+            tracing::info!("Commit hash: {}, Tree hash: {}", commit_hash, tree_hash);
 
-        // Insert into mega_refs table (all required fields)
-        exec_check(
-            vm,
-            &format!(
-                "docker exec {} psql -U {} -d {} -c \"INSERT INTO mega_refs (id, path, ref_name, ref_commit_hash, ref_tree_hash, created_at, updated_at) VALUES (1, '/project', 'refs/heads/main', '{}', '{}', NOW(), NOW()) ON CONFLICT DO NOTHING;\"",
-                POSTGRES_CONTAINER, POSTGRES_USER, POSTGRES_DB, commit_hash, tree_hash
-            ),
-        )
-        .await?;
-        tracing::info!("Repository registered in mega_refs");
+            // Insert into mega_refs table (all required fields)
+            exec_check(
+                vm,
+                &format!(
+                    "docker exec {} psql -U {} -d {} -c \"INSERT INTO mega_refs (id, path, ref_name, ref_commit_hash, ref_tree_hash, created_at, updated_at) VALUES (1, '/project', 'refs/heads/main', '{}', '{}', NOW(), NOW()) ON CONFLICT DO NOTHING;\"",
+                    POSTGRES_CONTAINER, POSTGRES_USER, POSTGRES_DB, commit_hash, tree_hash
+                ),
+            )
+            .await?;
+            tracing::info!("Repository registered in mega_refs");
+        }
     }
 
     tracing::info!("Monorepo initialized successfully.");
@@ -164,8 +163,8 @@ async fn http_request(
     }
 
     if let Some(body_data) = body {
-        // Use double quotes for curl -d and escape properly
-        cmd.push_str(&format!(" -d \"{}\"", body_data.replace('"', "\\\"")));
+        // Use --data-raw with single quotes to avoid shell escaping issues
+        cmd.push_str(&format!(" --data-raw '{}'", body_data));
     }
 
     // Execute command without checking exit code (curl returns non-zero for 4xx/5xx)
@@ -237,62 +236,13 @@ async fn phase1_test_create_session(vm: &mut qlean::Machine) -> Result<()> {
             if status == 200 {
                 tracing::info!("  PASS: Session created via API with auth");
                 tracing::info!("  Response: {}", body);
-            } else if status == 401 {
-                tracing::info!("  Session unauthorized (401), using DB fallback");
-                // Fall back to direct DB insertion for setup
-                phase1_create_session_direct(vm, test_path).await?;
-            } else if status == 400 || status == 500 {
-                // Service is up but returned error - expected in test env, use DB fallback
-                tracing::info!("  Session creation returned {}, using DB fallback", status);
-                phase1_create_session_direct(vm, test_path).await?;
             } else {
-                tracing::warn!(
-                    "  Session creation returned unexpected status {}: {}",
-                    status,
-                    body
-                );
-                phase1_create_session_direct(vm, test_path).await?;
+                anyhow::bail!("Session creation failed with status {}: {}", status, body);
             }
         }
         Err(e) => {
-            // Mega not running - this is OK for basic test
-            tracing::info!("  Mega service unavailable, using DB fallback: {}", e);
-            phase1_create_session_direct(vm, test_path).await?;
+            anyhow::bail!("Mega service unavailable: {}", e);
         }
-    }
-
-    Ok(())
-}
-
-/// Helper: Create session directly in database (fallback)
-async fn phase1_create_session_direct(vm: &mut qlean::Machine, test_path: &str) -> Result<()> {
-    let session_id = "TEST1234";
-
-    // Insert test session directly into PostgreSQL
-    // Note: id is BIGINT PRIMARY KEY (not auto-increment), session_id is VARCHAR(8), need created_at/updated_at
-    exec_check(
-        vm,
-        &format!(
-            "docker exec {} psql -U {} -d {} -c \"INSERT INTO buck_session (id, session_id, user_id, repo_path, status, expires_at, created_at, updated_at) VALUES (1, '{}', '{}', '{}', 'created', NOW() + INTERVAL '1 hour', NOW(), NOW()) ON CONFLICT (session_id) DO UPDATE SET status = 'created';\"",
-            POSTGRES_CONTAINER, POSTGRES_USER, POSTGRES_DB, session_id, TEST_USER, test_path
-        ),
-    )
-    .await?;
-
-    // Verify session exists in database
-    let result = exec_check(
-        vm,
-        &format!(
-            "docker exec {} psql -U {} -d {} -t -c \"SELECT session_id FROM buck_session WHERE session_id = '{}';\"",
-            POSTGRES_CONTAINER, POSTGRES_USER, POSTGRES_DB, session_id
-        ),
-    )
-    .await?;
-
-    if result.trim() == session_id {
-        tracing::info!("  PASS: Session persisted in PostgreSQL");
-    } else {
-        anyhow::bail!("Session not found in database");
     }
 
     Ok(())
@@ -320,7 +270,7 @@ async fn phase2_test_validate_session(vm: &mut qlean::Machine) -> Result<()> {
             if status == 404 {
                 tracing::info!("  PASS: Session not found returns 404");
             } else {
-                tracing::warn!("  Unexpected status {}: {}", status, body);
+                anyhow::bail!("Unexpected status {}: {}", status, body);
             }
         }
         Err(e) => {
@@ -367,7 +317,7 @@ async fn phase2_test_validate_session(vm: &mut qlean::Machine) -> Result<()> {
                     status
                 );
             } else {
-                tracing::warn!("  Unexpected status {}: {}", status, body);
+                anyhow::bail!("Unexpected status {}: {}", status, body);
             }
         }
         Err(e) => {
@@ -402,7 +352,7 @@ async fn phase2_test_validate_session(vm: &mut qlean::Machine) -> Result<()> {
                 if status == 400 {
                     tracing::info!("  PASS: Invalid status returns 400");
                 } else {
-                    tracing::warn!("  Unexpected status {}: {}", status, body);
+                    anyhow::bail!("Unexpected status {}: {}", status, body);
                 }
             }
             Err(e) => {
@@ -605,7 +555,7 @@ async fn phase6_test_auth_without_token(vm: &mut qlean::Machine) -> Result<()> {
             if status == 401 {
                 tracing::info!("  PASS: Request properly rejected without token (401)");
             } else {
-                tracing::warn!("  Unexpected status {}: {}", status, body);
+                anyhow::bail!("Unexpected status {}: {}", status, body);
             }
         }
         Err(e) => {
@@ -636,7 +586,7 @@ async fn phase7_test_auth_invalid_token(vm: &mut qlean::Machine) -> Result<()> {
             if status == 401 {
                 tracing::info!("  PASS: Request properly rejected with invalid token (401)");
             } else {
-                tracing::warn!("  Unexpected status {}: {}", status, body);
+                anyhow::bail!("Unexpected status {}: {}", status, body);
             }
         }
         Err(e) => {
@@ -769,16 +719,6 @@ async fn phase8_test_manifest_upload(vm: &mut qlean::Machine) -> Result<()> {
                     body
                 );
             }
-
-            // Set status to manifest_uploaded for subsequent tests (both success and fallback cases)
-            exec_check(
-                vm,
-                &format!(
-                    "docker exec {} psql -U {} -d {} -c \"UPDATE buck_session SET status = 'manifest_uploaded', updated_at = NOW() WHERE session_id = '{}';\"",
-                    POSTGRES_CONTAINER, POSTGRES_USER, POSTGRES_DB, cl_link
-                ),
-            )
-            .await?;
         }
         Err(e) => {
             tracing::warn!("  SKIP: Mega service not available: {}", e);
@@ -1017,7 +957,7 @@ async fn phase11_test_validate_wrong_user(vm: &mut qlean::Machine) -> Result<()>
             if status == 403 {
                 tracing::info!("  PASS: Wrong user returns 403");
             } else {
-                tracing::warn!("  Unexpected status {}: {}", status, body);
+                anyhow::bail!("Unexpected status {}: {}", status, body);
             }
         }
         Err(e) => {
@@ -1120,7 +1060,7 @@ async fn phase12_test_upload_file_size_limit(vm: &mut qlean::Machine) -> Result<
     if status_code == 413 {
         tracing::info!("  PASS: File too large returns 413");
     } else {
-        tracing::warn!("  Status {}: {}", status_code, output);
+        anyhow::bail!("Unexpected status {}: {}", status_code, output);
     }
 
     Ok(())
@@ -1216,7 +1156,7 @@ async fn phase13_test_upload_size_mismatch(vm: &mut qlean::Machine) -> Result<()
     if status_code == 400 {
         tracing::info!("  PASS: Size mismatch returns 400");
     } else {
-        tracing::warn!("  Status {}: {}", status_code, output);
+        anyhow::bail!("Unexpected status {}: {}", status_code, output);
     }
 
     Ok(())
@@ -1312,7 +1252,7 @@ async fn phase14_test_upload_hash_mismatch(vm: &mut qlean::Machine) -> Result<()
     if status_code == 400 {
         tracing::info!("  PASS: Hash mismatch returns 400");
     } else {
-        tracing::warn!("  Status {}: {}", status_code, output);
+        anyhow::bail!("Unexpected status {}: {}", status_code, output);
     }
 
     Ok(())
@@ -1421,7 +1361,7 @@ async fn phase15_test_upload_already_uploaded(vm: &mut qlean::Machine) -> Result
             "  FAIL: Upload succeeded when it should have failed (file already uploaded)"
         );
     } else {
-        tracing::warn!("  Status {}: {}", status_code, output);
+        anyhow::bail!("Unexpected status {}: {}", status_code, output);
     }
 
     Ok(())
@@ -1538,7 +1478,7 @@ async fn phase16_test_complete_success(vm: &mut qlean::Machine) -> Result<()> {
     if complete_status == 200 {
         tracing::info!("  PASS: Complete upload success!");
     } else {
-        tracing::warn!("  Status {}: {}", complete_status, complete_output);
+        anyhow::bail!("Unexpected status {}: {}", complete_status, complete_output);
     }
 
     Ok(())

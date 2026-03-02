@@ -22,6 +22,9 @@ pub const POSTGRES_DB: &str = "mono";
 
 pub const MYSQL_CONTAINER: &str = "mega-demo-mysql";
 
+pub const CAMPSITE_API_CONTAINER: &str = "mega-demo-campsite-api";
+pub const CAMPSITE_API_PORT: u16 = 8080;
+
 pub const MEGA_STARTUP_WAIT_SECS: u64 = 5; // Wait time after starting Mega service
 pub const DB_OP_WAIT_SECS: u64 = 2; // Wait time after database operations
 
@@ -506,5 +509,100 @@ pub async fn setup_mysql(vm: &mut qlean::Machine) -> Result<()> {
     .await?;
 
     tracing::info!("MySQL is ready");
+    Ok(())
+}
+
+pub async fn setup_campsite_api(vm: &mut qlean::Machine) -> Result<()> {
+    tracing::info!("Setting up Campsite API using Docker...");
+
+    tracing::info!("Pulling Campsite API image...");
+    let ecr_image = get_mega_ecr_image();
+    exec_check(vm, &format!("docker pull {}", ecr_image)).await?;
+    tracing::info!("Image pulled successfully");
+
+    tracing::info!("Starting Campsite API container...");
+    exec_check(
+        vm,
+        &format!(
+            "docker compose -f {} up -d campsite_api",
+            DOCKER_COMPOSE_FILE
+        ),
+    )
+    .await?;
+
+    tokio::time::sleep(Duration::from_secs(3)).await;
+
+    let container_status = vm
+        .exec(&format!(
+            "docker inspect -f '{{{{.State.Status}}}}' {} 2>/dev/null || echo 'unknown'",
+            CAMPSITE_API_CONTAINER
+        ))
+        .await?;
+    let status = String::from_utf8_lossy(&container_status.stdout);
+    tracing::info!("Container status: {}", status.trim());
+
+    if status.trim() != "running" {
+        let logs = vm
+            .exec(&format!(
+                "docker logs {} 2>&1 | tail -30",
+                CAMPSITE_API_CONTAINER
+            ))
+            .await?;
+        tracing::error!(
+            "Container failed to start. Logs:\n{}",
+            String::from_utf8_lossy(&logs.stdout)
+        );
+        anyhow::bail!("Campsite API container is not running");
+    }
+
+    tracing::info!("Waiting for Campsite API to be ready...");
+
+    let start_time = std::time::Instant::now();
+    let check_interval = Duration::from_secs(2);
+    let log_interval = Duration::from_secs(30);
+    let mut last_log_time = start_time;
+
+    loop {
+        let check_cmd = format!(
+            "curl -s -o /dev/null -w '%{{http_code}}' http://127.0.0.1:{}/health 2>/dev/null || echo 'not_ready'",
+            CAMPSITE_API_PORT
+        );
+
+        match exec_check(vm, &check_cmd).await {
+            Ok(output) if output.trim() == "200" => {
+                let elapsed = start_time.elapsed().as_secs();
+                tracing::info!("Campsite API is ready after {} seconds", elapsed);
+                break;
+            }
+            _ => {
+                if last_log_time.elapsed() >= log_interval {
+                    let logs_result = vm
+                        .exec(&format!(
+                            "docker logs --tail 5 {} 2>&1 || echo 'No logs yet'",
+                            CAMPSITE_API_CONTAINER
+                        ))
+                        .await;
+                    if let Ok(logs) = logs_result {
+                        let stdout = String::from_utf8_lossy(&logs.stdout);
+                        if !stdout.trim().is_empty() && stdout != "No logs yet" {
+                            tracing::info!(
+                                "Campsite API is still starting... Last log:\n{}",
+                                stdout.trim()
+                            );
+                        }
+                    }
+                    last_log_time = std::time::Instant::now();
+                }
+            }
+        }
+
+        if start_time.elapsed() > Duration::from_secs(900) {
+            anyhow::bail!("Campsite API failed to start within 15 minutes");
+        }
+
+        tokio::time::sleep(check_interval).await;
+    }
+
+    tracing::info!("Campsite API setup complete.");
     Ok(())
 }
