@@ -1,4 +1,8 @@
+use api_model::buck2::{status::Status, types::ProjectRelativePath};
+use sea_orm::{DbErr, IntoActiveModel};
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, to_value};
+use utoipa::ToSchema;
 
 pub struct OrionTask;
 
@@ -31,7 +35,7 @@ impl OrionTask {
     }
 }
 
-#[derive(ToSchema, Serialize)]
+#[derive(ToSchema, Serialize, Deserialize)]
 pub struct OrionTaskDTO {
     pub id: String,
     pub changes: Value,

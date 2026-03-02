@@ -48,7 +48,7 @@ use crate::{
     auto_retry::AutoRetryJudger,
     log::log_service::LogService,
     model::{
-        build_events,
+        build_events::{self, BuildEventDTO},
         build_targets::BuildTarget,
         builds,
         orion_tasks::{self, OrionTask, OrionTaskDTO},
@@ -700,7 +700,7 @@ async fn handle_immediate_task_dispatch_v2(
             Ok(default_path) => default_path,
             Err(err) => {
                 tracing::error!("Failed to prepare target for task {}: {}", task_id, err);
-                scheduler.release_worker(&chosen_id).await;
+                state.scheduler.release_worker(&chosen_id).await;
                 return OrionBuildResult {
                     build_id: "".to_string(),
                     status: "error".to_string(),
@@ -752,7 +752,7 @@ async fn handle_immediate_task_dispatch_v2(
                 task_id,
                 e
             );
-            scheduler.release_worker(&chosen_id).await;
+            state.scheduler.release_worker(&chosen_id).await;
             return OrionBuildResult {
                 build_id: "".to_string(),
                 status: "error".to_string(),
@@ -2127,33 +2127,6 @@ async fn immediate_work(
 #[derive(ToSchema, Serialize)]
 pub struct MessageResponse {
     pub message: String,
-}
-
-#[derive(ToSchema, Serialize)]
-pub struct BuildEventDTO {
-    pub id: String,
-    pub task_id: String,
-    pub retry_count: i32,
-    pub exit_code: Option<i32>,
-    pub log: Option<String>,
-    pub log_output_file: String,
-    pub start_at: String,
-    pub end_at: Option<String>,
-}
-
-impl From<&build_events::Model> for BuildEventDTO {
-    fn from(model: &build_events::Model) -> Self {
-        Self {
-            id: model.id.to_string(),
-            task_id: model.task_id.to_string(),
-            retry_count: model.retry_count,
-            exit_code: model.exit_code,
-            log: model.log.clone(),
-            log_output_file: model.log_output_file.clone(),
-            start_at: model.start_at.to_string(),
-            end_at: model.end_at.map(|dt| dt.with_timezone(&Utc).to_string()),
-        }
-    }
 }
 
 #[derive(ToSchema, Serialize)]
