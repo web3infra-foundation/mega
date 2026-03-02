@@ -26,7 +26,6 @@ use crate::{
         builds,
         targets::{self, TargetState},
     },
-    scheduler,
 };
 
 /// Request payload for creating a new build task

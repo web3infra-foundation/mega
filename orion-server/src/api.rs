@@ -678,20 +678,23 @@ async fn handle_immediate_task_dispatch_v2(
     let build_event_id = Uuid::now_v7();
 
     // Select an idle worker
-    if let Some(chosen_id) = state
+    let chosen_id = match state
         .scheduler
         .search_and_claim_worker(&build_event_id.to_string())
-        .await
     {
-        tracing::info!("Selected idle worker {} for task {}", chosen_id, task_id);
-    } else {
-        tracing::error!("No idle workers available for task {}", task_id);
-        return OrionBuildResult {
-            build_id: "".to_string(),
-            status: "error".to_string(),
-            message: "No available workers at the moment".to_string(),
-        };
-    }
+        Some(chosen_id) => {
+            tracing::info!("Selected idle worker {} for task {}", chosen_id, task_id);
+            chosen_id
+        },
+        None => {
+            tracing::error!("No idle workers available for task {}", task_id);
+            return OrionBuildResult {
+                build_id: "".to_string(),
+                status: "error".to_string(),
+                message: "No available workers at the moment".to_string(),
+            };
+        }
+    };
 
     // create and insert target path
     let target_id = Uuid::now_v7();
@@ -705,7 +708,7 @@ async fn handle_immediate_task_dispatch_v2(
         Ok(default_path) => default_path,
         Err(err) => {
             tracing::error!("Failed to prepare target for task {}: {}", task_id, err);
-            scheduler.release_worker(&chosen_id).await;
+            scheduler::release_worker(&chosen_id).await;
             return OrionBuildResult {
                 build_id: "".to_string(),
                 status: "error".to_string(),
@@ -757,7 +760,7 @@ async fn handle_immediate_task_dispatch_v2(
                 task_id,
                 e
             );
-            scheduler.release_worker(&chosen_id).await;
+            scheduler::release_worker(&chosen_id).await;
             return OrionBuildResult {
                 build_id: "".to_string(),
                 status: "error".to_string(),
@@ -782,7 +785,7 @@ async fn activate_worker(build_info: &BuildInfo, scheduler: &TaskScheduler) -> O
     };
 
     // Send task to the selected worker
-    if let Some(mut worker) = scheduler.workers.get_mut(&build_info.worker_id)
+    if let Some(worker) = scheduler.workers.get_mut(&build_info.worker_id)
         && worker.sender.send(msg).is_ok()
     {
         scheduler.active_builds.insert(
@@ -807,7 +810,7 @@ async fn activate_worker(build_info: &BuildInfo, scheduler: &TaskScheduler) -> O
         build_info.event_payload.task_id,
         build_info.worker_id
     );
-    scheduler.release_worker(&build_info.worker_id).await;
+    scheduler::release_worker(&build_info.worker_id).await;
     OrionBuildResult {
         build_id: build_info.event_payload.build_event_id.to_string(),
         status: "error".to_string(),
