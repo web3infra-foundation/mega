@@ -11,7 +11,7 @@ pub struct Model {
     pub task_id: Uuid,
     pub path: String,
     #[sea_orm(column_type = "Text")]
-    pub lastest_state: String,
+    pub latest_state: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

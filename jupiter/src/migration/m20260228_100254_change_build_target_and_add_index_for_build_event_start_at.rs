@@ -39,7 +39,7 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(BuildTargets::TaskId).uuid().not_null())
                     .col(ColumnDef::new(BuildTargets::Path).string().not_null())
-                    .col(ColumnDef::new(BuildTargets::LastestState).text().not_null())
+                    .col(ColumnDef::new(BuildTargets::LatestState).text().not_null())
                     .foreign_key(
                         ForeignKey::create()
                             .from(BuildTargets::Table, BuildTargets::TaskId)
@@ -158,7 +158,7 @@ enum BuildTargets {
     Id,
     TaskId,
     Path,
-    LastestState,
+    LatestState,
 }
 
 #[derive(DeriveIden)]

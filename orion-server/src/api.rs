@@ -1967,7 +1967,7 @@ pub struct BuildTargetDTO {
     pub id: String,
     pub task_id: String,
     pub path: String,
-    pub lastest_state: String,
+    pub latest_state: String,
 }
 
 #[utoipa::path(
