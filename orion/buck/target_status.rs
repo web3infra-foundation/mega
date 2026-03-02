@@ -34,6 +34,7 @@ impl From<TargetBuildStatusUpdate> for WSTargetBuildStatusUpdate {
     fn from(value: TargetBuildStatusUpdate) -> Self {
         Self {
             configured_target_package: value.action_id.configured_target.target.package,
+            configured_target_name: value.action_id.configured_target.target.name,
             configured_target_configuration: value.action_id.configured_target.configuration,
             category: value.action_id.category,
             identifier: value.action_id.identifier,
@@ -70,6 +71,8 @@ impl From<WSTargetBuildStatusUpdate> for TargetBuildStatusUpdate {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExecutionStatus {
     Pending,
+    Running,
+    Succeeded,
     Failed,
     // Cache
 }
