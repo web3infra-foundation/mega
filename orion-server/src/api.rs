@@ -498,6 +498,7 @@ pub async fn target_logs_handler(
     }
 }
 
+#[allow(dead_code)]
 #[utoipa::path(
     post,
     path = "/v2/task",
@@ -662,6 +663,7 @@ pub async fn task_handler(
         .into_response()
 }
 
+#[allow(dead_code)]
 async fn handle_immediate_task_dispatch_v2(
     state: AppState,
     task_id: Uuid,
@@ -767,6 +769,7 @@ async fn handle_immediate_task_dispatch_v2(
     return activate_worker(&build_info, &state.scheduler).await;
 }
 
+#[allow(dead_code)]
 async fn activate_worker(build_info: &BuildInfo, scheduler: &TaskScheduler) -> OrionBuildResult {
     // Create WS Message
     let msg = WSMessage::TaskBuild {

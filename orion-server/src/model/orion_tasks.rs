@@ -6,9 +6,11 @@ use serde_json::{Value, to_value};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
+#[allow(dead_code)]
 pub struct OrionTask;
 
 impl OrionTask {
+    #[allow(dead_code)]
     fn create_task(
         task_id: Uuid,
         cl_link: &str,
@@ -24,6 +26,7 @@ impl OrionTask {
         })
     }
 
+    #[allow(dead_code)]
     pub async fn insert_task(
         task_id: Uuid,
         cl_link: &str,

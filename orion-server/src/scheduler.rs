@@ -170,6 +170,7 @@ pub struct BuildInfo {
     #[allow(dead_code)]
     pub started_at: DateTimeUtc,
     pub auto_retry_judger: AutoRetryJudger,
+    #[allow(dead_code)]
     pub worker_id: String,
 }
 
@@ -386,6 +387,7 @@ impl TaskScheduler {
     }
 
     /// Search available worker and claim the worker for current build
+    #[allow(dead_code)]
     pub fn search_and_claim_worker(&self, build_id: &str) -> Option<String> {
         let idle_workers: Vec<String> = self
             .workers
@@ -409,6 +411,7 @@ impl TaskScheduler {
         }
     }
 
+    #[allow(dead_code)]
     pub async fn release_worker(&self, worker_id: &str) {
         tracing::info!("Releasing worker {} back to idle", worker_id);
         if let Some(mut worker) = self.workers.get_mut(worker_id) {

@@ -1,10 +1,12 @@
 use sea_orm::{ActiveModelTrait, ConnectionTrait, DbErr, IntoActiveModel};
 use uuid::Uuid;
 
+#[allow(dead_code)]
 /// A collection of utility methods for the `build_targets` database table.
 pub struct BuildTarget;
 
 impl BuildTarget {
+    #[allow(dead_code)]
     pub fn create_default_target(id: Uuid, task_id: Uuid) -> callisto::build_targets::Model {
         let default_path = "//";
         callisto::build_targets::Model {
@@ -15,6 +17,7 @@ impl BuildTarget {
         }
     }
 
+    #[allow(dead_code)]
     pub async fn insert_default_target(
         id: Uuid,
         task_id: Uuid,
