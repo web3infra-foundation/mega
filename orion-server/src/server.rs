@@ -47,7 +47,7 @@ use crate::{
         api::task_retry_handler,
         api::task_get_handler,
         api::build_event_get_handler,
-        api::target_get_handler,
+        api::targets_get_handler,
     ),
     components(
         schemas(

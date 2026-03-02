@@ -1,320 +1,163 @@
-# Orion Client 部署文档
+# Orion Client Deployment Guide
 
-## 概述
+## Overview
 
-Orion Client 是 Mega 构建系统的 Worker 节点，负责从 Orion Server 领取构建任务并执行。它通过 scorpiofs 库集成 FUSE 文件系统，实现远程仓库的本地挂载。
+Orion Client is the worker node for the Mega build system. It fetches build tasks from the Orion Server and executes them. It integrates with the FUSE filesystem via the `scorpiofs` library to mount remote repositories locally.
 
-## 架构
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              部署架构                                        │
+│                            Deployment Architecture                          │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │   ┌──────────────────┐            ┌──────────────────┐                      │
 │   │   deployment     │            │      mega        │                      │
-│   │   (仓库)         │            │     (仓库)       │                      │
+│   │   (Repo)         │            │     (Repo)       │                      │
 │   └────────┬─────────┘            └────────┬─────────┘                      │
 │            │                               │                                │
-│            │ Terraform apply               │ git push (CI 触发)             │
+│            │ Terraform apply               │ git push (Triggers CI)         │
 │            │                               │                                │
 │            ▼                               ▼                                │
 │   ┌──────────────────┐            ┌──────────────────┐                      │
-│   │  基础设施准备     │            │   应用部署        │                      │
-│   │  - VM 创建       │            │  - 编译 orion     │                      │
-│   │  - 依赖安装      │            │  - 打包配置       │                      │
-│   │  - systemd       │            │  - rsync 部署     │                      │
-│   │  - 目录创建      │            │  - 重启服务       │                      │
+│   │  Infrastructure  │            │  App Deployment  │                      │
+│   │  - Provision VM  │            │  - Build rust bin│                      │
+│   │  - Install deps  │            │  - Package config│                      │
+│   │  - Setup systemd │            │  - SCP transfer  │                      │
+│   │  - Create dirs   │            │  - Restart svc   │                      │
 │   └────────┬─────────┘            └────────┬─────────┘                      │
 │            │                               │                                │
 │            └───────────────┬───────────────┘                                │
 │                            │                                                │
 │                            ▼                                                │
 │                   ┌──────────────────┐                                      │
-│                   │    GCP VM        │                                      │
-│                   │  orion-client    │                                      │
+│                   │      GCP VM      │                                      │
+│                   │   orion-client   │                                      │
 │                   │                  │                                      │
-│                   │  systemd:        │                                      │
-│                   │  orion-runner    │                                      │
+│                   │     systemd:     │                                      │
+│                   │   orion-runner   │                                      │
 │                   └──────────────────┘                                      │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-## 仓库职责
+## Directory Structure
 
-### 1. deployment 仓库（基础设施）
-
-**路径**: `envs/gcp/prod/`
-
-负责 GCP 基础设施的管理：
-
-| 资源 | 说明 |
-|------|------|
-| `google_compute_instance.orion_client_vm` | Worker VM 实例 |
-| `startup-orion-client.sh` | VM 启动脚本 |
-| 网络/防火墙 | VPC 和安全规则 |
-| IAM | 服务账号权限 |
-
-**Terraform 执行内容**：
-1. 创建 VM 实例（Debian 13）
-2. 执行 startup-orion-client.sh：
-   - 安装系统依赖（fuse3, git, rust, buck2 等）
-   - 创建运行时目录
-   - 创建 systemd 服务单元
-   - 启用并尝试启动服务
-
-### 2. mega 仓库（应用代码）
-
-**相关路径**：
-- `orion/` - 应用代码
-- `orion/runner-config/` - 生产运行时配置
-- `.github/workflows/orion-client-deploy.yml` - CI 工作流
-
-**CI 执行内容**：
-1. 编译 orion 二进制（`cargo build --release -p orion`）
-2. 打包配置文件
-3. rsync 部署到 VM
-4. 重启 systemd 服务
-
-## 目录结构
-
-### VM 运行时目录
+### VM Runtime Environment
+All files are owned by the `orion` user.
 
 ```
-/home/orion/orion-runner/       # 应用根目录（orion 用户）
-├── orion                       # 主程序
-├── .env                        # 环境变量
-├── scorpio.toml                # Scorpio 配置
-├── run.sh                      # 启动脚本
-└── log/
-    └── orion.log               # 应用日志
+/home/orion/orion-runner/       # Application root
+├── orion                       # Main executable
+├── .env                        # Environment variables
+├── scorpio.toml                # Scorpio config
+├── run.sh                      # Startup script
+└── cleanup.sh                  # Pre-start cleanup script
 
-/data/scorpio/                  # Scorpio 数据目录
-├── store/                      # Dicfuse 数据存储
-├── tmp_build/                  # Buck2 临时构建目录
-└── antares/                    # Antares overlay 配置
-    ├── upper/                  # Overlay upper 层
-    ├── cl/                     # CL 数据
-    ├── mnt/                    # Overlay 挂载点
-    └── state.toml              # 状态文件
+/data/scorpio/                  # Scorpio data directory
+├── store/                      # Dicfuse data store
+├── tmp_build/                  # Temporary Buck2 build dir
+└── antares/                    # Antares overlay config
 
-/workspace/mount/               # FUSE 主挂载点（Scorpio daemon 挂载）
+/workspace/mount/               # FUSE main mount point
 ```
 
-### 源码配置文件
+## VM Initialization (One-time Setup)
 
-```
-mega/orion/runner-config/       # 生产配置（版本控制）
-├── .env.prod                   # 生产环境变量 → 部署时重命名为 .env
-├── scorpio.toml                # Scorpio 配置
-├── run.sh                      # 启动脚本
-└── README.md                   # 说明文档
-```
+Before the first deployment via CI, the target VM must be initialized with the following steps. (This is generally handled by the Terraform startup script in the `deployment` repository).
 
-## 配置文件
-
-### scorpio.toml
-
-Scorpio/Dicfuse FUSE 文件系统配置：
-
-```toml
-# Mega 服务地址
-base_url = "https://git.buck2hub.com"
-lfs_url = "https://git.buck2hub.com"
-
-# 数据存储
-store_path = "/data/scorpio/store"
-workspace = "/workspace/mount"
-
-# Antares overlay 配置
-antares_upper_root = "/data/scorpio/antares/upper"
-antares_cl_root = "/data/scorpio/antares/cl"
-antares_mount_root = "/data/scorpio/antares/mnt"
-antares_state_file = "/data/scorpio/antares/state.toml"
-```
-
-### .env
-
-环境变量配置：
+### 1. Create User & Directories
 
 ```bash
-# Buck2 项目根目录
-BUCK_PROJECT_ROOT="/workspace/mount"
+sudo useradd -m -s /bin/bash orion
 
-# Orion Server WebSocket
-SERVER_WS="wss://orion.buck2hub.com/ws"
-
-# 任务轮询配置
-SELECT_TASK_COUNT="30"
-INITIAL_POLL_INTERVAL_SECS="2"
-
-# 临时构建目录
-TMP_BUCKOUT_DIR="/data/scorpio/tmp_build"
+sudo mkdir -p /data/scorpio/{store,antares/{upper,cl,mnt}}
+sudo mkdir -p /workspace/mount
+sudo mkdir -p /home/orion/orion-runner
+sudo chown -R orion:orion /data/scorpio /workspace/mount /home/orion/orion-runner
 ```
 
-## 部署流程
-
-### 首次部署
-
-```
-1. Terraform apply (deployment 仓库)
-   ├── 创建 VM
-   ├── 执行 startup-orion-client.sh
-   │   ├── 安装依赖
-   │   ├── 创建目录
-   │   ├── 创建 systemd 服务
-   │   └── 尝试启动（会失败，配置文件尚未部署）
-   │
-2. CI 首次触发 (mega 仓库)
-   ├── 编译 orion
-   ├── rsync 部署配置和程序
-   └── 重启服务 ✓
-```
-
-### 后续更新
-
-```
-git push to main (orion/** 或 workflow 改动)
-   │
-   ├── CI 编译
-   ├── CI rsync 部署
-   └── CI 重启服务
-```
-
-## systemd 服务
-
-### 服务单元 (orion-runner.service)
-
-```ini
-[Unit]
-Description=Orion Runner and Scorpio Service
-After=network.target
-
-[Service]
-User=orion
-Group=orion
-WorkingDirectory=/home/orion/orion-runner
-ExecStart=/bin/bash run.sh
-
-Restart=on-failure
-RestartSec=5
-LimitNOFILE=10485760
-LimitNPROC=1048576
-
-StandardOutput=append:/var/log/orion-runner.log
-StandardError=append:/var/log/orion-runner.log
-
-[Install]
-WantedBy=multi-user.target
-```
-
-### 常用命令
+### 2. Configure FUSE
 
 ```bash
-# 查看状态
+# Add orion to fuse group
+sudo usermod -aG fuse orion
+
+# Allow non-root users to mount with allow_other
+echo "user_allow_other" | sudo tee -a /etc/fuse.conf
+```
+
+### 3. Setup Passwordless Sudo
+
+The deployment CI requires passwordless execution of specific commands.
+
+```bash
+cat <<'EOF' | sudo tee /etc/sudoers.d/orion-runner
+orion ALL=(ALL) NOPASSWD: /usr/bin/systemctl start orion-runner.service
+orion ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop orion-runner.service
+orion ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart orion-runner.service
+orion ALL=(ALL) NOPASSWD: /usr/bin/systemctl daemon-reload
+orion ALL=(ALL) NOPASSWD: /usr/bin/pkill
+orion ALL=(ALL) NOPASSWD: /usr/bin/mkdir
+orion ALL=(ALL) NOPASSWD: /usr/bin/chown
+orion ALL=(ALL) NOPASSWD: /bin/umount
+orion ALL=(ALL) NOPASSWD: /usr/bin/cp /home/orion/orion-runner/orion-runner.service /etc/systemd/system/
+EOF
+sudo chmod 440 /etc/sudoers.d/orion-runner
+```
+
+### 4. Adjust SSH Limits
+
+To prevent CI from timing out due to multiple rapid SSH connections:
+
+```bash
+sudo sed -i 's/^#\?MaxStartups.*/MaxStartups 10:30:60/' /etc/ssh/sshd_config
+sudo systemctl restart sshd
+```
+
+## CI/CD Pipeline
+
+Deployment is automated via GitHub Actions (`.github/workflows/orion-client-deploy.yml`).
+
+### Trigger
+Automatically triggered by pushes to the `main` branch when files in `orion/**` or the workflow file itself change.
+
+### Deployment Targets
+
+| VM | User | Target Path |
+|----|------|-------------|
+| Legacy VM | root (legacy compatibility) | `/home/orion/orion-runner/` |
+| GCP VM | orion (best practice) | `/home/orion/orion-runner/` |
+
+**Deployment Secrets required in GitHub:**
+- `ORION_DEPLOY_HOST` / `ORION_DEPLOY_SSH_KEY` (Legacy VM)
+- `ORION_GCP_VM_HOST` / `ORION_GCP_VM_SSH_KEY` (GCP VM)
+
+### Workflow Steps
+1. Compiles the `orion` binary (`cargo build --release -p orion`).
+2. Packages configuration files from `orion/runner-config/`.
+3. Connects to VMs and stops the existing `orion-runner.service`.
+4. Uploads files using `scp` to the `/home/orion/orion-runner/` directory.
+5. Updates the systemd service file if necessary.
+6. Restarts the service asynchronously using `nohup systemctl start`.
+
+## Troubleshooting
+
+### Useful Commands
+
+```bash
+# Check service status
 sudo systemctl status orion-runner
 
-# 查看日志
+# Follow service logs
 sudo journalctl -u orion-runner -f
-tail -f /var/log/orion-runner.log
-tail -f /home/orion/orion-runner/log/orion.log
 
-# 重启服务
-sudo systemctl restart orion-runner
-
-# 停止服务
-sudo systemctl stop orion-runner
+# Force unmount if FUSE is stuck
+sudo umount -lf /workspace/mount
 ```
 
-## 故障排查
+### Common Issues
 
-### 常见问题
-
-1. **FUSE 挂载失败**
-   ```bash
-   # 检查 fuse 配置
-   grep user_allow_other /etc/fuse.conf
-   
-   # 手动卸载
-   fusermount -u /workspace/mount
-   ```
-
-2. **服务启动失败**
-   ```bash
-   # 检查配置文件是否存在
-   ls -la /home/orion/orion-runner/
-   
-   # 检查权限
-   ls -la /data/scorpio/
-   ```
-
-3. **网络连接问题**
-   ```bash
-   # 测试 Orion Server 连接
-   curl -I https://orion.buck2hub.com
-   
-   # 测试 Mega 仓库连接
-   curl -I https://git.buck2hub.com
-   ```
-
-### 日志位置
-
-| 日志 | 路径 |
-|------|------|
-| VM 启动日志 | `/var/log/orion-client-startup.log` |
-| systemd 服务日志 | `/var/log/orion-runner.log` |
-| Orion 应用日志 | `/home/orion/orion-runner/log/orion.log` |
-
-## 本地开发
-
-参考 [orion/README.md](../README.md) 中的本地开发说明。
-
-本地开发使用独立的配置文件：
-- `orion/.env` - 本地环境变量
-- `orion/scorpio.toml` - 本地 Scorpio 配置
-- `orion/run-dev.sh` - 本地启动脚本
-
-## CI/CD 配置
-
-### 触发条件
-
-```yaml
-on:
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/orion-client-deploy.yml"
-      - "orion/**"
-  workflow_dispatch:  # 手动触发
-```
-
-### Secrets 配置
-
-| Secret | 说明 |
-|--------|------|
-| `ORION_DEPLOY_HOST` | 旧 VM IP 地址 |
-| `ORION_DEPLOY_SSH_KEY` | 旧 VM SSH 私钥 |
-| `ORION_GCP_VM_HOST` | GCP VM IP 地址 |
-| `ORION_GCP_VM_SSH_KEY` | GCP VM SSH 私钥 |
-
-### 部署目标
-
-| VM | 用户 | 路径 |
-|----|------|------|
-| orion_vm (旧) | root | `/root/orion-runner/` |
-| gcp_vm (新) | orion | `/home/orion/orion-runner/` |
-
-## 配置变更流程
-
-1. 修改 `orion/runner-config/` 下的配置文件
-2. 提交并推送到 main 分支
-3. CI 自动部署到所有 VM
-4. 服务自动重启
-
-## 注意事项
-
-1. **配置单一来源**: 所有生产配置维护在 `mega/orion/runner-config/`
-2. **无需手动配置**: Terraform startup script 不再生成配置文件
-3. **首次部署**: 需要 Terraform + CI 两步完成
-4. **更新部署**: 只需 CI 即可完成
+1. **`status=217/USER`**: The `orion` user was not created on the target machine. Run the VM Initialization steps.
+2. **`unexplained error (code 255) at io.c`**: SSH connection rejected by the server. Ensure `MaxStartups 10:30:60` is set in `/etc/ssh/sshd_config` and `sshd` is restarted.
+3. **FUSE Mount Fails**: Ensure `user_allow_other` is enabled in `/etc/fuse.conf`.

@@ -14,17 +14,23 @@ WorkingDirectory=/home/orion/orion-runner
 EnvironmentFile=-/etc/orion/orion-runner.env
 
 # Scorpiofs config path (stable default expected by orion/src/antares.rs)
-Environment=SCORPIO_CONFIG=/etc/scorpio/scorpio.toml
-ExecStartPre=/usr/bin/test -f /etc/scorpio/scorpio.toml
+Environment=SCORPIO_CONFIG=/home/orion/orion-runner/scorpio.toml
 
-ExecStart=/home/orion/orion-runner/orion
+# Cleanup before start: kill old processes and unmount FUSE
+ExecStartPre=/home/orion/orion-runner/cleanup.sh
+
+# Start orion (run.sh loads .env and starts the binary)
+ExecStart=/home/orion/orion-runner/run.sh
 Restart=always
 RestartSec=2
 
-# Basic hardening (keep minimal to avoid breaking buck2/scorpiofs IO)
-NoNewPrivileges=true
+# Grant capabilities for FUSE mounting
+AmbientCapabilities=CAP_SYS_ADMIN
+CapabilityBoundingSet=CAP_SYS_ADMIN CAP_DAC_OVERRIDE
+
+# Basic hardening (relaxed for FUSE operations)
+NoNewPrivileges=false
 PrivateTmp=true
-ProtectSystem=full
 
 [Install]
 WantedBy=multi-user.target

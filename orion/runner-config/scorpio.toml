@@ -15,7 +15,7 @@ store_path = "/data/scorpio/store"
 
 # Scorpio daemon 主挂载点（orion 不再启动 scorpio daemon，但 scorpiofs 仍需此配置）
 workspace = "/workspace/mount"
-
+config_file = "config.toml"
 # Git 提交信息
 git_author = "MEGA"
 git_email = "admin@mega.org"
