@@ -51,13 +51,13 @@ use crate::{
         build_events::{self, BuildEventDTO},
         build_targets::BuildTarget,
         builds,
-        orion_tasks::{self, OrionTask, OrionTaskDTO},
+        orion_tasks::{OrionTask, OrionTaskDTO},
         targets::{self, TargetState, TargetWithBuilds},
         tasks,
     },
     orion_common::model::{CommonPage, PageParams},
     scheduler::{
-        self, BuildEventPayload, BuildInfo, TaskQueueStats, TaskScheduler, WorkerInfo, WorkerStatus,
+        BuildEventPayload, BuildInfo, TaskQueueStats, TaskScheduler, WorkerInfo, WorkerStatus,
     },
 };
 
@@ -2239,8 +2239,8 @@ pub async fn build_event_get_handler(
         ));
     }
 
-    let build_events = build_events::Entity::find()
-        .filter(build_events::Column::TaskId.eq(task_uuid))
+    let build_events = callisto::build_events::Entity::find()
+        .filter(callisto::build_events::Column::TaskId.eq(task_uuid))
         .all(&state.conn)
         .await
         .map_err(|e| {

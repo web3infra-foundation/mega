@@ -70,8 +70,8 @@ use crate::{
             crate::model::targets::TargetState,
             TaskPhase,
             api::MessageResponse,
-            api::BuildEventDTO,
-            api::OrionTaskDTO,
+            crate::model::build_events::BuildEventDTO,
+            crate::model::orion_tasks::OrionTaskDTO,
             api::BuildTargetDTO,
         )
     ),
