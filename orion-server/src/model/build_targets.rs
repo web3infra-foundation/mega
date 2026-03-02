@@ -1,4 +1,5 @@
-use sea_orm::{ActiveModelTrait, ConnectionTrait, IntoActiveModel};
+use sea_orm::{ActiveModelTrait, ConnectionTrait, DbErr, IntoActiveModel};
+use uuid::Uuid;
 
 /// A collection of utility methods for the `build_targets` database table.
 pub struct BuildTarget;

@@ -51,7 +51,7 @@ use crate::{
         build_events,
         build_targets::BuildTarget,
         builds,
-        orion_tasks::{self, OrionTask},
+        orion_tasks::{self, OrionTask, OrionTaskDTO},
         targets::{self, TargetState, TargetWithBuilds},
         tasks,
     },
@@ -700,7 +700,7 @@ async fn handle_immediate_task_dispatch_v2(
             Ok(default_path) => default_path,
             Err(err) => {
                 tracing::error!("Failed to prepare target for task {}: {}", task_id, err);
-                scheduler::release_worker(&chosen_id).await;
+                scheduler.release_worker(&chosen_id).await;
                 return OrionBuildResult {
                     build_id: "".to_string(),
                     status: "error".to_string(),
@@ -752,7 +752,7 @@ async fn handle_immediate_task_dispatch_v2(
                 task_id,
                 e
             );
-            scheduler::release_worker(&chosen_id).await;
+            scheduler.release_worker(&chosen_id).await;
             return OrionBuildResult {
                 build_id: "".to_string(),
                 status: "error".to_string(),
@@ -802,7 +802,7 @@ async fn activate_worker(build_info: &BuildInfo, scheduler: &TaskScheduler) -> O
         build_info.event_payload.task_id,
         build_info.worker_id
     );
-    scheduler::release_worker(&build_info.worker_id).await;
+    scheduler.release_worker(&build_info.worker_id).await;
     OrionBuildResult {
         build_id: build_info.event_payload.build_event_id.to_string(),
         status: "error".to_string(),
@@ -2157,27 +2157,6 @@ impl From<&build_events::Model> for BuildEventDTO {
 }
 
 #[derive(ToSchema, Serialize)]
-pub struct OrionTaskDTO {
-    pub id: String,
-    pub changes: Value,
-    pub repo_name: String,
-    pub cl: String,
-    pub created_at: String,
-}
-
-impl From<&orion_tasks::Model> for OrionTaskDTO {
-    fn from(model: &orion_tasks::Model) -> Self {
-        Self {
-            id: model.id.to_string(),
-            changes: model.changes.clone(),
-            repo_name: model.repo_name.clone(),
-            cl: model.cl.clone(),
-            created_at: model.created_at.with_timezone(&Utc).to_string(),
-        }
-    }
-}
-
-#[derive(ToSchema, Serialize)]
 pub struct BuildTargetDTO {
     pub id: String,
     pub task_id: String,
@@ -2220,8 +2199,8 @@ pub async fn task_get_handler(
     State(state): State<AppState>,
     Path(cl): Path<String>,
 ) -> Result<Json<OrionTaskDTO>, (StatusCode, Json<serde_json::Value>)> {
-    let tasks: Vec<orion_tasks::Model> = orion_tasks::Entity::find()
-        .filter(orion_tasks::Column::Cl.eq(&cl))
+    let tasks: Vec<callisto::orion_tasks::Model> = callisto::orion_tasks::Entity::find()
+        .filter(callisto::orion_tasks::Column::Cl.eq(&cl))
         .all(&state.conn)
         .await
         .map_err(|e| {
@@ -2268,7 +2247,7 @@ pub async fn build_event_get_handler(
     })?;
 
     // First, verify the task exists
-    let task_exists = orion_tasks::Entity::find_by_id(task_uuid)
+    let task_exists = callisto::orion_tasks::Entity::find_by_id(task_uuid)
         .one(&state.conn)
         .await
         .map_err(|e| {
