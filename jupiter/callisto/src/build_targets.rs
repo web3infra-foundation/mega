@@ -41,3 +41,11 @@ impl Related<super::target_state_histories::Entity> for Entity {
 }
 
 impl ActiveModelBehavior for ActiveModel {}
+//:path1 //:path2 //:path3
+
+//target log:
+//  - id
+//  - target id
+//  - task
+//  - state
+//  - createdAt

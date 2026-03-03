@@ -10,6 +10,7 @@ path = "src/mod.rs"
 
 [dependencies]
 serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
 sea-orm = { workspace = true, features = ["sqlx-postgres"] }
 chrono = { workspace = true }
 idgenerator = { workspace = true }
