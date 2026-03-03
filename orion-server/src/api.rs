@@ -2181,7 +2181,7 @@ pub async fn task_retry_handler(
     })?;
 
     // Verify task exists in orion_tasks table
-    let task = orion_tasks::Entity::find_by_id(task_uuid)
+    let task = callisto::orion_tasks::Entity::find_by_id(task_uuid)
         .one(&state.conn)
         .await
         .map_err(|e| {
@@ -2337,7 +2337,7 @@ pub async fn targets_get_handler(
     })?;
 
     // First, verify the task exists
-    let task_exists = orion_tasks::Entity::find_by_id(task_uuid)
+    let task_exists = callisto::orion_tasks::Entity::find_by_id(task_uuid)
         .one(&state.conn)
         .await
         .map_err(|e| {
@@ -2360,8 +2360,8 @@ pub async fn targets_get_handler(
         ));
     }
 
-    let build_targets = build_targets::Entity::find()
-        .filter(build_targets::Column::TaskId.eq(task_uuid))
+    let build_targets = callisto::build_targets::Entity::find()
+        .filter(callisto::build_targets::Column::TaskId.eq(task_uuid))
         .all(&state.conn)
         .await
         .map_err(|e| {
@@ -2416,7 +2416,7 @@ pub async fn build_state_handler(
     }
 
     // If not active, check the build_events table
-    let build_event = build_events::Entity::find_by_id(build_uuid)
+    let build_event = callisto::build_events::Entity::find_by_id(build_uuid)
         .one(&state.conn)
         .await
         .map_err(|e| {
@@ -2472,7 +2472,7 @@ pub async fn latest_build_result_handler(
     })?;
 
     // Verify task exists
-    let task_exists = orion_tasks::Entity::find_by_id(task_uuid)
+    let task_exists = callisto::orion_tasks::Entity::find_by_id(task_uuid)
         .one(&state.conn)
         .await
         .map_err(|e| {
@@ -2496,9 +2496,9 @@ pub async fn latest_build_result_handler(
     }
 
     // Find latest build event for this task
-    let latest_build_event = build_events::Entity::find()
-        .filter(build_events::Column::TaskId.eq(task_uuid))
-        .order_by_desc(build_events::Column::StartAt)
+    let latest_build_event = callisto::build_events::Entity::find()
+        .filter(callisto::build_events::Column::TaskId.eq(task_uuid))
+        .order_by_desc(callisto::build_events::Column::StartAt)
         .one(&state.conn)
         .await
         .map_err(|e| {
