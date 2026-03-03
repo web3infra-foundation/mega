@@ -100,14 +100,18 @@ impl ClStorage {
                 q.filter(mega_cl::Column::Username.eq(author))
             })
             .filter(cond)
-            .distinct()
-            .order_by_asc(mega_cl::Column::Id);
+            .distinct();
 
         let mut sort_map = HashMap::new();
         sort_map.insert("created_at", mega_cl::Column::CreatedAt);
         sort_map.insert("updated_at", mega_cl::Column::UpdatedAt);
 
-        let sorted_query = apply_sort(base_query, params.sort_by.as_deref(), params.asc, &sort_map);
+        let mut sorted_query =
+            apply_sort(base_query, params.sort_by.as_deref(), params.asc, &sort_map);
+
+        if params.sort_by.is_none() {
+            sorted_query = sorted_query.order_by_desc(mega_cl::Column::Id);
+        }
 
         let paginator = sorted_query.paginate(self.get_connection(), page.per_page);
         let total = paginator.num_items().await?;
