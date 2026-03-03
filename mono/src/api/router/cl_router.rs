@@ -108,7 +108,7 @@ async fn close_cl(
     let res = state.cl_stg().get_cl(&link).await?;
     let model = res.ok_or(MegaError::Other("Not Found".to_string()))?;
 
-    if model.status == MergeStatusEnum::Open {
+    if matches!(model.status, MergeStatusEnum::Open | MergeStatusEnum::Draft) {
         let link = model.link.clone();
         state.cl_stg().close_cl(model).await?;
         state
