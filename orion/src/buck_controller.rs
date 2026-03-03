@@ -583,18 +583,21 @@ impl Drop for MountGuard {
         if self.unmounted.load(Ordering::Acquire) {
             return;
         }
-        let mount_id = self.mount_id.clone();
-        let task_id: String = self.task_id.clone();
-        // Spawn a task to handle the unmounting asynchronously
-        // Since the unmount operation is idempotent, it's safe to perform asynchronously
-        // even if the spawned task doesn't complete before program exit.
-        // Multiple calls to unmount the same mount_id should be safe and have no side effects.
-        tokio::spawn(async move {
-            match unmount_antares_fs(&mount_id).await {
-                Ok(_) => tracing::info!("[Task {}] Filesystem unmounted successfully.", task_id),
-                Err(e) => tracing::error!("[Task {}] Failed to unmount filesystem: {}", task_id, e),
-            }
-        });
+        // TODO: Temporarily keep mounts alive — skip auto-unmount on drop.
+        // Re-enable the spawn block below once post-build inspection is no longer needed.
+        tracing::info!(
+            "[Task {}] MountGuard dropped but unmount is temporarily disabled (mount_id={}).",
+            self.task_id,
+            self.mount_id,
+        );
+        // let mount_id = self.mount_id.clone();
+        // let task_id: String = self.task_id.clone();
+        // tokio::spawn(async move {
+        //     match unmount_antares_fs(&mount_id).await {
+        //         Ok(_) => tracing::info!("[Task {}] Filesystem unmounted successfully.", task_id),
+        //         Err(e) => tracing::error!("[Task {}] Failed to unmount filesystem: {}", task_id, e),
+        //     }
+        // });
     }
 }
 
@@ -640,6 +643,7 @@ pub async fn build(
 
     const MAX_TARGETS_ATTEMPTS: usize = 2;
     let mut mount_point = None;
+    let mut old_repo_mount_point_saved = None;
     let mut mount_guard = None;
     let mut mount_guard_old_repo = None;
     let mut targets: Vec<TargetLabel> = Vec::new();
@@ -686,6 +690,7 @@ pub async fn build(
         {
             Ok(found_targets) => {
                 mount_point = Some(repo_mount_point);
+                old_repo_mount_point_saved = Some(old_repo_mount_point.clone());
                 mount_guard = Some(guard);
                 mount_guard_old_repo = Some(guard_old_repo);
                 targets = found_targets;
@@ -834,8 +839,25 @@ pub async fn build(
     }
     .await;
 
-    mount_guard.unmount().await;
-    mount_guard_old_repo.unmount().await;
+    // TODO: Temporarily keep mounts alive for debugging / post-build inspection.
+    // Unmount is intentionally skipped here. Remember to re-enable once no longer needed.
+    // mount_guard.unmount().await;
+    // mount_guard_old_repo.unmount().await;
+    tracing::info!(
+        "[Task {}] Skipping unmount — mount directories are retained for inspection: \
+         new_repo mountpoint={}, mount_id={}; \
+         old_repo mountpoint={}, mount_id={}",
+        id,
+        mount_point,
+        mount_guard.mount_id,
+        old_repo_mount_point_saved.as_deref().unwrap_or("<unknown>"),
+        mount_guard_old_repo.mount_id,
+    );
+    // Prevent the Drop impl from unmounting.
+    mount_guard.unmounted.store(true, Ordering::Release);
+    mount_guard_old_repo
+        .unmounted
+        .store(true, Ordering::Release);
 
     build_result
 }
