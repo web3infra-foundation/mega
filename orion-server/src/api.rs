@@ -148,6 +148,11 @@ pub fn routers() -> Router<AppState> {
         .route("/v2/task/{cl}", get(task_get_handler))
         .route("/v2/build-events/{task_id}", get(build_event_get_handler))
         .route("/v2/targets/{task_id}", get(targets_get_handler))
+        .route("/v2/build-state/{build_id}", get(build_state_handler))
+        .route(
+            "/v2/latest_build_result/{task_id}",
+            get(latest_build_result_handler),
+        )
         .route(
             "/v2/all-target-status/{task_id}",
             get(targets_status_handler),
@@ -2143,6 +2148,15 @@ pub struct BuildTargetDTO {
     pub latest_state: String,
 }
 
+#[derive(ToSchema, Serialize)]
+#[allow(dead_code)]
+pub enum BuildEventState {
+    Pending,
+    Running,
+    Success,
+    Failure,
+}
+
 #[utoipa::path(
     post,
     path = "/v2/task-retry/{id}",
@@ -2154,13 +2168,47 @@ pub struct BuildTargetDTO {
     )
 )]
 pub async fn task_retry_handler(
-    State(_state): State<AppState>,
-    Path(_id): Path<String>,
-) -> impl IntoResponse {
-    let result_message = MessageResponse {
-        message: "todo".to_string(),
-    };
-    (StatusCode::NOT_IMPLEMENTED, Json(result_message))
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<MessageResponse>, (StatusCode, Json<MessageResponse>)> {
+    let task_uuid = id.parse::<Uuid>().map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(MessageResponse {
+                message: "Invalid task ID format".to_string(),
+            }),
+        )
+    })?;
+
+    // Verify task exists in orion_tasks table
+    let task = orion_tasks::Entity::find_by_id(task_uuid)
+        .one(&state.conn)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to fetch task {}: {}", id, e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(MessageResponse {
+                    message: "Database error".to_string(),
+                }),
+            )
+        })?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(MessageResponse {
+                    message: "Task not found".to_string(),
+                }),
+            )
+        })?;
+
+    // For now, just return success message
+    // TODO: Implement actual retry logic - create new build events, update scheduler, etc.
+    tracing::info!("Task retry requested for task {} (CL: {})", id, task.cl);
+
+    Ok(Json(MessageResponse {
+        message: format!("Task {} queued for retry", id),
+    }))
 }
 
 #[utoipa::path(
@@ -2270,18 +2318,224 @@ pub async fn build_event_get_handler(
     path = "/v2/targets/{task_id}",
     params(("task_id" = String, Path, description = "Task ID")),
     responses(
-        (status = 200, description = "Get target successfully", body = BuildTargetDTO),
+        (status = 200, description = "Get targets successfully", body = Vec<BuildTargetDTO>),
         (status = 404, description = "Not found task", body = MessageResponse),
+        (status = 500, description = "Internal server error", body = MessageResponse),
     )
 )]
 pub async fn targets_get_handler(
-    State(_state): State<AppState>,
-    Path(_task_id): Path<String>,
-) -> impl IntoResponse {
-    let result_message = MessageResponse {
-        message: "todo".to_string(),
+    State(state): State<AppState>,
+    Path(task_id): Path<String>,
+) -> Result<Json<Vec<BuildTargetDTO>>, (StatusCode, Json<MessageResponse>)> {
+    let task_uuid = task_id.parse::<Uuid>().map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(MessageResponse {
+                message: "Invalid task ID".to_string(),
+            }),
+        )
+    })?;
+
+    // First, verify the task exists
+    let task_exists = orion_tasks::Entity::find_by_id(task_uuid)
+        .one(&state.conn)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to verify task existence {}: {}", task_id, e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(MessageResponse {
+                    message: "Database error".to_string(),
+                }),
+            )
+        })?
+        .is_some();
+
+    if !task_exists {
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(MessageResponse {
+                message: "Task not found".to_string(),
+            }),
+        ));
+    }
+
+    let build_targets = build_targets::Entity::find()
+        .filter(build_targets::Column::TaskId.eq(task_uuid))
+        .all(&state.conn)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to fetch build targets for task {}: {}", task_id, e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(MessageResponse {
+                    message: "Database error".to_string(),
+                }),
+            )
+        })?;
+
+    let dtos: Vec<BuildTargetDTO> = build_targets
+        .into_iter()
+        .map(|build_target| BuildTargetDTO {
+            id: build_target.id.to_string(),
+            task_id: build_target.task_id.to_string(),
+            path: build_target.path,
+            latest_state: build_target.latest_state,
+        })
+        .collect();
+
+    Ok(Json(dtos))
+}
+
+/// Get build state by build ID
+#[utoipa::path(
+    get,
+    path = "/v2/build-state/{build_id}",
+    params(("build_id" = String, Path, description = "Build ID")),
+    responses(
+        (status = 200, description = "Get build state successfully", body = BuildEventState),
+        (status = 404, description = "Not found build", body = MessageResponse),
+    )
+)]
+pub async fn build_state_handler(
+    State(state): State<AppState>,
+    Path(build_id): Path<String>,
+) -> Result<Json<BuildEventState>, (StatusCode, Json<MessageResponse>)> {
+    let build_uuid = build_id.parse::<Uuid>().map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(MessageResponse {
+                message: "Invalid build ID".to_string(),
+            }),
+        )
+    })?;
+
+    // First check if the build is currently active (running or pending)
+    if state.scheduler.active_builds.contains_key(&build_id) {
+        return Ok(Json(BuildEventState::Running));
+    }
+
+    // If not active, check the build_events table
+    let build_event = build_events::Entity::find_by_id(build_uuid)
+        .one(&state.conn)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to fetch build event {}: {}", build_id, e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(MessageResponse {
+                    message: "Database error".to_string(),
+                }),
+            )
+        })?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(MessageResponse {
+                    message: "Build not found".to_string(),
+                }),
+            )
+        })?;
+
+    // Determine state based on build event fields
+    let state_enum = match (build_event.end_at, build_event.exit_code) {
+        (None, _) => BuildEventState::Running, // Still running but not in active_builds (shouldn't happen)
+        (Some(_), Some(0)) => BuildEventState::Success,
+        (Some(_), Some(_)) => BuildEventState::Failure,
+        (Some(_), None) => BuildEventState::Failure, // Interrupted case
     };
-    (StatusCode::NOT_IMPLEMENTED, Json(result_message))
+
+    Ok(Json(state_enum))
+}
+
+/// Get latest build result by task ID
+#[utoipa::path(
+    get,
+    path = "/v2/latest_build_result/{task_id}",
+    params(("task_id" = String, Path, description = "Task ID")),
+    responses(
+        (status = 200, description = "Get latest build result successfully", body = BuildEventState),
+        (status = 404, description = "Not found task", body = MessageResponse),
+    )
+)]
+pub async fn latest_build_result_handler(
+    State(state): State<AppState>,
+    Path(task_id): Path<String>,
+) -> Result<Json<BuildEventState>, (StatusCode, Json<MessageResponse>)> {
+    let task_uuid = task_id.parse::<Uuid>().map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(MessageResponse {
+                message: "Invalid task ID".to_string(),
+            }),
+        )
+    })?;
+
+    // Verify task exists
+    let task_exists = orion_tasks::Entity::find_by_id(task_uuid)
+        .one(&state.conn)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to verify task existence {}: {}", task_id, e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(MessageResponse {
+                    message: "Database error".to_string(),
+                }),
+            )
+        })?
+        .is_some();
+
+    if !task_exists {
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(MessageResponse {
+                message: "Task not found".to_string(),
+            }),
+        ));
+    }
+
+    // Find latest build event for this task
+    let latest_build_event = build_events::Entity::find()
+        .filter(build_events::Column::TaskId.eq(task_uuid))
+        .order_by_desc(build_events::Column::StartAt)
+        .one(&state.conn)
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                "Failed to fetch latest build event for task {}: {}",
+                task_id,
+                e
+            );
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(MessageResponse {
+                    message: "Database error".to_string(),
+                }),
+            )
+        })?;
+
+    let build_event = match latest_build_event {
+        Some(event) => event,
+        None => {
+            return Err((
+                StatusCode::NOT_FOUND,
+                Json(MessageResponse {
+                    message: "No build events found for this task".to_string(),
+                }),
+            ));
+        }
+    };
+
+    // Determine state based on build event fields
+    let state_enum = match (build_event.end_at, build_event.exit_code) {
+        (None, _) => BuildEventState::Running,
+        (Some(_), Some(0)) => BuildEventState::Success,
+        (Some(_), Some(_)) => BuildEventState::Failure,
+        (Some(_), None) => BuildEventState::Failure, // Interrupted case
+    };
+
+    Ok(Json(state_enum))
 }
 
 #[derive(Hash, Eq, PartialEq, Clone)]

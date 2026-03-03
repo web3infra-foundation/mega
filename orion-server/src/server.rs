@@ -48,6 +48,10 @@ use crate::{
         api::task_get_handler,
         api::build_event_get_handler,
         api::targets_get_handler,
+        api::build_state_handler,
+        api::latest_build_result_handler,
+        api::targets_status_handler,
+        api::single_target_status_handle,
     ),
     components(
         schemas(
@@ -73,6 +77,8 @@ use crate::{
             crate::model::build_events::BuildEventDTO,
             crate::model::orion_tasks::OrionTaskDTO,
             api::BuildTargetDTO,
+            api::BuildEventState,
+            api_model::buck2::types::TargetStatusResponse,
         )
     ),
     tags(
