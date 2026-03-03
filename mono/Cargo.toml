@@ -72,6 +72,7 @@ utoipa-axum = { workspace = true }
 utoipa-swagger-ui = { workspace = true, features = ["axum"] }
 once_cell = { workspace = true }
 sea-orm = { workspace = true }
+idgenerator = { workspace = true }
 
 
 [target.'cfg(not(windows))'.dependencies]

@@ -22,6 +22,7 @@ pub mod note_storage;
 pub mod stg_common;
 pub mod user_storage;
 pub mod vault_storage;
+pub mod webhook_storage;
 
 use std::sync::{Arc, LazyLock, Weak};
 
@@ -35,6 +36,7 @@ use crate::{
         code_review_service::CodeReviewService, git_service::GitService,
         import_service::ImportService, issue_service::IssueService, lfs_service::LfsService,
         merge_queue_service::MergeQueueService, mono_service::MonoService,
+        webhook_service::WebhookService,
     },
     storage::{
         base_storage::{BaseStorage, StorageConnector},
@@ -60,6 +62,7 @@ use crate::{
         note_storage::NoteStorage,
         user_storage::UserStorage,
         vault_storage::VaultStorage,
+        webhook_storage::WebhookStorage,
     },
 };
 
@@ -86,6 +89,7 @@ pub struct AppService {
     pub code_review_thread_storage: CodeReviewThreadStorage,
     pub build_trigger_storage: BuildTriggerStorage,
     pub bots_storage: BotsStorage,
+    pub webhook_storage: WebhookStorage,
 }
 
 impl AppService {
@@ -116,6 +120,7 @@ impl AppService {
             code_review_thread_storage: CodeReviewThreadStorage { base: mock.clone() },
             build_trigger_storage: BuildTriggerStorage { base: mock.clone() },
             bots_storage: BotsStorage { base: mock.clone() },
+            webhook_storage: WebhookStorage { base: mock.clone() },
         })
     }
 }
@@ -134,6 +139,7 @@ pub struct Storage {
     pub lfs_service: LfsService,
     pub config: Weak<Config>,
     pub code_review_service: CodeReviewService,
+    pub webhook_service: WebhookService,
 }
 
 impl Storage {
@@ -177,6 +183,7 @@ impl Storage {
         let code_review_thread_storage = CodeReviewThreadStorage { base: base.clone() };
         let build_trigger_storage = BuildTriggerStorage { base: base.clone() };
         let bots_storage = BotsStorage { base: base.clone() };
+        let webhook_storage = WebhookStorage { base: base.clone() };
 
         let git_service = GitService {
             obj_storage: ObjectStorageFactory::build(
@@ -236,6 +243,7 @@ impl Storage {
             code_review_thread_storage,
             build_trigger_storage,
             bots_storage,
+            webhook_storage: webhook_storage.clone(),
         };
         let merge_queue_service = MergeQueueService::new(base.clone());
         let buck_service = BuckService::new(
@@ -247,6 +255,8 @@ impl Storage {
             git_service.clone(),
         )
         .expect("failed to create BuckService");
+
+        let webhook_service = WebhookService::new(webhook_storage.clone());
 
         Ok(Storage {
             app_service: app_service.into(),
@@ -261,6 +271,7 @@ impl Storage {
             import_service,
             lfs_service,
             code_review_service: CodeReviewService::new(base.clone()),
+            webhook_service,
         })
     }
 
@@ -417,13 +428,21 @@ impl Storage {
         self.app_service.build_trigger_storage.clone()
     }
 
+    pub fn webhook_storage(&self) -> WebhookStorage {
+        self.app_service.webhook_storage.clone()
+    }
+
     pub fn mock() -> Self {
         // During test time, we don't need a AppContext,
         // Put config in a leaked static variable thus the weak reference will always be valid.
         static CONFIG: LazyLock<Arc<Config>> = LazyLock::new(|| Config::mock().into());
 
+        let app_service = AppService::mock();
+        let webhook_service = WebhookService::mock(app_service.webhook_storage.clone());
+
         Storage {
-            app_service: AppService::mock(),
+            app_service,
+            // app_service: AppService::mock(),
             cla_service: ClaService::mock(),
             issue_service: IssueService::mock(),
             cl_service: CLService::mock(),
@@ -435,6 +454,7 @@ impl Storage {
             import_service: ImportService::mock(),
             lfs_service: LfsService::mock(),
             code_review_service: CodeReviewService::mock(),
+            webhook_service,
         }
     }
 }

@@ -9,3 +9,4 @@ pub mod lfs_service;
 pub mod merge_queue_service;
 pub mod mono_service;
 pub mod reviewer_service;
+pub mod webhook_service;
