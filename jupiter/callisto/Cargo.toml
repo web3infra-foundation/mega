@@ -17,4 +17,3 @@ idgenerator = { workspace = true }
 rand = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true }
-api-model = { workspace = true }
