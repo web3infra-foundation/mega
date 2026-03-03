@@ -106,10 +106,14 @@ impl ClStorage {
         sort_map.insert("created_at", mega_cl::Column::CreatedAt);
         sort_map.insert("updated_at", mega_cl::Column::UpdatedAt);
 
-        let mut sorted_query =
-            apply_sort(base_query, params.sort_by.as_deref(), params.asc, &sort_map);
+        let sort_field = params.sort_by.as_deref();
+        let has_valid_sort = sort_field
+            .and_then(|field| sort_map.get(field))
+            .is_some();
 
-        if params.sort_by.is_none() {
+        let mut sorted_query = apply_sort(base_query, sort_field, params.asc, &sort_map);
+
+        if !has_valid_sort {
             sorted_query = sorted_query.order_by_desc(mega_cl::Column::Id);
         }
 
