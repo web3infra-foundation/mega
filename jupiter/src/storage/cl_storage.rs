@@ -107,9 +107,7 @@ impl ClStorage {
         sort_map.insert("updated_at", mega_cl::Column::UpdatedAt);
 
         let sort_field = params.sort_by.as_deref();
-        let has_valid_sort = sort_field
-            .and_then(|field| sort_map.get(field))
-            .is_some();
+        let has_valid_sort = sort_field.and_then(|field| sort_map.get(field)).is_some();
 
         let mut sorted_query = apply_sort(base_query, sort_field, params.asc, &sort_map);
 
