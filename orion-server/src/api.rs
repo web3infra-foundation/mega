@@ -145,9 +145,12 @@ pub fn routers() -> Router<AppState> {
         .route("/v2/task/{cl}", get(task_get_handler))
         .route("/v2/build-events/{task_id}", get(build_event_get_handler))
         .route("/v2/targets/{task_id}", get(targets_get_handler))
-        .route("/all-target-status/{task_id}", get(targets_status_handler))
         .route(
-            "/target-status/{target_id}",
+            "/v2/all-target-status/{task_id}",
+            get(targets_status_handler),
+        )
+        .route(
+            "/v2/target-status/{target_id}",
             get(single_target_status_handle),
         )
 }
@@ -2269,7 +2272,7 @@ impl FromWsStatus for OrionTargetStatusEnum {
 /// Get target status with task_id
 #[utoipa::path(
     get,
-    path = "/all-target-status/{task_id}",
+    path = "/v2/all-target-status/{task_id}",
     params(
         ("task_id" = String, Path, description = "Task ID whose target belong"),
     ),
@@ -2327,7 +2330,7 @@ pub async fn targets_status_handler(
 /// Get target status with target id
 #[utoipa::path(
     get,
-    path = "/target-status/{target_id}",
+    path = "/v2/target-status/{target_id}",
     params(
         ("target_id" = String, Path, description = "target_id ID"),
     ),
