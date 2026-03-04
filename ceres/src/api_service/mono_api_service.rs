@@ -187,7 +187,9 @@ impl MonoServiceLogic {
     /// Windows drive letters (e.g. `C:`), and paths starting with `:`. Strip trailing `/`;
     /// input consisting only of slashes becomes `"/"`. Collapse middle repeated slashes and
     /// remove `.` segments (e.g. `//project//foo` → `/project/foo`, `project/./foo` → `/project/foo`).
-    /// Non-empty result gets a leading `"/"` if missing. Result matches mega_refs.path format.
+    /// Paths that consist only of `.` and slashes (e.g. `"."`, `"./"`) are rejected so they do not
+    /// silently resolve to root. Non-empty result gets a leading `"/"` if missing. Result matches
+    /// mega_refs.path format.
     pub fn normalize_repo_path(path: &str) -> Result<String, MegaError> {
         let s = path.trim();
         if s.is_empty() {
@@ -233,7 +235,9 @@ impl MonoServiceLogic {
             .collect();
         let s = parts.join("/");
         if s.is_empty() {
-            return Ok("/".to_string());
+            return Err(MegaError::Buck(BuckError::ValidationError(
+                "Path cannot be empty or consist only of '.' segments".to_string(),
+            )));
         }
         Ok(format!("/{}", s))
     }
@@ -3350,6 +3354,20 @@ mod test {
             MonoServiceLogic::normalize_repo_path("/project/./foo").unwrap(),
             "/project/foo"
         );
+
+        // Dot-only paths are rejected (do not silently resolve to root)
+        assert!(matches!(
+            MonoServiceLogic::normalize_repo_path("."),
+            Err(MegaError::Buck(BuckError::ValidationError(_)))
+        ));
+        assert!(matches!(
+            MonoServiceLogic::normalize_repo_path("./"),
+            Err(MegaError::Buck(BuckError::ValidationError(_)))
+        ));
+        assert!(matches!(
+            MonoServiceLogic::normalize_repo_path("./."),
+            Err(MegaError::Buck(BuckError::ValidationError(_)))
+        ));
 
         // Leading colon is rejected
         assert!(matches!(
