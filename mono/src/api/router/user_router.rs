@@ -225,7 +225,7 @@ async fn change_sign_status(
 ) -> Result<Json<CommonResult<ClaSignStatusRes>>, ApiError> {
     if payload.username != user.username {
         return Err(ApiError::from(MegaError::Other(
-            "Username mismatch: only current user can change own CLA status".to_string(),
+            "[code:403] Username mismatch: only current user can change own CLA status".to_string(),
         )));
     }
 

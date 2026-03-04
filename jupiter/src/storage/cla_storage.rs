@@ -3,7 +3,7 @@ use std::ops::Deref;
 use callisto::cla_sign_status;
 use common::errors::MegaError;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter, QuerySelect, Set,
+    ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set, prelude::Expr, sea_query::OnConflict,
 };
 
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
@@ -35,10 +35,6 @@ impl ClaStorage {
         &self,
         username: &str,
     ) -> Result<cla_sign_status::Model, MegaError> {
-        if let Some(model) = self.get_status(username).await? {
-            return Ok(model);
-        }
-
         let now = chrono::Utc::now().naive_utc();
         let model = cla_sign_status::ActiveModel {
             username: Set(username.to_string()),
@@ -48,7 +44,18 @@ impl ClaStorage {
             updated_at: Set(now),
         };
 
-        Ok(model.insert(self.get_connection()).await?)
+        cla_sign_status::Entity::insert(model)
+            .on_conflict(
+                OnConflict::column(cla_sign_status::Column::Username)
+                    .do_nothing()
+                    .to_owned(),
+            )
+            .exec(self.get_connection())
+            .await?;
+
+        self.get_status(username)
+            .await?
+            .ok_or_else(|| MegaError::Other("Failed to get or create CLA status".to_string()))
     }
 
     pub async fn is_signed(&self, username: &str) -> Result<bool, MegaError> {
@@ -62,18 +69,6 @@ impl ClaStorage {
     pub async fn sign(&self, username: &str) -> Result<cla_sign_status::Model, MegaError> {
         let now = chrono::Utc::now().naive_utc();
 
-        if let Some(model) = self.get_status(username).await? {
-            if model.cla_signed {
-                return Ok(model);
-            }
-
-            let mut active_model = model.into_active_model();
-            active_model.cla_signed = Set(true);
-            active_model.cla_signed_at = Set(Some(now));
-            active_model.updated_at = Set(now);
-            return Ok(active_model.update(self.get_connection()).await?);
-        }
-
         let active_model = cla_sign_status::ActiveModel {
             username: Set(username.to_string()),
             cla_signed: Set(true),
@@ -82,7 +77,27 @@ impl ClaStorage {
             updated_at: Set(now),
         };
 
-        Ok(active_model.insert(self.get_connection()).await?)
+        cla_sign_status::Entity::insert(active_model)
+            .on_conflict(
+                OnConflict::column(cla_sign_status::Column::Username)
+                    .do_nothing()
+                    .to_owned(),
+            )
+            .exec(self.get_connection())
+            .await?;
+
+        cla_sign_status::Entity::update_many()
+            .col_expr(cla_sign_status::Column::ClaSigned, Expr::value(true))
+            .col_expr(cla_sign_status::Column::ClaSignedAt, Expr::value(now))
+            .col_expr(cla_sign_status::Column::UpdatedAt, Expr::value(now))
+            .filter(cla_sign_status::Column::Username.eq(username))
+            .filter(cla_sign_status::Column::ClaSigned.eq(false))
+            .exec(self.get_connection())
+            .await?;
+
+        self.get_status(username)
+            .await?
+            .ok_or_else(|| MegaError::Other("Failed to sign CLA status".to_string()))
     }
 
     pub async fn unsigned_users(&self, usernames: &[String]) -> Result<Vec<String>, MegaError> {

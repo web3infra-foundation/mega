@@ -1252,8 +1252,11 @@ impl MonoApiService {
         let open_cls = self
             .storage
             .cl_storage()
-            .get_open_cls_by_username(username)
-            .await?;
+            .get_open_cls()
+            .await?
+            .into_iter()
+            .filter(|cl| cl.username == username)
+            .collect::<Vec<_>>();
         if open_cls.is_empty() {
             return Ok(());
         }
@@ -1270,13 +1273,28 @@ impl MonoApiService {
         let check_reg = CheckerRegistry::new(self.storage.clone().into(), cl.username.clone());
         check_reg.run_checks(cl.clone().into()).await?;
 
+        let required_check_types = self
+            .storage
+            .cl_storage()
+            .get_checks_config_by_path(&cl.path)
+            .await?
+            .into_iter()
+            .filter(|cfg| cfg.required)
+            .map(|cfg| cfg.check_type_code)
+            .collect::<Vec<_>>();
+
         let failed_checks = self
             .storage
             .cl_storage()
             .get_check_result(&cl.link)
             .await?
             .into_iter()
-            .filter(|result| result.status == "FAILED")
+            .filter(|result| {
+                result.status == "FAILED"
+                    && required_check_types
+                        .iter()
+                        .any(|required_type| required_type == &result.check_type_code)
+            })
             .map(|result| format!("{:?}", result.check_type_code))
             .collect::<Vec<_>>();
 
