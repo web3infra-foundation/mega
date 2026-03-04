@@ -10,9 +10,10 @@ use tracing::log;
 use crate::{
     migration::apply_migrations,
     service::{
-        buck_service::BuckService, cl_service::CLService, code_review_service::CodeReviewService,
-        git_service::GitService, import_service::ImportService, issue_service::IssueService,
-        lfs_service::LfsService, merge_queue_service::MergeQueueService, mono_service::MonoService,
+        buck_service::BuckService, cl_service::CLService, cla_service::ClaService,
+        code_review_service::CodeReviewService, git_service::GitService,
+        import_service::ImportService, issue_service::IssueService, lfs_service::LfsService,
+        merge_queue_service::MergeQueueService, mono_service::MonoService,
     },
     storage::{
         AppService, Storage,
@@ -21,6 +22,7 @@ use crate::{
         build_trigger_storage::BuildTriggerStorage,
         cl_reviewer_storage::ClReviewerStorage,
         cl_storage::ClStorage,
+        cla_storage::ClaStorage,
         code_review_comment_storage::CodeReviewCommentStorage,
         code_review_thread_storage::CodeReviewThreadStorage,
         commit_binding_storage::CommitBindingStorage,
@@ -66,6 +68,7 @@ pub async fn test_storage(temp_dir: impl AsRef<Path>) -> Storage {
         git_db_storage: GitDbStorage { base: base.clone() },
         gpg_storage: GpgStorage { base: base.clone() },
         lfs_db_storage: LfsDbStorage { base: base.clone() },
+        cla_storage: ClaStorage { base: base.clone() },
         user_storage: UserStorage { base: base.clone() },
         group_storage: GroupStorage { base: base.clone() },
         cl_storage: ClStorage { base: base.clone() },
@@ -87,6 +90,7 @@ pub async fn test_storage(temp_dir: impl AsRef<Path>) -> Storage {
 
     Storage {
         app_service: Arc::new(svc),
+        cla_service: ClaService::new(base.clone()),
         issue_service: IssueService::mock(),
         cl_service: CLService::mock(),
         merge_queue_service: MergeQueueService::mock(),

@@ -4,7 +4,9 @@ use axum::{
     extract::{Path, State},
     routing::get,
 };
-use ceres::model::user::{AddSSHKey, ListSSHKey, ListToken};
+use ceres::model::user::{
+    AddSSHKey, ChangeClaSignStatusPayload, ClaSignStatusRes, ListSSHKey, ListToken,
+};
 use common::errors::MegaError;
 use russh::keys::{HashAlg, parse_public_key_base64};
 use utoipa_axum::{router::OpenApiRouter, routes};
@@ -24,7 +26,9 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
             .routes(routes!(remove_key))
             .routes(routes!(generate_token))
             .routes(routes!(list_token))
-            .routes(routes!(remove_token)),
+            .routes(routes!(remove_token))
+            .routes(routes!(get_cla_sign_status))
+            .routes(routes!(change_sign_status)),
     )
 }
 
@@ -172,5 +176,68 @@ async fn list_token(
 ) -> Result<Json<CommonResult<Vec<ListToken>>>, ApiError> {
     let data = state.user_stg().list_token(user.username).await?;
     let res = data.into_iter().map(|x| x.into()).collect();
+    Ok(Json(CommonResult::success(Some(res))))
+}
+
+/// Get current user's CLA sign status
+#[utoipa::path(
+    get,
+    path = "/cla/status/{username}",
+    params(
+        ("username" = String, Path, description = "Username to query CLA sign status")
+    ),
+    responses(
+        (status = 200, body = CommonResult<ClaSignStatusRes>, content_type = "application/json")
+    ),
+    tag = USER_TAG
+)]
+async fn get_cla_sign_status(
+    Path(username): Path<String>,
+    state: State<MonoApiServiceState>,
+) -> Result<Json<CommonResult<ClaSignStatusRes>>, ApiError> {
+    let (cla_signed, cla_signed_at) = state
+        .monorepo()
+        .get_or_init_cla_sign_status(&username)
+        .await?;
+
+    let res = ClaSignStatusRes {
+        username,
+        cla_signed,
+        cla_signed_at: cla_signed_at.map(|dt| dt.and_utc().timestamp()),
+    };
+    Ok(Json(CommonResult::success(Some(res))))
+}
+
+/// Change CLA sign status for current user
+#[utoipa::path(
+    post,
+    path = "/cla/change-sign-status",
+    request_body = ChangeClaSignStatusPayload,
+    responses(
+        (status = 200, body = CommonResult<ClaSignStatusRes>, content_type = "application/json")
+    ),
+    tag = USER_TAG
+)]
+async fn change_sign_status(
+    user: LoginUser,
+    state: State<MonoApiServiceState>,
+    Json(payload): Json<ChangeClaSignStatusPayload>,
+) -> Result<Json<CommonResult<ClaSignStatusRes>>, ApiError> {
+    if payload.username != user.username {
+        return Err(ApiError::from(MegaError::Other(
+            "Username mismatch: only current user can change own CLA status".to_string(),
+        )));
+    }
+
+    let (cla_signed, cla_signed_at) = state
+        .monorepo()
+        .change_cla_sign_status(&user.username)
+        .await?;
+
+    let res = ClaSignStatusRes {
+        username: user.username,
+        cla_signed,
+        cla_signed_at: cla_signed_at.map(|dt| dt.and_utc().timestamp()),
+    };
     Ok(Json(CommonResult::success(Some(res))))
 }
