@@ -7,6 +7,12 @@ pub struct CreateGroupPayload {
 }
 
 #[derive(Debug, Clone)]
+pub struct UpdateGroupPayload {
+    pub name: String,
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Clone)]
 pub struct ResourcePermissionBinding {
     pub group_id: i64,
     pub permission: PermissionEnum,

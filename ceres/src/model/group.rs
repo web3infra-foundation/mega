@@ -14,6 +14,12 @@ pub struct CreateGroupRequest {
     pub description: Option<String>,
 }
 
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct UpdateGroupRequest {
+    pub name: String,
+    pub description: Option<String>,
+}
+
 #[derive(Debug, Serialize, ToSchema)]
 pub struct GroupResponse {
     pub id: i64,

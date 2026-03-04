@@ -9,12 +9,14 @@ use callisto::{
 };
 use common::{errors::MegaError, utils::generate_id};
 use sea_orm::{
-    ColumnTrait, DbErr, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set,
-    TransactionTrait, sea_query::OnConflict,
+    ActiveModelTrait, ColumnTrait, DbErr, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    QuerySelect, Set, TransactionTrait, sea_query::OnConflict,
 };
 
 use crate::{
-    model::group_dto::{CreateGroupPayload, DeleteGroupStats, ResourcePermissionBinding},
+    model::group_dto::{
+        CreateGroupPayload, DeleteGroupStats, ResourcePermissionBinding, UpdateGroupPayload,
+    },
     storage::base_storage::{BaseStorage, StorageConnector},
 };
 
@@ -87,6 +89,28 @@ impl GroupStorage {
         Ok(mega_group::Entity::find_by_id(group_id)
             .one(self.get_connection())
             .await?)
+    }
+
+    pub async fn update_group(
+        &self,
+        group_id: i64,
+        payload: UpdateGroupPayload,
+    ) -> Result<mega_group::Model, MegaError> {
+        let UpdateGroupPayload { name, description } = payload;
+        let group = self
+            .get_group_by_id(group_id)
+            .await?
+            .ok_or_else(|| MegaError::NotFound(format!("Group not found: {group_id}")))?;
+
+        let mut active_model: mega_group::ActiveModel = group.into();
+        active_model.name = Set(name.clone());
+        active_model.description = Set(description);
+        active_model.updated_at = Set(chrono::Utc::now().naive_utc());
+
+        active_model
+            .update(self.get_connection())
+            .await
+            .map_err(|e| map_unique_to_conflict(e, name))
     }
 
     pub async fn delete_group_with_relations(
@@ -431,6 +455,23 @@ fn map_fk_to_not_found(err: DbErr, msg: String) -> MegaError {
     }
 }
 
+/// Returns true when the database error indicates a unique-key conflict.
+fn is_unique_constraint_error(err: &DbErr) -> bool {
+    let msg = err.to_string().to_lowercase();
+    msg.contains("unique constraint")
+        || msg.contains("unique violation")
+        || msg.contains("duplicate key")
+        || msg.contains("is not unique")
+}
+
+fn map_unique_to_conflict(err: DbErr, group_name: String) -> MegaError {
+    if is_unique_constraint_error(&err) {
+        MegaError::Other(format!("[code:409] Group already exists: {group_name}"))
+    } else {
+        err.into()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use callisto::sea_orm_active_enums::PermissionEnum;
@@ -483,6 +524,65 @@ mod tests {
 
         match result {
             Err(MegaError::NotFound(msg)) => assert!(msg.contains("Group not found")),
+            other => panic!("unexpected result: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn update_group_returns_not_found_when_group_missing() {
+        let temp_dir = tempfile::tempdir().expect("failed to create temp dir");
+        let storage = crate::tests::test_storage(temp_dir.path()).await;
+        let group_storage = storage.group_storage();
+
+        let result = group_storage
+            .update_group(
+                999_999,
+                UpdateGroupPayload {
+                    name: "missing-group".to_string(),
+                    description: Some("missing".to_string()),
+                },
+            )
+            .await;
+
+        match result {
+            Err(MegaError::NotFound(msg)) => assert!(msg.contains("Group not found")),
+            other => panic!("unexpected result: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn update_group_conflicts_on_duplicate_name() {
+        let temp_dir = tempfile::tempdir().expect("failed to create temp dir");
+        let storage = crate::tests::test_storage(temp_dir.path()).await;
+        let group_storage = storage.group_storage();
+
+        let left = group_storage
+            .create_group(CreateGroupPayload {
+                name: "group-left".to_string(),
+                description: None,
+            })
+            .await
+            .expect("left group should be created");
+        let right = group_storage
+            .create_group(CreateGroupPayload {
+                name: "group-right".to_string(),
+                description: None,
+            })
+            .await
+            .expect("right group should be created");
+
+        let result = group_storage
+            .update_group(
+                right.id,
+                UpdateGroupPayload {
+                    name: left.name,
+                    description: Some("dup".to_string()),
+                },
+            )
+            .await;
+
+        match result {
+            Err(MegaError::Other(msg)) if msg.contains("[code:409]") => {}
             other => panic!("unexpected result: {other:?}"),
         }
     }

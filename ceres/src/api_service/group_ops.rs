@@ -4,7 +4,9 @@ use callisto::{
     sea_orm_active_enums::{PermissionEnum, ResourceTypeEnum},
 };
 use common::errors::MegaError;
-use jupiter::model::group_dto::{CreateGroupPayload, DeleteGroupStats, ResourcePermissionBinding};
+use jupiter::model::group_dto::{
+    CreateGroupPayload, DeleteGroupStats, ResourcePermissionBinding, UpdateGroupPayload,
+};
 
 use crate::api_service::mono_api_service::MonoApiService;
 
@@ -34,6 +36,17 @@ impl MonoApiService {
         group_id: i64,
     ) -> Result<Option<mega_group::Model>, MegaError> {
         self.storage.group_storage().get_group_by_id(group_id).await
+    }
+
+    pub async fn update_group(
+        &self,
+        group_id: i64,
+        payload: UpdateGroupPayload,
+    ) -> Result<mega_group::Model, MegaError> {
+        self.storage
+            .group_storage()
+            .update_group(group_id, payload)
+            .await
     }
 
     pub async fn delete_group(&self, group_id: i64) -> Result<DeleteGroupStats, MegaError> {
