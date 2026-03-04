@@ -4,6 +4,7 @@ import { ProfileSecurity } from 'components/UserSettings/ProfileSecurity'
 import { TwoFactorAuthentication } from 'components/UserSettings/TwoFactorAuthentication'
 import Head from 'next/head'
 
+import { AdminGroups } from '@/components/AdminGroups'
 import { CopyCurrentUrl } from '@/components/CopyCurrentUrl'
 import AuthAppProviders from '@/components/Providers/AuthAppProviders'
 import GPGKeys from '@/components/Setting/GPGKeys'
@@ -19,9 +20,13 @@ import { UserSettingsPageWrapper } from '@/components/UserSettings/PageWrapper'
 import { PersonalCallLinks } from '@/components/UserSettings/PersonalCallLinks'
 import { SlackNotificationSettings } from '@/components/UserSettings/SlackNotificationSettings'
 import { Timezone } from '@/components/UserSettings/Timezone'
+import { useAdminCheck } from '@/hooks/admin/useAdminCheck'
 import { PageWithProviders } from '@/utils/types'
 
 const UserSettingsPage: PageWithProviders<any> = () => {
+  const { data: adminCheck } = useAdminCheck()
+  const isAdmin = adminCheck?.data?.is_admin || false
+
   useEffect(() => {
     const hash = window.location.hash
 
@@ -58,6 +63,7 @@ const UserSettingsPage: PageWithProviders<any> = () => {
         <SlackNotificationSettings />
         <ProfileSecurity />
         <TwoFactorAuthentication />
+        {isAdmin && <AdminGroups />}
       </UserSettingsPageWrapper>
     </>
   )
