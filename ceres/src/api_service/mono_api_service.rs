@@ -181,6 +181,63 @@ impl MonoServiceLogic {
         }
     }
 
+    /// Normalize and validate repository path.
+    ///
+    /// Rules: trim; reject empty or whitespace-only (validation error). Reject `..`, backslash,
+    /// Windows drive letters (e.g. `C:`), and paths starting with `:`. Strip trailing `/`;
+    /// input consisting only of slashes becomes `"/"`. Collapse middle repeated slashes and
+    /// remove `.` segments (e.g. `//project//foo` → `/project/foo`, `project/./foo` → `/project/foo`).
+    /// Non-empty result gets a leading `"/"` if missing. Result matches mega_refs.path format.
+    pub fn normalize_repo_path(path: &str) -> Result<String, MegaError> {
+        let s = path.trim();
+        if s.is_empty() {
+            return Err(MegaError::Buck(BuckError::ValidationError(
+                "Path cannot be empty".to_string(),
+            )));
+        }
+        if s.contains("..") {
+            return Err(MegaError::Buck(BuckError::ValidationError(format!(
+                "Path traversal not allowed: {}",
+                s
+            ))));
+        }
+        if s.contains('\\') {
+            return Err(MegaError::Buck(BuckError::ValidationError(format!(
+                "Path must use '/' separator: {}",
+                s
+            ))));
+        }
+        if s.len() >= 2 {
+            let mut chars = s.chars();
+            if let (Some(c1), Some(':')) = (chars.next(), chars.next())
+                && c1.is_ascii_alphabetic()
+            {
+                return Err(MegaError::Buck(BuckError::ValidationError(format!(
+                    "Absolute path not allowed (Windows drive letter detected): {}",
+                    s
+                ))));
+            }
+        }
+        if s.starts_with(':') {
+            return Err(MegaError::Buck(BuckError::ValidationError(
+                "Path must not start with ':'".to_string(),
+            )));
+        }
+        let s = s.trim_end_matches('/');
+        if s.is_empty() {
+            return Ok("/".to_string());
+        }
+        let parts: Vec<&str> = s
+            .split('/')
+            .filter(|p| !p.is_empty() && *p != ".")
+            .collect();
+        let s = parts.join("/");
+        if s.is_empty() {
+            return Ok("/".to_string());
+        }
+        Ok(format!("/{}", s))
+    }
+
     pub fn update_tree_hash(
         tree: Arc<Tree>,
         name: &str,
@@ -2681,7 +2738,7 @@ impl MonoApiService {
     ///
     /// # Arguments
     /// * `username` - User creating the session
-    /// * `path` - Repository path
+    /// * `path` - Repository path (may be with or without leading `/`; normalized to match mega_refs format)
     ///
     /// # Returns
     /// Returns `SessionResponse` on success
@@ -2690,16 +2747,17 @@ impl MonoApiService {
         username: &str,
         path: &str,
     ) -> Result<jupiter::service::buck_service::SessionResponse, MegaError> {
+        let normalized_path = MonoServiceLogic::normalize_repo_path(path)?;
         let refs = self
             .storage
             .mono_storage()
-            .get_main_ref(path)
+            .get_main_ref(&normalized_path)
             .await?
-            .ok_or_else(|| MegaError::Other(format!("Path not found: {}", path)))?;
+            .ok_or_else(|| MegaError::NotFound(format!("Path not found: {}", normalized_path)))?;
         let response = self
             .storage
             .buck_service
-            .create_session(username, path, refs.ref_commit_hash)
+            .create_session(username, &normalized_path, refs.ref_commit_hash)
             .await?;
 
         Ok(response)
@@ -3238,6 +3296,80 @@ mod test {
         assert_eq!(MonoServiceLogic::clean_path_str("/"), "/");
         assert_eq!(MonoServiceLogic::clean_path_str("abc/"), "abc");
         assert_eq!(MonoServiceLogic::clean_path_str("abc///"), "abc");
+    }
+
+    #[test]
+    fn test_normalize_repo_path() {
+        use common::errors::{BuckError, MegaError};
+
+        // Normalization: add leading slash, strip trailing
+        assert_eq!(
+            MonoServiceLogic::normalize_repo_path("project").unwrap(),
+            "/project"
+        );
+        assert_eq!(
+            MonoServiceLogic::normalize_repo_path("/project").unwrap(),
+            "/project"
+        );
+        assert_eq!(
+            MonoServiceLogic::normalize_repo_path("project/").unwrap(),
+            "/project"
+        );
+        assert_eq!(
+            MonoServiceLogic::normalize_repo_path("/project/").unwrap(),
+            "/project"
+        );
+        assert_eq!(
+            MonoServiceLogic::normalize_repo_path("  /project  ").unwrap(),
+            "/project"
+        );
+        assert_eq!(MonoServiceLogic::normalize_repo_path("/").unwrap(), "/");
+
+        // Empty / whitespace-only -> ValidationError
+        assert!(MonoServiceLogic::normalize_repo_path("").is_err());
+        assert!(MonoServiceLogic::normalize_repo_path("   ").is_err());
+        assert!(matches!(
+            MonoServiceLogic::normalize_repo_path(""),
+            Err(MegaError::Buck(BuckError::ValidationError(_)))
+        ));
+
+        // Path traversal and invalid chars -> ValidationError
+        assert!(MonoServiceLogic::normalize_repo_path("project/../foo").is_err());
+        assert!(MonoServiceLogic::normalize_repo_path("project\\foo").is_err());
+
+        // Middle slashes and "." segments are collapsed
+        assert_eq!(
+            MonoServiceLogic::normalize_repo_path("//project//foo//").unwrap(),
+            "/project/foo"
+        );
+        assert_eq!(
+            MonoServiceLogic::normalize_repo_path("project/./foo").unwrap(),
+            "/project/foo"
+        );
+        assert_eq!(
+            MonoServiceLogic::normalize_repo_path("/project/./foo").unwrap(),
+            "/project/foo"
+        );
+
+        // Leading colon is rejected
+        assert!(matches!(
+            MonoServiceLogic::normalize_repo_path(":/test"),
+            Err(MegaError::Buck(BuckError::ValidationError(_)))
+        ));
+        assert!(matches!(
+            MonoServiceLogic::normalize_repo_path(":"),
+            Err(MegaError::Buck(BuckError::ValidationError(_)))
+        ));
+
+        // Windows drive letters are rejected
+        assert!(matches!(
+            MonoServiceLogic::normalize_repo_path("C:"),
+            Err(MegaError::Buck(BuckError::ValidationError(_)))
+        ));
+        assert!(matches!(
+            MonoServiceLogic::normalize_repo_path("D:/project"),
+            Err(MegaError::Buck(BuckError::ValidationError(_)))
+        ));
     }
 
     #[test]
