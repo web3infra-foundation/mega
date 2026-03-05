@@ -88,6 +88,8 @@ mod m20260211_102158_add_username_to_mega_cl_sqlite;
 mod m20260216_013852_create_group_permission_tables;
 mod m20260224_142019_create_target_build_status;
 mod m20260228_100254_change_build_target_and_add_index_for_build_event_start_at;
+mod m20260302_082846_add_cla_sign_status;
+mod m20260304_013434_seed_cla_sign_check_config;
 
 /// Creates a primary key column definition with big integer type.
 ///
@@ -166,6 +168,8 @@ impl MigratorTrait for Migrator {
             Box::new(m20260216_013852_create_group_permission_tables::Migration),
             Box::new(m20260224_142019_create_target_build_status::Migration),
             Box::new(m20260228_100254_change_build_target_and_add_index_for_build_event_start_at::Migration),
+            Box::new(m20260302_082846_add_cla_sign_status::Migration),
+            Box::new(m20260304_013434_seed_cla_sign_check_config::Migration),
         ]
     }
 }

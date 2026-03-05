@@ -222,6 +222,21 @@ export default function CLView() {
             </MemberHovercard>
           </>
         )
+      case 'draft':
+        return (
+          <>
+            opened{' '}
+            <Tooltip label={formatFullTime(item.open_timestamp)}>
+              <span className='cursor-default'>
+                {formatDistance(fromUnixTime(item.open_timestamp), new Date(), { addSuffix: true })}
+              </span>
+            </Tooltip>{' '}
+            by{' '}
+            <MemberHovercard username={item.author}>
+              <span className='cursor-pointer hover:text-blue-600 hover:underline'>{item.author}</span>
+            </MemberHovercard>
+          </>
+        )
       case 'merged':
         if (item.merge_timestamp !== null) {
           return (

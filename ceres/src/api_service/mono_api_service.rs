@@ -92,6 +92,7 @@ use crate::{
     },
     build_trigger::{BuildTriggerService, TriggerContext},
     code_edit::{on_edit::OneditCodeEdit, utils as edit_utils},
+    merge_checker::CheckerRegistry,
     model::{
         buck::{
             CompletePayload, CompleteResponse, DEFAULT_MODE, FileChange,
@@ -179,6 +180,67 @@ impl MonoServiceLogic {
         } else {
             s.to_string()
         }
+    }
+
+    /// Normalize and validate repository path.
+    ///
+    /// Rules: trim; reject empty or whitespace-only (validation error). Reject `..`, backslash,
+    /// Windows drive letters (e.g. `C:`), and paths starting with `:`. Strip trailing `/`;
+    /// input consisting only of slashes becomes `"/"`. Collapse middle repeated slashes and
+    /// remove `.` segments (e.g. `//project//foo` → `/project/foo`, `project/./foo` → `/project/foo`).
+    /// Paths that consist only of `.` and slashes (e.g. `"."`, `"./"`) are rejected so they do not
+    /// silently resolve to root. Non-empty result gets a leading `"/"` if missing. Result matches
+    /// mega_refs.path format.
+    pub fn normalize_repo_path(path: &str) -> Result<String, MegaError> {
+        let s = path.trim();
+        if s.is_empty() {
+            return Err(MegaError::Buck(BuckError::ValidationError(
+                "Path cannot be empty".to_string(),
+            )));
+        }
+        if s.contains("..") {
+            return Err(MegaError::Buck(BuckError::ValidationError(format!(
+                "Path traversal not allowed: {}",
+                s
+            ))));
+        }
+        if s.contains('\\') {
+            return Err(MegaError::Buck(BuckError::ValidationError(format!(
+                "Path must use '/' separator: {}",
+                s
+            ))));
+        }
+        if s.len() >= 2 {
+            let mut chars = s.chars();
+            if let (Some(c1), Some(':')) = (chars.next(), chars.next())
+                && c1.is_ascii_alphabetic()
+            {
+                return Err(MegaError::Buck(BuckError::ValidationError(format!(
+                    "Absolute path not allowed (Windows drive letter detected): {}",
+                    s
+                ))));
+            }
+        }
+        if s.starts_with(':') {
+            return Err(MegaError::Buck(BuckError::ValidationError(
+                "Path must not start with ':'".to_string(),
+            )));
+        }
+        let s = s.trim_end_matches('/');
+        if s.is_empty() {
+            return Ok("/".to_string());
+        }
+        let parts: Vec<&str> = s
+            .split('/')
+            .filter(|p| !p.is_empty() && *p != ".")
+            .collect();
+        let s = parts.join("/");
+        if s.is_empty() {
+            return Err(MegaError::Buck(BuckError::ValidationError(
+                "Path cannot be empty or consist only of '.' segments".to_string(),
+            )));
+        }
+        Ok(format!("/{}", s))
     }
 
     pub fn update_tree_hash(
@@ -1226,6 +1288,87 @@ impl MonoApiService {
         }
     }
 
+    pub async fn get_or_init_cla_sign_status(
+        &self,
+        username: &str,
+    ) -> Result<(bool, Option<chrono::NaiveDateTime>), MegaError> {
+        let model = self
+            .storage
+            .cla_storage()
+            .get_or_create_status(username)
+            .await?;
+        Ok((model.cla_signed, model.cla_signed_at))
+    }
+
+    pub async fn change_cla_sign_status(
+        &self,
+        username: &str,
+    ) -> Result<(bool, Option<chrono::NaiveDateTime>), MegaError> {
+        let model = self.storage.cla_storage().sign(username).await?;
+        self.refresh_checks_for_open_cls_by_author(username).await?;
+        Ok((model.cla_signed, model.cla_signed_at))
+    }
+
+    async fn refresh_checks_for_open_cls_by_author(&self, username: &str) -> Result<(), MegaError> {
+        let open_cls = self
+            .storage
+            .cl_storage()
+            .get_open_cls()
+            .await?
+            .into_iter()
+            .filter(|cl| cl.username == username)
+            .collect::<Vec<_>>();
+        if open_cls.is_empty() {
+            return Ok(());
+        }
+
+        let check_reg = CheckerRegistry::new(self.storage.clone().into(), username.to_string());
+        for cl in open_cls {
+            check_reg.run_checks(cl.into()).await?;
+        }
+
+        Ok(())
+    }
+
+    async fn ensure_cl_mergeable(&self, cl: &mega_cl::Model) -> Result<(), MegaError> {
+        let check_reg = CheckerRegistry::new(self.storage.clone().into(), cl.username.clone());
+        check_reg.run_checks(cl.clone().into()).await?;
+
+        let required_check_types = self
+            .storage
+            .cl_storage()
+            .get_checks_config_by_path(&cl.path)
+            .await?
+            .into_iter()
+            .filter(|cfg| cfg.required)
+            .map(|cfg| cfg.check_type_code)
+            .collect::<Vec<_>>();
+
+        let failed_checks = self
+            .storage
+            .cl_storage()
+            .get_check_result(&cl.link)
+            .await?
+            .into_iter()
+            .filter(|result| {
+                result.status == "FAILED"
+                    && required_check_types
+                        .iter()
+                        .any(|required_type| required_type == &result.check_type_code)
+            })
+            .map(|result| format!("{:?}", result.check_type_code))
+            .collect::<Vec<_>>();
+
+        if failed_checks.is_empty() {
+            Ok(())
+        } else {
+            Err(MegaError::Other(format!(
+                "CL is unmergeable, failed checks: {}",
+                failed_checks.join(", ")
+            )))
+        }
+    }
+
     async fn trigger_build_for_cl(
         &self,
         editor: &OneditCodeEdit,
@@ -1493,6 +1636,10 @@ impl MonoApiService {
         if cl.from_hash != refs.ref_commit_hash {
             return Err(GitError::CustomError("ref hash conflict".to_owned()));
         }
+
+        self.ensure_cl_mergeable(&cl)
+            .await
+            .map_err(|e| GitError::CustomError(e.to_string()))?;
 
         self.merge_cl_unchecked(username, cl).await
     }
@@ -2681,7 +2828,7 @@ impl MonoApiService {
     ///
     /// # Arguments
     /// * `username` - User creating the session
-    /// * `path` - Repository path
+    /// * `path` - Repository path (may be with or without leading `/`; normalized to match mega_refs format)
     ///
     /// # Returns
     /// Returns `SessionResponse` on success
@@ -2690,16 +2837,19 @@ impl MonoApiService {
         username: &str,
         path: &str,
     ) -> Result<jupiter::service::buck_service::SessionResponse, MegaError> {
+        let normalized_path = MonoServiceLogic::normalize_repo_path(path)?;
         let refs = self
             .storage
             .mono_storage()
-            .get_main_ref(path)
+            .get_main_ref(&normalized_path)
             .await?
-            .ok_or_else(|| MegaError::Other(format!("Path not found: {}", path)))?;
+            .ok_or_else(|| MegaError::NotFound(format!("Path not found: {}", normalized_path)))?;
+        // Use canonical path from mega_refs as the single source of truth for repository path
+        let canonical_path = refs.path.clone();
         let response = self
             .storage
             .buck_service
-            .create_session(username, path, refs.ref_commit_hash)
+            .create_session(username, &canonical_path, refs.ref_commit_hash)
             .await?;
 
         Ok(response)
@@ -3108,6 +3258,13 @@ impl MonoApiService {
             }
         };
 
+        self.ensure_cl_mergeable(&cl_model).await.map_err(|e| {
+            (
+                QueueFailureTypeEnum::SystemError,
+                format!("CL is unmergeable: {}", e),
+            )
+        })?;
+
         // Step 2: Run tests (TODO: Buck2 integration)
         // self.run_tests(&cl_model).await?;
 
@@ -3238,6 +3395,94 @@ mod test {
         assert_eq!(MonoServiceLogic::clean_path_str("/"), "/");
         assert_eq!(MonoServiceLogic::clean_path_str("abc/"), "abc");
         assert_eq!(MonoServiceLogic::clean_path_str("abc///"), "abc");
+    }
+
+    #[test]
+    fn test_normalize_repo_path() {
+        use common::errors::{BuckError, MegaError};
+
+        // Normalization: add leading slash, strip trailing
+        assert_eq!(
+            MonoServiceLogic::normalize_repo_path("project").unwrap(),
+            "/project"
+        );
+        assert_eq!(
+            MonoServiceLogic::normalize_repo_path("/project").unwrap(),
+            "/project"
+        );
+        assert_eq!(
+            MonoServiceLogic::normalize_repo_path("project/").unwrap(),
+            "/project"
+        );
+        assert_eq!(
+            MonoServiceLogic::normalize_repo_path("/project/").unwrap(),
+            "/project"
+        );
+        assert_eq!(
+            MonoServiceLogic::normalize_repo_path("  /project  ").unwrap(),
+            "/project"
+        );
+        assert_eq!(MonoServiceLogic::normalize_repo_path("/").unwrap(), "/");
+
+        // Empty / whitespace-only -> ValidationError
+        assert!(MonoServiceLogic::normalize_repo_path("").is_err());
+        assert!(MonoServiceLogic::normalize_repo_path("   ").is_err());
+        assert!(matches!(
+            MonoServiceLogic::normalize_repo_path(""),
+            Err(MegaError::Buck(BuckError::ValidationError(_)))
+        ));
+
+        // Path traversal and invalid chars -> ValidationError
+        assert!(MonoServiceLogic::normalize_repo_path("project/../foo").is_err());
+        assert!(MonoServiceLogic::normalize_repo_path("project\\foo").is_err());
+
+        // Middle slashes and "." segments are collapsed
+        assert_eq!(
+            MonoServiceLogic::normalize_repo_path("//project//foo//").unwrap(),
+            "/project/foo"
+        );
+        assert_eq!(
+            MonoServiceLogic::normalize_repo_path("project/./foo").unwrap(),
+            "/project/foo"
+        );
+        assert_eq!(
+            MonoServiceLogic::normalize_repo_path("/project/./foo").unwrap(),
+            "/project/foo"
+        );
+
+        // Dot-only paths are rejected (do not silently resolve to root)
+        assert!(matches!(
+            MonoServiceLogic::normalize_repo_path("."),
+            Err(MegaError::Buck(BuckError::ValidationError(_)))
+        ));
+        assert!(matches!(
+            MonoServiceLogic::normalize_repo_path("./"),
+            Err(MegaError::Buck(BuckError::ValidationError(_)))
+        ));
+        assert!(matches!(
+            MonoServiceLogic::normalize_repo_path("./."),
+            Err(MegaError::Buck(BuckError::ValidationError(_)))
+        ));
+
+        // Leading colon is rejected
+        assert!(matches!(
+            MonoServiceLogic::normalize_repo_path(":/test"),
+            Err(MegaError::Buck(BuckError::ValidationError(_)))
+        ));
+        assert!(matches!(
+            MonoServiceLogic::normalize_repo_path(":"),
+            Err(MegaError::Buck(BuckError::ValidationError(_)))
+        ));
+
+        // Windows drive letters are rejected
+        assert!(matches!(
+            MonoServiceLogic::normalize_repo_path("C:"),
+            Err(MegaError::Buck(BuckError::ValidationError(_)))
+        ));
+        assert!(matches!(
+            MonoServiceLogic::normalize_repo_path("D:/project"),
+            Err(MegaError::Buck(BuckError::ValidationError(_)))
+        ));
     }
 
     #[test]

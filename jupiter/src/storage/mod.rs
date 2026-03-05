@@ -3,6 +3,7 @@ pub mod buck_storage;
 pub mod build_trigger_storage;
 pub mod cl_reviewer_storage;
 pub mod cl_storage;
+pub mod cla_storage;
 pub mod code_review_comment_storage;
 pub mod code_review_thread_storage;
 pub mod commit_binding_storage;
@@ -29,9 +30,10 @@ use tokio::sync::Semaphore;
 
 use crate::{
     service::{
-        buck_service::BuckService, cl_service::CLService, code_review_service::CodeReviewService,
-        git_service::GitService, import_service::ImportService, issue_service::IssueService,
-        lfs_service::LfsService, merge_queue_service::MergeQueueService, mono_service::MonoService,
+        buck_service::BuckService, cl_service::CLService, cla_service::ClaService,
+        code_review_service::CodeReviewService, git_service::GitService,
+        import_service::ImportService, issue_service::IssueService, lfs_service::LfsService,
+        merge_queue_service::MergeQueueService, mono_service::MonoService,
     },
     storage::{
         base_storage::{BaseStorage, StorageConnector},
@@ -39,6 +41,7 @@ use crate::{
         build_trigger_storage::BuildTriggerStorage,
         cl_reviewer_storage::ClReviewerStorage,
         cl_storage::ClStorage,
+        cla_storage::ClaStorage,
         code_review_comment_storage::CodeReviewCommentStorage,
         code_review_thread_storage::CodeReviewThreadStorage,
         commit_binding_storage::CommitBindingStorage,
@@ -64,6 +67,7 @@ pub struct AppService {
     pub git_db_storage: GitDbStorage,
     pub gpg_storage: GpgStorage,
     pub lfs_db_storage: LfsDbStorage,
+    pub cla_storage: ClaStorage,
     pub user_storage: UserStorage,
     pub group_storage: GroupStorage,
     pub vault_storage: VaultStorage,
@@ -92,6 +96,7 @@ impl AppService {
             git_db_storage: GitDbStorage { base: mock.clone() },
             gpg_storage: GpgStorage { base: mock.clone() },
             lfs_db_storage: LfsDbStorage { base: mock.clone() },
+            cla_storage: ClaStorage { base: mock.clone() },
             user_storage: UserStorage { base: mock.clone() },
             group_storage: GroupStorage { base: mock.clone() },
             vault_storage: VaultStorage { base: mock.clone() },
@@ -114,6 +119,7 @@ impl AppService {
 #[derive(Clone)]
 pub struct Storage {
     pub(crate) app_service: Arc<AppService>,
+    pub cla_service: ClaService,
     pub issue_service: IssueService,
     pub cl_service: CLService,
     pub merge_queue_service: MergeQueueService,
@@ -135,6 +141,7 @@ impl Storage {
         let git_db_storage = GitDbStorage { base: base.clone() };
         let gpg_storage = GpgStorage { base: base.clone() };
         let lfs_db_storage = LfsDbStorage { base: base.clone() };
+        let cla_storage = ClaStorage { base: base.clone() };
         let user_storage = UserStorage { base: base.clone() };
         let group_storage = GroupStorage { base: base.clone() };
         let cl_storage = ClStorage { base: base.clone() };
@@ -207,6 +214,7 @@ impl Storage {
             git_db_storage,
             gpg_storage,
             lfs_db_storage,
+            cla_storage,
             user_storage,
             group_storage,
             vault_storage,
@@ -236,6 +244,7 @@ impl Storage {
 
         Ok(Storage {
             app_service: app_service.into(),
+            cla_service: ClaService::new(base.clone()),
             config: Arc::downgrade(&config),
             issue_service: IssueService::new(base.clone()),
             cl_service: CLService::new(base.clone()),
@@ -342,6 +351,10 @@ impl Storage {
         self.app_service.user_storage.clone()
     }
 
+    pub fn cla_storage(&self) -> ClaStorage {
+        self.app_service.cla_storage.clone()
+    }
+
     pub fn group_storage(&self) -> GroupStorage {
         self.app_service.group_storage.clone()
     }
@@ -405,6 +418,7 @@ impl Storage {
 
         Storage {
             app_service: AppService::mock(),
+            cla_service: ClaService::mock(),
             issue_service: IssueService::mock(),
             cl_service: CLService::mock(),
             merge_queue_service: MergeQueueService::mock(),

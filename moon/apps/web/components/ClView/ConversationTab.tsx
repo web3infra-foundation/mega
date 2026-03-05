@@ -146,7 +146,7 @@ export const ConversationTab = React.memo<ConversationTabProps>(
             />
           </div>
           <div className='flex justify-end gap-2'>
-            {clDetail && clDetail.status === 'Open' && (
+            {clDetail && (clDetail.status === 'Open' || clDetail.status === 'Draft') && (
               <Button
                 disabled={!login || clCloseIsPending}
                 onClick={handleClClose}
