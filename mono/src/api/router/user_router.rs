@@ -4,9 +4,7 @@ use axum::{
     extract::{Path, State},
     routing::get,
 };
-use ceres::model::user::{
-    AddSSHKey, ChangeClaSignStatusPayload, ClaSignStatusRes, ListSSHKey, ListToken,
-};
+use ceres::model::user::{AddSSHKey, ClaSignStatusRes, ListSSHKey, ListToken};
 use common::errors::MegaError;
 use russh::keys::{HashAlg, parse_public_key_base64};
 use utoipa_axum::{router::OpenApiRouter, routes};
@@ -182,26 +180,23 @@ async fn list_token(
 /// Get current user's CLA sign status
 #[utoipa::path(
     get,
-    path = "/cla/status/{username}",
-    params(
-        ("username" = String, Path, description = "Username to query CLA sign status")
-    ),
+    path = "/cla/status",
     responses(
         (status = 200, body = CommonResult<ClaSignStatusRes>, content_type = "application/json")
     ),
     tag = USER_TAG
 )]
 async fn get_cla_sign_status(
-    Path(username): Path<String>,
+    user: LoginUser,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<ClaSignStatusRes>>, ApiError> {
     let (cla_signed, cla_signed_at) = state
         .monorepo()
-        .get_or_init_cla_sign_status(&username)
+        .get_or_init_cla_sign_status(&user.username)
         .await?;
 
     let res = ClaSignStatusRes {
-        username,
+        username: user.username,
         cla_signed,
         cla_signed_at: cla_signed_at.map(|dt| dt.and_utc().timestamp()),
     };
@@ -212,7 +207,6 @@ async fn get_cla_sign_status(
 #[utoipa::path(
     post,
     path = "/cla/change-sign-status",
-    request_body = ChangeClaSignStatusPayload,
     responses(
         (status = 200, body = CommonResult<ClaSignStatusRes>, content_type = "application/json")
     ),
@@ -221,14 +215,7 @@ async fn get_cla_sign_status(
 async fn change_sign_status(
     user: LoginUser,
     state: State<MonoApiServiceState>,
-    Json(payload): Json<ChangeClaSignStatusPayload>,
 ) -> Result<Json<CommonResult<ClaSignStatusRes>>, ApiError> {
-    if payload.username != user.username {
-        return Err(ApiError::from(MegaError::Other(
-            "[code:403] Username mismatch: only current user can change own CLA status".to_string(),
-        )));
-    }
-
     let (cla_signed, cla_signed_at) = state
         .monorepo()
         .change_cla_sign_status(&user.username)
