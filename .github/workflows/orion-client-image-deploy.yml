@@ -10,10 +10,7 @@ on:
       - "orion/entrypoint.sh"
       - "orion/scorpio.toml.template"
       - "orion/**"
-      - "ceres/**"
-      - "jupiter/**"
       - "common/**"
-      - "context/**"
 
 permissions:
   id-token: write
