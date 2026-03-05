@@ -1,6 +1,8 @@
 use chrono::Utc;
+use sea_orm::{ActiveValue::Set, ConnectionTrait, DbErr, EntityTrait};
 use serde::Serialize;
 use utoipa::ToSchema;
+use uuid::Uuid;
 
 #[derive(ToSchema, Serialize)]
 pub struct BuildEventDTO {
@@ -26,5 +28,28 @@ impl From<&callisto::build_events::Model> for BuildEventDTO {
             start_at: model.start_at.to_string(),
             end_at: model.end_at.map(|dt| dt.with_timezone(&Utc).to_string()),
         }
+    }
+}
+
+pub struct BuildEvent;
+
+impl BuildEvent {
+    pub async fn update_build_complete_result(
+        build_id: String,
+        exit_code: Option<i32>,
+        success: bool,
+        message: String,
+        db_connection: &impl ConnectionTrait,
+    ) -> Result<(), DbErr> {
+        let _ = callisto::build_events::Entity::update_many()
+            .set(callisto::build_events::ActiveModel {
+                exit_code: Set(exit_code),
+                success: Set(success),
+                message: Set(message),
+                ..Default::default()
+            })
+            .filter(callisto::build_events::Column::Id.eq(build_id.parse::<Uuid>().unwrap()))
+            .exec(db_connection)
+            .await;
     }
 }
