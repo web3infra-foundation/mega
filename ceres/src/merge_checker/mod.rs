@@ -8,11 +8,12 @@ use serde::Serialize;
 use utoipa::ToSchema;
 
 use crate::merge_checker::{
-    cl_sync_checker::ClSyncChecker, commit_message_checker::CommitMessageChecker,
-    gpg_signature_checker::GpgSignatureChecker,
+    cl_sync_checker::ClSyncChecker, cla_sign_checker::ClaSignChecker,
+    commit_message_checker::CommitMessageChecker, gpg_signature_checker::GpgSignatureChecker,
 };
 
 pub mod cl_sync_checker;
+mod cla_sign_checker;
 mod code_review_checker;
 mod commit_message_checker;
 pub(crate) mod gpg_signature_checker;
@@ -33,6 +34,7 @@ pub enum CheckType {
     MergeConflict,
     CiStatus,
     CodeReview,
+    ClaSign,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
@@ -73,6 +75,7 @@ impl CheckType {
             CheckType::MergeConflict => "Merge conflict",
             CheckType::CiStatus => "Ci status",
             CheckType::CodeReview => "Code review",
+            CheckType::ClaSign => "CLA sign",
         }
     }
 
@@ -99,6 +102,7 @@ impl CheckType {
             CheckType::CodeReview => {
                 "Ensure the required reviewers have approved the merge request"
             }
+            CheckType::ClaSign => "Ensure the CL author has signed CLA",
         }
     }
 }
@@ -113,6 +117,7 @@ impl From<CheckTypeEnum> for CheckType {
             CheckTypeEnum::MergeConflict => CheckType::MergeConflict,
             CheckTypeEnum::CiStatus => CheckType::CiStatus,
             CheckTypeEnum::CodeReview => CheckType::CodeReview,
+            CheckTypeEnum::ClaSign => CheckType::ClaSign,
         }
     }
 }
@@ -127,6 +132,7 @@ impl From<CheckType> for CheckTypeEnum {
             CheckType::MergeConflict => CheckTypeEnum::MergeConflict,
             CheckType::CiStatus => CheckTypeEnum::CiStatus,
             CheckType::CodeReview => CheckTypeEnum::CodeReview,
+            CheckType::ClaSign => CheckTypeEnum::ClaSign,
         }
     }
 }
@@ -167,6 +173,12 @@ impl CheckerRegistry {
         r.register(
             CheckType::CodeReview,
             Box::new(code_review_checker::CodeReviewChecker {
+                storage: storage.clone(),
+            }),
+        );
+        r.register(
+            CheckType::ClaSign,
+            Box::new(ClaSignChecker {
                 storage: storage.clone(),
             }),
         );

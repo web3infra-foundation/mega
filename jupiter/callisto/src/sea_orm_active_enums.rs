@@ -20,6 +20,8 @@ pub enum CheckTypeEnum {
     CiStatus,
     #[sea_orm(string_value = "code_review")]
     CodeReview,
+    #[sea_orm(string_value = "cla_sign")]
+    ClaSign,
 }
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "conv_type_enum")]
@@ -90,6 +92,16 @@ pub enum OrionTargetStatusEnum {
     Success,
     #[sea_orm(string_value = "failed")]
     Failed,
+}
+#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "permission_enum")]
+pub enum PermissionEnum {
+    #[sea_orm(string_value = "read")]
+    Read,
+    #[sea_orm(string_value = "write")]
+    Write,
+    #[sea_orm(string_value = "admin")]
+    Admin,
 }
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[sea_orm(
@@ -166,28 +178,16 @@ pub enum ReferenceTypeEnum {
     Blocks,
 }
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "resource_type_enum")]
+pub enum ResourceTypeEnum {
+    #[sea_orm(string_value = "note")]
+    Note,
+}
+#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "thread_status_enum")]
 pub enum ThreadStatusEnum {
     #[sea_orm(string_value = "resolved")]
     Resolved,
     #[sea_orm(string_value = "open")]
     Open,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
-#[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "permission_enum")]
-pub enum PermissionEnum {
-    #[sea_orm(string_value = "read")]
-    Read,
-    #[sea_orm(string_value = "write")]
-    Write,
-    #[sea_orm(string_value = "admin")]
-    Admin,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
-#[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "resource_type_enum")]
-pub enum ResourceTypeEnum {
-    #[sea_orm(string_value = "note")]
-    Note,
 }

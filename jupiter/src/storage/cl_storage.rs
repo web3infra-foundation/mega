@@ -64,6 +64,14 @@ impl ClStorage {
         Ok(models)
     }
 
+    pub async fn get_open_cls(&self) -> Result<Vec<mega_cl::Model>, MegaError> {
+        let models = mega_cl::Entity::find()
+            .filter(mega_cl::Column::Status.eq(MergeStatusEnum::Open))
+            .all(self.get_connection())
+            .await?;
+        Ok(models)
+    }
+
     pub async fn get_cl_list(
         &self,
         params: ListParams,

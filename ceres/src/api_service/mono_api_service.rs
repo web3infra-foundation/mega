@@ -92,6 +92,7 @@ use crate::{
     },
     build_trigger::{BuildTriggerService, TriggerContext},
     code_edit::{on_edit::OneditCodeEdit, utils as edit_utils},
+    merge_checker::CheckerRegistry,
     model::{
         buck::{
             CompletePayload, CompleteResponse, DEFAULT_MODE, FileChange,
@@ -1287,6 +1288,87 @@ impl MonoApiService {
         }
     }
 
+    pub async fn get_or_init_cla_sign_status(
+        &self,
+        username: &str,
+    ) -> Result<(bool, Option<chrono::NaiveDateTime>), MegaError> {
+        let model = self
+            .storage
+            .cla_storage()
+            .get_or_create_status(username)
+            .await?;
+        Ok((model.cla_signed, model.cla_signed_at))
+    }
+
+    pub async fn change_cla_sign_status(
+        &self,
+        username: &str,
+    ) -> Result<(bool, Option<chrono::NaiveDateTime>), MegaError> {
+        let model = self.storage.cla_storage().sign(username).await?;
+        self.refresh_checks_for_open_cls_by_author(username).await?;
+        Ok((model.cla_signed, model.cla_signed_at))
+    }
+
+    async fn refresh_checks_for_open_cls_by_author(&self, username: &str) -> Result<(), MegaError> {
+        let open_cls = self
+            .storage
+            .cl_storage()
+            .get_open_cls()
+            .await?
+            .into_iter()
+            .filter(|cl| cl.username == username)
+            .collect::<Vec<_>>();
+        if open_cls.is_empty() {
+            return Ok(());
+        }
+
+        let check_reg = CheckerRegistry::new(self.storage.clone().into(), username.to_string());
+        for cl in open_cls {
+            check_reg.run_checks(cl.into()).await?;
+        }
+
+        Ok(())
+    }
+
+    async fn ensure_cl_mergeable(&self, cl: &mega_cl::Model) -> Result<(), MegaError> {
+        let check_reg = CheckerRegistry::new(self.storage.clone().into(), cl.username.clone());
+        check_reg.run_checks(cl.clone().into()).await?;
+
+        let required_check_types = self
+            .storage
+            .cl_storage()
+            .get_checks_config_by_path(&cl.path)
+            .await?
+            .into_iter()
+            .filter(|cfg| cfg.required)
+            .map(|cfg| cfg.check_type_code)
+            .collect::<Vec<_>>();
+
+        let failed_checks = self
+            .storage
+            .cl_storage()
+            .get_check_result(&cl.link)
+            .await?
+            .into_iter()
+            .filter(|result| {
+                result.status == "FAILED"
+                    && required_check_types
+                        .iter()
+                        .any(|required_type| required_type == &result.check_type_code)
+            })
+            .map(|result| format!("{:?}", result.check_type_code))
+            .collect::<Vec<_>>();
+
+        if failed_checks.is_empty() {
+            Ok(())
+        } else {
+            Err(MegaError::Other(format!(
+                "CL is unmergeable, failed checks: {}",
+                failed_checks.join(", ")
+            )))
+        }
+    }
+
     async fn trigger_build_for_cl(
         &self,
         editor: &OneditCodeEdit,
@@ -1554,6 +1636,10 @@ impl MonoApiService {
         if cl.from_hash != refs.ref_commit_hash {
             return Err(GitError::CustomError("ref hash conflict".to_owned()));
         }
+
+        self.ensure_cl_mergeable(&cl)
+            .await
+            .map_err(|e| GitError::CustomError(e.to_string()))?;
 
         self.merge_cl_unchecked(username, cl).await
     }
@@ -3169,6 +3255,13 @@ impl MonoApiService {
                 ));
             }
         };
+
+        self.ensure_cl_mergeable(&cl_model).await.map_err(|e| {
+            (
+                QueueFailureTypeEnum::SystemError,
+                format!("CL is unmergeable: {}", e),
+            )
+        })?;
 
         // Step 2: Run tests (TODO: Buck2 integration)
         // self.run_tests(&cl_model).await?;
