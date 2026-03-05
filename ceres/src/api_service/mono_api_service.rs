@@ -2844,10 +2844,12 @@ impl MonoApiService {
             .get_main_ref(&normalized_path)
             .await?
             .ok_or_else(|| MegaError::NotFound(format!("Path not found: {}", normalized_path)))?;
+        // Use canonical path from mega_refs as the single source of truth for repository path
+        let canonical_path = refs.path.clone();
         let response = self
             .storage
             .buck_service
-            .create_session(username, &normalized_path, refs.ref_commit_hash)
+            .create_session(username, &canonical_path, refs.ref_commit_hash)
             .await?;
 
         Ok(response)
