@@ -7,10 +7,12 @@ use axum::{
 use ceres::model::group::{
     AddMembersRequest, CreateGroupRequest, DeleteGroupResponse, DeletePermissionsResponse,
     EmptyListAdditional, GroupMemberResponse, GroupResponse, RemoveMemberResponse,
-    ResourcePermissionResponse, SetPermissionsRequest, UserEffectivePermissionResponse,
-    UserGroupsResponse,
+    ResourcePermissionResponse, SetPermissionsRequest, UpdateGroupRequest,
+    UserEffectivePermissionResponse, UserGroupsResponse,
 };
-use jupiter::model::group_dto::{CreateGroupPayload, ResourcePermissionBinding};
+use jupiter::model::group_dto::{
+    CreateGroupPayload, ResourcePermissionBinding, UpdateGroupPayload,
+};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{
@@ -32,6 +34,7 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
             .routes(routes!(create_group))
             .routes(routes!(list_groups))
             .routes(routes!(get_group))
+            .routes(routes!(update_group))
             .routes(routes!(delete_group))
             .routes(routes!(add_group_members))
             .routes(routes!(remove_group_member))
@@ -165,6 +168,72 @@ async fn get_group(
         })?;
 
     Ok(Json(CommonResult::success(Some(group.into()))))
+}
+
+#[utoipa::path(
+    put,
+    path = "/groups/{group_id}",
+    request_body = UpdateGroupRequest,
+    params(
+        ("group_id" = i64, Path, description = "Group ID")
+    ),
+    responses(
+        (status = 200, body = CommonResult<GroupResponse>),
+        (status = 400, description = "Invalid request"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Forbidden - admin only"),
+        (status = 404, description = "Group not found"),
+        (status = 409, description = "Group already exists"),
+    ),
+    tag = GROUP_PERMISSION_TAG
+)]
+async fn update_group(
+    user: LoginUser,
+    State(state): State<MonoApiServiceState>,
+    Path(group_id): Path<i64>,
+    Json(req): Json<UpdateGroupRequest>,
+) -> Result<Json<CommonResult<GroupResponse>>, ApiError> {
+    ensure_admin(&state, &user).await?;
+
+    let name = req.name.trim();
+    if name.is_empty() {
+        tracing::warn!(
+            actor = %user.username,
+            group_id,
+            "group.update rejected: empty group name"
+        );
+        return Err(ApiError::bad_request(anyhow!(
+            "Group name must not be empty"
+        )));
+    }
+    if name.len() > 255 {
+        tracing::warn!(
+            actor = %user.username,
+            group_id,
+            "group.update rejected: name too long"
+        );
+        return Err(ApiError::bad_request(anyhow!(
+            "Group name must not exceed 255 characters"
+        )));
+    }
+
+    let description = req
+        .description
+        .map(|item| item.trim().to_string())
+        .and_then(|item| if item.is_empty() { None } else { Some(item) });
+
+    let updated = state
+        .monorepo()
+        .update_group(
+            group_id,
+            UpdateGroupPayload {
+                name: name.to_string(),
+                description,
+            },
+        )
+        .await?;
+
+    Ok(Json(CommonResult::success(Some(updated.into()))))
 }
 
 #[utoipa::path(

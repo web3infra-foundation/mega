@@ -3033,6 +3033,10 @@ export type FigmaKeyPair = {
   write_key: string
 }
 
+export type AddMembersRequest = {
+  usernames: string[]
+}
+
 export type AddSSHKey = {
   ssh_key: string
   title: string
@@ -3403,6 +3407,49 @@ export type CommonResultCommonPageCommitSummary = {
   req_result: boolean
 }
 
+export type CommonResultCommonPageGroupMemberResponse = {
+  data?: {
+    items: {
+      /** @format int64 */
+      group_id: number
+      /** @format int64 */
+      id: number
+      /** @format int64 */
+      joined_at: number
+      username: string
+    }[]
+    /**
+     * @format int64
+     * @min 0
+     */
+    total: number
+  }
+  err_message: string
+  req_result: boolean
+}
+
+export type CommonResultCommonPageGroupResponse = {
+  data?: {
+    items: {
+      /** @format int64 */
+      created_at: number
+      description?: string | null
+      /** @format int64 */
+      id: number
+      name: string
+      /** @format int64 */
+      updated_at: number
+    }[]
+    /**
+     * @format int64
+     * @min 0
+     */
+    total: number
+  }
+  err_message: string
+  req_result: boolean
+}
+
 export type CommonResultCommonPageItemRes = {
   data?: {
     items: {
@@ -3539,6 +3586,44 @@ export type CommonResultCreateEntryResult = {
   req_result: boolean
 }
 
+export type CommonResultDeleteGroupResponse = {
+  data?: {
+    /**
+     * @format int64
+     * @min 0
+     */
+    deleted_groups_count: number
+    /**
+     * @format int64
+     * @min 0
+     */
+    deleted_members_count: number
+    /**
+     * @format int64
+     * @min 0
+     */
+    deleted_permissions_count: number
+    /** @format int64 */
+    group_id: number
+  }
+  err_message: string
+  req_result: boolean
+}
+
+export type CommonResultDeletePermissionsResponse = {
+  data?: {
+    /**
+     * @format int64
+     * @min 0
+     */
+    deleted_count: number
+    resource_id: string
+    resource_type: ResourceTypeValue
+  }
+  err_message: string
+  req_result: boolean
+}
+
 export type CommonResultDeleteTagResponse = {
   /** Delete tag response */
   data?: {
@@ -3596,6 +3681,21 @@ export type CommonResultFileUploadResponse = {
 export type CommonResultFilesChangedPage = {
   data?: {
     page: CommonPageDiffItemSchema
+  }
+  err_message: string
+  req_result: boolean
+}
+
+export type CommonResultGroupResponse = {
+  data?: {
+    /** @format int64 */
+    created_at: number
+    description?: string | null
+    /** @format int64 */
+    id: number
+    name: string
+    /** @format int64 */
+    updated_at: number
   }
   err_message: string
   req_result: boolean
@@ -3706,6 +3806,17 @@ export type CommonResultQueueStatusResponse = {
   data?: {
     in_queue: boolean
     item?: null | QueueItem
+  }
+  err_message: string
+  req_result: boolean
+}
+
+export type CommonResultRemoveMemberResponse = {
+  data?: {
+    /** @format int64 */
+    group_id: number
+    removed: boolean
+    username: string
   }
   err_message: string
   req_result: boolean
@@ -3863,6 +3974,30 @@ export type CommonResultUpdateBranchStatusRes = {
   req_result: boolean
 }
 
+export type CommonResultUserEffectivePermissionResponse = {
+  data?: {
+    has_admin: boolean
+    has_read: boolean
+    has_write: boolean
+    is_admin: boolean
+    permission?: null | PermissionValue
+    resource_id: string
+    resource_type: ResourceTypeValue
+    username: string
+  }
+  err_message: string
+  req_result: boolean
+}
+
+export type CommonResultUserGroupsResponse = {
+  data?: {
+    groups: GroupResponse[]
+    username: string
+  }
+  err_message: string
+  req_result: boolean
+}
+
 export type CommonResultValue = {
   data?: any
   err_message: string
@@ -3903,6 +4038,20 @@ export type CommonResultVecGpgKey = {
     fingerprint: string
     key_id: string
     user_id: string
+  }[]
+  err_message: string
+  req_result: boolean
+}
+
+export type CommonResultVecGroupMemberResponse = {
+  data?: {
+    /** @format int64 */
+    group_id: number
+    /** @format int64 */
+    id: number
+    /** @format int64 */
+    joined_at: number
+    username: string
   }[]
   err_message: string
   req_result: boolean
@@ -3952,6 +4101,24 @@ export type CommonResultVecMuiTreeNode = {
     id: string
     label: string
     path: string
+  }[]
+  err_message: string
+  req_result: boolean
+}
+
+export type CommonResultVecResourcePermissionResponse = {
+  data?: {
+    /** @format int64 */
+    created_at: number
+    /** @format int64 */
+    group_id: number
+    /** @format int64 */
+    id: number
+    permission: PermissionValue
+    resource_id: string
+    resource_type: ResourceTypeValue
+    /** @format int64 */
+    updated_at: number
   }[]
   err_message: string
   req_result: boolean
@@ -4128,6 +4295,11 @@ export type CreateEntryResult = {
   path: string
 }
 
+export type CreateGroupRequest = {
+  description?: string | null
+  name: string
+}
+
 /** Request payload for creating an upload session */
 export type CreateSessionPayload = {
   /** Repository path, e.g. "/project/mega" */
@@ -4164,6 +4336,36 @@ export type CreateTriggerRequest = {
   params?: null | BuildParams
   ref_name?: string | null
   repo_path: string
+}
+
+export type DeleteGroupResponse = {
+  /**
+   * @format int64
+   * @min 0
+   */
+  deleted_groups_count: number
+  /**
+   * @format int64
+   * @min 0
+   */
+  deleted_members_count: number
+  /**
+   * @format int64
+   * @min 0
+   */
+  deleted_permissions_count: number
+  /** @format int64 */
+  group_id: number
+}
+
+export type DeletePermissionsResponse = {
+  /**
+   * @format int64
+   * @min 0
+   */
+  deleted_count: number
+  resource_id: string
+  resource_type: ResourceTypeValue
 }
 
 /** Delete tag response */
@@ -4231,6 +4433,8 @@ export type EditFileResult = {
   path: string
 }
 
+export type EmptyListAdditional = object
+
 /** Failure type for API */
 export enum FailureType {
   TestFailure = 'TestFailure',
@@ -4292,6 +4496,27 @@ export enum GpgStatus {
   Verified = 'Verified',
   Unverified = 'Unverified',
   NoSignature = 'NoSignature'
+}
+
+export type GroupMemberResponse = {
+  /** @format int64 */
+  group_id: number
+  /** @format int64 */
+  id: number
+  /** @format int64 */
+  joined_at: number
+  username: string
+}
+
+export type GroupResponse = {
+  /** @format int64 */
+  created_at: number
+  description?: string | null
+  /** @format int64 */
+  id: number
+  name: string
+  /** @format int64 */
+  updated_at: number
 }
 
 export type InitializeCommentRequest = {
@@ -4582,6 +4807,11 @@ export type PageParamsCommitHistoryParams = {
   pagination: Pagination
 }
 
+export type PageParamsEmptyListAdditional = {
+  additional: object
+  pagination: Pagination
+}
+
 export type PageParamsListPayload = {
   additional: {
     asc: boolean
@@ -4635,6 +4865,18 @@ export type Pagination = {
    * @min 0
    */
   per_page: number
+}
+
+export type PermissionBindingRequest = {
+  /** @format int64 */
+  group_id: number
+  permission: PermissionValue
+}
+
+export enum PermissionValue {
+  Read = 'read',
+  Write = 'write',
+  Admin = 'admin'
 }
 
 export type PositionResponse = {
@@ -4749,6 +4991,13 @@ export type RemoveGpgRequest = {
   key_id: string
 }
 
+export type RemoveMemberResponse = {
+  /** @format int64 */
+  group_id: number
+  removed: boolean
+  username: string
+}
+
 /** Request object for LFS operations */
 export type RequestObject = {
   authorization?: string
@@ -4763,6 +5012,24 @@ export type RequestObject = {
 export enum RequirementsState {
   UNMERGEABLE = 'UNMERGEABLE',
   MERGEABLE = 'MERGEABLE'
+}
+
+export type ResourcePermissionResponse = {
+  /** @format int64 */
+  created_at: number
+  /** @format int64 */
+  group_id: number
+  /** @format int64 */
+  id: number
+  permission: PermissionValue
+  resource_id: string
+  resource_type: ResourceTypeValue
+  /** @format int64 */
+  updated_at: number
+}
+
+export enum ResourceTypeValue {
+  Note = 'note'
 }
 
 /** Response object for LFS batch operations */
@@ -4813,6 +5080,10 @@ export type SessionResponse = {
    * @min 0
    */
   max_files: number
+}
+
+export type SetPermissionsRequest = {
+  permissions: PermissionBindingRequest[]
 }
 
 export type ShowResponse = {
@@ -4988,6 +5259,22 @@ export type UpdateSidebarPayload = {
   visible?: boolean | null
 }
 
+export type UserEffectivePermissionResponse = {
+  has_admin: boolean
+  has_read: boolean
+  has_write: boolean
+  is_admin: boolean
+  permission?: null | PermissionValue
+  resource_id: string
+  resource_type: ResourceTypeValue
+  username: string
+}
+
+export type UserGroupsResponse = {
+  groups: GroupResponse[]
+  username: string
+}
+
 export type Vec = {
   href: string
   /** @format int32 */
@@ -5058,8 +5345,8 @@ export type BuildRequest = {
 
 export type BuildTargetDTO = {
   id: string
+  latest_state: string
   path: string
-  target_state: string
   task_id: string
 }
 
@@ -5139,7 +5426,7 @@ export type OrionClientStatus = {
 }
 
 export type OrionTaskDTO = {
-  changes: string
+  changes: any
   cl: string
   created_at: string
   id: string
@@ -6434,9 +6721,35 @@ export type PostThreadsV2Data = V2MessageThread
 
 export type PostSignInFigmaData = FigmaKeyPair
 
+export type PostApiAdminGroupsData = CommonResultGroupResponse
+
+export type PostApiAdminGroupsListData = CommonResultCommonPageGroupResponse
+
+export type GetApiAdminGroupsByGroupIdData = CommonResultGroupResponse
+
+export type DeleteApiAdminGroupsByGroupIdData = CommonResultDeleteGroupResponse
+
+export type PostApiAdminGroupsMembersData = CommonResultVecGroupMemberResponse
+
+export type PostApiAdminGroupsMembersListData = CommonResultCommonPageGroupMemberResponse
+
+export type DeleteApiAdminGroupsMembersByUsernameData = CommonResultRemoveMemberResponse
+
 export type GetApiAdminListData = CommonResultAdminListResponse
 
 export type GetApiAdminMeData = CommonResultIsAdminResponse
+
+export type GetApiAdminResourcesPermissionsData = CommonResultVecResourcePermissionResponse
+
+export type PutApiAdminResourcesPermissionsData = CommonResultVecResourcePermissionResponse
+
+export type PostApiAdminResourcesPermissionsData = CommonResultVecResourcePermissionResponse
+
+export type DeleteApiAdminResourcesPermissionsData = CommonResultDeletePermissionsResponse
+
+export type GetApiAdminUsersGroupsData = CommonResultUserGroupsResponse
+
+export type GetApiAdminUsersPermissionsByResourceIdData = CommonResultUserEffectivePermissionResponse
 
 export type GetApiBlameParams = {
   refs?: string
@@ -6654,6 +6967,8 @@ export type GetApiOrganizationsNotesSyncStateData = ShowResponse
 
 export type PatchApiOrganizationsNotesSyncStateData = any
 
+export type GetApiPermissionsMeByResourceIdData = CommonResultUserEffectivePermissionResponse
+
 export type PostApiRepoCloneData = CommonResultString
 
 export type GetApiSidebarListData = CommonResultVec
@@ -6801,15 +7116,15 @@ export type GetTasksTargetsData = TaskInfoDTO
 
 export type GetTasksTargetsSummaryData = TargetSummaryDTO
 
-export type GetBuildEventByTaskIdV2Data = BuildEventDTO
+export type GetBuildEventsByTaskIdV2Data = BuildEventDTO[]
 
-export type GetBuildEventByTaskIdV2Error = MessageResponse
+export type GetBuildEventsByTaskIdV2Error = MessageResponse
 
 export type GetHealthV2Data = any
 
-export type GetTargetByTaskIdV2Data = BuildTargetDTO
+export type GetTargetsByTaskIdV2Data = BuildTargetDTO
 
-export type GetTargetByTaskIdV2Error = MessageResponse
+export type GetTargetsByTaskIdV2Error = MessageResponse
 
 export type PostTaskRetryByIdV2Data = MessageResponse
 
@@ -15199,6 +15514,169 @@ supporting either retrieving the entire log at once or segmenting it by line cou
   }
   v1 = {
     /**
+     * No description
+     *
+     * @tags Group Permission Management
+     * @name PostApiAdminGroups
+     * @request POST:/api/v1/admin/groups
+     */
+    postApiAdminGroups: () => {
+      const base = 'POST:/api/v1/admin/groups' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiAdminGroupsData>([base]),
+        requestKey: () => dataTaggedQueryKey<PostApiAdminGroupsData>([base]),
+        request: (data: CreateGroupRequest, params: RequestParams = {}) =>
+          this.request<PostApiAdminGroupsData>({
+            path: `/api/v1/admin/groups`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Group Permission Management
+     * @name PostApiAdminGroupsList
+     * @request POST:/api/v1/admin/groups/list
+     */
+    postApiAdminGroupsList: () => {
+      const base = 'POST:/api/v1/admin/groups/list' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiAdminGroupsListData>([base]),
+        requestKey: () => dataTaggedQueryKey<PostApiAdminGroupsListData>([base]),
+        request: (data: PageParamsEmptyListAdditional, params: RequestParams = {}) =>
+          this.request<PostApiAdminGroupsListData>({
+            path: `/api/v1/admin/groups/list`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Group Permission Management
+     * @name GetApiAdminGroupsByGroupId
+     * @request GET:/api/v1/admin/groups/{group_id}
+     */
+    getApiAdminGroupsByGroupId: () => {
+      const base = 'GET:/api/v1/admin/groups/{group_id}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiAdminGroupsByGroupIdData>([base]),
+        requestKey: (groupId: number) => dataTaggedQueryKey<GetApiAdminGroupsByGroupIdData>([base, groupId]),
+        request: (groupId: number, params: RequestParams = {}) =>
+          this.request<GetApiAdminGroupsByGroupIdData>({
+            path: `/api/v1/admin/groups/${groupId}`,
+            method: 'GET',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Group Permission Management
+     * @name DeleteApiAdminGroupsByGroupId
+     * @request DELETE:/api/v1/admin/groups/{group_id}
+     */
+    deleteApiAdminGroupsByGroupId: () => {
+      const base = 'DELETE:/api/v1/admin/groups/{group_id}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<DeleteApiAdminGroupsByGroupIdData>([base]),
+        requestKey: (groupId: number) => dataTaggedQueryKey<DeleteApiAdminGroupsByGroupIdData>([base, groupId]),
+        request: (groupId: number, params: RequestParams = {}) =>
+          this.request<DeleteApiAdminGroupsByGroupIdData>({
+            path: `/api/v1/admin/groups/${groupId}`,
+            method: 'DELETE',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Group Permission Management
+     * @name PostApiAdminGroupsMembers
+     * @request POST:/api/v1/admin/groups/{group_id}/members
+     */
+    postApiAdminGroupsMembers: () => {
+      const base = 'POST:/api/v1/admin/groups/{group_id}/members' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiAdminGroupsMembersData>([base]),
+        requestKey: (groupId: number) => dataTaggedQueryKey<PostApiAdminGroupsMembersData>([base, groupId]),
+        request: (groupId: number, data: AddMembersRequest, params: RequestParams = {}) =>
+          this.request<PostApiAdminGroupsMembersData>({
+            path: `/api/v1/admin/groups/${groupId}/members`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Group Permission Management
+     * @name PostApiAdminGroupsMembersList
+     * @request POST:/api/v1/admin/groups/{group_id}/members/list
+     */
+    postApiAdminGroupsMembersList: () => {
+      const base = 'POST:/api/v1/admin/groups/{group_id}/members/list' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiAdminGroupsMembersListData>([base]),
+        requestKey: (groupId: number) => dataTaggedQueryKey<PostApiAdminGroupsMembersListData>([base, groupId]),
+        request: (groupId: number, data: PageParamsEmptyListAdditional, params: RequestParams = {}) =>
+          this.request<PostApiAdminGroupsMembersListData>({
+            path: `/api/v1/admin/groups/${groupId}/members/list`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Group Permission Management
+     * @name DeleteApiAdminGroupsMembersByUsername
+     * @request DELETE:/api/v1/admin/groups/{group_id}/members/{username}
+     */
+    deleteApiAdminGroupsMembersByUsername: () => {
+      const base = 'DELETE:/api/v1/admin/groups/{group_id}/members/{username}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<DeleteApiAdminGroupsMembersByUsernameData>([base]),
+        requestKey: (groupId: number, username: string) =>
+          dataTaggedQueryKey<DeleteApiAdminGroupsMembersByUsernameData>([base, groupId, username]),
+        request: (groupId: number, username: string, params: RequestParams = {}) =>
+          this.request<DeleteApiAdminGroupsMembersByUsernameData>({
+            path: `/api/v1/admin/groups/${groupId}/members/${username}`,
+            method: 'DELETE',
+            ...params
+          })
+      }
+    },
+
+    /**
      * @description Returns a list of all admin usernames. Only admins can access this endpoint.
      *
      * @tags User Management
@@ -15238,6 +15716,147 @@ supporting either retrieving the entire log at once or segmenting it by line cou
         request: (params: RequestParams = {}) =>
           this.request<GetApiAdminMeData>({
             path: `/api/v1/admin/me`,
+            method: 'GET',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Group Permission Management
+     * @name GetApiAdminResourcesPermissions
+     * @request GET:/api/v1/admin/resources/{resource_type}/{resource_id}/permissions
+     */
+    getApiAdminResourcesPermissions: () => {
+      const base = 'GET:/api/v1/admin/resources/{resource_type}/{resource_id}/permissions' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiAdminResourcesPermissionsData>([base]),
+        requestKey: (resourceType: string, resourceId: string) =>
+          dataTaggedQueryKey<GetApiAdminResourcesPermissionsData>([base, resourceType, resourceId]),
+        request: (resourceType: string, resourceId: string, params: RequestParams = {}) =>
+          this.request<GetApiAdminResourcesPermissionsData>({
+            path: `/api/v1/admin/resources/${resourceType}/${resourceId}/permissions`,
+            method: 'GET',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Group Permission Management
+     * @name PutApiAdminResourcesPermissions
+     * @request PUT:/api/v1/admin/resources/{resource_type}/{resource_id}/permissions
+     */
+    putApiAdminResourcesPermissions: () => {
+      const base = 'PUT:/api/v1/admin/resources/{resource_type}/{resource_id}/permissions' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PutApiAdminResourcesPermissionsData>([base]),
+        requestKey: (resourceType: string, resourceId: string) =>
+          dataTaggedQueryKey<PutApiAdminResourcesPermissionsData>([base, resourceType, resourceId]),
+        request: (resourceType: string, resourceId: string, data: SetPermissionsRequest, params: RequestParams = {}) =>
+          this.request<PutApiAdminResourcesPermissionsData>({
+            path: `/api/v1/admin/resources/${resourceType}/${resourceId}/permissions`,
+            method: 'PUT',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Group Permission Management
+     * @name PostApiAdminResourcesPermissions
+     * @request POST:/api/v1/admin/resources/{resource_type}/{resource_id}/permissions
+     */
+    postApiAdminResourcesPermissions: () => {
+      const base = 'POST:/api/v1/admin/resources/{resource_type}/{resource_id}/permissions' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiAdminResourcesPermissionsData>([base]),
+        requestKey: (resourceType: string, resourceId: string) =>
+          dataTaggedQueryKey<PostApiAdminResourcesPermissionsData>([base, resourceType, resourceId]),
+        request: (resourceType: string, resourceId: string, data: SetPermissionsRequest, params: RequestParams = {}) =>
+          this.request<PostApiAdminResourcesPermissionsData>({
+            path: `/api/v1/admin/resources/${resourceType}/${resourceId}/permissions`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Group Permission Management
+     * @name DeleteApiAdminResourcesPermissions
+     * @request DELETE:/api/v1/admin/resources/{resource_type}/{resource_id}/permissions
+     */
+    deleteApiAdminResourcesPermissions: () => {
+      const base = 'DELETE:/api/v1/admin/resources/{resource_type}/{resource_id}/permissions' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<DeleteApiAdminResourcesPermissionsData>([base]),
+        requestKey: (resourceType: string, resourceId: string) =>
+          dataTaggedQueryKey<DeleteApiAdminResourcesPermissionsData>([base, resourceType, resourceId]),
+        request: (resourceType: string, resourceId: string, params: RequestParams = {}) =>
+          this.request<DeleteApiAdminResourcesPermissionsData>({
+            path: `/api/v1/admin/resources/${resourceType}/${resourceId}/permissions`,
+            method: 'DELETE',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Group Permission Management
+     * @name GetApiAdminUsersGroups
+     * @request GET:/api/v1/admin/users/{username}/groups
+     */
+    getApiAdminUsersGroups: () => {
+      const base = 'GET:/api/v1/admin/users/{username}/groups' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiAdminUsersGroupsData>([base]),
+        requestKey: (username: string) => dataTaggedQueryKey<GetApiAdminUsersGroupsData>([base, username]),
+        request: (username: string, params: RequestParams = {}) =>
+          this.request<GetApiAdminUsersGroupsData>({
+            path: `/api/v1/admin/users/${username}/groups`,
+            method: 'GET',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Group Permission Management
+     * @name GetApiAdminUsersPermissionsByResourceId
+     * @request GET:/api/v1/admin/users/{username}/permissions/{resource_type}/{resource_id}
+     */
+    getApiAdminUsersPermissionsByResourceId: () => {
+      const base = 'GET:/api/v1/admin/users/{username}/permissions/{resource_type}/{resource_id}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiAdminUsersPermissionsByResourceIdData>([base]),
+        requestKey: (username: string, resourceType: string, resourceId: string) =>
+          dataTaggedQueryKey<GetApiAdminUsersPermissionsByResourceIdData>([base, username, resourceType, resourceId]),
+        request: (username: string, resourceType: string, resourceId: string, params: RequestParams = {}) =>
+          this.request<GetApiAdminUsersPermissionsByResourceIdData>({
+            path: `/api/v1/admin/users/${username}/permissions/${resourceType}/${resourceId}`,
             method: 'GET',
             ...params
           })
@@ -17174,6 +17793,29 @@ It's for local testing purposes.
     /**
      * No description
      *
+     * @tags Group Permission Management
+     * @name GetApiPermissionsMeByResourceId
+     * @request GET:/api/v1/permissions/me/{resource_type}/{resource_id}
+     */
+    getApiPermissionsMeByResourceId: () => {
+      const base = 'GET:/api/v1/permissions/me/{resource_type}/{resource_id}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiPermissionsMeByResourceIdData>([base]),
+        requestKey: (resourceType: string, resourceId: string) =>
+          dataTaggedQueryKey<GetApiPermissionsMeByResourceIdData>([base, resourceType, resourceId]),
+        request: (resourceType: string, resourceId: string, params: RequestParams = {}) =>
+          this.request<GetApiPermissionsMeByResourceIdData>({
+            path: `/api/v1/permissions/me/${resourceType}/${resourceId}`,
+            method: 'GET',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
      * @tags Repo creation and synchronisation
      * @name PostApiRepoClone
      * @request POST:/api/v1/repo/clone
@@ -17957,23 +18599,23 @@ Continuously monitors the log file and streams new content as it becomes availab
       }
     }
   }
-  buildEvent = {
+  buildEvents = {
     /**
      * No description
      *
      * @tags api
-     * @name GetBuildEventByTaskIdV2
-     * @request GET:/v2/build-event/{task_id}
+     * @name GetBuildEventsByTaskIdV2
+     * @request GET:/v2/build-events/{task_id}
      */
-    getBuildEventByTaskIdV2: () => {
-      const base = 'GET:/v2/build-event/{task_id}' as const
+    getBuildEventsByTaskIdV2: () => {
+      const base = 'GET:/v2/build-events/{task_id}' as const
 
       return {
-        baseKey: dataTaggedQueryKey<GetBuildEventByTaskIdV2Data>([base]),
-        requestKey: (taskId: string) => dataTaggedQueryKey<GetBuildEventByTaskIdV2Data>([base, taskId]),
+        baseKey: dataTaggedQueryKey<GetBuildEventsByTaskIdV2Data>([base]),
+        requestKey: (taskId: string) => dataTaggedQueryKey<GetBuildEventsByTaskIdV2Data>([base, taskId]),
         request: (taskId: string, params: RequestParams = {}) =>
-          this.request<GetBuildEventByTaskIdV2Data>({
-            path: `/v2/build-event/${taskId}`,
+          this.request<GetBuildEventsByTaskIdV2Data>({
+            path: `/v2/build-events/${taskId}`,
             method: 'GET',
             ...params
           })
@@ -18005,23 +18647,23 @@ Returns simple health status based on database connectivity
       }
     }
   }
-  target = {
+  targets = {
     /**
      * No description
      *
      * @tags api
-     * @name GetTargetByTaskIdV2
-     * @request GET:/v2/target/{task_id}
+     * @name GetTargetsByTaskIdV2
+     * @request GET:/v2/targets/{task_id}
      */
-    getTargetByTaskIdV2: () => {
-      const base = 'GET:/v2/target/{task_id}' as const
+    getTargetsByTaskIdV2: () => {
+      const base = 'GET:/v2/targets/{task_id}' as const
 
       return {
-        baseKey: dataTaggedQueryKey<GetTargetByTaskIdV2Data>([base]),
-        requestKey: (taskId: string) => dataTaggedQueryKey<GetTargetByTaskIdV2Data>([base, taskId]),
+        baseKey: dataTaggedQueryKey<GetTargetsByTaskIdV2Data>([base]),
+        requestKey: (taskId: string) => dataTaggedQueryKey<GetTargetsByTaskIdV2Data>([base, taskId]),
         request: (taskId: string, params: RequestParams = {}) =>
-          this.request<GetTargetByTaskIdV2Data>({
-            path: `/v2/target/${taskId}`,
+          this.request<GetTargetsByTaskIdV2Data>({
+            path: `/v2/targets/${taskId}`,
             method: 'GET',
             ...params
           })
