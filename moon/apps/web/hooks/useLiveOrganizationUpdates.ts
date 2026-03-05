@@ -28,7 +28,6 @@ export function useLiveOrganizationUpdates(organization?: Organization) {
   const { scope } = useScope()
   const queryNormalizer = useQueryNormalizer()
   const { data: currentUser } = useGetCurrentUser()
-
   const invalidateFeedQueries = useCallback(
     function (event: NewPostEvent) {
       const { username, project_ids } = event
