@@ -4,6 +4,36 @@ use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "audit_action_enum")]
+pub enum AuditActionEnum {
+    #[sea_orm(string_value = "create_bot")]
+    CreateBot,
+    #[sea_orm(string_value = "update_bot")]
+    UpdateBot,
+    #[sea_orm(string_value = "delete_bot")]
+    DeleteBot,
+    #[sea_orm(string_value = "enable_bot")]
+    EnableBot,
+    #[sea_orm(string_value = "disable_bot")]
+    DisableBot,
+    #[sea_orm(string_value = "install_bot")]
+    InstallBot,
+    #[sea_orm(string_value = "uninstall_bot")]
+    UninstallBot,
+    #[sea_orm(string_value = "create_token")]
+    CreateToken,
+    #[sea_orm(string_value = "revoke_token")]
+    RevokeToken,
+}
+#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "bot_status_enum")]
+pub enum BotStatusEnum {
+    #[sea_orm(string_value = "enabled")]
+    Enabled,
+    #[sea_orm(string_value = "disabled")]
+    Disabled,
+}
+#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "check_type_enum")]
 pub enum CheckTypeEnum {
     #[sea_orm(string_value = "gpg_signature")]
@@ -66,6 +96,30 @@ pub enum DiffSideEnum {
     Old,
 }
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[sea_orm(
+    rs_type = "String",
+    db_type = "Enum",
+    enum_name = "installation_bot_status_enum"
+)]
+pub enum InstallationBotStatusEnum {
+    #[sea_orm(string_value = "enabled")]
+    Enabled,
+    #[sea_orm(string_value = "disabled")]
+    Disabled,
+}
+#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[sea_orm(
+    rs_type = "String",
+    db_type = "Enum",
+    enum_name = "installation_target_type_enum"
+)]
+pub enum InstallationTargetTypeEnum {
+    #[sea_orm(string_value = "organization")]
+    Organization,
+    #[sea_orm(string_value = "repository")]
+    Repository,
+}
+#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "merge_status_enum")]
 pub enum MergeStatusEnum {
     #[sea_orm(string_value = "open")]
@@ -96,6 +150,20 @@ pub enum OrionTargetStatusEnum {
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "permission_enum")]
 pub enum PermissionEnum {
+    #[sea_orm(string_value = "read")]
+    Read,
+    #[sea_orm(string_value = "write")]
+    Write,
+    #[sea_orm(string_value = "admin")]
+    Admin,
+}
+#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[sea_orm(
+    rs_type = "String",
+    db_type = "Enum",
+    enum_name = "permission_scope_enum"
+)]
+pub enum PermissionScopeEnum {
     #[sea_orm(string_value = "read")]
     Read,
     #[sea_orm(string_value = "write")]
@@ -182,6 +250,20 @@ pub enum ReferenceTypeEnum {
 pub enum ResourceTypeEnum {
     #[sea_orm(string_value = "note")]
     Note,
+}
+#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "target_type_enum")]
+pub enum TargetTypeEnum {
+    #[sea_orm(string_value = "bot")]
+    Bot,
+    #[sea_orm(string_value = "bot_installation")]
+    BotInstallation,
+    #[sea_orm(string_value = "bot_token")]
+    BotToken,
+    #[sea_orm(string_value = "repository")]
+    Repository,
+    #[sea_orm(string_value = "organization")]
+    Organization,
 }
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "thread_status_enum")]

@@ -3,6 +3,10 @@
 pub mod prelude;
 
 pub mod access_token;
+pub mod audit_logs;
+pub mod bot_installations;
+pub mod bot_tokens;
+pub mod bots;
 pub mod buck_session;
 pub mod buck_session_file;
 pub mod build_events;
