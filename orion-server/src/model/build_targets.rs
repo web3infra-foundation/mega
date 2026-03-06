@@ -30,6 +30,7 @@ impl BuildTarget {
         Ok(path.to_string())
     }
 
+    #[allow(dead_code)]
     pub async fn find_build_targets(
         build_id: Uuid,
         task_id: Uuid,
@@ -105,6 +106,7 @@ impl BuildTarget {
     }
 }
 
+#[allow(dead_code)]
 pub struct BuildTargetDTO {
     id: Uuid,
     path: String,

@@ -1282,7 +1282,7 @@ async fn process_message(
                     state.scheduler.active_builds.remove(&build_id);
 
                     // TODO: update to jupiter's build_event's model
-                    if let Err(_) = BuildEvent::update_build_complete_result(
+                    if BuildEvent::update_build_complete_result(
                         &build_id,
                         exit_code,
                         success,
@@ -1290,6 +1290,7 @@ async fn process_message(
                         &state.conn,
                     )
                     .await
+                    .is_err()
                     {
                         tracing::error!(
                             "Failed to update build complete result for build: {}",

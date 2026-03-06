@@ -1,4 +1,4 @@
-use std::ffi::os_str::Display;
+use std::fmt::Display;
 
 use chrono::Utc;
 use sea_orm::{
@@ -39,15 +39,16 @@ impl From<String> for TargetState {
     }
 }
 
-impl ToString for TargetState {
-    fn to_string(&self) -> String {
-        match self {
-            TargetState::Pending => "Pending".to_string(),
-            TargetState::Building => "Building".to_string(),
-            TargetState::Completed => "Completed".to_string(),
-            TargetState::Failed => "Failed".to_string(),
-            TargetState::Interrupted => "Interrupted".to_string(),
-        }
+impl Display for TargetState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            TargetState::Pending => "Pending",
+            TargetState::Building => "Building",
+            TargetState::Completed => "Completed",
+            TargetState::Failed => "Failed",
+            TargetState::Interrupted => "Interrupted",
+        };
+        write!(f, "{}", s)
     }
 }
 
