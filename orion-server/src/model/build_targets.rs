@@ -1,5 +1,6 @@
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, IntoActiveModel, QueryFilter
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, IntoActiveModel,
+    QueryFilter,
 };
 use uuid::Uuid;
 
@@ -75,7 +76,9 @@ impl BuildTarget {
         let task_id = callisto::build_events::Entity::find_by_id(build_id)
             .one(db)
             .await?
-            .ok_or_else(|| DbErr::RecordNotFound(format!("Build event with id {} not found", build_id)))?
+            .ok_or_else(|| {
+                DbErr::RecordNotFound(format!("Build event with id {} not found", build_id))
+            })?
             .task_id;
 
         let all_targets = callisto::build_targets::Entity::find()
@@ -91,7 +94,8 @@ impl BuildTarget {
                 .await?;
 
             if let Some(s) = status {
-                let mut active: callisto::target_state_histories::ActiveModel = s.into_active_model();
+                let mut active: callisto::target_state_histories::ActiveModel =
+                    s.into_active_model();
                 active.target_state = sea_orm::Set(target_state.to_string());
                 active.update(db).await?;
             }

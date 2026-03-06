@@ -1315,15 +1315,15 @@ async fn process_message(
                             )
                             .await
                         {
-                            _error_summary = find_caused_by_next_line_in_content(&log_content).await;
+                            _error_summary =
+                                find_caused_by_next_line_in_content(&log_content).await;
                         }
                     }
 
-                    if let Err(e) = BuildTarget::update_build_targets(
-                        target_state,
-                        &build_id,
-                        &state.conn,
-                    ).await {
+                    if let Err(e) =
+                        BuildTarget::update_build_targets(target_state, &build_id, &state.conn)
+                            .await
+                    {
                         tracing::error!(
                             "unable to update build targets for build {}: {}",
                             build_id,
