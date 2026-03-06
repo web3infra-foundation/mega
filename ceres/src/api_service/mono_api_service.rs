@@ -55,6 +55,7 @@ use common::{
     errors::{BuckError, MegaError},
     utils::MEGA_BRANCH_NAME,
 };
+use futures::{StreamExt, stream};
 use git_internal::{
     DiffItem,
     diff::Diff as GitDiff,
@@ -69,6 +70,7 @@ use git_internal::{
         },
     },
 };
+use io_orbit::object_storage::{ObjectKey, ObjectMeta, ObjectNamespace};
 use jupiter::{
     service::buck_service::{
         CommitArtifacts, CompletePayload as SvcCompletePayload,
@@ -130,6 +132,8 @@ impl From<&ImportRepo> for MonoApiService {
         }
     }
 }
+// Key for storing the current CLA content in the object storage
+const CLA_CONTENT_OBJECT_KEY: &str = "cla/content/current.txt";
 
 pub struct TreeUpdateResult {
     pub updated_trees: Vec<Tree>,
@@ -1298,6 +1302,60 @@ impl MonoApiService {
             .get_or_create_status(username)
             .await?;
         Ok((model.cla_signed, model.cla_signed_at))
+    }
+
+    pub async fn get_cla_content(&self) -> Result<String, MegaError> {
+        let key = ObjectKey {
+            namespace: ObjectNamespace::Log,
+            key: CLA_CONTENT_OBJECT_KEY.to_string(),
+        };
+
+        let stream = self
+            .storage
+            .git_service
+            .obj_storage
+            .inner
+            .get_stream(&key)
+            .await;
+        let (mut stream, _meta) = match stream {
+            Ok(result) => result,
+            Err(MegaError::ObjStorageNotFound(_)) => return Ok(String::new()),
+            Err(e) => return Err(e),
+        };
+
+        let mut data = Vec::new();
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk?;
+            data.extend_from_slice(&chunk);
+        }
+
+        String::from_utf8(data).map_err(|e| {
+            MegaError::Other(format!(
+                "Invalid UTF-8 in CLA content from object storage: {e}"
+            ))
+        })
+    }
+
+    pub async fn update_cla_content(&self, content: &str) -> Result<(), MegaError> {
+        let key = ObjectKey {
+            namespace: ObjectNamespace::Log,
+            key: CLA_CONTENT_OBJECT_KEY.to_string(),
+        };
+
+        let bytes = Bytes::from(content.as_bytes().to_vec());
+        let stream = stream::once(async move { Ok::<Bytes, std::io::Error>(bytes) });
+        let meta = ObjectMeta {
+            size: content.len() as i64,
+            content_type: Some("text/plain; charset=utf-8".to_string()),
+            ..Default::default()
+        };
+
+        self.storage
+            .git_service
+            .obj_storage
+            .inner
+            .put_stream(&key, Box::pin(stream), meta)
+            .await
     }
 
     pub async fn change_cla_sign_status(
