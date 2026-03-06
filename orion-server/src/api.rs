@@ -1199,7 +1199,7 @@ async fn process_message(
                         changes,
                         cl_link,
                         task_id,
-                        target_id,
+                        _target_id,
                         _target_path,
                     ) = if let Some(build_info) = state.scheduler.active_builds.get(&build_id) {
                         (
@@ -1281,14 +1281,12 @@ async fn process_message(
                     // Remove from active
                     state.scheduler.active_builds.remove(&build_id);
 
-                    // Update database with final state
-                    let end_at = Utc::now().with_timezone(&FixedOffset::east_opt(0).unwrap());
                     // TODO: update to jupiter's build_event's model
                     if let Err(_) = BuildEvent::update_build_complete_result(
-                        build_id,
+                        &build_id,
                         exit_code,
                         success,
-                        message,
+                        &message,
                         &state.conn,
                     )
                     .await
@@ -1305,7 +1303,7 @@ async fn process_message(
                         (_, None) => TargetState::Interrupted,
                         _ => TargetState::Failed,
                     };
-                    let mut error_summary = None;
+                    let mut _error_summary = None;
                     if matches!(target_state, TargetState::Failed) {
                         let repo_segment = LogService::last_segment(&repo);
                         if let Ok(log_content) = state
@@ -1317,17 +1315,17 @@ async fn process_message(
                             )
                             .await
                         {
-                            error_summary = find_caused_by_next_line_in_content(&log_content).await;
+                            _error_summary = find_caused_by_next_line_in_content(&log_content).await;
                         }
                     }
 
                     if let Err(e) = BuildTarget::update_build_targets(
                         target_state,
-                        build_id.into(),
+                        &build_id,
                         &state.conn,
-                    ) {
+                    ).await {
                         tracing::error!(
-                            "unable to update build targets for build {}: e",
+                            "unable to update build targets for build {}: {}",
                             build_id,
                             e,
                         )

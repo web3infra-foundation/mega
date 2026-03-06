@@ -1,3 +1,5 @@
+use std::ffi::os_str::Display;
+
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ConnectionTrait, DbErr, RuntimeErr, entity::prelude::*,
@@ -22,6 +24,31 @@ pub enum TargetState {
     Failed,
     #[sea_orm(string_value = "Interrupted")]
     Interrupted,
+}
+
+impl From<String> for TargetState {
+    fn from(s: String) -> Self {
+        match s.as_str() {
+            "Pending" => TargetState::Pending,
+            "Building" => TargetState::Building,
+            "Completed" => TargetState::Completed,
+            "Failed" => TargetState::Failed,
+            "Interrupted" => TargetState::Interrupted,
+            _ => TargetState::Pending, // Default to Pending for unknown states
+        }
+    }
+}
+
+impl ToString for TargetState {
+    fn to_string(&self) -> String {
+        match self {
+            TargetState::Pending => "Pending".to_string(),
+            TargetState::Building => "Building".to_string(),
+            TargetState::Completed => "Completed".to_string(),
+            TargetState::Failed => "Failed".to_string(),
+            TargetState::Interrupted => "Interrupted".to_string(),
+        }
+    }
 }
 
 /// Target DTO with a generic builds payload.

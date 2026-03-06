@@ -1,5 +1,5 @@
 use chrono::Utc;
-use sea_orm::{ActiveValue::Set, ConnectionTrait, DbErr, EntityTrait};
+use sea_orm::{ActiveValue::Set, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter};
 use serde::Serialize;
 use utoipa::ToSchema;
 use uuid::Uuid;
@@ -35,21 +35,20 @@ pub struct BuildEvent;
 
 impl BuildEvent {
     pub async fn update_build_complete_result(
-        build_id: String,
+        build_id: &str,
         exit_code: Option<i32>,
-        success: bool,
-        message: String,
+        _success: bool,
+        _message: &str,
         db_connection: &impl ConnectionTrait,
     ) -> Result<(), DbErr> {
-        let _ = callisto::build_events::Entity::update_many()
+        callisto::build_events::Entity::update_many()
+            .filter(callisto::build_events::Column::Id.eq(build_id.parse::<Uuid>().unwrap()))
             .set(callisto::build_events::ActiveModel {
                 exit_code: Set(exit_code),
-                success: Set(success),
-                message: Set(message),
                 ..Default::default()
             })
-            .filter(callisto::build_events::Column::Id.eq(build_id.parse::<Uuid>().unwrap()))
             .exec(db_connection)
-            .await;
+            .await?;
+        Ok(())
     }
 }
