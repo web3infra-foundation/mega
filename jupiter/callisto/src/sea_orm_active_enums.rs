@@ -4,6 +4,14 @@ use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "actor_type_enum")]
+pub enum ActorTypeEnum {
+    #[sea_orm(string_value = "human")]
+    Human,
+    #[sea_orm(string_value = "bot")]
+    Bot,
+}
+#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "audit_action_enum")]
 pub enum AuditActionEnum {
     #[sea_orm(string_value = "create_bot")]

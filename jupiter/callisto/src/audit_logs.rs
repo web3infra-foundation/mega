@@ -3,7 +3,7 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use super::sea_orm_active_enums::{AuditActionEnum, TargetTypeEnum};
+use super::sea_orm_active_enums::{ActorTypeEnum, AuditActionEnum, TargetTypeEnum};
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "audit_logs")]
@@ -11,6 +11,7 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: i64,
     pub actor_id: i64,
+    pub actor_type: ActorTypeEnum,
     pub action: AuditActionEnum,
     pub target_type: TargetTypeEnum,
     pub target_id: i64,
@@ -19,21 +20,6 @@ pub struct Model {
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {
-    #[sea_orm(
-        belongs_to = "super::bots::Entity",
-        from = "Column::ActorId",
-        to = "super::bots::Column::Id",
-        on_update = "Cascade",
-        on_delete = "SetNull"
-    )]
-    Bots,
-}
-
-impl Related<super::bots::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Bots.def()
-    }
-}
+pub enum Relation {}
 
 impl ActiveModelBehavior for ActiveModel {}

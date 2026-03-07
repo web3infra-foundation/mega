@@ -59,6 +59,15 @@ impl MigrationTrait for Migration {
                 manager
                     .create_type(
                         Type::create()
+                            .as_enum(ActorTypeEnum)
+                            .values(ActorType::iter())
+                            .to_owned(),
+                    )
+                    .await?;
+
+                manager
+                    .create_type(
+                        Type::create()
                             .as_enum(AuditActionEnum)
                             .values(AuditAction::iter())
                             .to_owned(),
@@ -216,6 +225,11 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(AuditLogs::ActorId).big_integer().not_null())
                     .col(enumeration(
+                        AuditLogs::ActorType,
+                        Alias::new("actor_type_enum"),
+                        ActorType::iter(),
+                    ))
+                    .col(enumeration(
                         AuditLogs::Action,
                         Alias::new("audit_action_enum"),
                         AuditAction::iter(),
@@ -320,18 +334,6 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
-        manager
-            .create_foreign_key(
-                ForeignKey::create()
-                    .name("fk_audit_logs_actor")
-                    .from(AuditLogs::Table, AuditLogs::ActorId)
-                    .to(Bots::Table, Bots::Id) // If Actor is a Bot
-                    .on_delete(ForeignKeyAction::SetNull)
-                    .on_update(ForeignKeyAction::Cascade)
-                    .to_owned(),
-            )
-            .await?;
-
         Ok(())
     }
 
@@ -381,6 +383,7 @@ enum BotTokens {
 enum AuditLogs {
     Table,
     Id,
+    ActorType,
     ActorId,
     Action,
     TargetType,
@@ -431,6 +434,14 @@ pub enum TargetType {
     BotToken,
     Repository,
     Organization,
+}
+
+#[derive(DeriveIden)]
+struct ActorTypeEnum;
+#[derive(Iden, EnumIter)]
+pub enum ActorType {
+    Human,
+    Bot,
 }
 
 #[derive(DeriveIden)]
