@@ -49,6 +49,7 @@ use crate::{
         api::build_event_get_handler,
         api::targets_get_handler,
         api::build_state_handler,
+        api::build_logs_handler,
         api::latest_build_result_handler,
         api::targets_status_handler,
         api::single_target_status_handle,
