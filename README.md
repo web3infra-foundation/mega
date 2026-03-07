@@ -59,29 +59,6 @@ Discord Channel - https://discord.gg/HMFuu6pJmQ
 
 ## Contributing
 
-The Mega project relies on community contributions and aims to simplify the process of getting started. To develop Mega, clone the repository, install all dependencies, initialize the database schema, run the test suite, and try it out locally. Pick an issue, make changes, and submit a pull request for community review.
-
-Before submitting a Pull Request, please ensure your code passes the following checks:
-
-```bash
-# Run clippy with all warnings treated as errors
-cargo clippy --all-targets --all-features -- -D warnings
-
-# Check code formatting (requires nightly toolchain)
-cargo +nightly fmt --all --check
-```
-
-More information on contributing to Mega is available in the [Contributing Guide](docs/contributing.md).
-
-## License
-
-Mega is dual-licensed under:
-
-- MIT License ([LICENSE-MIT](LICENSE-MIT) or https://opensource.org/licenses/MIT)
-- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or https://www.apache.org/licenses/LICENSE-2.0)
-
-## Contributing
-
 The mega project relies on community contributions and aims to simplify getting started. To develop Mega, clone the repository, then install all dependencies and initialize the database schema, run the test suite and try it out locally. Pick an issue, make changes, and submit a pull request for community review.
 
 ### Pre-submission Checks
