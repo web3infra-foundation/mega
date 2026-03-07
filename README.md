@@ -1,38 +1,61 @@
-# Mega - is an monorepo & monolithic codebase management system
+# Mega — Monorepo Infrastructure for the AI Agent Era
 
-Mega is a monorepo & monolithic codebase management system that supports Git, it is designed to manage large-scale codebases, streamline development, and foster collaboration. Mega is an unofficial open source implementation of Google Piper. 
+Mega is an open-source implementation of [Google Piper](https://cacm.acm.org/magazines/2016/7/204032-why-google-stores-billions-of-lines-of-code-in-a-single-repository/fulltext) — a Git-compatible monorepo engine built for AI-native engineering workflows. Written entirely in Rust, Mega is designed to manage petabyte-scale codebases while serving as the infrastructure backbone for AI coding agents.
 
-## What's the Piper?
+## Why Mega?
 
-Google Piper is a massive, centralized version control system that Google uses internally to manage their vast codebase. It is a monorepo, and a monolithic which mean is a single repository that contains all the source code for Google's software. It is designed to manage large-scale codebases, streamline development, and foster collaboration. It is built on top of Google's internal infrastructure and is designed to be highly scalable and efficient. More information on the [Why Google Stores Billions of Lines of Code in a Single Repository](https://cacm.acm.org/magazines/2016/7/204032-why-google-stores-billions-of-lines-of-code-in-a-single-repository/fulltext).
+AI coding agents are becoming first-class participants in software engineering. But today's version control systems were designed for human developers working in isolated branches — they lack the unified context, structured metadata, and programmatic interfaces that agents need to operate reliably at scale.
 
-**Google Piper is not open source**
+Monorepos solve the context problem. When an agent can see the entire codebase — dependencies, downstream consumers, build targets, and test coverage — it makes better decisions, produces fewer hallucinations, and delivers atomic cross-project changes in a single commit.
 
-## Mega features
+**Mega brings Google-scale monorepo infrastructure to the open-source world, purpose-built for the agentic future.**
 
-Mega is an unofficial open source implementation of Google Piper. And it has the following features:
+## Mega + Libra: Version Control for Agents
 
-### Git compatible
+Mega works together with [**Libra**](https://github.com/web3infra-foundation/libra), our Rust-based, Git-compatible client with SQLite-backed storage, to provide a complete version control workflow where AI agents are tracked, attributable contributors:
 
-Mega offers the ability to utilize Git with a monorepo. This allows for easy cloning or pulling of any monorepo folder into local filesystem as a Git repository, and seamless pushing of changes back.
+- **Mega** (server-side) — The centralized monorepo engine. Manages code at scale with full codebase context, trunk-based development, and fine-grained access control. Provides the global visibility that agents need for dependency analysis, impact assessment, and cross-project reasoning.
+- **Libra** (agent-side) — A lightweight, embeddable Git client optimized for programmatic access. Agents use Libra to clone, commit, and push with structured metadata and intent tracking — no shell-out to `git` required.
 
-### Trunk-based Development
+Together, they enable a new paradigm: **from intent to merge, every agent action is versioned, attributed, and traceable.**
 
-When it comes to managing large codebases in a centralized manner, trunk-based development is the way to go. More trunk-based Development information on the [Trunk-Based Development](https://trunkbaseddevelopment.com/).
+## Features
+
+### Git Compatible
+
+Mega offers full Git protocol support with a monorepo. Clone or pull any folder in the monorepo into your local filesystem as a standard Git repository, and seamlessly push changes back. Both human developers and AI agents interact through the same familiar Git interface.
+
+### Trunk-Based Development
+
+Large-scale codebases thrive on trunk-based development — a single source of truth, continuous integration, and short-lived branches. This model is especially critical for AI agents, which benefit from always operating against the latest, consistent state of the codebase. Learn more at [Trunk-Based Development](https://trunkbaseddevelopment.com/).
 
 ### Conventional Commits
 
-Mono will support conventional commits, which are a set of rules for creating clear and concise commit messages.  More information on the [Conventional Commits](https://www.conventionalcommits.org/).
+Mega supports [Conventional Commits](https://www.conventionalcommits.org/), enabling both humans and agents to produce structured, machine-readable commit messages that power automated changelogs, semantic versioning, and audit trails.
 
-### FUSE File System of Monorepo
+### Scorpio — FUSE Filesystem for Monorepo
 
-Mega has a component named Scorpio, which is a FUSE file system for monorepo. Scorpio allows users to mount a monorepo folder as a local filesystem. This enables users to work with their codebase as if it were a local filesystem, while still benefiting from the features of a monorepo.
-
-**Scorpio has been moved to its own repository: [scorpiofs](https://github.com/web3infra-foundation/scorpiofs)** 
+[Scorpio](https://github.com/web3infra-foundation/scorpiofs) is a FUSE filesystem that mounts any monorepo folder as a local filesystem. Developers and agents work with their codebase as if it were local, while Mega handles the scale underneath — no need to check out the entire repository.
 
 ### Buck2 Integration
 
-Mega intergrates Buck2 as default, which is a build system developed by Meta with Rust. Buck2 allows users to build their codebase in a declarative manner, and provides a number of features that are not available in other build systems. More information on Buck2 is available in the [Buck2 Documentation](https://buck2.build/).
+Mega integrates [Buck2](https://buck2.build/) as its default build system. Developed by Meta in Rust, Buck2 enables declarative, reproducible, and highly parallelized builds — essential for maintaining build correctness across a monorepo that both humans and agents contribute to simultaneously.
+
+## Roadmap
+
+Mega is evolving toward deeper AI-native capabilities:
+
+- **IntentSpec** — A structured, machine-readable intent contract that drives agent task execution with security policies and provenance binding.
+- **Multi-Agent DAG Orchestration** — Pipeline architecture for coordinating multiple AI agents across complex, multi-step code generation workflows.
+- **Code Attribution** — Line-level tracking of AI-generated vs. human-written code, enabling auditability and trust in agent contributions.
+
+## Quick Start
+
+To facilitate a rapid deployment and hands-on experience with the Mega service, the following instructions are derived from the project's [documentation](https://github.com/web3infra-foundation/mega/tree/main/docker).
+
+## Community
+
+Discord Channel - https://discord.gg/HMFuu6pJmQ
 
 ## Contributing
 
@@ -81,7 +104,7 @@ Pull Requests must also pass the Buck2 build:
 cargo buckal build
 ```
 
-When you update dependencies in Cargo.toml, regenerate Buck metadata and third-party lockfiles:
+When you update dependencies in `Cargo.toml`, regenerate Buck metadata and third-party lockfiles:
 
 ```bash
 cargo buckal migrate
@@ -89,13 +112,9 @@ cargo buckal migrate
 
 More information on contributing to Mega is available in the [Contributing Guide](docs/contributing.md).
 
-## Chat with us
-
-If you interested in Mega, you can make an appointment with us on [Google Calendar](https://calendar.app.google/QuBf2sdmf68wVYWL7) to discuss your ideas, questions or problems, and we will share our vision and roadmap with you.
-
 ## License
 
-Mega is licensed under this Licensed:
+Mega is licensed under this License:
 
 - MIT LICENSE ( [LICENSE-MIT](LICENSE-MIT) or https://opensource.org/licenses/MIT)
 - Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or https://www.apache.org/licenses/LICENSE-2.0)
