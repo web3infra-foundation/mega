@@ -62,14 +62,8 @@ impl BotsStorage {
             .to_string();
 
         // Save bot keys to the database
-        bot_keys::ActiveModel {
-            bot_id: Set(bot.id),
-            private_key: Set(private_pem.clone()),
-            public_key: Set(public_pem),
-            ..Default::default()
-        }
-        .insert(self.get_connection())
-        .await?;
+        self.new_bot_key(bot.id, private_pem.clone(), public_pem)
+            .await?;
 
         // 5. Optional: Initialize tokens / permissions / audit logs for future expansion
         // Example:
@@ -102,5 +96,19 @@ impl BotsStorage {
         Ok(res)
     }
 
-    pub async fn new_bot_key() {}
+    pub async fn new_bot_key(
+        &self,
+        bot_id: i64,
+        private_key: String,
+        public_key: String,
+    ) -> Result<bot_keys::Model, MegaError> {
+        let model = bot_keys::Model::new(bot_id, private_key, public_key);
+
+        let res = model
+            .into_active_model()
+            .insert(self.get_connection())
+            .await?;
+
+        Ok(res)
+    }
 }

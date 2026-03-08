@@ -1,3 +1,4 @@
+pub mod bot_keys;
 pub mod bots;
 pub mod buck_session;
 pub mod buck_session_file;
