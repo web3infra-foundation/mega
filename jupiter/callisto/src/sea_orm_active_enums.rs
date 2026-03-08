@@ -14,24 +14,30 @@ pub enum ActorTypeEnum {
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "audit_action_enum")]
 pub enum AuditActionEnum {
-    #[sea_orm(string_value = "create_bot")]
-    CreateBot,
-    #[sea_orm(string_value = "update_bot")]
-    UpdateBot,
-    #[sea_orm(string_value = "delete_bot")]
-    DeleteBot,
-    #[sea_orm(string_value = "enable_bot")]
-    EnableBot,
-    #[sea_orm(string_value = "disable_bot")]
-    DisableBot,
-    #[sea_orm(string_value = "install_bot")]
-    InstallBot,
-    #[sea_orm(string_value = "uninstall_bot")]
-    UninstallBot,
-    #[sea_orm(string_value = "create_token")]
-    CreateToken,
-    #[sea_orm(string_value = "revoke_token")]
-    RevokeToken,
+    #[sea_orm(string_value = "create")]
+    Create,
+    #[sea_orm(string_value = "update")]
+    Update,
+    #[sea_orm(string_value = "delete")]
+    Delete,
+    #[sea_orm(string_value = "enable")]
+    Enable,
+    #[sea_orm(string_value = "disable")]
+    Disable,
+    #[sea_orm(string_value = "install")]
+    Install,
+    #[sea_orm(string_value = "uninstall")]
+    Uninstall,
+    #[sea_orm(string_value = "generate")]
+    Generate,
+    #[sea_orm(string_value = "revoke")]
+    Revoke,
+    #[sea_orm(string_value = "assign")]
+    Assign,
+    #[sea_orm(string_value = "remove")]
+    Remove,
+    #[sea_orm(string_value = "access")]
+    Access,
 }
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "bot_status_enum")]
@@ -266,12 +272,14 @@ pub enum TargetTypeEnum {
     Bot,
     #[sea_orm(string_value = "bot_installation")]
     BotInstallation,
-    #[sea_orm(string_value = "bot_token")]
-    BotToken,
+    #[sea_orm(string_value = "token")]
+    Token,
     #[sea_orm(string_value = "repository")]
     Repository,
     #[sea_orm(string_value = "organization")]
     Organization,
+    #[sea_orm(string_value = "user")]
+    User,
 }
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "thread_status_enum")]

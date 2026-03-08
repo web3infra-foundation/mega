@@ -118,6 +118,37 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
+        // === BotKeys table ===
+        manager
+            .create_table(
+                Table::create()
+                    .table(BotKeys::Table)
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(BotKeys::Id)
+                            .big_integer()
+                            .not_null()
+                            .primary_key(),
+                    )
+                    .col(ColumnDef::new(BotKeys::BotId).big_integer().not_null())
+                    .col(ColumnDef::new(BotKeys::PrivateKey).string())
+                    .col(ColumnDef::new(BotKeys::PublicKey).string())
+                    .col(
+                        ColumnDef::new(BotKeys::CreatedAt)
+                            .timestamp_with_time_zone()
+                            .not_null()
+                            .default(Expr::current_timestamp()),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from(BotKeys::Table, BotKeys::BotId)
+                            .to(Bots::Table, Bots::Id)
+                            .on_delete(sea_query::ForeignKeyAction::Cascade),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
         // === BotInstallations table ===
         manager
             .create_table(
@@ -264,6 +295,16 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
+        manager
+            .create_index(
+                Index::create()
+                    .name("idx_bot_keys_bot_id")
+                    .table(BotKeys::Table)
+                    .col(BotKeys::BotId)
+                    .to_owned(),
+            )
+            .await?;
+
         // === BotInstallations table indexes and foreign keys ===
         manager
             .create_index(
@@ -356,6 +397,16 @@ enum Bots {
 }
 
 #[derive(DeriveIden)]
+enum BotKeys {
+    Table,
+    Id,
+    BotId,
+    PrivateKey,
+    PublicKey,
+    CreatedAt,
+}
+
+#[derive(DeriveIden)]
 enum BotInstallations {
     Table,
     Id,
@@ -426,17 +477,6 @@ pub enum InstallationBotStatus {
 }
 
 #[derive(DeriveIden)]
-struct TargetTypeEnum;
-#[derive(Iden, EnumIter)]
-pub enum TargetType {
-    Bot,
-    BotInstallation,
-    BotToken,
-    Repository,
-    Organization,
-}
-
-#[derive(DeriveIden)]
 struct ActorTypeEnum;
 #[derive(Iden, EnumIter)]
 pub enum ActorType {
@@ -446,15 +486,36 @@ pub enum ActorType {
 
 #[derive(DeriveIden)]
 struct AuditActionEnum;
+
 #[derive(Iden, EnumIter)]
 pub enum AuditAction {
-    CreateBot,
-    UpdateBot,
-    DeleteBot,
-    EnableBot,
-    DisableBot,
-    InstallBot,
-    UninstallBot,
-    CreateToken,
-    RevokeToken,
+    Create,
+    Update,
+    Delete,
+
+    Enable,
+    Disable,
+
+    Install,
+    Uninstall,
+
+    Generate,
+    Revoke,
+
+    Assign,
+    Remove,
+
+    Access,
+}
+
+#[derive(DeriveIden)]
+struct TargetTypeEnum;
+#[derive(Iden, EnumIter)]
+pub enum TargetType {
+    Bot,
+    BotInstallation,
+    Token,
+    Repository,
+    Organization,
+    User,
 }

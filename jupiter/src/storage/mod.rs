@@ -1,4 +1,5 @@
 pub mod base_storage;
+pub mod bots_storage;
 pub mod buck_storage;
 pub mod build_trigger_storage;
 pub mod cl_reviewer_storage;
@@ -37,6 +38,7 @@ use crate::{
     },
     storage::{
         base_storage::{BaseStorage, StorageConnector},
+        bots_storage::BotsStorage,
         buck_storage::BuckStorage,
         build_trigger_storage::BuildTriggerStorage,
         cl_reviewer_storage::ClReviewerStorage,
@@ -83,6 +85,7 @@ pub struct AppService {
     pub code_review_comment_storage: CodeReviewCommentStorage,
     pub code_review_thread_storage: CodeReviewThreadStorage,
     pub build_trigger_storage: BuildTriggerStorage,
+    pub bots_storage: BotsStorage,
 }
 
 impl AppService {
@@ -112,6 +115,7 @@ impl AppService {
             code_review_comment_storage: CodeReviewCommentStorage { base: mock.clone() },
             code_review_thread_storage: CodeReviewThreadStorage { base: mock.clone() },
             build_trigger_storage: BuildTriggerStorage { base: mock.clone() },
+            bots_storage: BotsStorage { base: mock.clone() },
         })
     }
 }
@@ -172,6 +176,7 @@ impl Storage {
         let code_review_comment_storage = CodeReviewCommentStorage { base: base.clone() };
         let code_review_thread_storage = CodeReviewThreadStorage { base: base.clone() };
         let build_trigger_storage = BuildTriggerStorage { base: base.clone() };
+        let bots_storage = BotsStorage { base: base.clone() };
 
         let git_service = GitService {
             obj_storage: ObjectStorageFactory::build(
@@ -230,6 +235,7 @@ impl Storage {
             code_review_comment_storage,
             code_review_thread_storage,
             build_trigger_storage,
+            bots_storage,
         };
         let merge_queue_service = MergeQueueService::new(base.clone());
         let buck_service = BuckService::new(

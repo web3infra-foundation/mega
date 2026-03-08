@@ -1,3 +1,4 @@
+pub mod bots;
 pub mod buck_session;
 pub mod buck_session_file;
 pub mod check_result;
