@@ -1,7 +1,4 @@
-use std::{
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{path::PathBuf, sync::Arc};
 
 pub use api_model::buck2::{status::Status, types::ProjectRelativePath};
 use common::errors::MegaError;
@@ -11,7 +8,7 @@ use jupiter::storage::Storage;
 use crate::{
     api_service::{cache::GitObjectCache, mono_api_service::MonoApiService},
     build_trigger::TriggerContext,
-    model::change_list::{ClDiffFile, ClFilesRes},
+    model::change_list::ClDiffFile,
 };
 
 pub struct ChangesCalculator {
@@ -35,59 +32,43 @@ impl ChangesCalculator {
         let new_files = self.get_commit_blobs(&context.commit_hash).await?;
         let diff_files = self.cl_files_list(old_files, new_files).await?;
 
-        let changes = self.build_changes(&context.repo_path, diff_files)?;
+        let changes = self.build_changes(diff_files)?;
 
         Ok(changes)
     }
 
     fn build_changes(
         &self,
-        cl_path: &str,
         cl_diff_files: Vec<ClDiffFile>,
     ) -> Result<Vec<Status<ProjectRelativePath>>, MegaError> {
-        let cl_base = PathBuf::from(cl_path);
-        let path_str = cl_base.to_str().ok_or_else(|| {
-            MegaError::Other(format!("CL base path is not valid UTF-8: {:?}", cl_base))
-        })?;
+        let to_project_relative = |path: &PathBuf| -> Result<ProjectRelativePath, MegaError> {
+            let rel = path
+                .to_string_lossy()
+                .replace('\\', "/")
+                .trim_start_matches('/')
+                .to_string();
+            Ok(ProjectRelativePath::new(&rel))
+        };
 
-        let changes = cl_diff_files
-            .into_iter()
-            .map(|m| {
-                let mut item: ClFilesRes = m.into();
-                item.path = cl_base.join(item.path).to_string_lossy().to_string();
-                item
-            })
-            .collect::<Vec<_>>();
-
-        let counter_changes = changes
-            .iter()
-            .filter(|&s| PathBuf::from(&s.path).starts_with(&cl_base))
-            .map(|s| {
-                let rel = Path::new(&s.path)
-                    .strip_prefix(path_str)
-                    .map_err(|_| {
-                        MegaError::Other(format!("Invalid project-relative path: {}", s.path))
-                    })?
-                    .to_string_lossy()
-                    .replace('\\', "/")
-                    .trim_start_matches('/')
-                    .to_string();
-
-                let status = if s.action == "new" {
-                    Status::Added(ProjectRelativePath::new(&rel))
-                } else if s.action == "deleted" {
-                    Status::Removed(ProjectRelativePath::new(&rel))
-                } else if s.action == "modified" {
-                    Status::Modified(ProjectRelativePath::new(&rel))
-                } else {
-                    return Err(MegaError::Other(format!(
-                        "Unsupported change action: {}",
-                        s.action
-                    )));
-                };
-                Ok(status)
-            })
-            .collect::<Result<Vec<_>, MegaError>>()?;
+        let mut counter_changes = Vec::new();
+        for change in cl_diff_files {
+            match change {
+                ClDiffFile::New(path, _) => {
+                    counter_changes.push(Status::Added(to_project_relative(&path)?));
+                }
+                ClDiffFile::Deleted(path, _) => {
+                    counter_changes.push(Status::Removed(to_project_relative(&path)?));
+                }
+                ClDiffFile::Modified(path, _, _) => {
+                    counter_changes.push(Status::Modified(to_project_relative(&path)?));
+                }
+                ClDiffFile::Renamed(old_path, new_path, _, _, _)
+                | ClDiffFile::Moved(old_path, new_path, _, _, _) => {
+                    counter_changes.push(Status::Removed(to_project_relative(&old_path)?));
+                    counter_changes.push(Status::Added(to_project_relative(&new_path)?));
+                }
+            }
+        }
 
         Ok(counter_changes)
     }

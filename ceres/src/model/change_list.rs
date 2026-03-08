@@ -1,4 +1,4 @@
-use std::{path::PathBuf, str::FromStr};
+use std::path::PathBuf;
 
 use api_model::common::CommonPage;
 use callisto::{check_result, sea_orm_active_enums::MergeStatusEnum};
@@ -158,31 +158,47 @@ pub struct ClFilesRes {
     pub path: String,
     pub sha: String,
     pub action: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub old_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub similarity: Option<u8>,
 }
 
 impl From<ClDiffFile> for ClFilesRes {
     fn from(value: ClDiffFile) -> Self {
-        // if change, please modify `ceres/src/pack/monorepo.rs` also.
         match value {
             ClDiffFile::New(path, sha) => Self {
-                path: path.to_string_lossy().to_string(),
+                path: path.to_string_lossy().replace('\\', "/"),
                 sha: sha.to_string(),
-                action: String::from_str("new").unwrap(),
+                action: "new".to_owned(),
+                old_path: None,
+                similarity: None,
             },
             ClDiffFile::Deleted(path, sha) => Self {
-                path: path.to_string_lossy().to_string(),
+                path: path.to_string_lossy().replace('\\', "/"),
                 sha: sha.to_string(),
-                action: String::from_str("deleted").unwrap(),
+                action: "deleted".to_owned(),
+                old_path: None,
+                similarity: None,
             },
             ClDiffFile::Modified(path, _, new) => Self {
-                path: path.to_string_lossy().to_string(),
+                path: path.to_string_lossy().replace('\\', "/"),
                 sha: new.to_string(),
-                action: String::from_str("modified").unwrap(),
+                action: "modified".to_owned(),
+                old_path: None,
+                similarity: None,
+            },
+            ClDiffFile::Renamed(old_path, new_path, _, new_hash, similarity)
+            | ClDiffFile::Moved(old_path, new_path, _, new_hash, similarity) => Self {
+                path: new_path.to_string_lossy().replace('\\', "/"),
+                sha: new_hash.to_string(),
+                action: "renamed".to_owned(),
+                old_path: Some(old_path.to_string_lossy().replace('\\', "/")),
+                similarity: Some(similarity),
             },
         }
     }
 }
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
 pub enum MergeStatus {
     Open,
@@ -325,6 +341,10 @@ pub enum ClDiffFile {
     Deleted(PathBuf, ObjectHash),
     // path, old_hash, new_hash
     Modified(PathBuf, ObjectHash, ObjectHash),
+    // old_path, new_path, old_hash, new_hash, similarity
+    Renamed(PathBuf, PathBuf, ObjectHash, ObjectHash, u8),
+    // old_path, new_path, old_hash, new_hash, similarity
+    Moved(PathBuf, PathBuf, ObjectHash, ObjectHash, u8),
 }
 
 impl ClDiffFile {
@@ -333,6 +353,8 @@ impl ClDiffFile {
             ClDiffFile::New(path, _) => path,
             ClDiffFile::Deleted(path, _) => path,
             ClDiffFile::Modified(path, _, _) => path,
+            ClDiffFile::Renamed(_, new_path, _, _, _) => new_path,
+            ClDiffFile::Moved(_, new_path, _, _, _) => new_path,
         }
     }
 
@@ -340,14 +362,59 @@ impl ClDiffFile {
         match self {
             ClDiffFile::New(_, _) => 0,
             ClDiffFile::Deleted(_, _) => 1,
-            ClDiffFile::Modified(_, _, _) => 2,
+            ClDiffFile::Renamed(_, _, _, _, _) => 2,
+            ClDiffFile::Moved(_, _, _, _, _) => 3,
+            ClDiffFile::Modified(_, _, _) => 4,
         }
     }
 }
-
 #[derive(Serialize)]
 pub struct BuckFile {
     pub buck: ObjectHash,
     pub buck_config: ObjectHash,
     pub path: PathBuf,
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{path::PathBuf, str::FromStr};
+
+    use git_internal::hash::ObjectHash;
+    use serde_json::Value;
+
+    use super::{ClDiffFile, ClFilesRes};
+
+    #[test]
+    fn relocated_files_serialize_as_renamed() {
+        let old_hash = ObjectHash::from_str("1111111111111111111111111111111111111111").unwrap();
+        let new_hash = ObjectHash::from_str("2222222222222222222222222222222222222222").unwrap();
+
+        let renamed = ClFilesRes::from(ClDiffFile::Renamed(
+            PathBuf::from("old_dir/file.rs"),
+            PathBuf::from("new_dir/file.rs"),
+            old_hash,
+            new_hash,
+            91,
+        ));
+        let moved = ClFilesRes::from(ClDiffFile::Moved(
+            PathBuf::from("old_dir/file.rs"),
+            PathBuf::from("other_dir/file.rs"),
+            old_hash,
+            new_hash,
+            88,
+        ));
+
+        let renamed_json: Value = serde_json::to_value(renamed).unwrap();
+        let moved_json: Value = serde_json::to_value(moved).unwrap();
+
+        assert_eq!(renamed_json["action"], "renamed");
+        assert_eq!(renamed_json["old_path"], "old_dir/file.rs");
+        assert_eq!(renamed_json["similarity"], 91);
+        assert!(renamed_json.get("display_action").is_none());
+
+        assert_eq!(moved_json["action"], "renamed");
+        assert_eq!(moved_json["old_path"], "old_dir/file.rs");
+        assert_eq!(moved_json["similarity"], 88);
+        assert!(moved_json.get("display_action").is_none());
+    }
 }

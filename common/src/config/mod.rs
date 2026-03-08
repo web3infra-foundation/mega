@@ -305,6 +305,8 @@ pub struct MonoConfig {
     pub import_dir: PathBuf,
     pub admin: Vec<String>,
     pub root_dirs: Vec<String>,
+    #[serde(default)]
+    pub rename: RenameConfig,
 }
 
 impl Default for MonoConfig {
@@ -320,10 +322,35 @@ impl Default for MonoConfig {
                 "doc".to_string(),
                 "release".to_string(),
             ],
+            rename: RenameConfig::default(),
         }
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct RenameConfig {
+    #[serde(default = "default_rename_similarity_threshold")]
+    pub similarity_threshold: u8,
+    #[serde(default = "default_rename_limit")]
+    pub rename_limit: usize,
+}
+
+fn default_rename_similarity_threshold() -> u8 {
+    50
+}
+
+fn default_rename_limit() -> usize {
+    1000
+}
+
+impl Default for RenameConfig {
+    fn default() -> Self {
+        Self {
+            similarity_threshold: default_rename_similarity_threshold(),
+            rename_limit: default_rename_limit(),
+        }
+    }
+}
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AuthConfig {
     pub enable_http_auth: bool,
