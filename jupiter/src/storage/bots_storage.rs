@@ -34,7 +34,7 @@ impl BotsStorage {
         creator_user_id: i64,
         permission_scope: PermissionScopeEnum,
     ) -> Result<(bots::Model, String), MegaError> {
-        // Register and insert a new bot
+        // Create and insert a new bot record
         let bot = self
             .new_bot_model(
                 name,
@@ -45,13 +45,13 @@ impl BotsStorage {
             )
             .await?;
 
-        // 2. 生成 RSA 密钥对
+        // Generate RSA key pair
         let mut rng = OsRng;
         let private_key =
             RsaPrivateKey::new(&mut rng, 2048).map_err(|e| MegaError::Other(e.to_string()))?;
         let public_key = private_key.to_public_key();
 
-        // 转 PEM 格式
+        // Convert keys to PEM format
         let private_pem = private_key
             .to_pkcs8_pem(Default::default())
             .map_err(|e| MegaError::Other(e.to_string()))?
@@ -61,21 +61,21 @@ impl BotsStorage {
             .map_err(|e| MegaError::Other(e.to_string()))?
             .to_string();
 
-        // 3. 保存 BotKeys
-        // bot_keys::ActiveModel {
-        //     bot_id: Set(bot.id),
-        //     private_key: Set(private_pem.clone()),
-        //     public_key: Set(public_pem),
-        //     ..Default::default()
-        // }
-        // .insert(self.get_connection())
-        // .await?;
+        // Save bot keys to the database
+        bot_keys::ActiveModel {
+            bot_id: Set(bot.id),
+            private_key: Set(private_pem.clone()),
+            public_key: Set(public_pem),
+            ..Default::default()
+        }
+        .insert(self.get_connection())
+        .await?;
 
-        // 4. 可选：初始化 token / permissions / audit log 等，方便未来扩展
-        // 例如：
+        // 5. Optional: Initialize tokens / permissions / audit logs for future expansion
+        // Example:
         // self.init_bot_permissions(bot.id, &mut tx).await?;
 
-        // 6. 返回 Bot 记录和 private key（只返回一次）
+        // 6. Return the bot record and private key (returned only once)
         Ok((bot, private_pem))
     }
 

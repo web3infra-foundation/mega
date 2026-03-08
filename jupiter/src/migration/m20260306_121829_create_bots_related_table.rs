@@ -131,8 +131,8 @@ impl MigrationTrait for Migration {
                             .primary_key(),
                     )
                     .col(ColumnDef::new(BotKeys::BotId).big_integer().not_null())
-                    .col(ColumnDef::new(BotKeys::PrivateKey).string())
-                    .col(ColumnDef::new(BotKeys::PublicKey).string())
+                    .col(ColumnDef::new(BotKeys::PrivateKey).string().not_null())
+                    .col(ColumnDef::new(BotKeys::PublicKey).string().not_null())
                     .col(
                         ColumnDef::new(BotKeys::CreatedAt)
                             .timestamp_with_time_zone()

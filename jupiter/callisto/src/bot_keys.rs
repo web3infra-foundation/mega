@@ -9,8 +9,8 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: i64,
     pub bot_id: i64,
-    pub private_key: Option<String>,
-    pub public_key: Option<String>,
+    pub private_key: String,
+    pub public_key: String,
     pub created_at: DateTimeWithTimeZone,
 }
 
