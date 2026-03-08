@@ -10,7 +10,7 @@ use rsa::{
     pkcs8::{EncodePrivateKey, EncodePublicKey},
     rand_core::OsRng,
 };
-use sea_orm::{ActiveModelTrait, ActiveValue::Set, IntoActiveModel};
+use sea_orm::{ActiveModelTrait, IntoActiveModel};
 
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
 
