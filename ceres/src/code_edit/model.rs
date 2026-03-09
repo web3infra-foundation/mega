@@ -5,7 +5,7 @@ use callisto::{entity_ext::generate_link, mega_cl, mega_refs, sea_orm_active_enu
 use common::errors::MegaError;
 use git_internal::internal::object::commit::Commit;
 use jupiter::{
-    service::reviewer_service::ReviewerService,
+    service::{reviewer_service::ReviewerService, webhook_service::WebhookEvent},
     storage::{Storage, mono_storage::MonoStorage},
     utils::converter::FromMegaModel,
 };
@@ -147,6 +147,7 @@ where
     DR: Director<HD>,
 {
     pub repo_path: String,
+    pub base_branch: String,
     pub from_hash: String,
     formator: FMT,
     clref_visitor: VT,
@@ -202,6 +203,7 @@ impl<
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         repo_path: &str,
+        base_branch: &str,
         from_hash: &str,
         formator: FMT,
         clref_visitor: VT,
@@ -212,6 +214,7 @@ impl<
     ) -> Self {
         Self {
             repo_path: repo_path.to_string(),
+            base_branch: base_branch.to_string(),
             from_hash: from_hash.to_string(),
             formator,
             clref_visitor,
@@ -279,6 +282,7 @@ impl<
                 repo_path,
                 &cl_link,
                 &dst_commit.format_message(),
+                &self.base_branch,
                 from_hash,
                 to_hash,
                 username,
@@ -303,6 +307,9 @@ impl<
                 ConvTypeEnum::Comment,
             )
             .await?;
+        storage
+            .webhook_service
+            .dispatch(WebhookEvent::ClCreated, &cl);
         Ok(cl)
     }
 

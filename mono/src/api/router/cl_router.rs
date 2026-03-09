@@ -14,7 +14,7 @@ use ceres::model::{
     label::LabelUpdatePayload,
 };
 use common::errors::MegaError;
-use jupiter::service::{cl_service::CLService, webhook_service::events};
+use jupiter::service::{cl_service::CLService, webhook_service::WebhookEvent};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{
@@ -84,7 +84,14 @@ async fn reopen_cl(
             )
             .await
             .unwrap();
-        state.webhook_svc().dispatch(events::CL_REOPENED, &model);
+        let updated_model = state
+            .cl_stg()
+            .get_cl(&link)
+            .await?
+            .ok_or(MegaError::Other("Not Found".to_string()))?;
+        state
+            .webhook_svc()
+            .dispatch(WebhookEvent::ClReopened, &updated_model);
     }
     Ok(Json(CommonResult::success(None)))
 }
@@ -121,7 +128,14 @@ async fn close_cl(
                 ConvTypeEnum::Closed,
             )
             .await?;
-        state.webhook_svc().dispatch(events::CL_CLOSED, &model);
+        let updated_model = state
+            .cl_stg()
+            .get_cl(&link)
+            .await?
+            .ok_or(MegaError::Other("Not Found".to_string()))?;
+        state
+            .webhook_svc()
+            .dispatch(WebhookEvent::ClClosed, &updated_model);
     }
     Ok(Json(CommonResult::success(None)))
 }
@@ -157,7 +171,14 @@ async fn merge(
             .monorepo()
             .merge_cl(&user.username, model.clone())
             .await?;
-        state.webhook_svc().dispatch(events::CL_MERGED, &model);
+        let updated_model = state
+            .cl_stg()
+            .get_cl(&link)
+            .await?
+            .ok_or(MegaError::Other("Not Found".to_string()))?;
+        state
+            .webhook_svc()
+            .dispatch(WebhookEvent::ClMerged, &updated_model);
     }
     Ok(Json(CommonResult::success(None)))
 }
@@ -195,7 +216,14 @@ async fn merge_no_auth(
         .monorepo()
         .merge_cl(default_username, model.clone())
         .await?;
-    state.webhook_svc().dispatch(events::CL_MERGED, &model);
+    let updated_model = state
+        .cl_stg()
+        .get_cl(&link)
+        .await?
+        .ok_or(MegaError::Other("CL Not Found".to_string()))?;
+    state
+        .webhook_svc()
+        .dispatch(WebhookEvent::ClMerged, &updated_model);
 
     Ok(Json(CommonResult::success(Some(
         "Merge completed successfully".to_string(),
@@ -383,7 +411,9 @@ async fn update_branch(
         .update_branch(&user.username, &link)
         .await?;
     if let Ok(Some(cl_model)) = state.cl_stg().get_cl(&link).await {
-        state.webhook_svc().dispatch(events::CL_UPDATED, &cl_model);
+        state
+            .webhook_svc()
+            .dispatch(WebhookEvent::ClUpdated, &cl_model);
     }
     Ok(Json(CommonResult::success(Some(new_head))))
 }
@@ -472,7 +502,7 @@ async fn save_comment(
     if let Ok(Some(cl_model)) = state.cl_stg().get_cl(&link).await {
         state
             .webhook_svc()
-            .dispatch(events::CL_COMMENT_CREATED, &cl_model);
+            .dispatch(WebhookEvent::ClCommentCreated, &cl_model);
     }
 
     api_common::comment::check_comment_ref(user, state, &payload.content, &link).await
@@ -499,7 +529,9 @@ async fn edit_title(
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     state.cl_stg().edit_title(&link, &payload.content).await?;
     if let Ok(Some(cl_model)) = state.cl_stg().get_cl(&link).await {
-        state.webhook_svc().dispatch(events::CL_UPDATED, &cl_model);
+        state
+            .webhook_svc()
+            .dispatch(WebhookEvent::ClUpdated, &cl_model);
     }
     Ok(Json(CommonResult::success(None)))
 }
@@ -577,7 +609,7 @@ async fn update_cl_status(
         (MergeStatusEnum::Draft, MergeStatusEnum::Open) => {
             state
                 .cl_stg()
-                .update_cl_status(model.clone(), new_status)
+                .update_cl_status(model.clone(), new_status.clone())
                 .await?;
             state
                 .conv_stg()
@@ -588,12 +620,19 @@ async fn update_cl_status(
                     ConvTypeEnum::Review,
                 )
                 .await?;
-            state.webhook_svc().dispatch(events::CL_CREATED, &model);
+            let updated_model = state
+                .cl_stg()
+                .get_cl(&link)
+                .await?
+                .ok_or(MegaError::Other("Not Found".to_string()))?;
+            state
+                .webhook_svc()
+                .dispatch(WebhookEvent::ClCreated, &updated_model);
         }
         (MergeStatusEnum::Open, MergeStatusEnum::Draft) => {
             state
                 .cl_stg()
-                .update_cl_status(model.clone(), new_status)
+                .update_cl_status(model.clone(), new_status.clone())
                 .await?;
             state
                 .conv_stg()
@@ -604,7 +643,14 @@ async fn update_cl_status(
                     ConvTypeEnum::Draft,
                 )
                 .await?;
-            state.webhook_svc().dispatch(events::CL_UPDATED, &model);
+            let updated_model = state
+                .cl_stg()
+                .get_cl(&link)
+                .await?
+                .ok_or(MegaError::Other("Not Found".to_string()))?;
+            state
+                .webhook_svc()
+                .dispatch(WebhookEvent::ClUpdated, &updated_model);
         }
         _ => {
             return Err(ApiError::from(MegaError::Other(

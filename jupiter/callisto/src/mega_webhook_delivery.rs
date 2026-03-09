@@ -1,13 +1,15 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
+use super::sea_orm_active_enums::WebhookEventTypeEnum;
+
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "mega_webhook_delivery")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: i64,
     pub webhook_id: i64,
-    pub event_type: String,
+    pub event_type: WebhookEventTypeEnum,
     #[sea_orm(column_type = "Text")]
     pub payload: String,
     pub response_status: Option<i32>,

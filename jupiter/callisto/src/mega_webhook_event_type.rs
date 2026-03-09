@@ -1,0 +1,33 @@
+use sea_orm::entity::prelude::*;
+use serde::{Deserialize, Serialize};
+
+use super::sea_orm_active_enums::WebhookEventTypeEnum;
+
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
+#[sea_orm(table_name = "mega_webhook_event_type")]
+pub struct Model {
+    #[sea_orm(primary_key, auto_increment = false)]
+    pub webhook_id: i64,
+    #[sea_orm(primary_key, auto_increment = false)]
+    pub event_type: WebhookEventTypeEnum,
+}
+
+#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+pub enum Relation {
+    #[sea_orm(
+        belongs_to = "super::mega_webhook::Entity",
+        from = "Column::WebhookId",
+        to = "super::mega_webhook::Column::Id",
+        on_update = "NoAction",
+        on_delete = "Cascade"
+    )]
+    MegaWebhook,
+}
+
+impl Related<super::mega_webhook::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::MegaWebhook.def()
+    }
+}
+
+impl ActiveModelBehavior for ActiveModel {}

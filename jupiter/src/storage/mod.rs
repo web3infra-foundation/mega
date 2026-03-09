@@ -256,7 +256,7 @@ impl Storage {
         )
         .expect("failed to create BuckService");
 
-        let webhook_service = WebhookService::new(webhook_storage.clone());
+        let webhook_service = WebhookService::new(webhook_storage.clone())?;
 
         Ok(Storage {
             app_service: app_service.into(),

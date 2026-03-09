@@ -232,11 +232,12 @@ impl ClStorage {
         path: &str,
         link: &str,
         title: &str,
+        base_branch: &str,
         from_hash: &str,
         to_hash: &str,
         username: &str,
     ) -> Result<String, MegaError> {
-        self.new_cl_model(path, link, title, from_hash, to_hash, username)
+        self.new_cl_model(path, link, title, base_branch, from_hash, to_hash, username)
             .await
             .map(|res| res.link)
     }
@@ -246,6 +247,7 @@ impl ClStorage {
         path: &str,
         link: &str,
         title: &str,
+        base_branch: &str,
         from_hash: &str,
         to_hash: &str,
         username: &str,
@@ -254,6 +256,7 @@ impl ClStorage {
             path.to_owned(),
             title.to_owned(),
             link.to_owned(),
+            base_branch.to_owned(),
             from_hash.to_owned(),
             to_hash.to_owned(),
             username.to_owned(),
@@ -271,6 +274,7 @@ impl ClStorage {
         path: &str,
         link: &str,
         title: &str,
+        base_branch: &str,
         from_hash: &str,
         username: &str,
     ) -> Result<String, MegaError> {
@@ -278,6 +282,7 @@ impl ClStorage {
             path.to_owned(),
             title.to_owned(),
             link.to_owned(),
+            base_branch.to_owned(),
             from_hash.to_owned(),
             username.to_owned(),
         );

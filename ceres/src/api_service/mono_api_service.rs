@@ -537,6 +537,9 @@ impl ApiHandler for MonoApiService {
 
         let editor = OneditCodeEdit::from(
             repo_path,
+            MEGA_BRANCH_NAME
+                .strip_prefix("refs/heads/")
+                .unwrap_or(MEGA_BRANCH_NAME),
             &src_commit.id.to_string(),
             self,
             self.storage.mono_storage(),
@@ -648,6 +651,9 @@ impl ApiHandler for MonoApiService {
 
         let editor = OneditCodeEdit::from(
             &repo_path_str,
+            MEGA_BRANCH_NAME
+                .strip_prefix("refs/heads/")
+                .unwrap_or(MEGA_BRANCH_NAME),
             &src_commit.id.to_string(),
             self,
             self.storage.mono_storage(),
@@ -3125,12 +3131,22 @@ impl MonoApiService {
             .get_main_ref(&normalized_path)
             .await?
             .ok_or_else(|| MegaError::NotFound(format!("Path not found: {}", normalized_path)))?;
+        let base_branch = refs
+            .ref_name
+            .strip_prefix("refs/heads/")
+            .unwrap_or(refs.ref_name.as_str())
+            .to_string();
         // Use canonical path from mega_refs as the single source of truth for repository path
         let canonical_path = refs.path.clone();
         let response = self
             .storage
             .buck_service
-            .create_session(username, &canonical_path, refs.ref_commit_hash)
+            .create_session(
+                username,
+                &canonical_path,
+                &base_branch,
+                refs.ref_commit_hash,
+            )
             .await?;
 
         Ok(response)

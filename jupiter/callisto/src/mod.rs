@@ -53,6 +53,7 @@ pub mod mega_tag;
 pub mod mega_tree;
 pub mod mega_webhook;
 pub mod mega_webhook_delivery;
+pub mod mega_webhook_event_type;
 pub mod merge_queue;
 pub mod notes;
 pub mod orion_tasks;

@@ -16,7 +16,29 @@ pub struct Model {
     pub updated_at: DateTime,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {}
+#[derive(Copy, Clone, Debug, EnumIter)]
+pub enum Relation {
+    WebhookEventTypes,
+}
+
+impl RelationTrait for Relation {
+    fn def(&self) -> RelationDef {
+        match self {
+            Self::WebhookEventTypes => {
+                Entity::has_many(super::mega_webhook_event_type::Entity).into()
+            }
+        }
+    }
+}
+
+impl Related<super::mega_webhook_event_type::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::WebhookEventTypes.def()
+    }
+
+    fn via() -> Option<RelationDef> {
+        None
+    }
+}
 
 impl ActiveModelBehavior for ActiveModel {}
