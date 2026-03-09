@@ -4,7 +4,9 @@ use axum::{
     extract::{Path, State},
     routing::get,
 };
-use ceres::model::user::{AddSSHKey, ClaSignStatusRes, ListSSHKey, ListToken};
+use ceres::model::user::{
+    AddSSHKey, ClaContentRes, ClaSignStatusRes, ListSSHKey, ListToken, UpdateClaContentPayload,
+};
 use common::errors::MegaError;
 use russh::keys::{HashAlg, parse_public_key_base64};
 use utoipa_axum::{router::OpenApiRouter, routes};
@@ -26,7 +28,9 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
             .routes(routes!(list_token))
             .routes(routes!(remove_token))
             .routes(routes!(get_cla_sign_status))
-            .routes(routes!(change_sign_status)),
+            .routes(routes!(change_sign_status))
+            .routes(routes!(get_cla_content))
+            .routes(routes!(update_cla_content)),
     )
 }
 
@@ -227,4 +231,45 @@ async fn change_sign_status(
         cla_signed_at: cla_signed_at.map(|dt| dt.and_utc().timestamp()),
     };
     Ok(Json(CommonResult::success(Some(res))))
+}
+
+/// Get latest CLA text content
+#[utoipa::path(
+    get,
+    path = "/cla/content",
+    responses(
+        (status = 200, body = CommonResult<ClaContentRes>, content_type = "application/json")
+    ),
+    tag = USER_TAG
+)]
+async fn get_cla_content(
+    _user: LoginUser,
+    state: State<MonoApiServiceState>,
+) -> Result<Json<CommonResult<ClaContentRes>>, ApiError> {
+    let content = state.monorepo().get_cla_content().await?;
+    Ok(Json(CommonResult::success(Some(ClaContentRes { content }))))
+}
+
+/// Update latest CLA text content
+#[utoipa::path(
+    post,
+    path = "/cla/content",
+    request_body = UpdateClaContentPayload,
+    responses(
+        (status = 200, body = CommonResult<ClaContentRes>, content_type = "application/json")
+    ),
+    tag = USER_TAG
+)]
+async fn update_cla_content(
+    _user: LoginUser,
+    state: State<MonoApiServiceState>,
+    Json(payload): Json<UpdateClaContentPayload>,
+) -> Result<Json<CommonResult<ClaContentRes>>, ApiError> {
+    state
+        .monorepo()
+        .update_cla_content(&payload.content)
+        .await?;
+    Ok(Json(CommonResult::success(Some(ClaContentRes {
+        content: payload.content,
+    }))))
 }

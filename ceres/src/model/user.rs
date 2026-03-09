@@ -61,3 +61,13 @@ pub struct ClaSignStatusRes {
     pub cla_signed: bool,
     pub cla_signed_at: Option<i64>,
 }
+
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
+pub struct UpdateClaContentPayload {
+    pub content: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct ClaContentRes {
+    pub content: String,
+}
