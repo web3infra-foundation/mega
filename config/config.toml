@@ -78,6 +78,14 @@ root_dirs = ["third-party", "project", "doc", "release", "model", "toolchains"]
 # storage type, support values can be "s3", "s3compatible", "gcs" or "local"
 storage_type = "local"
 
+[monorepo.rename]
+# Similarity threshold (0-100) for move/rename detection in diff classification.
+similarity_threshold = 50
+
+# Skip exhaustive inexact rename matching when deleted_count * new_count exceeds rename_limit^2.
+# Set to 0 to disable the limit.
+rename_limit = 1000
+
 [build]
 
 # enable build system trigger
@@ -270,3 +278,4 @@ default_items = [
     { public_id = "rust", label = "Rust", href = "/rust", visible = false, order_index = 11 },
     { public_id = "oc", label = "Orion Client", href = "/oc", visible = true, order_index = 13 },
 ]
+

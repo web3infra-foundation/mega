@@ -94,6 +94,7 @@ use crate::{
     },
     build_trigger::{BuildTriggerService, TriggerContext},
     code_edit::{on_edit::OneditCodeEdit, utils as edit_utils},
+    diff::tree_diff,
     merge_checker::CheckerRegistry,
     model::{
         buck::{
@@ -145,6 +146,13 @@ pub struct RefUpdate {
     tree_id: ObjectHash,
 }
 
+struct PatchSections<'a> {
+    header_lines: Vec<&'a str>,
+    divider_line: Option<&'a str>,
+    payload_lines: Vec<&'a str>,
+    has_trailing_newline: bool,
+}
+
 struct CreateEntryUpdate {
     update_result: TreeUpdateResult,
     blob: Blob,
@@ -191,7 +199,7 @@ impl MonoServiceLogic {
     /// Rules: trim; reject empty or whitespace-only (validation error). Reject `..`, backslash,
     /// Windows drive letters (e.g. `C:`), and paths starting with `:`. Strip trailing `/`;
     /// input consisting only of slashes becomes `"/"`. Collapse middle repeated slashes and
-    /// remove `.` segments (e.g. `//project//foo` → `/project/foo`, `project/./foo` → `/project/foo`).
+    /// remove `.` segments (e.g. `//project//foo` -> `/project/foo`, `project/./foo` -> `/project/foo`).
     /// Paths that consist only of `.` and slashes (e.g. `"."`, `"./"`) are rejected so they do not
     /// silently resolve to root. Non-empty result gets a leading `"/"` if missing. Result matches
     /// mega_refs.path format.
@@ -530,7 +538,7 @@ impl ApiHandler for MonoApiService {
         let editor = OneditCodeEdit::from(
             repo_path,
             &src_commit.id.to_string(),
-            &self,
+            self,
             self.storage.mono_storage(),
         );
         let cl = editor
@@ -641,7 +649,7 @@ impl ApiHandler for MonoApiService {
         let editor = OneditCodeEdit::from(
             &repo_path_str,
             &src_commit.id.to_string(),
-            &self,
+            self,
             self.storage.mono_storage(),
         );
         let cl = editor
@@ -1731,190 +1739,177 @@ impl MonoApiService {
         let mut new_trees: HashMap<ObjectHash, Tree> = HashMap::new();
 
         for diff in changes {
-            let (file_path, op): (PathBuf, Option<ObjectHash>) = match diff {
-                ClDiffFile::New(path, new_hash) => (path.clone(), Some(*new_hash)),
-                ClDiffFile::Modified(path, _old, new_hash) => (path.clone(), Some(*new_hash)),
-                ClDiffFile::Deleted(path, _old) => (path.clone(), None),
+            let operations: Vec<(PathBuf, Option<ObjectHash>)> = match diff {
+                ClDiffFile::New(path, new_hash) => vec![(path.clone(), Some(*new_hash))],
+                ClDiffFile::Modified(path, _old, new_hash) => {
+                    vec![(path.clone(), Some(*new_hash))]
+                }
+                ClDiffFile::Deleted(path, _old) => vec![(path.clone(), None)],
+                ClDiffFile::Renamed(old_path, new_path, _old_hash, new_hash, _similarity)
+                | ClDiffFile::Moved(old_path, new_path, _old_hash, new_hash, _similarity) => {
+                    vec![
+                        (old_path.clone(), None),
+                        (new_path.clone(), Some(*new_hash)),
+                    ]
+                }
             };
 
-            debug!(
-                cl_link = %cl.link,
-                diff_path = %file_path.to_string_lossy(),
-                diff_kind = %match diff {
-                    ClDiffFile::New(_, _) => "add",
-                    ClDiffFile::Modified(_, _, _) => "edit",
-                    ClDiffFile::Deleted(_, _) => "del",
-                },
-                target_head,
-                "apply_changes: processing diff"
-            );
-
-            // Reject absolute or parent-traversing paths to avoid writing outside repo root.
-            if file_path.is_absolute()
-                || file_path
-                    .components()
-                    .any(|c| matches!(c, std::path::Component::ParentDir))
-            {
-                return Err(GitError::CustomError(format!(
-                    "Invalid path (traversal/absolute) in CL diff: {:?}",
-                    file_path
-                )));
-            }
-
-            let file_name = file_path
-                .file_name()
-                .and_then(|n| n.to_str())
-                .ok_or_else(|| GitError::CustomError("Invalid file name".to_string()))?;
-            // Normalize root parent to "/".
-            let parent_path = match file_path.parent() {
-                Some(p) if !p.as_os_str().is_empty() => p,
-                _ => Path::new("/"),
-            };
-
-            // Build chain of trees from root to parent, using updated cache when available
-            let components: Vec<String> = parent_path
-                .components()
-                .filter_map(|c| match c {
-                    std::path::Component::RootDir => None,
-                    other => other.as_os_str().to_str().map(|s| s.to_string()),
-                })
-                .collect();
-
-            let mut chain_paths: Vec<PathBuf> = vec![PathBuf::from("/")];
-            let mut chain_trees: Vec<Tree> = vec![
-                tree_cache
-                    .get(&PathBuf::from("/"))
-                    .cloned()
-                    .ok_or_else(|| GitError::CustomError("Root tree cache missing".to_string()))?,
-            ];
-
-            let mut cursor = PathBuf::from("/");
-            let mut missing_components: Option<Vec<String>> = None;
-            for (idx, comp) in components.iter().enumerate() {
-                let parent_tree = chain_trees
-                    .last()
-                    .ok_or_else(|| GitError::CustomError("Empty tree chain".to_string()))?;
-
-                let maybe_child = parent_tree.tree_items.iter().find(|it| it.name == *comp);
-                let child_tree = if let Some(child_item) = maybe_child {
-                    if child_item.mode != TreeItemMode::Tree {
-                        debug!(
-                            cl_link = %cl.link,
-                            path_component = %comp,
-                            cursor = %cursor.to_string_lossy(),
-                            mode = ?child_item.mode,
-                            "apply_changes: type conflict (expected directory)"
-                        );
-                        return Err(GitError::CustomError(format!(
-                            "Type conflict: '{}' is not a directory",
-                            comp
-                        )));
-                    }
-                    cursor = cursor.join(comp);
-                    let child_hash = child_item.id;
-                    if let Some(cached) = tree_cache.get(&cursor) {
-                        cached.clone()
-                    } else {
-                        let model = mono_storage
-                            .get_tree_by_hash(&child_hash.to_string())
-                            .await?
-                            .ok_or_else(|| {
-                                debug!(
-                                    cl_link = %cl.link,
-                                    path_component = %comp,
-                                    cursor = %cursor.to_string_lossy(),
-                                    child_hash = %child_hash,
-                                    "apply_changes: missing child tree in storage"
-                                );
-                                GitError::CustomError(format!(
-                                    "Tree not found for path '{}' with hash {}",
-                                    cursor.to_string_lossy(),
-                                    child_hash
-                                ))
-                            })?;
-                        Tree::from_mega_model(model)
-                    }
-                } else {
-                    missing_components = Some(components[idx..].to_vec());
-                    break;
-                };
-
-                chain_paths.push(cursor.clone());
-                chain_trees.push(child_tree);
-            }
-
-            if let Some(missing) = missing_components {
-                let mut ctx = ApplyChangeContext {
-                    components: &components,
-                    chain_paths: &chain_paths,
-                    chain_trees: &chain_trees,
-                    tree_cache: &mut tree_cache,
-                    new_trees: &mut new_trees,
-                };
-                if let Some(updated_root) =
-                    Self::apply_missing_path_update(&cl.link, missing, op, file_name, &mut ctx)?
+            for (file_path, op) in operations {
+                // Reject absolute or parent-traversing paths to avoid writing outside repo root.
+                if file_path.is_absolute()
+                    || file_path
+                        .components()
+                        .any(|c| matches!(c, std::path::Component::ParentDir))
                 {
-                    root_tree = updated_root;
+                    return Err(GitError::CustomError(format!(
+                        "Invalid path (traversal/absolute) in CL diff: {:?}",
+                        file_path
+                    )));
                 }
-                continue;
-            }
 
-            let parent_dir_abs = cursor.clone();
+                let file_name = file_path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .ok_or_else(|| GitError::CustomError("Invalid file name".to_string()))?;
+                // Normalize root parent to "/".
+                let parent_path = match file_path.parent() {
+                    Some(p) if !p.as_os_str().is_empty() => p,
+                    _ => Path::new("/"),
+                };
 
-            // Update parent tree with the file change
-            let parent_tree = chain_trees
-                .pop()
-                .ok_or_else(|| GitError::CustomError("Parent tree missing".to_string()))?;
-            chain_paths.pop();
+                // Build chain of trees from root to parent, using updated cache when available
+                let components: Vec<String> = parent_path
+                    .components()
+                    .filter_map(|c| match c {
+                        std::path::Component::RootDir => None,
+                        other => other.as_os_str().to_str().map(|s| s.to_string()),
+                    })
+                    .collect();
 
-            let mut items = parent_tree.tree_items.clone();
-            match op {
-                Some(new_hash) => {
-                    if let Some(idx) = items.iter().position(|it| it.name == file_name) {
-                        items[idx].id = new_hash;
+                let mut chain_paths: Vec<PathBuf> = vec![PathBuf::from("/")];
+                let mut chain_trees: Vec<Tree> = vec![
+                    tree_cache
+                        .get(&PathBuf::from("/"))
+                        .cloned()
+                        .ok_or_else(|| {
+                            GitError::CustomError("Root tree cache missing".to_string())
+                        })?,
+                ];
+
+                let mut cursor = PathBuf::from("/");
+                let mut missing_components: Option<Vec<String>> = None;
+                for (idx, comp) in components.iter().enumerate() {
+                    let parent_tree = chain_trees
+                        .last()
+                        .ok_or_else(|| GitError::CustomError("Empty tree chain".to_string()))?;
+
+                    let maybe_child = parent_tree.tree_items.iter().find(|it| it.name == *comp);
+                    let child_tree = if let Some(child_item) = maybe_child {
+                        if child_item.mode != TreeItemMode::Tree {
+                            return Err(GitError::CustomError(format!(
+                                "Type conflict: '{}' is not a directory",
+                                comp
+                            )));
+                        }
+                        cursor = cursor.join(comp);
+                        let child_hash = child_item.id;
+                        if let Some(cached) = tree_cache.get(&cursor) {
+                            cached.clone()
+                        } else {
+                            let model = mono_storage
+                                .get_tree_by_hash(&child_hash.to_string())
+                                .await?
+                                .ok_or_else(|| {
+                                    GitError::CustomError(format!(
+                                        "Tree not found for path '{}' with hash {}",
+                                        cursor.to_string_lossy(),
+                                        child_hash
+                                    ))
+                                })?;
+                            Tree::from_mega_model(model)
+                        }
                     } else {
-                        items.push(TreeItem::new(
-                            TreeItemMode::Blob,
-                            new_hash,
-                            file_name.to_string(),
-                        ));
+                        missing_components = Some(components[idx..].to_vec());
+                        break;
+                    };
+
+                    chain_paths.push(cursor.clone());
+                    chain_trees.push(child_tree);
+                }
+
+                if let Some(missing) = missing_components {
+                    let mut ctx = ApplyChangeContext {
+                        components: &components,
+                        chain_paths: &chain_paths,
+                        chain_trees: &chain_trees,
+                        tree_cache: &mut tree_cache,
+                        new_trees: &mut new_trees,
+                    };
+                    if let Some(updated_root) =
+                        Self::apply_missing_path_update(&cl.link, missing, op, file_name, &mut ctx)?
+                    {
+                        root_tree = updated_root;
+                    }
+                    continue;
+                }
+
+                let parent_dir_abs = cursor.clone();
+
+                // Update parent tree with the file change
+                let parent_tree = chain_trees
+                    .pop()
+                    .ok_or_else(|| GitError::CustomError("Parent tree missing".to_string()))?;
+                chain_paths.pop();
+
+                let mut items = parent_tree.tree_items.clone();
+                match op {
+                    Some(new_hash) => {
+                        if let Some(idx) = items.iter().position(|it| it.name == file_name) {
+                            items[idx].id = new_hash;
+                        } else {
+                            items.push(TreeItem::new(
+                                TreeItemMode::Blob,
+                                new_hash,
+                                file_name.to_string(),
+                            ));
+                        }
+                    }
+                    None => {
+                        items.retain(|it| it.name != file_name);
                     }
                 }
-                None => {
-                    items.retain(|it| it.name != file_name);
+
+                let updated_tree = Tree::from_tree_items(items)
+                    .map_err(|e| GitError::CustomError(e.to_string()))?;
+                // If parent tree id did not change (no-op), skip propagation for this diff.
+                if updated_tree.id == parent_tree.id {
+                    // keep cache consistent even for no-ops
+                    tree_cache.insert(parent_dir_abs.clone(), parent_tree.clone());
+                    debug!(
+                        cl_link = %cl.link,
+                        parent_dir = %parent_dir_abs.to_string_lossy(),
+                        "apply_changes: no-op diff skipped"
+                    );
+                    continue;
                 }
-            }
-
-            let updated_tree =
-                Tree::from_tree_items(items).map_err(|e| GitError::CustomError(e.to_string()))?;
-            // If parent tree id did not change (no-op), skip propagation for this diff.
-            if updated_tree.id == parent_tree.id {
-                // keep cache consistent even for no-ops
-                tree_cache.insert(parent_dir_abs.clone(), parent_tree.clone());
-                debug!(
-                    cl_link = %cl.link,
-                    parent_dir = %parent_dir_abs.to_string_lossy(),
-                    "apply_changes: no-op diff skipped"
+                Self::record_tree(
+                    parent_dir_abs,
+                    &updated_tree,
+                    &mut tree_cache,
+                    &mut new_trees,
                 );
-                continue;
-            }
-            Self::record_tree(
-                parent_dir_abs,
-                &updated_tree,
-                &mut tree_cache,
-                &mut new_trees,
-            );
 
-            // Propagate updated hashes up to root
-            root_tree = Self::propagate_up(
-                &cl.link,
-                updated_tree,
-                &components,
-                &chain_paths,
-                &chain_trees,
-                &mut tree_cache,
-                &mut new_trees,
-            )?;
+                // Propagate updated hashes up to root
+                root_tree = Self::propagate_up(
+                    &cl.link,
+                    updated_tree,
+                    &components,
+                    &chain_paths,
+                    &chain_trees,
+                    &mut tree_cache,
+                    &mut new_trees,
+                )?;
+            }
         }
 
         let result = TreeUpdateResult {
@@ -2355,7 +2350,6 @@ impl MonoApiService {
         let per_page = page.per_page as usize;
         let page_id = page.page as usize;
 
-        // old and new blobs for comparison
         let stg = self.storage.cl_storage();
         let cl =
             stg.get_cl(cl_link).await.unwrap().ok_or_else(|| {
@@ -2370,12 +2364,11 @@ impl MonoApiService {
             .await
             .map_err(|e| GitError::CustomError(format!("Failed to get new commit blobs: {e}")))?;
 
-        // calculate pages
-        let sorted_changed_files = edit_utils::cl_files_list(old_blobs.clone(), new_blobs.clone())
+        let sorted_changed_files = self
+            .cl_files_list(old_blobs, new_blobs)
             .await
             .map_err(|e| GitError::CustomError(e.to_string()))?;
 
-        // ensure page_id is within bounds
         let start = (page_id.saturating_sub(1)) * per_page;
         let end = (start + per_page).min(sorted_changed_files.len());
 
@@ -2387,18 +2380,67 @@ impl MonoApiService {
             &[]
         };
 
-        // create filtered files
+        let non_relocated_items: Vec<ClDiffFile> = page_slice
+            .iter()
+            .filter(|item| {
+                !matches!(
+                    item,
+                    ClDiffFile::Renamed(_, _, _, _, _) | ClDiffFile::Moved(_, _, _, _, _)
+                )
+            })
+            .cloned()
+            .collect();
+
         let mut page_old_blobs = Vec::new();
         let mut page_new_blobs = Vec::new();
-        collect_page_blobs(page_slice, &mut page_old_blobs, &mut page_new_blobs);
+        collect_page_blobs(
+            &non_relocated_items,
+            &mut page_old_blobs,
+            &mut page_new_blobs,
+        );
 
-        // get diff output
-        let diff_output = self
-            .get_diff_by_blobs(page_old_blobs, page_new_blobs)
-            .await
-            .map_err(|e| GitError::CustomError(format!("Failed to get diff output: {e}")))?;
+        let raw_diff_output = if non_relocated_items.is_empty() {
+            Vec::new()
+        } else {
+            self.get_diff_by_blobs(page_old_blobs, page_new_blobs)
+                .await?
+        };
 
-        // calculate total pages
+        let mut raw_diff_by_path: HashMap<String, Vec<DiffItem>> = HashMap::new();
+        for item in raw_diff_output {
+            raw_diff_by_path
+                .entry(item.path.clone())
+                .or_default()
+                .push(item);
+        }
+
+        let mut diff_output: Vec<DiffItem> = Vec::with_capacity(page_slice.len());
+        for item in page_slice {
+            match item {
+                ClDiffFile::Renamed(old_path, new_path, old_hash, new_hash, similarity)
+                | ClDiffFile::Moved(old_path, new_path, old_hash, new_hash, similarity) => {
+                    diff_output.push(
+                        self.format_relocated_diff_item(
+                            old_path,
+                            new_path,
+                            *old_hash,
+                            *new_hash,
+                            *similarity,
+                        )
+                        .await?,
+                    );
+                }
+                _ => {
+                    let key = item.path().to_string_lossy().replace('\\', "/");
+                    if let Some(items) = raw_diff_by_path.get_mut(&key)
+                        && !items.is_empty()
+                    {
+                        diff_output.push(items.remove(0));
+                    }
+                }
+            }
+        }
+
         let total = sorted_changed_files.len().div_ceil(per_page);
 
         Ok((diff_output, total as u64))
@@ -2455,9 +2497,178 @@ impl MonoApiService {
         };
 
         // Use the unified diff function with configurable algorithm
-        let diff_output = GitDiff::diff(old_blobs, new_blobs, Vec::new(), read_content);
+        let diff_output = GitDiff::diff(old_blobs, new_blobs, Vec::new(), read_content)
+            .into_iter()
+            .map(Self::normalize_diff_item)
+            .collect();
 
         Ok(diff_output)
+    }
+
+    async fn format_relocated_diff_item(
+        &self,
+        old_path: &Path,
+        new_path: &Path,
+        old_hash: ObjectHash,
+        new_hash: ObjectHash,
+        similarity: u8,
+    ) -> Result<DiffItem, GitError> {
+        let mut patch = Self::format_relocated_patch_header(old_path, new_path, similarity);
+
+        if old_hash != new_hash {
+            let raw_items = self
+                .get_diff_by_blobs(
+                    vec![(old_path.to_path_buf(), old_hash)],
+                    vec![(old_path.to_path_buf(), new_hash)],
+                )
+                .await?;
+            if let Some(item) = raw_items.into_iter().next() {
+                patch.push_str(&Self::relocate_patch_body(&item.data, old_path, new_path));
+            }
+        }
+
+        Ok(DiffItem {
+            path: new_path.to_string_lossy().replace('\\', "/"),
+            data: patch,
+        })
+    }
+
+    fn format_relocated_patch_header(old_path: &Path, new_path: &Path, similarity: u8) -> String {
+        let old_path = old_path.to_string_lossy().replace('\\', "/");
+        let new_path = new_path.to_string_lossy().replace('\\', "/");
+        format!(
+            "diff --git a/{old_path} b/{new_path}\nsimilarity index {similarity}%\nrename from {old_path}\nrename to {new_path}\n"
+        )
+    }
+
+    fn normalize_diff_item(mut item: DiffItem) -> DiffItem {
+        item.path = item.path.replace('\\', "/");
+        item.data = Self::normalize_patch_header_paths(&item.data);
+        item
+    }
+
+    fn normalize_patch_header_paths(raw_patch: &str) -> String {
+        let sections = Self::split_patch_sections(raw_patch);
+        let header_lines = sections
+            .header_lines
+            .into_iter()
+            .map(Self::normalize_patch_header_line)
+            .collect();
+        let divider_line = sections.divider_line.map(|line| {
+            if line.starts_with("Binary files ") {
+                line.replace('\\', "/")
+            } else {
+                line.to_string()
+            }
+        });
+
+        Self::join_patch_sections(
+            header_lines,
+            divider_line,
+            sections.payload_lines,
+            sections.has_trailing_newline,
+        )
+    }
+
+    fn relocate_patch_body(raw_patch: &str, old_path: &Path, new_path: &Path) -> String {
+        let old_path = old_path.to_string_lossy().replace('\\', "/");
+        let new_path = new_path.to_string_lossy().replace('\\', "/");
+        let sections = Self::split_patch_sections(raw_patch);
+        let header_lines = sections
+            .header_lines
+            .into_iter()
+            .filter(|line| !line.starts_with("diff --git "))
+            .map(|line| {
+                if line.starts_with("--- a/") {
+                    format!("--- a/{old_path}")
+                } else if line.starts_with("+++ b/") {
+                    format!("+++ b/{new_path}")
+                } else {
+                    line.to_string()
+                }
+            })
+            .collect();
+        let divider_line = sections.divider_line.map(|line| {
+            if line.starts_with("Binary files ") {
+                format!("Binary files a/{old_path} and b/{new_path} differ")
+            } else {
+                line.to_string()
+            }
+        });
+
+        Self::join_patch_sections(
+            header_lines,
+            divider_line,
+            sections.payload_lines,
+            sections.has_trailing_newline,
+        )
+    }
+
+    fn normalize_patch_header_line(line: &str) -> String {
+        if line.starts_with("diff --git ")
+            || line.starts_with("--- ")
+            || line.starts_with("+++ ")
+            || line.starts_with("rename from ")
+            || line.starts_with("rename to ")
+        {
+            line.replace('\\', "/")
+        } else {
+            line.to_string()
+        }
+    }
+
+    fn split_patch_sections(raw_patch: &str) -> PatchSections<'_> {
+        let mut header_lines = Vec::new();
+        let mut divider_line = None;
+        let mut payload_lines = Vec::new();
+        let mut in_payload = false;
+
+        for line in raw_patch.lines() {
+            if in_payload {
+                payload_lines.push(line);
+                continue;
+            }
+
+            if line.starts_with("@@")
+                || line.starts_with("Binary files ")
+                || line.starts_with("GIT binary patch")
+            {
+                divider_line = Some(line);
+                in_payload = true;
+                continue;
+            }
+
+            header_lines.push(line);
+        }
+
+        PatchSections {
+            header_lines,
+            divider_line,
+            payload_lines,
+            has_trailing_newline: raw_patch.ends_with('\n'),
+        }
+    }
+
+    fn join_patch_sections(
+        header_lines: Vec<String>,
+        divider_line: Option<String>,
+        payload_lines: Vec<&str>,
+        has_trailing_newline: bool,
+    ) -> String {
+        let mut lines = header_lines;
+        if let Some(line) = divider_line {
+            lines.push(line);
+        }
+        lines.extend(payload_lines.into_iter().map(String::from));
+
+        let rendered = lines.join("\n");
+        if rendered.is_empty() {
+            rendered
+        } else if has_trailing_newline {
+            format!("{rendered}\n")
+        } else {
+            rendered
+        }
     }
 
     pub async fn get_sorted_changed_file_list(
@@ -2465,6 +2676,7 @@ impl MonoApiService {
         cl_link: &str,
         path: Option<&str>,
     ) -> Result<Vec<String>, MegaError> {
+        let normalized_prefix = path.map(|prefix| prefix.replace('\\', "/"));
         let cl = self
             .storage
             .cl_storage()
@@ -2477,13 +2689,12 @@ impl MonoApiService {
         let new_files = self.get_commit_blobs(&cl.to_hash.clone()).await?;
 
         // calculate pages
-        let sorted_changed_files =
-            edit_utils::cl_files_list(old_files.clone(), new_files.clone()).await?;
+        let sorted_changed_files = self.cl_files_list(old_files, new_files).await?;
         let file_paths: Vec<String> = sorted_changed_files
             .iter()
-            .map(|f| f.path().to_string_lossy().to_string())
+            .map(|f| f.path().to_string_lossy().replace('\\', "/"))
             .filter(|file_path| {
-                if let Some(prefix) = path {
+                if let Some(prefix) = &normalized_prefix {
                     file_path.starts_with(prefix)
                 } else {
                     true
@@ -2582,34 +2793,10 @@ impl MonoApiService {
             .get_commit_blobs(&cl.to_hash)
             .await
             .map_err(|e| GitError::CustomError(e.to_string()))?;
-        let cl_changed = edit_utils::cl_files_list(old_blobs.clone(), new_blobs.clone())
+        let cl_changed = self
+            .cl_files_list(old_blobs.clone(), new_blobs.clone())
             .await
             .map_err(|e| GitError::CustomError(e.to_string()))?;
-
-        if cl_changed.is_empty() {
-            debug!(
-                cl_link,
-                target_head = %target_head,
-                from_hash = %cl.from_hash,
-                "update_branch: no changed files"
-            );
-        } else {
-            let changed: Vec<String> = cl_changed
-                .iter()
-                .map(|f| match f {
-                    ClDiffFile::New(p, _) => format!("ADD:{}", p.to_string_lossy()),
-                    ClDiffFile::Modified(p, _, _) => format!("EDIT:{}", p.to_string_lossy()),
-                    ClDiffFile::Deleted(p, _) => format!("DEL:{}", p.to_string_lossy()),
-                })
-                .collect();
-            debug!(
-                cl_link,
-                target_head = %target_head,
-                from_hash = %cl.from_hash,
-                changed_files = %changed.join(","),
-                "update_branch: changed files detected"
-            );
-        }
 
         if cl_changed.is_empty() {
             // No-op rebase: just advance base hash and log.
@@ -2674,6 +2861,7 @@ impl MonoApiService {
             .get_commit_blobs(&cl.to_hash)
             .await
             .map_err(|e| GitError::CustomError(e.to_string()))?;
+        // Keep conflict checks path-based so renames cover both old and new paths.
         let cl_changed = edit_utils::cl_files_list(old_blobs.clone(), new_blobs.clone())
             .await
             .map_err(|e| GitError::CustomError(e.to_string()))?;
@@ -2688,11 +2876,11 @@ impl MonoApiService {
 
         let cl_paths: std::collections::HashSet<String> = cl_changed
             .iter()
-            .map(|f| f.path().to_string_lossy().to_string())
+            .map(|f| f.path().to_string_lossy().replace('\\', "/"))
             .collect();
         let target_paths: std::collections::HashSet<String> = base_vs_target
             .iter()
-            .map(|f| f.path().to_string_lossy().to_string())
+            .map(|f| f.path().to_string_lossy().replace('\\', "/"))
             .collect();
 
         Ok(cl_paths.intersection(&target_paths).cloned().collect())
@@ -2703,7 +2891,42 @@ impl MonoApiService {
         old_files: Vec<(PathBuf, ObjectHash)>,
         new_files: Vec<(PathBuf, ObjectHash)>,
     ) -> Result<Vec<ClDiffFile>, MegaError> {
-        edit_utils::cl_files_list(old_files, new_files).await
+        let base_diff = tree_diff::calculate_tree_diff_basic(old_files.clone(), new_files.clone())?;
+        let mut blob_cache: HashMap<ObjectHash, Vec<u8>> = HashMap::new();
+        let mut failed_hashes = Vec::new();
+        let candidate_hashes: HashSet<ObjectHash> = base_diff
+            .iter()
+            .filter_map(|item| match item {
+                ClDiffFile::Deleted(_, hash) | ClDiffFile::New(_, hash) => Some(*hash),
+                _ => None,
+            })
+            .collect();
+
+        for hash in candidate_hashes {
+            match self.get_raw_blob_by_hash(&hash.to_string()).await {
+                Ok(data) => {
+                    blob_cache.insert(hash, data);
+                }
+                Err(err) => {
+                    failed_hashes.push(hash);
+                    tracing::warn!(
+                        "rename detection skipped blob {} and will fall back to path-level diff: {}",
+                        hash,
+                        err
+                    );
+                }
+            }
+        }
+
+        if !failed_hashes.is_empty() {
+            tracing::warn!(
+                "rename detection degraded for {} candidate blob(s)",
+                failed_hashes.len()
+            );
+        }
+
+        let rename_config = self.storage.config().monorepo.rename.clone();
+        tree_diff::calculate_tree_diff_with_blobs(old_files, new_files, &rename_config, &blob_cache)
     }
 
     pub async fn get_commit_blobs(
@@ -3429,6 +3652,10 @@ fn collect_page_blobs(
                 old_out.push((p.clone(), *h_old));
                 new_out.push((p.clone(), *h_new));
             }
+            ClDiffFile::Renamed(_, _, _, _, _) | ClDiffFile::Moved(_, _, _, _, _) => {
+                // Relocated items are filtered out before this helper is called.
+                debug_assert!(false, "collect_page_blobs only accepts non-relocated items");
+            }
         }
     }
 }
@@ -4123,6 +4350,90 @@ mod test {
         assert_eq!(old_blobs[1].0, PathBuf::from("modified.txt"));
         assert_eq!(new_blobs[0].0, PathBuf::from("new.txt"));
         assert_eq!(new_blobs[1].0, PathBuf::from("modified.txt"));
+    }
+
+    #[test]
+    fn test_relocate_patch_body_rewrites_paths_and_keeps_hunk() {
+        let raw_patch = "\
+diff --git a/old/name.txt b/old/name.txt\n\
+index 1111111..2222222 100644\n\
+--- a/old/name.txt\n\
++++ b/old/name.txt\n\
+@@ -1 +1 @@\n\
+-old line\n\
++new line\n";
+
+        let relocated = MonoApiService::relocate_patch_body(
+            raw_patch,
+            Path::new("old/name.txt"),
+            Path::new("new/name.txt"),
+        );
+
+        assert!(!relocated.contains("diff --git"));
+        assert!(relocated.contains("--- a/old/name.txt"));
+        assert!(relocated.contains("+++ b/new/name.txt"));
+        assert!(relocated.contains("@@ -1 +1 @@"));
+        assert!(relocated.contains("-old line"));
+        assert!(relocated.contains("+new line"));
+        assert!(!relocated.contains("deleted file mode"));
+    }
+
+    #[test]
+    fn test_relocate_patch_body_preserves_hunk_backslashes() {
+        let raw_patch = "\
+diff --git a/old/name.txt b/old/name.txt\n\
+index 1111111..2222222 100644\n\
+--- a/old/name.txt\n\
++++ b/old/name.txt\n\
+@@ -1 +1 @@\n\
+-let path = \"C:\\\\temp\\\\old\";\n\
++let path = \"C:\\\\temp\\\\new\";\n";
+
+        let relocated = MonoApiService::relocate_patch_body(
+            raw_patch,
+            Path::new("old/name.txt"),
+            Path::new("new/name.txt"),
+        );
+
+        assert!(relocated.contains("--- a/old/name.txt"));
+        assert!(relocated.contains("+++ b/new/name.txt"));
+        assert!(relocated.contains("-let path = \"C:\\\\temp\\\\old\";"));
+        assert!(relocated.contains("+let path = \"C:\\\\temp\\\\new\";"));
+    }
+
+    #[test]
+    fn test_normalize_diff_item_path_uses_forward_slashes() {
+        let item = DiffItem {
+            path: "dir\\nested\\file.txt".to_string(),
+            data: "diff --git a/dir\\nested\\file.txt b/dir\\nested\\file.txt\n".to_string(),
+        };
+
+        let normalized = MonoApiService::normalize_diff_item(item);
+        assert_eq!(normalized.path, "dir/nested/file.txt");
+        assert!(
+            normalized
+                .data
+                .contains("diff --git a/dir/nested/file.txt b/dir/nested/file.txt")
+        );
+    }
+
+    #[test]
+    fn test_normalize_patch_header_paths_preserves_hunk_content() {
+        let raw_patch = "\
+diff --git a/dir\\nested\\file.txt b/dir\\nested\\file.txt\n\
+--- a/dir\\nested\\file.txt\n\
++++ b/dir\\nested\\file.txt\n\
+@@ -1 +1 @@\n\
+-let path = \"C:\\\\temp\\\\old\";\n\
++let path = \"C:\\\\temp\\\\new\";\n";
+
+        let normalized = MonoApiService::normalize_patch_header_paths(raw_patch);
+
+        assert!(normalized.contains("diff --git a/dir/nested/file.txt b/dir/nested/file.txt"));
+        assert!(normalized.contains("--- a/dir/nested/file.txt"));
+        assert!(normalized.contains("+++ b/dir/nested/file.txt"));
+        assert!(normalized.contains("-let path = \"C:\\\\temp\\\\old\";"));
+        assert!(normalized.contains("+let path = \"C:\\\\temp\\\\new\";"));
     }
 
     #[tokio::test]
