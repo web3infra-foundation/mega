@@ -76,9 +76,8 @@ impl From<WebhookWithEventTypes> for WebhookResponse {
 fn parse_event_types(raw: Vec<String>) -> Result<Vec<WebhookEventTypeEnum>, ApiError> {
     raw.into_iter()
         .map(|s| {
-            WebhookEventTypeEnum::try_from_value(&s).map_err(|_| {
-                ApiError::bad_request(anyhow::anyhow!("invalid event type: {s}"))
-            })
+            WebhookEventTypeEnum::try_from_value(&s)
+                .map_err(|_| ApiError::bad_request(anyhow::anyhow!("invalid event type: {s}")))
         })
         .collect()
 }

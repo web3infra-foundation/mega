@@ -8,7 +8,6 @@ use callisto::{
     mega_cl,
     sea_orm_active_enums::{MergeStatusEnum, WebhookEventTypeEnum},
 };
-use sea_orm::ActiveEnum;
 use chrono::Utc;
 use hmac::{Hmac, Mac};
 use idgenerator::IdInstance;
@@ -17,6 +16,7 @@ use ring::{
     aead::{self, Aad, LessSafeKey, Nonce, UnboundKey},
     rand::{SecureRandom, SystemRandom},
 };
+use sea_orm::ActiveEnum;
 use serde::Serialize;
 use sha2::Sha256;
 use tokio::net::lookup_host;
@@ -94,7 +94,9 @@ impl WebhookService {
             .timeout(Duration::from_secs(10))
             .redirect(Policy::none())
             .build()
-            .map_err(|e| common::errors::MegaError::Other(format!("failed to build reqwest client: {e}")))?;
+            .map_err(|e| {
+                common::errors::MegaError::Other(format!("failed to build reqwest client: {e}"))
+            })?;
         Ok(Self { storage, client })
     }
 
@@ -215,9 +217,7 @@ impl WebhookService {
                 }
             }
 
-            if !delivered_successfully
-                && let Some(error_message) = last_failure_message
-            {
+            if !delivered_successfully && let Some(error_message) = last_failure_message {
                 tracing::warn!(
                     "webhook delivery failed after {} attempts for webhook_id={}: {}",
                     WEBHOOK_DELIVERY_MAX_ATTEMPTS,
@@ -335,15 +335,12 @@ fn load_webhook_secret_key_from_env()
         ))
     })?;
 
-    if decoded_key.len() != WEBHOOK_SECRET_KEY_LEN {
-        return Err(common::errors::MegaError::Other(format!(
-            "{WEBHOOK_SECRET_ENC_KEY_ENV} must decode to {} bytes",
+    let key: [u8; WEBHOOK_SECRET_KEY_LEN] = decoded_key.try_into().map_err(|_| {
+        common::errors::MegaError::Other(format!(
+            "{WEBHOOK_SECRET_ENC_KEY_ENV} must decode to exactly {} bytes",
             WEBHOOK_SECRET_KEY_LEN
-        )));
-    }
-
-    let mut key = [0u8; WEBHOOK_SECRET_KEY_LEN];
-    key.copy_from_slice(&decoded_key);
+        ))
+    })?;
     Ok(key)
 }
 

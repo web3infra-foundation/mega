@@ -227,6 +227,7 @@ impl ClStorage {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn new_cl(
         &self,
         path: &str,
@@ -242,6 +243,7 @@ impl ClStorage {
             .map(|res| res.link)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn new_cl_model(
         &self,
         path: &str,
