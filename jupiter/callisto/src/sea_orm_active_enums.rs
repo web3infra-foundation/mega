@@ -4,6 +4,50 @@ use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "actor_type_enum")]
+pub enum ActorTypeEnum {
+    #[sea_orm(string_value = "human")]
+    Human,
+    #[sea_orm(string_value = "bot")]
+    Bot,
+}
+#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "audit_action_enum")]
+pub enum AuditActionEnum {
+    #[sea_orm(string_value = "create")]
+    Create,
+    #[sea_orm(string_value = "update")]
+    Update,
+    #[sea_orm(string_value = "delete")]
+    Delete,
+    #[sea_orm(string_value = "enable")]
+    Enable,
+    #[sea_orm(string_value = "disable")]
+    Disable,
+    #[sea_orm(string_value = "install")]
+    Install,
+    #[sea_orm(string_value = "uninstall")]
+    Uninstall,
+    #[sea_orm(string_value = "generate")]
+    Generate,
+    #[sea_orm(string_value = "revoke")]
+    Revoke,
+    #[sea_orm(string_value = "assign")]
+    Assign,
+    #[sea_orm(string_value = "remove")]
+    Remove,
+    #[sea_orm(string_value = "access")]
+    Access,
+}
+#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "bot_status_enum")]
+pub enum BotStatusEnum {
+    #[sea_orm(string_value = "enabled")]
+    Enabled,
+    #[sea_orm(string_value = "disabled")]
+    Disabled,
+}
+#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "check_type_enum")]
 pub enum CheckTypeEnum {
     #[sea_orm(string_value = "gpg_signature")]
@@ -66,6 +110,30 @@ pub enum DiffSideEnum {
     Old,
 }
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[sea_orm(
+    rs_type = "String",
+    db_type = "Enum",
+    enum_name = "installation_bot_status_enum"
+)]
+pub enum InstallationBotStatusEnum {
+    #[sea_orm(string_value = "enabled")]
+    Enabled,
+    #[sea_orm(string_value = "disabled")]
+    Disabled,
+}
+#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[sea_orm(
+    rs_type = "String",
+    db_type = "Enum",
+    enum_name = "installation_target_type_enum"
+)]
+pub enum InstallationTargetTypeEnum {
+    #[sea_orm(string_value = "organization")]
+    Organization,
+    #[sea_orm(string_value = "repository")]
+    Repository,
+}
+#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "merge_status_enum")]
 pub enum MergeStatusEnum {
     #[sea_orm(string_value = "open")]
@@ -96,6 +164,20 @@ pub enum OrionTargetStatusEnum {
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "permission_enum")]
 pub enum PermissionEnum {
+    #[sea_orm(string_value = "read")]
+    Read,
+    #[sea_orm(string_value = "write")]
+    Write,
+    #[sea_orm(string_value = "admin")]
+    Admin,
+}
+#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[sea_orm(
+    rs_type = "String",
+    db_type = "Enum",
+    enum_name = "permission_scope_enum"
+)]
+pub enum PermissionScopeEnum {
     #[sea_orm(string_value = "read")]
     Read,
     #[sea_orm(string_value = "write")]
@@ -182,6 +264,22 @@ pub enum ReferenceTypeEnum {
 pub enum ResourceTypeEnum {
     #[sea_orm(string_value = "note")]
     Note,
+}
+#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "target_type_enum")]
+pub enum TargetTypeEnum {
+    #[sea_orm(string_value = "bot")]
+    Bot,
+    #[sea_orm(string_value = "bot_installation")]
+    BotInstallation,
+    #[sea_orm(string_value = "token")]
+    Token,
+    #[sea_orm(string_value = "repository")]
+    Repository,
+    #[sea_orm(string_value = "organization")]
+    Organization,
+    #[sea_orm(string_value = "user")]
+    User,
 }
 #[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[sea_orm(rs_type = "String", db_type = "Enum", enum_name = "thread_status_enum")]
