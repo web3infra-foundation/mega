@@ -19,7 +19,7 @@ use crate::{
     api::{
         MonoApiServiceState,
         api_common::group_permission::{
-            build_user_effective_permission_response, ensure_admin, parse_resource_context,
+            build_user_effective_permission_response, ensure_admin, resolve_resource_context,
         },
         error::ApiError,
         oauth::model::LoginUser,
@@ -393,7 +393,7 @@ async fn list_group_members(
         (status = 400, description = "Invalid request"),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden - admin only"),
-        (status = 404, description = "Group not found"),
+        (status = 404, description = "Resource or group not found"),
     ),
     tag = GROUP_PERMISSION_TAG
 )]
@@ -405,7 +405,7 @@ async fn set_resource_permissions(
 ) -> Result<Json<CommonResult<Vec<ResourcePermissionResponse>>>, ApiError> {
     ensure_admin(&state, &user).await?;
     let (resource_type, _, resource_id) =
-        parse_resource_context(resource_type.as_str(), &resource_id)?;
+        resolve_resource_context(&state, resource_type.as_str(), &resource_id).await?;
 
     let permissions = req
         .permissions
@@ -437,6 +437,7 @@ async fn set_resource_permissions(
         (status = 400, description = "Invalid request"),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden - admin only"),
+        (status = 404, description = "Resource not found"),
     ),
     tag = GROUP_PERMISSION_TAG
 )]
@@ -447,7 +448,7 @@ async fn get_resource_permissions(
 ) -> Result<Json<CommonResult<Vec<ResourcePermissionResponse>>>, ApiError> {
     ensure_admin(&state, &user).await?;
     let (resource_type, _, resource_id) =
-        parse_resource_context(resource_type.as_str(), &resource_id)?;
+        resolve_resource_context(&state, resource_type.as_str(), &resource_id).await?;
 
     let permissions = state
         .monorepo()
@@ -471,7 +472,7 @@ async fn get_resource_permissions(
         (status = 400, description = "Invalid request"),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden - admin only"),
-        (status = 404, description = "Group not found"),
+        (status = 404, description = "Resource or group not found"),
     ),
     tag = GROUP_PERMISSION_TAG
 )]
@@ -483,7 +484,7 @@ async fn update_resource_permissions(
 ) -> Result<Json<CommonResult<Vec<ResourcePermissionResponse>>>, ApiError> {
     ensure_admin(&state, &user).await?;
     let (resource_type, _, resource_id) =
-        parse_resource_context(resource_type.as_str(), &resource_id)?;
+        resolve_resource_context(&state, resource_type.as_str(), &resource_id).await?;
 
     let permissions = req
         .permissions
@@ -515,6 +516,7 @@ async fn update_resource_permissions(
         (status = 400, description = "Invalid request"),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden - admin only"),
+        (status = 404, description = "Resource not found"),
     ),
     tag = GROUP_PERMISSION_TAG
 )]
@@ -525,7 +527,7 @@ async fn delete_resource_permissions(
 ) -> Result<Json<CommonResult<DeletePermissionsResponse>>, ApiError> {
     ensure_admin(&state, &user).await?;
     let (resource_type, resource_type_value, resource_id) =
-        parse_resource_context(resource_type.as_str(), &resource_id)?;
+        resolve_resource_context(&state, resource_type.as_str(), &resource_id).await?;
 
     let deleted_count = state
         .monorepo()
@@ -583,6 +585,7 @@ async fn get_user_groups(
         (status = 400, description = "Invalid request"),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden - admin only"),
+        (status = 404, description = "Resource not found"),
     ),
     tag = GROUP_PERMISSION_TAG
 )]
@@ -593,7 +596,7 @@ async fn get_user_effective_permission(
 ) -> Result<Json<CommonResult<UserEffectivePermissionResponse>>, ApiError> {
     ensure_admin(&state, &user).await?;
     let (resource_type, resource_type_value, resource_id) =
-        parse_resource_context(resource_type.as_str(), &resource_id)?;
+        resolve_resource_context(&state, resource_type.as_str(), &resource_id).await?;
 
     let effective = state
         .monorepo()
