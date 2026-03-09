@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ConnectionTrait, DbErr, RuntimeErr, entity::prelude::*,
@@ -22,6 +24,32 @@ pub enum TargetState {
     Failed,
     #[sea_orm(string_value = "Interrupted")]
     Interrupted,
+}
+
+impl From<String> for TargetState {
+    fn from(s: String) -> Self {
+        match s.as_str() {
+            "Pending" => TargetState::Pending,
+            "Building" => TargetState::Building,
+            "Completed" => TargetState::Completed,
+            "Failed" => TargetState::Failed,
+            "Interrupted" => TargetState::Interrupted,
+            _ => TargetState::Pending, // Default to Pending for unknown states
+        }
+    }
+}
+
+impl Display for TargetState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            TargetState::Pending => "Pending",
+            TargetState::Building => "Building",
+            TargetState::Completed => "Completed",
+            TargetState::Failed => "Failed",
+            TargetState::Interrupted => "Interrupted",
+        };
+        write!(f, "{}", s)
+    }
 }
 
 /// Target DTO with a generic builds payload.

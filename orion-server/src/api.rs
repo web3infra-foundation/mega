@@ -48,7 +48,7 @@ use crate::{
     auto_retry::AutoRetryJudger,
     log::log_service::LogService,
     model::{
-        build_events::BuildEventDTO,
+        build_events::{BuildEvent, BuildEventDTO},
         build_targets::BuildTarget,
         builds,
         orion_tasks::{OrionTask, OrionTaskDTO},
@@ -143,6 +143,7 @@ pub fn routers() -> Router<AppState> {
             get(get_orion_client_status_by_id),
         )
         .route("/retry-build", post(build_retry_handler))
+        .route("/v2/task-handler", get(task_handler_v2))
         .route("/v2/health", get(health_check_handler))
         .route("/v2/task-retry/{id}", post(task_retry_handler))
         .route("/v2/task/{cl}", get(task_get_handler))
@@ -507,7 +508,6 @@ pub async fn target_logs_handler(
     }
 }
 
-#[allow(dead_code)]
 #[utoipa::path(
     post,
     path = "/v2/task",
@@ -778,7 +778,6 @@ async fn handle_immediate_task_dispatch_v2(
     return activate_worker(&build_info, &state.scheduler).await;
 }
 
-#[allow(dead_code)]
 async fn activate_worker(build_info: &BuildInfo, scheduler: &TaskScheduler) -> OrionBuildResult {
     // Create WS Message
     let msg = WSMessage::TaskBuild {
@@ -1181,6 +1180,170 @@ async fn process_message(
                     if let Some(mut build_info) = state.scheduler.active_builds.get_mut(&build_id) {
                         build_info.auto_retry_judger.judge_by_output(&output);
                     }
+                }
+                WSMessage::TaskBuildCompleteV2 {
+                    build_id,
+                    success,
+                    exit_code,
+                    message,
+                } => {
+                    // Handle build completion
+                    tracing::info!(
+                        "Build {build_id} completed by worker {current_worker_id} with exit code: {exit_code:?}"
+                    );
+
+                    // Get build information
+                    let (
+                        mut auto_retry_judger,
+                        mut retry_count,
+                        repo,
+                        changes,
+                        cl_link,
+                        task_id,
+                        _target_id,
+                        _target_path,
+                    ) = if let Some(build_info) = state.scheduler.active_builds.get(&build_id) {
+                        (
+                            build_info.auto_retry_judger.clone(),
+                            build_info.event_payload.retry_count,
+                            build_info.event_payload.repo.clone(),
+                            build_info.changes.clone(),
+                            build_info.event_payload.cl_link.clone(),
+                            build_info.event_payload.task_id,
+                            build_info.target_id,
+                            build_info.target_path.clone(),
+                        )
+                    } else {
+                        tracing::error!("Not found build {build_id}");
+                        return ControlFlow::Continue(());
+                    };
+
+                    // Judge auto retry by exit code
+                    auto_retry_judger.judge_by_exit_code(exit_code.unwrap_or(0));
+
+                    let can_auto_retry = auto_retry_judger.get_can_auto_retry();
+
+                    if can_auto_retry && retry_count < RETRY_COUNT_MAX {
+                        tracing::info!(
+                            "Build {build_id} will retry, current retry count: {retry_count}"
+                        );
+
+                        // Add retry count
+                        retry_count += 1;
+
+                        // Update build information
+                        if let Some(mut build_info) =
+                            state.scheduler.active_builds.get_mut(&build_id)
+                        {
+                            build_info.event_payload.retry_count = retry_count;
+                            // New AutoRetryJudger
+                            build_info.auto_retry_judger = AutoRetryJudger::new();
+                        }
+
+                        // Update database
+                        let _ = builds::Entity::update_many()
+                            .set(builds::ActiveModel {
+                                retry_count: Set(retry_count),
+                                ..Default::default()
+                            })
+                            .filter(builds::Column::Id.eq(build_id.parse::<uuid::Uuid>().unwrap()))
+                            .exec(&state.conn)
+                            .await;
+
+                        // Send task to this worker
+                        let msg = WSMessage::TaskBuild {
+                            build_id: build_id.clone(),
+                            repo: repo.clone(),
+                            cl_link,
+                            changes,
+                        };
+                        if let Some(worker) = state.scheduler.workers.get_mut(current_worker_id)
+                            && worker.sender.send(msg).is_ok()
+                        {
+                            tracing::info!(
+                                "Retry build: {}, worker: {}",
+                                build_id,
+                                current_worker_id
+                            );
+                            return ControlFlow::Continue(());
+                        }
+                    }
+
+                    // Send final log event
+                    let log_event = LogEvent {
+                        task_id: task_id.to_string(),
+                        repo_name: LogService::last_segment(&repo).to_string(),
+                        build_id: build_id.to_string(),
+                        line: String::from(""),
+                        is_end: true,
+                    };
+                    state.log_service.publish(log_event);
+
+                    // Remove from active
+                    state.scheduler.active_builds.remove(&build_id);
+
+                    // TODO: update to jupiter's build_event's model
+                    if BuildEvent::update_build_complete_result(
+                        &build_id,
+                        exit_code,
+                        success,
+                        &message,
+                        &state.conn,
+                    )
+                    .await
+                    .is_err()
+                    {
+                        tracing::error!(
+                            "Failed to update build complete result for build: {}",
+                            build_id
+                        );
+                    }
+
+                    // Update target state
+                    let target_state = match (success, exit_code) {
+                        (true, Some(0)) => TargetState::Completed,
+                        (_, None) => TargetState::Interrupted,
+                        _ => TargetState::Failed,
+                    };
+                    let mut _error_summary = None;
+                    if matches!(target_state, TargetState::Failed) {
+                        let repo_segment = LogService::last_segment(&repo);
+                        if let Ok(log_content) = state
+                            .log_service
+                            .read_full_log(
+                                &task_id.to_string(),
+                                &repo_segment,
+                                &build_id.to_string(),
+                            )
+                            .await
+                        {
+                            _error_summary =
+                                find_caused_by_next_line_in_content(&log_content).await;
+                        }
+                    }
+
+                    if let Err(e) =
+                        BuildTarget::update_build_targets(target_state, &build_id, &state.conn)
+                            .await
+                    {
+                        tracing::error!(
+                            "unable to update build targets for build {}: {}",
+                            build_id,
+                            e,
+                        )
+                    }
+
+                    // Mark the worker as idle or error depending on whether the task succeeds.
+                    if let Some(mut worker) = state.scheduler.workers.get_mut(current_worker_id) {
+                        worker.status = if success {
+                            WorkerStatus::Idle
+                        } else {
+                            WorkerStatus::Error(message)
+                        };
+                    }
+
+                    // Notify scheduler to process queued tasks
+                    state.scheduler.notify_task_available();
                 }
                 WSMessage::TaskBuildComplete {
                     build_id,

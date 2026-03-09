@@ -59,6 +59,14 @@ pub enum WSMessage {
         exit_code: Option<i32>,
         message: String,
     },
+
+    TaskBuildCompleteV2 {
+        build_id: String,
+        success: bool,
+        exit_code: Option<i32>,
+        message: String,
+    },
+
     /// Batch of target build status updates for real-time build progress tracking.
     TargetBuildStatusBatch {
         events: Vec<WSTargetBuildStatusEvent>,
