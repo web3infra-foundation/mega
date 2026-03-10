@@ -18,10 +18,9 @@ on:
 
 env:
   REGISTRY_ALIAS: m8q5m4u3
-  REPOSITORY: mega
+  REPOSITORY: mega/mono-engine
   GCP_PROJECT_ID: infra-20250121-20260121-0235
-  GCP_REPOSITORY: mega
-  IMAGE_TAG_BASE: mono-0.1.0-pre-release
+  IMAGE_TAG_BASE: latest
 
 # Using AWS access key for authentication
 permissions:
@@ -36,9 +35,6 @@ jobs:
   build-push-single-arch:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    permissions:
-      id-token: write
-      contents: read
 
     steps:
       - uses: actions/checkout@v4
@@ -88,12 +84,14 @@ jobs:
           IMAGE_TAG="${IMAGE_TAG_BASE}-${ARCH_SUFFIX}"
 
           ECR_IMAGE="$ECR_REGISTRY/${{ env.REGISTRY_ALIAS }}/${{ env.REPOSITORY }}:$IMAGE_TAG"
-          GCP_IMAGE="us-central1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_REPOSITORY }}/${{ env.REPOSITORY }}:$IMAGE_TAG"
+          GCP_IMAGE="us-central1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}:$IMAGE_TAG"
 
           echo "ECR_IMAGE=$ECR_IMAGE"
           echo "GCP_IMAGE=$GCP_IMAGE"
 
           docker buildx build \
+            --cache-from type=gha \
+            --cache-to type=gha,mode=max \
             --provenance=false \
             --sbom=false \
             -f ./mono/Dockerfile \
@@ -157,7 +155,7 @@ jobs:
 
   deploy-gcp:
     needs: manifest
-    # if: ${{ github.repository == 'web3infra-foundation/mega' }}
+    if: ${{ github.repository == 'web3infra-foundation/mega' }}
     runs-on: ubuntu-latest
     steps:
       - name: Auth to GCP

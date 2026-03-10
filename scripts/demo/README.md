@@ -118,10 +118,9 @@ set TARGET_PLATFORMS=linux/amd64
 
 | Image Name | Dockerfile Path | Build Context | Tag |
 |------------|----------------|---------------|-----|
-| `mono-engine` | `mono/Dockerfile` | `.` (repo root) | `mono-0.1.0-pre-release` |
-| `orion-server` | `orion-server/Dockerfile` | `.` (repo root) | `orion-server-0.1.0-pre-release` |
-| `orion-client` | `orion/Dockerfile` | `.` (repo root) | `orion-client-0.1.0-pre-release` |
-| `mega-ui` | `moon/apps/web/Dockerfile` | `moon` | `mega-ui-demo-0.1.0-pre-release` |
+| `mega/mono-engine` | `mono/Dockerfile` | `.` (repo root) | `latest` |
+| `mega/orion-server` | `orion-server/Dockerfile` | `.` (repo root) | `latest` |
+| `mega/mega-ui` | `moon/apps/web/Dockerfile` | `moon` | `demo-latest` |
 
 ## Image Tags
 
@@ -131,12 +130,12 @@ Images are tagged with architecture suffixes:
 
 Full image names follow this pattern:
 ```
-public.ecr.aws/m8q5m4u3/mega:{image-tag}-{arch}
+public.ecr.aws/m8q5m4u3/mega/project/{image-tag}-{arch}
 ```
 
 Example:
 ```
-public.ecr.aws/m8q5m4u3/mega:mono-0.1.0-pre-release-arm64
+ppublic.ecr.aws/m8q5m4u3/mega/mono-engine:latest-arm64
 ```
 
 ## Configuration

@@ -9,10 +9,9 @@ on:
 
 env:
   REGISTRY_ALIAS: m8q5m4u3
-  REPOSITORY: mega
-  IMAGE_TAG_BASE: orion-server-0.1.0-pre-release
+  REPOSITORY: mega/orion-server
+  IMAGE_TAG_BASE: latest
   GCP_PROJECT_ID: infra-20250121-20260121-0235
-  GCP_REPOSITORY: mega
 
 permissions:
   id-token: write
@@ -33,7 +32,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -78,12 +76,14 @@ jobs:
           ARCH_SUFFIX="amd64"
 
           AWS_IMAGE_BASE="$AWS_REGISTRY/${{ env.REGISTRY_ALIAS }}/${{ env.REPOSITORY }}"
-          GCP_IMAGE_BASE="us-central1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_REPOSITORY }}/${{ env.REPOSITORY }}"
+          GCP_IMAGE_BASE="us-central1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}"
 
           TAG="${{ env.IMAGE_TAG_BASE }}-$ARCH_SUFFIX"
 
           docker buildx build \
             --platform "$PLATFORM" \
+            --cache-from type=gha \
+            --cache-to type=gha,mode=max \
             --provenance=false \
             --sbom=false \
             -f orion-server/Dockerfile \
@@ -147,7 +147,7 @@ jobs:
 
   deploy-gcp:
     needs: manifest
-    # if: ${{ github.repository == 'web3infra-foundation/mega' }}
+    if: ${{ github.repository == 'web3infra-foundation/mega' }}
     runs-on: ubuntu-latest
     steps:
       - name: Auth to GCP
