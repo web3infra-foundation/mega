@@ -23,14 +23,14 @@
 //! cargo test -p mono --test cl_merge_integration -- --ignored --nocapture
 //!
 //! # Override the default ECR image (optional)
-//! MEGA_ECR_IMAGE=public.ecr.aws/m8q5m4u3/mega:mono-0.1.0-pre-release-amd64 \
+//! MEGA_ECR_IMAGE=public.ecr.aws/m8q5m4u3/mega/mono-engine:latest-amd64 \
 //!   cargo test -p mono --test cl_merge_integration -- --ignored --nocapture
 //! ```
 //!
 //! ## Test Design
 //!
 //! This test uses Docker containers for PostgreSQL and Redis inside the VM,
-//! and extracts the mono binary from the ECR image (mono-0.1.0-pre-release-amd64).
+//! and extracts the mono binary from the ECR image (mega/mono-engine:latest-amd64).
 //! This provides:
 //! - Faster startup time compared to apt-get installation
 //! - Easier configuration and cleanup

@@ -101,12 +101,12 @@ services:
   # ---------------------------------------------------------------------------
   # Mega / Mono Engine (Rust backend)
   # ---------------------------------------------------------------------------
-  # Use pre-built image from ECR Public: public.ecr.aws/m8q5m4u3/mega:mono-0.1.0-pre-release
+  # Use pre-built image from ECR Public: public.ecr.aws/m8q5m4u3/mega/mono-engine:latest
   # Or use locally built image: mega:mono-engine-latest (after building with docker build)
   # Set MEGA_ENGINE_IMAGE environment variable to override
   # Priority: MEGA_ENGINE_IMAGE env var > local build (mega:mono-engine-latest) > ECR image
   mega:
-    image: ${MEGA_ENGINE_IMAGE:-public.ecr.aws/m8q5m4u3/mega:mono-0.1.0-pre-release}
+    image: ${MEGA_ENGINE_IMAGE:-public.ecr.aws/m8q5m4u3/mega/mono-engine:latest}
     container_name: mega-demo-backend
     depends_on:
       postgres:
@@ -207,12 +207,12 @@ services:
   # ---------------------------------------------------------------------------
   # Mega UI (Next.js)
   # ---------------------------------------------------------------------------
-  # Use pre-built image from ECR Public: public.ecr.aws/m8q5m4u3/mega:mega-ui-{env}-0.1.0-pre-release
+  # Use pre-built image from ECR Public: public.ecr.aws/m8q5m4u3/mega/mega-ui:{env}-latest
   # Available environments: staging, openatom, gitmono
   # Set MEGA_UI_IMAGE environment variable to use ECR image, or tag the ECR image as mega:mono-ui-latest-release
   # Default uses local tag (mega:mono-ui-latest-release) if ECR image is tagged locally
   mega_ui:
-    image: ${MEGA_UI_IMAGE:-public.ecr.aws/m8q5m4u3/mega:mega-ui-demo-0.1.0-pre-release}
+    image: ${MEGA_UI_IMAGE:-public.ecr.aws/m8q5m4u3/mega/mega-ui:demo-latest}
     container_name: mega-demo-ui
     depends_on:
       mega:
@@ -244,7 +244,7 @@ services:
     #   build:
     #     context: ..
     #     dockerfile: orion-server/Dockerfile
-    image: ${ORION_SERVER_IMAGE:-public.ecr.aws/m8q5m4u3/mega:orion-server-0.1.0-pre-release}
+    image: ${ORION_SERVER_IMAGE:-public.ecr.aws/m8q5m4u3/mega/orion-server:latest}
     container_name: mega-demo-orion-server
     depends_on:
       postgres:
@@ -276,41 +276,12 @@ services:
           - orion.gitmono.local
 
   # ---------------------------------------------------------------------------
-  # Orion Build Client / Worker (based on orion-client image)
-  # ---------------------------------------------------------------------------
-  orion_build_client:
-    image: ${ORION_CLIENT_IMAGE:-public.ecr.aws/m8q5m4u3/mega:orion-client-0.1.0-pre-release}
-    container_name: mega-demo-orion-worker
-    command: orion
-    # privileged mode allows nested container builds (Scorpio) inside the worker.
-    privileged: true
-    depends_on:
-      orion_server:
-        condition: service_started
-    environment:
-      SERVER_WS: ${ORION_WORKER_SERVER_WS:-ws://orion_server:8004/ws}
-      ORION_WORKER_ID: ${ORION_WORKER_ID:-}
-      BUCK_PROJECT_ROOT: ${BUCK_PROJECT_ROOT:-/workspace}
-      BUILD_TMP: ${BUILD_TMP:-/tmp/orion-builds}
-      SCORPIO_API_BASE_URL: ${SCORPIO_API_BASE_URL:-http://127.0.0.1:2725}
-      ORION_WORKER_START_SCORPIO: ${ORION_WORKER_START_SCORPIO:-true}
-      SCORPIO_BASE_URL: ${SCORPIO_BASE_URL:-http://mega:8000}
-      SCORPIO_LFS_URL: ${SCORPIO_LFS_URL:-http://mega:8000}
-      SCORPIO_STORE_PATH: /data/scorpio/store
-      SCORPIO_WORKSPACE: /workspace/mount
-      RUST_LOG: ${RUST_LOG:-info}
-    volumes:
-      - orion-worker-scorpio-data:/data/scorpio
-      - orion-worker-workspace:/workspace
-    restart: unless-stopped
-
-  # ---------------------------------------------------------------------------
   # Campsite API (Ruby)
   # ---------------------------------------------------------------------------
-  # Use pre-built image from ECR Public: public.ecr.aws/m8q5m4u3/mega:campsite-0.1.0-pre-release
+  # Use pre-built image from ECR Public: public.ecr.aws/m8q5m4u3/mega/campsite-api:latest
   # Note: Campsite API requires MySQL database, not PostgreSQL
   campsite_api:
-    image: ${CAMPSITE_API_IMAGE:-public.ecr.aws/m8q5m4u3/mega:campsite-0.1.0-pre-release}
+    image: ${CAMPSITE_API_IMAGE:-public.ecr.aws/m8q5m4u3/mega/campsite-api:latest}
     container_name: mega-demo-campsite-api
     depends_on:
       mysql:
@@ -377,5 +348,3 @@ volumes:
   rustfs-data:
   mega-data:
   orion-logs:
-  orion-worker-scorpio-data:
-  orion-worker-workspace:

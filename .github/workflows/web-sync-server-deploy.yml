@@ -10,9 +10,6 @@ on:
       - 'moon/packages/config/**'
       - 'moon/packages/types/**'
 
-env:
-  TIPTAP_PRIVATE_REGISTRY_KEY: ${{ secrets.TIPTAP_PRIVATE_REGISTRY_KEY }}
-  AWS_ECS_CLUSTER_NAME: ${{ secrets.AWS_ECS_CLUSTER_NAME }}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -20,14 +17,11 @@ concurrency:
 
 jobs:
   web-sync-server-deploy:
-    if: ${{ github.repository == 'web3infra-foundation/mega' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.base.ref }}
 
       - uses: actions/setup-node@v4
         with:
@@ -51,8 +45,8 @@ jobs:
         env:
           REGISTRY: ${{ steps.login-ecr-public.outputs.registry }}
           REGISTRY_ALIAS: m8q5m4u3
-          REPOSITORY: mega
-          IMAGE_TAG: mega-web-sync-server-0.1.0-pre-release
+          REPOSITORY: mega/web-sync-server
+          IMAGE_TAG: latest
         run: |
           docker build \
             -f apps/sync-server/Dockerfile \
@@ -62,7 +56,7 @@ jobs:
       - name: Force ECS redeploy
         run: |
           aws ecs update-service \
-            --cluster ${{ secrets.AWS_ECS_CLUSTER_NAME }} \
+            --cluster gitmega-com \
             --service mega-web-sync-server-dev-service-v3hdlyk8 \
             --force-new-deployment
         env:

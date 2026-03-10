@@ -11,10 +11,9 @@ on:
 env:
   TIPTAP_PRIVATE_REGISTRY_KEY: ${{ secrets.TIPTAP_PRIVATE_REGISTRY_KEY }}
   REGISTRY_ALIAS: m8q5m4u3
-  REPOSITORY: mega
+  REPOSITORY: mega/mega-ui
   GCP_PROJECT_ID: infra-20250121-20260121-0235
-  GCP_REPOSITORY: mega
-  IMAGE_VERSION: 0.1.0-pre-release
+  IMAGE_VERSION: latest
 
 permissions:
   id-token: write
@@ -83,10 +82,10 @@ jobs:
         run: |
           set -euo pipefail
           ARCH_SUFFIX="amd64"
-          IMAGE_TAG="mega-ui-${{ matrix.env_name }}-${IMAGE_VERSION}-${ARCH_SUFFIX}"
+          IMAGE_TAG="${{ matrix.env_name }}-${IMAGE_VERSION}-${ARCH_SUFFIX}"
 
           if [ "${{ matrix.env_name }}" = "buck2hub" ]; then
-            IMAGE_BASE="us-central1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCP_REPOSITORY }}/${{ env.REPOSITORY }}"
+            IMAGE_BASE="us-central1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}"
           else
             IMAGE_BASE="$REGISTRY/${{ env.REGISTRY_ALIAS }}/${{ env.REPOSITORY }}"
           fi
@@ -107,7 +106,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        env_name: [demo, staging, gitmono, buck2hub]
+        env_name: [demo, staging, gitmono]
     permissions:
       contents: read
     steps:
@@ -131,7 +130,7 @@ jobs:
           set -euo pipefail
 
           IMAGE_BASE="$REGISTRY/${{ env.REGISTRY_ALIAS }}/${{ env.REPOSITORY }}"
-          TAG="mega-ui-${{ matrix.env_name }}-0.1.0-pre-release"
+          TAG="${{ matrix.env_name }}-latest"
 
           if [ "${{ matrix.env_name }}" = "demo" ]; then
             echo "Creating multi-arch manifest for demo (amd64 + arm64)"

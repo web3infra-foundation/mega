@@ -89,10 +89,9 @@ The main configurable environment variables include:
   - `MYSQL_DATABASE`: Campsite database name (default: `campsite`, uses MySQL)
 
 - **Service Images**:
-  - `MEGA_ENGINE_IMAGE`: Mega backend image (default: `public.ecr.aws/m8q5m4u3/mega:mono-0.1.0-pre-release`)
-  - `MEGA_UI_IMAGE`: Mega UI image (default: `public.ecr.aws/m8q5m4u3/mega:mega-ui-demo-0.1.0-pre-release`)
-  - `ORION_CLIENT_IMAGE`: Orion Build Client image (default: `public.ecr.aws/m8q5m4u3/mega:orion-client-0.1.0-pre-release`)
-  - `CAMPSITE_API_IMAGE`: Campsite API image (default: `public.ecr.aws/m8q5m4u3/mega:campsite-0.1.0-pre-release`)
+  - `MEGA_ENGINE_IMAGE`: Mega backend image (default: `public.ecr.aws/m8q5m4u3/mega/mono-engine:latest`)
+  - `MEGA_UI_IMAGE`: Mega UI image (default: `public.ecr.aws/m8q5m4u3/mega/mega-ui:demo-latest`)
+  - `CAMPSITE_API_IMAGE`: Campsite API image (default: `public.ecr.aws/m8q5m4u3/mega/campsite-api:latest`)
   - `CAMPSITE_RUN_MIGRATIONS`: Whether to run database migrations when the container starts; `1` (default) to run, can be changed to `0` after the first successful migration to skip and speed up subsequent starts.
 
 - **RustFS Configuration**:
@@ -530,7 +529,7 @@ The demo environment includes the following services:
   - `mega_ui`: Mega Web UI (Next.js)
   - `orion_server`: Orion build server (Rust)
   - `orion_build_client`: Orion build client (based on the orion-client image)
-  - `campsite_api`: Campsite API (Ruby/Rails, built locally by default; if you have the encrypted development credentials configured you can pull the pre-built image directly via `CAMPSITE_API_IMAGE=public.ecr.aws/m8q5m4u3/mega:campsite-0.1.0-pre-release`)
+  - `campsite_api`: Campsite API (Ruby/Rails, built locally by default; if you have the encrypted development credentials configured you can pull the pre-built image directly via `CAMPSITE_API_IMAGE=public.ecr.aws/m8q5m4u3/mega/campsite-api:latest`)
 
 For a detailed architecture diagram and dependency list, see the [Mega / Orion Demo architecture design document](./mega-orion-demo-compose-arch.md).
 

@@ -1,0 +1,1 @@
+../demo/init-rustfs-bucket.sh
