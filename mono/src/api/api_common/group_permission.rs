@@ -82,18 +82,18 @@ async fn resolve_resource_id(
             let note = state
                 .note_stg()
                 .get_note_by_public_id(normalized_resource_id)
-                .await?
-                .ok_or_else(|| {
+                .await?;
+            match note {
+                Some(note) => Ok(note.public_id),
+                None => {
                     tracing::warn!(
                         resource_id = normalized_resource_id,
-                        "note resource not found"
+                        "note resource missing in mono notes table; falling back to raw public_id"
                     );
-                    ApiError::not_found(anyhow!(
-                        "Note not found for public_id: {}",
-                        normalized_resource_id
-                    ))
-                })?;
-            Ok(note.public_id)
+                    // TODO: Remove this fallback when note resources are fully migrated into mono notes.
+                    Ok(normalized_resource_id.to_string())
+                }
+            }
         }
     }
 }
