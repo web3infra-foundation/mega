@@ -10,7 +10,7 @@ use crate::{
     api::{
         MonoApiServiceState,
         api_common::group_permission::{
-            build_user_effective_permission_response, parse_resource_context,
+            build_user_effective_permission_response, resolve_resource_context,
         },
         error::ApiError,
         oauth::model::LoginUser,
@@ -36,6 +36,7 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
         (status = 200, body = CommonResult<UserEffectivePermissionResponse>),
         (status = 400, description = "Invalid resource_type or resource_id"),
         (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Resource not found"),
     ),
     tag = GROUP_PERMISSION_TAG
 )]
@@ -47,7 +48,7 @@ async fn get_my_permission(
     let actor = user.username;
 
     let (db_resource_type, resource_type_value, normalized_id) =
-        parse_resource_context(&resource_type, &resource_id)?;
+        resolve_resource_context(&state, &resource_type, &resource_id).await?;
 
     let effective = state
         .monorepo()

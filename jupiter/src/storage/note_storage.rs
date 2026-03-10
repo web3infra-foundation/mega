@@ -2,7 +2,9 @@ use std::ops::Deref;
 
 use callisto::notes;
 use common::errors::MegaError;
-use sea_orm::{ActiveModelTrait, ActiveValue::Set, EntityTrait, IntoActiveModel};
+use sea_orm::{
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter,
+};
 
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
 
@@ -21,6 +23,17 @@ impl Deref for NoteStorage {
 impl NoteStorage {
     pub async fn get_note_by_id(&self, id: i64) -> Result<Option<notes::Model>, MegaError> {
         let model = notes::Entity::find_by_id(id)
+            .one(self.get_connection())
+            .await?;
+        Ok(model)
+    }
+
+    pub async fn get_note_by_public_id(
+        &self,
+        public_id: &str,
+    ) -> Result<Option<notes::Model>, MegaError> {
+        let model = notes::Entity::find()
+            .filter(notes::Column::PublicId.eq(public_id))
             .one(self.get_connection())
             .await?;
         Ok(model)
