@@ -428,6 +428,7 @@ pub const LFS_TAG: &str = "Git LFS";
 pub const CODE_REVIEW_TAG: &str = "Code Review";
 pub const BUILD_TRIGGER_TAG: &str = "Build Trigger";
 pub const GROUP_PERMISSION_TAG: &str = "Group Permission Management";
+pub const WEBHOOK_TAG: &str = "Webhook";
 #[derive(OpenApi)]
 #[openapi()]
 struct ApiDoc;

@@ -91,6 +91,9 @@ mod m20260228_100254_change_build_target_and_add_index_for_build_event_start_at;
 mod m20260302_082846_add_cla_sign_status;
 mod m20260304_013434_seed_cla_sign_check_config;
 mod m20260306_121829_create_bots_related_table;
+mod m20260308_191753_create_webhook;
+mod m20260308_220000_add_base_branch_to_mega_cl;
+mod m20260308_230000_normalize_webhook_event_types;
 
 /// Creates a primary key column definition with big integer type.
 ///
@@ -172,6 +175,9 @@ impl MigratorTrait for Migrator {
             Box::new(m20260302_082846_add_cla_sign_status::Migration),
             Box::new(m20260304_013434_seed_cla_sign_check_config::Migration),
             Box::new(m20260306_121829_create_bots_related_table::Migration),
+            Box::new(m20260308_191753_create_webhook::Migration),
+            Box::new(m20260308_220000_add_base_branch_to_mega_cl::Migration),
+            Box::new(m20260308_230000_normalize_webhook_event_types::Migration),
         ]
     }
 }

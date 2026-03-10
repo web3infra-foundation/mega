@@ -14,6 +14,7 @@ use crate::{
         code_review_service::CodeReviewService, git_service::GitService,
         import_service::ImportService, issue_service::IssueService, lfs_service::LfsService,
         merge_queue_service::MergeQueueService, mono_service::MonoService,
+        webhook_service::WebhookService,
     },
     storage::{
         AppService, Storage,
@@ -39,6 +40,7 @@ use crate::{
         note_storage::NoteStorage,
         user_storage::UserStorage,
         vault_storage::VaultStorage,
+        webhook_storage::WebhookStorage,
     },
 };
 
@@ -86,9 +88,12 @@ pub async fn test_storage(temp_dir: impl AsRef<Path>) -> Storage {
         code_review_thread_storage: CodeReviewThreadStorage { base: base.clone() },
         build_trigger_storage: BuildTriggerStorage { base: base.clone() },
         bots_storage: BotsStorage { base: base.clone() },
+        webhook_storage: WebhookStorage { base: base.clone() },
     };
 
     apply_migrations(&connection, true).await.unwrap();
+
+    let webhook_service = WebhookService::mock(svc.webhook_storage.clone());
 
     Storage {
         app_service: Arc::new(svc),
@@ -103,5 +108,6 @@ pub async fn test_storage(temp_dir: impl AsRef<Path>) -> Storage {
         import_service: ImportService::mock(),
         lfs_service: LfsService::mock(),
         code_review_service: CodeReviewService::mock(),
+        webhook_service,
     }
 }

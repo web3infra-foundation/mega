@@ -18,3 +18,4 @@ pub mod repo_router;
 pub mod reviewer_router;
 pub mod tag_router;
 pub mod user_router;
+pub mod webhook_router;

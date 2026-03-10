@@ -50,6 +50,7 @@ pub struct MonoRepo {
     pub storage: Storage,
     pub git_object_cache: Arc<GitObjectCache>,
     pub path: PathBuf,
+    pub base_branch: String,
     pub from_hash: String,
     pub to_hash: String,
     // current_commit only exists when an unpack operation occurs.
@@ -155,6 +156,7 @@ impl RepoHandler for MonoRepo {
         let mono_api_service = self.into();
         let editor = OnpushCodeEdit::from(
             self.path.to_str().unwrap(),
+            &self.base_branch,
             &self.from_hash,
             &mono_api_service,
         );

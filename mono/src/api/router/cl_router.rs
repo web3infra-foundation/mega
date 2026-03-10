@@ -14,7 +14,7 @@ use ceres::model::{
     label::LabelUpdatePayload,
 };
 use common::errors::MegaError;
-use jupiter::service::cl_service::CLService;
+use jupiter::service::{cl_service::CLService, webhook_service::WebhookEvent};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{
@@ -73,7 +73,7 @@ async fn reopen_cl(
 
     if model.status == MergeStatusEnum::Closed {
         let link = model.link.clone();
-        state.cl_stg().reopen_cl(model).await?;
+        state.cl_stg().reopen_cl(model.clone()).await?;
         state
             .conv_stg()
             .add_conversation(
@@ -84,6 +84,14 @@ async fn reopen_cl(
             )
             .await
             .unwrap();
+        let updated_model = state
+            .cl_stg()
+            .get_cl(&link)
+            .await?
+            .ok_or(MegaError::Other("Not Found".to_string()))?;
+        state
+            .webhook_svc()
+            .dispatch(WebhookEvent::ClReopened, &updated_model);
     }
     Ok(Json(CommonResult::success(None)))
 }
@@ -110,7 +118,7 @@ async fn close_cl(
 
     if matches!(model.status, MergeStatusEnum::Open | MergeStatusEnum::Draft) {
         let link = model.link.clone();
-        state.cl_stg().close_cl(model).await?;
+        state.cl_stg().close_cl(model.clone()).await?;
         state
             .conv_stg()
             .add_conversation(
@@ -120,6 +128,14 @@ async fn close_cl(
                 ConvTypeEnum::Closed,
             )
             .await?;
+        let updated_model = state
+            .cl_stg()
+            .get_cl(&link)
+            .await?
+            .ok_or(MegaError::Other("Not Found".to_string()))?;
+        state
+            .webhook_svc()
+            .dispatch(WebhookEvent::ClClosed, &updated_model);
     }
     Ok(Json(CommonResult::success(None)))
 }
@@ -151,7 +167,18 @@ async fn merge(
     }
 
     if model.status == MergeStatusEnum::Open {
-        state.monorepo().merge_cl(&user.username, model).await?;
+        state
+            .monorepo()
+            .merge_cl(&user.username, model.clone())
+            .await?;
+        let updated_model = state
+            .cl_stg()
+            .get_cl(&link)
+            .await?
+            .ok_or(MegaError::Other("Not Found".to_string()))?;
+        state
+            .webhook_svc()
+            .dispatch(WebhookEvent::ClMerged, &updated_model);
     }
     Ok(Json(CommonResult::success(None)))
 }
@@ -185,7 +212,18 @@ async fn merge_no_auth(
 
     // No authentication required - using default system user
     let default_username = "system";
-    state.monorepo().merge_cl(default_username, model).await?;
+    state
+        .monorepo()
+        .merge_cl(default_username, model.clone())
+        .await?;
+    let updated_model = state
+        .cl_stg()
+        .get_cl(&link)
+        .await?
+        .ok_or(MegaError::Other("CL Not Found".to_string()))?;
+    state
+        .webhook_svc()
+        .dispatch(WebhookEvent::ClMerged, &updated_model);
 
     Ok(Json(CommonResult::success(Some(
         "Merge completed successfully".to_string(),
@@ -372,6 +410,11 @@ async fn update_branch(
         .monorepo()
         .update_branch(&user.username, &link)
         .await?;
+    if let Ok(Some(cl_model)) = state.cl_stg().get_cl(&link).await {
+        state
+            .webhook_svc()
+            .dispatch(WebhookEvent::ClUpdated, &cl_model);
+    }
     Ok(Json(CommonResult::success(Some(new_head))))
 }
 
@@ -455,6 +498,13 @@ async fn save_comment(
             conv_type,
         )
         .await?;
+
+    if let Ok(Some(cl_model)) = state.cl_stg().get_cl(&link).await {
+        state
+            .webhook_svc()
+            .dispatch(WebhookEvent::ClCommentCreated, &cl_model);
+    }
+
     api_common::comment::check_comment_ref(user, state, &payload.content, &link).await
 }
 
@@ -478,6 +528,11 @@ async fn edit_title(
     Json(payload): Json<ContentPayload>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     state.cl_stg().edit_title(&link, &payload.content).await?;
+    if let Ok(Some(cl_model)) = state.cl_stg().get_cl(&link).await {
+        state
+            .webhook_svc()
+            .dispatch(WebhookEvent::ClUpdated, &cl_model);
+    }
     Ok(Json(CommonResult::success(None)))
 }
 
@@ -552,7 +607,10 @@ async fn update_cl_status(
     // Only allow Draft ↔ Open transitions
     match (&model.status, &new_status) {
         (MergeStatusEnum::Draft, MergeStatusEnum::Open) => {
-            state.cl_stg().update_cl_status(model, new_status).await?;
+            state
+                .cl_stg()
+                .update_cl_status(model.clone(), new_status.clone())
+                .await?;
             state
                 .conv_stg()
                 .add_conversation(
@@ -562,9 +620,20 @@ async fn update_cl_status(
                     ConvTypeEnum::Review,
                 )
                 .await?;
+            let updated_model = state
+                .cl_stg()
+                .get_cl(&link)
+                .await?
+                .ok_or(MegaError::Other("Not Found".to_string()))?;
+            state
+                .webhook_svc()
+                .dispatch(WebhookEvent::ClCreated, &updated_model);
         }
         (MergeStatusEnum::Open, MergeStatusEnum::Draft) => {
-            state.cl_stg().update_cl_status(model, new_status).await?;
+            state
+                .cl_stg()
+                .update_cl_status(model.clone(), new_status.clone())
+                .await?;
             state
                 .conv_stg()
                 .add_conversation(
@@ -574,6 +643,14 @@ async fn update_cl_status(
                     ConvTypeEnum::Draft,
                 )
                 .await?;
+            let updated_model = state
+                .cl_stg()
+                .get_cl(&link)
+                .await?
+                .ok_or(MegaError::Other("Not Found".to_string()))?;
+            state
+                .webhook_svc()
+                .dispatch(WebhookEvent::ClUpdated, &updated_model);
         }
         _ => {
             return Err(ApiError::from(MegaError::Other(

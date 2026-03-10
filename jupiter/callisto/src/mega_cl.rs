@@ -17,6 +17,7 @@ pub struct Model {
     pub status: MergeStatusEnum,
     #[sea_orm(column_type = "Text")]
     pub path: String,
+    pub base_branch: String,
     pub from_hash: String,
     pub to_hash: String,
     pub created_at: DateTime,
