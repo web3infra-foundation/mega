@@ -88,10 +88,10 @@ get_image_config() {
 
 get_image_tag() {
     case "$1" in
-        "mono-engine") echo "mono-0.1.0-pre-release" ;;
-        "mega-ui") echo "mega-ui-demo-0.1.0-pre-release" ;;
-        "orion-server") echo "orion-server-0.1.0-pre-release" ;;
-        "orion-client") echo "orion-client-0.1.0-pre-release" ;;
+        "mono-engine") echo "latest" ;;
+        "mega-ui") echo "demo-latest" ;;
+        "orion-server") echo "latest" ;;
+        "orion-client") echo "latest" ;;
     esac
 }
 
@@ -261,7 +261,7 @@ build_and_push() {
         exit 1
     fi
     local image_tag_with_arch="${image_tag}-${arch_suffix}"
-    local image_base="${REGISTRY}/${REGISTRY_ALIAS}/${REPOSITORY}"
+    local image_repo="${REGISTRY}/${REGISTRY_ALIAS}/${REPOSITORY}/${image_name}"
     local cache_dir="${REPO_ROOT}/.buildx-cache/${image_name}-${arch_suffix}"
     
     # Verify paths exist (use absolute paths)
@@ -310,13 +310,13 @@ build_and_push() {
     # Only check registry cache if we're pushing (requires AWS access)
     local cache_from_args=()
     if [ "$SHOULD_PUSH" = "true" ]; then
-        if docker manifest inspect "${image_base}:${image_tag_with_arch}" &> /dev/null 2>&1; then
+        if docker manifest inspect "${image_repo}:${image_tag_with_arch}" &> /dev/null 2>&1; then
             # Verify that existing image is a single-architecture image, not a manifest list
             local manifest_output
-            manifest_output=$(docker manifest inspect "${image_base}:${image_tag_with_arch}" 2>/dev/null || echo "")
+            manifest_output=$(docker manifest inspect "${image_repo}:${image_tag_with_arch}" 2>/dev/null || echo "")
             
             if echo "$manifest_output" | grep -q '"manifests"'; then
-                log_error "Error: ${image_base}:${image_tag_with_arch} is already a manifest list!"
+                log_error "Error: ${image_repo}:${image_tag_with_arch} is already a manifest list!"
                 log_error "This script only builds single-architecture images."
                 log_error "Please delete the incorrect manifest list from ECR first:"
                 log_error "  aws ecr-public batch-delete-image \\"
@@ -331,7 +331,7 @@ build_and_push() {
             else
                 log_info "  Using registry cache from existing image (single-architecture)"
             fi
-            cache_from_args=("--cache-from" "type=registry,ref=${image_base}:${image_tag_with_arch}")
+            cache_from_args=("--cache-from" "type=registry,ref=${image_repo}:${image_tag_with_arch}")
         else
             log_info "  No existing image found, building from scratch"
         fi
@@ -342,7 +342,7 @@ build_and_push() {
         --builder mega-builder
         --platform "${TARGET_PLATFORMS}"
         --file "${dockerfile_path}"
-        --tag "${image_base}:${image_tag_with_arch}"
+        --tag "${image_repo}:${image_tag_with_arch}"
         --progress=plain
         --build-arg BUILDKIT_INLINE_CACHE=1
     )
@@ -381,15 +381,15 @@ build_and_push() {
 
     # Push if requested (ensures single-arch manifest is uploaded)
     if [ "$SHOULD_PUSH" = "true" ]; then
-        if ! docker push "${image_base}:${image_tag_with_arch}"; then
+        if ! docker push "${image_repo}:${image_tag_with_arch}"; then
             log_error "Failed to push ${image_name}"
             return 1
         fi
         log_info "${image_name} built and pushed successfully ✓"
-        log_info "  Image: ${image_base}:${image_tag_with_arch}"
+        log_info "  Image: ${image_repo}:${image_tag_with_arch}"
     else
         log_info "${image_name} built successfully ✓"
-        log_info "  Image: ${image_base}:${image_tag_with_arch} (local only)"
+        log_info "  Image: ${image_repo}:${image_tag_with_arch} (local only)"
     fi
     return 0
 }
