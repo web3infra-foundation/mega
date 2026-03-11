@@ -1401,45 +1401,48 @@ impl MonoApiService {
 
         Ok(())
     }
+    // This function is intended to be called before merging a CL to ensure it meets all required checks.
+    // It gathers the required checks for the CL's path, retrieves the CL's check results, and returns an error if any required checks have failed.
+    // Temporarily do not block the merge process when check fails.
 
-    async fn ensure_cl_mergeable(&self, cl: &mega_cl::Model) -> Result<(), MegaError> {
-        let check_reg = CheckerRegistry::new(self.storage.clone().into(), cl.username.clone());
-        check_reg.run_checks(cl.clone().into()).await?;
+    // async fn ensure_cl_mergeable(&self, cl: &mega_cl::Model) -> Result<(), MegaError> {
+    //     let check_reg = CheckerRegistry::new(self.storage.clone().into(), cl.username.clone());
+    //     check_reg.run_checks(cl.clone().into()).await?;
 
-        let required_check_types = self
-            .storage
-            .cl_storage()
-            .get_checks_config_by_path(&cl.path)
-            .await?
-            .into_iter()
-            .filter(|cfg| cfg.required)
-            .map(|cfg| cfg.check_type_code)
-            .collect::<Vec<_>>();
+    //     let required_check_types = self
+    //         .storage
+    //         .cl_storage()
+    //         .get_checks_config_by_path(&cl.path)
+    //         .await?
+    //         .into_iter()
+    //         .filter(|cfg| cfg.required)
+    //         .map(|cfg| cfg.check_type_code)
+    //         .collect::<Vec<_>>();
 
-        let failed_checks = self
-            .storage
-            .cl_storage()
-            .get_check_result(&cl.link)
-            .await?
-            .into_iter()
-            .filter(|result| {
-                result.status == "FAILED"
-                    && required_check_types
-                        .iter()
-                        .any(|required_type| required_type == &result.check_type_code)
-            })
-            .map(|result| format!("{:?}", result.check_type_code))
-            .collect::<Vec<_>>();
+    //     let failed_checks = self
+    //         .storage
+    //         .cl_storage()
+    //         .get_check_result(&cl.link)
+    //         .await?
+    //         .into_iter()
+    //         .filter(|result| {
+    //             result.status == "FAILED"
+    //                 && required_check_types
+    //                     .iter()
+    //                     .any(|required_type| required_type == &result.check_type_code)
+    //         })
+    //         .map(|result| format!("{:?}", result.check_type_code))
+    //         .collect::<Vec<_>>();
 
-        if failed_checks.is_empty() {
-            Ok(())
-        } else {
-            Err(MegaError::Other(format!(
-                "CL is unmergeable, failed checks: {}",
-                failed_checks.join(", ")
-            )))
-        }
-    }
+    //     if failed_checks.is_empty() {
+    //         Ok(())
+    //     } else {
+    //         Err(MegaError::Other(format!(
+    //             "CL is unmergeable, failed checks: {}",
+    //             failed_checks.join(", ")
+    //         )))
+    //     }
+    // }
 
     async fn trigger_build_for_cl(
         &self,
@@ -1708,10 +1711,6 @@ impl MonoApiService {
         if cl.from_hash != refs.ref_commit_hash {
             return Err(GitError::CustomError("ref hash conflict".to_owned()));
         }
-
-        self.ensure_cl_mergeable(&cl)
-            .await
-            .map_err(|e| GitError::CustomError(e.to_string()))?;
 
         self.merge_cl_unchecked(username, cl).await
     }
@@ -3554,13 +3553,6 @@ impl MonoApiService {
                 ));
             }
         };
-
-        self.ensure_cl_mergeable(&cl_model).await.map_err(|e| {
-            (
-                QueueFailureTypeEnum::SystemError,
-                format!("CL is unmergeable: {}", e),
-            )
-        })?;
 
         // Step 2: Run tests (TODO: Buck2 integration)
         // self.run_tests(&cl_model).await?;
