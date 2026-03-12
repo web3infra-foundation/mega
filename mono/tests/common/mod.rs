@@ -422,8 +422,8 @@ root_dirs = ["third-party", "project", "doc", "release"]
 storage_type = "local"
 
 [build]
-enable_build = false
-orion_server = ""
+enable_build = true
+orion_server = "http://localhost:8004"
 
 [pack]
 pack_decode_mem_size = "4G"
