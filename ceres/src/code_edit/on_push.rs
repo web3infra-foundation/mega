@@ -65,9 +65,15 @@ pub(crate) type OnpushCodeEdit = model::CodeEditService<
 
 // impl<'a> model::CodeEditService<OnpushFormator, OnpushVisitor, OnpushAcceptor, OnpushTrigerBuilder, OnpushChecker, model::DefualthDirector<'a, MonoRepo>> {
 impl OnpushCodeEdit {
-    pub fn from(repo_path: &str, from_hash: &str, handler: &MonoApiService) -> Self {
+    pub fn from(
+        repo_path: &str,
+        base_branch: &str,
+        from_hash: &str,
+        handler: &MonoApiService,
+    ) -> Self {
         Self::new(
             repo_path,
+            base_branch,
             from_hash,
             OnpushFormator {},
             OnpushVisitor {},

@@ -289,3 +289,23 @@ pub enum ThreadStatusEnum {
     #[sea_orm(string_value = "open")]
     Open,
 }
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, EnumIter, DeriveActiveEnum, Serialize, Deserialize,
+)]
+#[sea_orm(rs_type = "String", db_type = "String(StringLen::None)")]
+pub enum WebhookEventTypeEnum {
+    #[sea_orm(string_value = "cl.created")]
+    ClCreated,
+    #[sea_orm(string_value = "cl.updated")]
+    ClUpdated,
+    #[sea_orm(string_value = "cl.merged")]
+    ClMerged,
+    #[sea_orm(string_value = "cl.closed")]
+    ClClosed,
+    #[sea_orm(string_value = "cl.reopened")]
+    ClReopened,
+    #[sea_orm(string_value = "cl.comment.created")]
+    ClCommentCreated,
+    #[sea_orm(string_value = "*")]
+    All,
+}

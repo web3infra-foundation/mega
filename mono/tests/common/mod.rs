@@ -29,8 +29,7 @@ pub const MEGA_STARTUP_WAIT_SECS: u64 = 5; // Wait time after starting Mega serv
 pub const DB_OP_WAIT_SECS: u64 = 2; // Wait time after database operations
 
 // ECR mono image
-pub const MEGA_ECR_IMAGE_DEFAULT: &str =
-    "public.ecr.aws/m8q5m4u3/mega:mono-0.1.0-pre-release-amd64";
+pub const MEGA_ECR_IMAGE_DEFAULT: &str = "public.ecr.aws/m8q5m4u3/mega/mono-engine:latest-amd64";
 
 fn get_mega_ecr_image() -> String {
     std::env::var("MEGA_ECR_IMAGE").unwrap_or_else(|_| MEGA_ECR_IMAGE_DEFAULT.to_string())

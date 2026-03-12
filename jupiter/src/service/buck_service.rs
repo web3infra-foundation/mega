@@ -334,6 +334,7 @@ impl BuckService {
         &self,
         username: &str,
         path: &str,
+        base_branch: &str,
         from_hash: String,
     ) -> Result<SessionResponse, MegaError> {
         // Generate session_id
@@ -344,7 +345,14 @@ impl BuckService {
 
         // Pre-create Draft CL
         self.cl_service
-            .create_draft_cl(path, &session_id, "Pending upload", &from_hash, username)
+            .create_draft_cl(
+                path,
+                &session_id,
+                "Pending upload",
+                base_branch,
+                &from_hash,
+                username,
+            )
             .await?;
 
         // Create session record

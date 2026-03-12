@@ -24,7 +24,8 @@ pub async fn ensure_admin(state: &MonoApiServiceState, user: &LoginUser) -> Resu
     ))
 }
 
-pub fn parse_resource_context(
+pub async fn resolve_resource_context(
+    state: &MonoApiServiceState,
     resource_type: &str,
     resource_id: &str,
 ) -> Result<(ResourceTypeEnum, ResourceTypeValue, String), ApiError> {
@@ -33,7 +34,8 @@ pub fn parse_resource_context(
         ApiError::bad_request(anyhow!(err))
     })?;
 
-    let validated_resource_id = validate_resource_id(resource_type_value, resource_id)?;
+    let validated_resource_id =
+        resolve_resource_id(state, resource_type_value, resource_id).await?;
 
     Ok((
         resource_type_value.into(),
@@ -62,20 +64,36 @@ pub fn build_user_effective_permission_response(
     }
 }
 
-fn validate_resource_id(
+async fn resolve_resource_id(
+    state: &MonoApiServiceState,
     resource_type: ResourceTypeValue,
     resource_id: &str,
 ) -> Result<String, ApiError> {
+    let normalized_resource_id = resource_id.trim();
+    if normalized_resource_id.is_empty() {
+        tracing::warn!("empty resource_id in request path");
+        return Err(ApiError::bad_request(anyhow!(
+            "resource_id must not be empty"
+        )));
+    }
+
     match resource_type {
         ResourceTypeValue::Note => {
-            let note_id = resource_id.parse::<i64>().map_err(|_| {
-                tracing::warn!("invalid resource_id format");
-                ApiError::bad_request(anyhow!(
-                    "Invalid note resource_id: {}, expected i64 note.id",
-                    resource_id
-                ))
-            })?;
-            Ok(note_id.to_string())
+            let note = state
+                .note_stg()
+                .get_note_by_public_id(normalized_resource_id)
+                .await?;
+            match note {
+                Some(note) => Ok(note.public_id),
+                None => {
+                    tracing::warn!(
+                        resource_id = normalized_resource_id,
+                        "note resource missing in mono notes table; falling back to raw public_id"
+                    );
+                    // TODO: Remove this fallback when note resources are fully migrated into mono notes.
+                    Ok(normalized_resource_id.to_string())
+                }
+            }
         }
     }
 }

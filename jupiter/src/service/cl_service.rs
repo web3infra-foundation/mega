@@ -83,11 +83,12 @@ impl CLService {
         path: &str,
         link: &str,
         title: &str,
+        base_branch: &str,
         from_hash: &str,
         username: &str,
     ) -> Result<String, MegaError> {
         self.cl_storage
-            .new_cl_draft(path, link, title, from_hash, username)
+            .new_cl_draft(path, link, title, base_branch, from_hash, username)
             .await
     }
 }

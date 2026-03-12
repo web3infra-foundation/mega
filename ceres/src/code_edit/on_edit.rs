@@ -96,12 +96,14 @@ pub(crate) type OneditCodeEdit = model::CodeEditService<
 impl OneditCodeEdit {
     pub fn from(
         repo_path: &str,
+        base_branch: &str,
         from_hash: &str,
         handler: &MonoApiService,
         mono_storage: MonoStorage,
     ) -> Self {
         Self::new(
             repo_path,
+            base_branch,
             from_hash,
             OneditFormator {},
             OneditVisitor { mono_storage },

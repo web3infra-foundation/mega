@@ -201,6 +201,7 @@ impl SmartProtocol {
                 git_object_cache: state.git_object_cache.clone(),
                 storage: state.storage.clone(),
                 path: self.path.clone(),
+                base_branch: "main".to_string(),
                 from_hash: String::new(),
                 to_hash: String::new(),
                 current_commit: Arc::new(RwLock::new(None)),
@@ -215,6 +216,11 @@ impl SmartProtocol {
             {
                 res.from_hash = command.old_id.clone();
                 res.to_hash = command.new_id.clone();
+                res.base_branch = command
+                    .ref_name
+                    .strip_prefix("refs/heads/")
+                    .unwrap_or(command.ref_name.as_str())
+                    .to_string();
             }
             Ok(Arc::new(res))
         }

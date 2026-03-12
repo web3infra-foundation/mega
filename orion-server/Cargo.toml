@@ -10,7 +10,6 @@ path = "src/main.rs"
 
 
 [dependencies]
-orion = { workspace = true }
 common = { workspace = true }
 io-orbit = { workspace = true }
 api-model = { workspace = true }

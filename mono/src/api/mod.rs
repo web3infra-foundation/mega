@@ -14,10 +14,14 @@ use ceres::{
     protocol::repo::Repo,
 };
 use common::errors::ProtocolError;
-use jupiter::storage::{
-    Storage, cl_storage::ClStorage, conversation_storage::ConversationStorage,
-    dynamic_sidebar_storage::DynamicSidebarStorage, gpg_storage::GpgStorage,
-    issue_storage::IssueStorage, note_storage::NoteStorage, user_storage::UserStorage,
+use jupiter::{
+    service::webhook_service::WebhookService,
+    storage::{
+        Storage, cl_storage::ClStorage, conversation_storage::ConversationStorage,
+        dynamic_sidebar_storage::DynamicSidebarStorage, gpg_storage::GpgStorage,
+        issue_storage::IssueStorage, note_storage::NoteStorage, user_storage::UserStorage,
+        webhook_storage::WebhookStorage,
+    },
 };
 use oauth2::{
     Client, EndpointNotSet, EndpointSet, StandardRevocableToken,
@@ -143,6 +147,14 @@ impl MonoApiServiceState {
 
     fn note_stg(&self) -> NoteStorage {
         self.storage.note_storage()
+    }
+
+    fn webhook_stg(&self) -> WebhookStorage {
+        self.storage.webhook_storage()
+    }
+
+    fn webhook_svc(&self) -> WebhookService {
+        self.storage.webhook_service.clone()
     }
 
     fn dynamic_sidebar_stg(&self) -> DynamicSidebarStorage {
