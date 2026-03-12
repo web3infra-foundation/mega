@@ -19,7 +19,7 @@ interface AdminGroupsListProps {
   isError: boolean
   onDelete: (id: number) => void
   onManageMembers: (id: number) => void
-  onEdit?: (id: number) => void
+  onUpdate?: () => void
 }
 
 export const AdminGroupsList = ({
@@ -29,7 +29,7 @@ export const AdminGroupsList = ({
   isError,
   onDelete,
   onManageMembers,
-  onEdit
+  onUpdate
 }: AdminGroupsListProps) => {
   return (
     <section>
@@ -54,7 +54,7 @@ export const AdminGroupsList = ({
               group={group}
               onDelete={onDelete}
               onManageMembers={onManageMembers}
-              onEdit={onEdit}
+              onUpdate={onUpdate}
             />
           ))}
         </div>

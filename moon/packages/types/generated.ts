@@ -5243,6 +5243,11 @@ export type UpdateCommitBindingRequest = {
   username?: string | null
 }
 
+export type UpdateGroupRequest = {
+  description?: string | null
+  name: string
+}
+
 export type UpdateRequest = {
   description_html: string
   /** @format int32 */
@@ -5334,6 +5339,13 @@ export type BuildEventDTO = {
   retry_count: number
   start_at: string
   task_id: string
+}
+
+export enum BuildEventState {
+  Pending = 'Pending',
+  Running = 'Running',
+  Success = 'Success',
+  Failure = 'Failure'
 }
 
 /** Request payload for creating a new build task */
@@ -5492,6 +5504,19 @@ export enum TargetState {
   Completed = 'Completed',
   Failed = 'Failed',
   Interrupted = 'Interrupted'
+}
+
+/** Target status for buck2 build */
+export type TargetStatusResponse = {
+  action: string
+  category: string
+  configuration: string
+  id: string
+  identifier: string
+  name: string
+  package: string
+  status: string
+  task_id: string
 }
 
 /** Target summary counts for a task. */
@@ -6727,6 +6752,8 @@ export type PostApiAdminGroupsListData = CommonResultCommonPageGroupResponse
 
 export type GetApiAdminGroupsByGroupIdData = CommonResultGroupResponse
 
+export type PutApiAdminGroupsByGroupIdData = CommonResultGroupResponse
+
 export type DeleteApiAdminGroupsByGroupIdData = CommonResultDeleteGroupResponse
 
 export type PostApiAdminGroupsMembersData = CommonResultVecGroupMemberResponse
@@ -7116,13 +7143,25 @@ export type GetTasksTargetsData = TaskInfoDTO
 
 export type GetTasksTargetsSummaryData = TargetSummaryDTO
 
+export type GetAllTargetStatusByTaskIdV2Data = any
+
 export type GetBuildEventsByTaskIdV2Data = BuildEventDTO[]
 
 export type GetBuildEventsByTaskIdV2Error = MessageResponse
 
+export type GetBuildStateByBuildIdV2Data = BuildEventState
+
+export type GetBuildStateByBuildIdV2Error = MessageResponse
+
 export type GetHealthV2Data = any
 
-export type GetTargetsByTaskIdV2Data = BuildTargetDTO
+export type GetLatestBuildResultByTaskIdV2Data = BuildEventState
+
+export type GetLatestBuildResultByTaskIdV2Error = MessageResponse
+
+export type GetTargetStatusByTargetIdV2Data = any
+
+export type GetTargetsByTaskIdV2Data = BuildTargetDTO[]
 
 export type GetTargetsByTaskIdV2Error = MessageResponse
 
@@ -15587,6 +15626,30 @@ supporting either retrieving the entire log at once or segmenting it by line cou
      * No description
      *
      * @tags Group Permission Management
+     * @name PutApiAdminGroupsByGroupId
+     * @request PUT:/api/v1/admin/groups/{group_id}
+     */
+    putApiAdminGroupsByGroupId: () => {
+      const base = 'PUT:/api/v1/admin/groups/{group_id}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PutApiAdminGroupsByGroupIdData>([base]),
+        requestKey: (groupId: number) => dataTaggedQueryKey<PutApiAdminGroupsByGroupIdData>([base, groupId]),
+        request: (groupId: number, data: UpdateGroupRequest, params: RequestParams = {}) =>
+          this.request<PutApiAdminGroupsByGroupIdData>({
+            path: `/api/v1/admin/groups/${groupId}`,
+            method: 'PUT',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Group Permission Management
      * @name DeleteApiAdminGroupsByGroupId
      * @request DELETE:/api/v1/admin/groups/{group_id}
      */
@@ -18599,6 +18662,30 @@ Continuously monitors the log file and streams new content as it becomes availab
       }
     }
   }
+  allTargetStatus = {
+    /**
+     * No description
+     *
+     * @tags api
+     * @name GetAllTargetStatusByTaskIdV2
+     * @summary Get target status with task_id
+     * @request GET:/v2/all-target-status/{task_id}
+     */
+    getAllTargetStatusByTaskIdV2: () => {
+      const base = 'GET:/v2/all-target-status/{task_id}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetAllTargetStatusByTaskIdV2Data>([base]),
+        requestKey: (taskId: string) => dataTaggedQueryKey<GetAllTargetStatusByTaskIdV2Data>([base, taskId]),
+        request: (taskId: string, params: RequestParams = {}) =>
+          this.request<GetAllTargetStatusByTaskIdV2Data>({
+            path: `/v2/all-target-status/${taskId}`,
+            method: 'GET',
+            ...params
+          })
+      }
+    }
+  }
   buildEvents = {
     /**
      * No description
@@ -18616,6 +18703,30 @@ Continuously monitors the log file and streams new content as it becomes availab
         request: (taskId: string, params: RequestParams = {}) =>
           this.request<GetBuildEventsByTaskIdV2Data>({
             path: `/v2/build-events/${taskId}`,
+            method: 'GET',
+            ...params
+          })
+      }
+    }
+  }
+  buildState = {
+    /**
+     * No description
+     *
+     * @tags api
+     * @name GetBuildStateByBuildIdV2
+     * @summary Get build state by build ID
+     * @request GET:/v2/build-state/{build_id}
+     */
+    getBuildStateByBuildIdV2: () => {
+      const base = 'GET:/v2/build-state/{build_id}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetBuildStateByBuildIdV2Data>([base]),
+        requestKey: (buildId: string) => dataTaggedQueryKey<GetBuildStateByBuildIdV2Data>([base, buildId]),
+        request: (buildId: string, params: RequestParams = {}) =>
+          this.request<GetBuildStateByBuildIdV2Data>({
+            path: `/v2/build-state/${buildId}`,
             method: 'GET',
             ...params
           })
@@ -18641,6 +18752,54 @@ Returns simple health status based on database connectivity
         request: (params: RequestParams = {}) =>
           this.request<GetHealthV2Data>({
             path: `/v2/health`,
+            method: 'GET',
+            ...params
+          })
+      }
+    }
+  }
+  latestBuildResult = {
+    /**
+     * No description
+     *
+     * @tags api
+     * @name GetLatestBuildResultByTaskIdV2
+     * @summary Get latest build result by task ID
+     * @request GET:/v2/latest_build_result/{task_id}
+     */
+    getLatestBuildResultByTaskIdV2: () => {
+      const base = 'GET:/v2/latest_build_result/{task_id}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetLatestBuildResultByTaskIdV2Data>([base]),
+        requestKey: (taskId: string) => dataTaggedQueryKey<GetLatestBuildResultByTaskIdV2Data>([base, taskId]),
+        request: (taskId: string, params: RequestParams = {}) =>
+          this.request<GetLatestBuildResultByTaskIdV2Data>({
+            path: `/v2/latest_build_result/${taskId}`,
+            method: 'GET',
+            ...params
+          })
+      }
+    }
+  }
+  targetStatus = {
+    /**
+     * No description
+     *
+     * @tags api
+     * @name GetTargetStatusByTargetIdV2
+     * @summary Get target status with target id
+     * @request GET:/v2/target-status/{target_id}
+     */
+    getTargetStatusByTargetIdV2: () => {
+      const base = 'GET:/v2/target-status/{target_id}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetTargetStatusByTargetIdV2Data>([base]),
+        requestKey: (targetId: string) => dataTaggedQueryKey<GetTargetStatusByTargetIdV2Data>([base, targetId]),
+        request: (targetId: string, params: RequestParams = {}) =>
+          this.request<GetTargetStatusByTargetIdV2Data>({
+            path: `/v2/target-status/${targetId}`,
             method: 'GET',
             ...params
           })

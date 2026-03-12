@@ -30,11 +30,6 @@ export const AdminGroups = () => {
     setManageMembersGroupId(groupId)
   }
 
-  const handleEditGroup = (_groupId: number) => {
-    // TODO: Implement edit functionality
-    // console.log('Edit group:', groupId)
-  }
-
   return (
     <div className='border-primary bg-primary dark:bg-tertiary text-secondary mx-auto max-w-4xl rounded-lg border p-8 font-sans'>
       <header className='flex items-center justify-between pb-4'>
@@ -60,7 +55,6 @@ export const AdminGroups = () => {
         isError={isError}
         onDelete={handleDeleteGroup}
         onManageMembers={handleManageMembers}
-        onEdit={handleEditGroup}
       />
 
       <CreateGroupDialog isOpen={isCreateDialogOpen} onClose={() => setIsCreateDialogOpen(false)} />
