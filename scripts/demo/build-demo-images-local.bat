@@ -62,23 +62,24 @@ if exist "%SCRIPT_DIR%\..\..\Cargo.toml" (
 )
 
 rem Image Definitions
-set "IMAGE_ORDER=mono-engine mega-ui orion-server orion-client"
+rem Keep build order consistent with the bash script
+set "IMAGE_ORDER=mono-engine orion-server orion-client mega-ui"
 
 set "IMAGES_mono-engine_DOCKERFILE=mono/Dockerfile"
 set "IMAGES_mono-engine_CONTEXT=."
-set "TAGS_mono-engine=mono-0.1.0-pre-release"
+set "TAGS_mono-engine=latest"
 
 set "IMAGES_mega-ui_DOCKERFILE=moon/apps/web/Dockerfile"
 set "IMAGES_mega-ui_CONTEXT=moon"
-set "TAGS_mega-ui=mega-ui-demo-0.1.0-pre-release"
+set "TAGS_mega-ui=demo-latest"
 
 set "IMAGES_orion-server_DOCKERFILE=orion-server/Dockerfile"
 set "IMAGES_orion-server_CONTEXT=."
-set "TAGS_orion-server=orion-server-0.1.0-pre-release"
+set "TAGS_orion-server=latest"
 
 set "IMAGES_orion-client_DOCKERFILE=orion/Dockerfile"
 set "IMAGES_orion-client_CONTEXT=."
-set "TAGS_orion-client=orion-client-0.1.0-pre-release"
+set "TAGS_orion-client=latest"
 
 rem Parse Arguments
 set "TARGET_IMAGE="
@@ -241,8 +242,10 @@ rem ============================================================================
     )
     
     set "full_tag=!tag!-!ARCH_SUFFIX!"
-    set "image_base=%REGISTRY%/%REGISTRY_ALIAS%/%REPOSITORY%"
-    set "full_image=!image_base!:!full_tag!"
+    rem Per-service repository layout, e.g.:
+    rem public.ecr.aws/m8q5m4u3/mega/mono-engine:latest-amd64
+    set "image_repo=%REGISTRY%/%REGISTRY_ALIAS%/%REPOSITORY%/!img_name!"
+    set "full_image=!image_repo!:!full_tag!"
     
     if "%SHOULD_PUSH%"=="true" (
         echo [INFO] Building and pushing !img_name! ^(!full_tag!^)...
