@@ -101,7 +101,7 @@ use crate::{
             CompletePayload, CompleteResponse, DEFAULT_MODE, FileChange,
             FileToUpload as ApiFileToUpload, ManifestPayload, ManifestResponse,
         },
-        change_list::{ClDiffFile, UpdateBranchStatusRes},
+        change_list::{ClDiffFile, ClFilesChangedItemSchema, UpdateBranchStatusRes},
         git::{CreateEntryInfo, CreateEntryResult, EditFilePayload, EditFileResult},
         tag::TagInfo,
         third_party::{ThirdPartyClient, ThirdPartyRepoTrait},
@@ -151,6 +151,11 @@ struct PatchSections<'a> {
     divider_line: Option<&'a str>,
     payload_lines: Vec<&'a str>,
     has_trailing_newline: bool,
+}
+
+struct PagedClDiffItem {
+    item: DiffItem,
+    old_path: Option<String>,
 }
 
 struct CreateEntryUpdate {
@@ -2347,11 +2352,12 @@ impl MonoApiService {
     /// * `page_size` - The number of items per page.
     /// # Returns
     ///  a `Result` containing `ClDiff` on success or a `GitError` on failure.
-    pub async fn paged_content_diff(
+    /// Build paged CL diff items with optional relocation metadata for CL views.
+    async fn paged_content_diff_items(
         &self,
         cl_link: &str,
         page: Pagination,
-    ) -> Result<(Vec<DiffItem>, u64), GitError> {
+    ) -> Result<(Vec<PagedClDiffItem>, u64), GitError> {
         let per_page = page.per_page as usize;
         let page_id = page.page as usize;
 
@@ -2419,28 +2425,33 @@ impl MonoApiService {
                 .push(item);
         }
 
-        let mut diff_output: Vec<DiffItem> = Vec::with_capacity(page_slice.len());
+        let mut diff_output: Vec<PagedClDiffItem> = Vec::with_capacity(page_slice.len());
         for item in page_slice {
             match item {
                 ClDiffFile::Renamed(old_path, new_path, old_hash, new_hash, similarity)
                 | ClDiffFile::Moved(old_path, new_path, old_hash, new_hash, similarity) => {
-                    diff_output.push(
-                        self.format_relocated_diff_item(
-                            old_path,
-                            new_path,
-                            *old_hash,
-                            *new_hash,
-                            *similarity,
-                        )
-                        .await?,
-                    );
+                    diff_output.push(PagedClDiffItem {
+                        item: self
+                            .format_relocated_diff_item(
+                                old_path,
+                                new_path,
+                                *old_hash,
+                                *new_hash,
+                                *similarity,
+                            )
+                            .await?,
+                        old_path: Some(old_path.to_string_lossy().replace('\\', "/")),
+                    });
                 }
                 _ => {
                     let key = item.path().to_string_lossy().replace('\\', "/");
                     if let Some(items) = raw_diff_by_path.get_mut(&key)
                         && !items.is_empty()
                     {
-                        diff_output.push(items.remove(0));
+                        diff_output.push(PagedClDiffItem {
+                            item: items.remove(0),
+                            old_path: None,
+                        });
                     }
                 }
             }
@@ -2449,6 +2460,32 @@ impl MonoApiService {
         let total = sorted_changed_files.len().div_ceil(per_page);
 
         Ok((diff_output, total as u64))
+    }
+
+    /// Return the legacy paged diff shape without CL-specific metadata.
+    pub async fn paged_content_diff(
+        &self,
+        cl_link: &str,
+        page: Pagination,
+    ) -> Result<(Vec<DiffItem>, u64), GitError> {
+        let (items, total) = self.paged_content_diff_items(cl_link, page).await?;
+        Ok((items.into_iter().map(|item| item.item).collect(), total))
+    }
+
+    /// Return paged diff items tailored for the CL files-changed API.
+    pub async fn paged_content_diff_for_cl(
+        &self,
+        cl_link: &str,
+        page: Pagination,
+    ) -> Result<(Vec<ClFilesChangedItemSchema>, u64), GitError> {
+        let (items, total) = self.paged_content_diff_items(cl_link, page).await?;
+        Ok((
+            items
+                .into_iter()
+                .map(|item| ClFilesChangedItemSchema::new(item.item, item.old_path))
+                .collect(),
+            total,
+        ))
     }
 
     async fn get_diff_by_blobs(
