@@ -32,8 +32,6 @@ pub struct Buck2 {
     program: String,
     /// The result of running `root`, if we have done so yet.
     root: Option<PathBuf>,
-    /// The isolation directory to always use when invoking buck
-    isolation_dir: Option<String>,
 }
 
 impl Buck2 {
@@ -41,7 +39,6 @@ impl Buck2 {
         Self {
             program,
             root: Some(root),
-            isolation_dir: None,
         }
     }
 
@@ -49,12 +46,7 @@ impl Buck2 {
         Self {
             program,
             root: Some(root),
-            isolation_dir: None,
         }
-    }
-
-    pub fn set_isolation_dir(&mut self, isolation_dir: String) {
-        self.isolation_dir = Some(isolation_dir);
     }
 
     pub fn command(&self) -> Command {
@@ -62,12 +54,6 @@ impl Buck2 {
         command
             .env("BUCKD_STARTUP_TIMEOUT", "30")
             .env("BUCKD_STARTUP_INIT_TIMEOUT", "1200");
-        match &self.isolation_dir {
-            None => {}
-            Some(isolation_dir) => {
-                command.args(["--isolation-dir", isolation_dir]);
-            }
-        }
         command
     }
 

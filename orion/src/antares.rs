@@ -3,7 +3,7 @@
 //! This module provides a singleton wrapper around `scorpiofs::AntaresManager`
 //! for managing overlay filesystem mounts used during build operations.
 
-use std::{error::Error, io, path::PathBuf, sync::Arc};
+use std::{error::Error, io, path::PathBuf, sync::Arc, time::Duration};
 
 use scorpiofs::{AntaresConfig, AntaresManager, AntaresPaths};
 use tokio::sync::OnceCell;
@@ -120,6 +120,43 @@ pub async fn mount_job(job_id: &str, cl: Option<&str>) -> Result<AntaresConfig, 
         .map_err(Into::into)
 }
 
+/// Initialize Antares during Orion startup and eagerly trigger Dicfuse import.
+///
+/// This keeps the first build request from paying the full Dicfuse cold-start
+/// cost. Readiness waiting runs in the background so Orion can continue booting.
+#[allow(dead_code)] // Called from the bin target (main.rs), not visible to lib check.
+pub(crate) async fn warmup_dicfuse() -> Result<(), DynError> {
+    tracing::info!("Initializing Antares Dicfuse during Orion startup");
+    let manager = get_manager().await?;
+    let dicfuse = manager.dicfuse();
+
+    // Idempotent: safe even if the manager already started import internally.
+    dicfuse.start_import();
+
+    tokio::spawn(async move {
+        const DICFUSE_WARMUP_TIMEOUT_SECS: u64 = 1200;
+        tracing::info!(
+            "Waiting for Antares Dicfuse warmup to finish (timeout: {}s)",
+            DICFUSE_WARMUP_TIMEOUT_SECS
+        );
+
+        match tokio::time::timeout(
+            Duration::from_secs(DICFUSE_WARMUP_TIMEOUT_SECS),
+            dicfuse.store.wait_for_ready(),
+        )
+        .await
+        {
+            Ok(_) => tracing::info!("Antares Dicfuse warmup completed"),
+            Err(_) => tracing::warn!(
+                "Antares Dicfuse warmup timed out after {}s",
+                DICFUSE_WARMUP_TIMEOUT_SECS
+            ),
+        }
+    });
+
+    Ok(())
+}
+
 /// Unmount and cleanup a job overlay filesystem.
 ///
 /// # Arguments
@@ -127,6 +164,7 @@ pub async fn mount_job(job_id: &str, cl: Option<&str>) -> Result<AntaresConfig, 
 ///
 /// # Returns
 /// The `AntaresConfig` of the unmounted job if it existed.
+#[allow(dead_code)]
 pub async fn unmount_job(job_id: &str) -> Result<Option<AntaresConfig>, DynError> {
     tracing::debug!("Unmounting Antares job: job_id={}", job_id);
     get_manager()

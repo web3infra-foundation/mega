@@ -90,6 +90,7 @@ pub async fn mount_antares_fs(
 /// # Returns
 /// * `Ok(true)` - Unmount succeeded
 /// * `Err` - Unmount failed
+#[allow(dead_code)]
 pub async fn unmount_antares_fs(mount_id: &str) -> Result<bool, Box<dyn Error + Send + Sync>> {
     tracing::info!("Starting unmount for mount_id: {}", mount_id);
 
@@ -107,6 +108,7 @@ pub async fn unmount_antares_fs(mount_id: &str) -> Result<bool, Box<dyn Error + 
 ///
 /// We use a shallow Rust-native walk (instead of `ls -lR`) for better control
 /// and error resilience.
+#[allow(dead_code)]
 fn preheat(repo_path: &Path) -> anyhow::Result<()> {
     tracing::info!(repo = ?repo_path, "preheat: starting lightweight metadata warmup");
     let start = std::time::Instant::now();
@@ -116,7 +118,7 @@ fn preheat(repo_path: &Path) -> anyhow::Result<()> {
         repo = ?repo_path,
         elapsed_ms = start.elapsed().as_millis(),
         depth = depth,
-        "preheat: completed"
+        ": completed"
     );
     Ok(())
 }
@@ -238,59 +240,10 @@ fn resolve_config_path() -> Option<PathBuf> {
     None
 }
 
-/// Derive a stable per-mount buck2 isolation directory name.
-///
-/// # Why `--isolation-dir` is required
-///
-/// Although we always mount the **same monorepo** (`path = "/"`), every call
-/// to `mount_antares_fs()` goes through `POST /antares/mounts` which creates
-/// a **new UUID** and therefore a **new mountpoint path** each time:
-///
-/// ```text
-///   build task A  →  mount_antares_fs(job="A-1", path="/", cl=None)
-///                     → mountpoint = /var/lib/antares/mounts/<uuid-1>
-///
-///   build task A  →  mount_antares_fs(job="A-1", path="/", cl="CL-42")
-///                     → mountpoint = /var/lib/antares/mounts/<uuid-2>
-///
-///   build task B  →  mount_antares_fs(job="B-1", path="/", cl=None)
-///                     → mountpoint = /var/lib/antares/mounts/<uuid-3>
-/// ```
-///
-/// Without `--isolation-dir`, Buck2 uses a **single default daemon** per
-/// `<project_root>`.  Because the project root changes with every mount UUID,
-/// this usually just causes redundant daemon restarts.  But if two concurrent
-/// builds happen to share the same `project_root` (e.g., via retry in
-/// `MAX_TARGETS_ATTEMPTS`), the second buck2 invocation would talk to the
-/// first daemon whose internal paths point at a **stale** mountpoint — leading
-/// to `ESTALE` / `ENOENT` cascades.
-///
-/// By deriving `--isolation-dir` from `SHA256(repo_path)`, we get:
-/// - **Same mount path → same daemon** (avoids daemon startup cost on retry)
-/// - **Different mount paths → different daemons** (avoids cross-contamination)
-///
-/// # Format
-///
-/// Buck2 `--isolation-dir` expects a plain directory **name** (no path
-/// separators).  Buck2 itself stores daemon state under
-/// `<project_root>/.buck2/<isolation_dir>/`, so we only need to return a
-/// unique name – not a full path.
-fn buck2_isolation_dir(repo_path: &Path) -> anyhow::Result<String> {
-    let digest = ring::digest::digest(
-        &ring::digest::SHA256,
-        repo_path.to_string_lossy().as_bytes(),
-    );
-    let suffix = &hex::encode(digest.as_ref())[..16];
-    Ok(format!("buck2-isolation-{suffix}"))
-}
-
 /// Get target of a specific repo under tmp directory.
 fn get_repo_targets(file_name: &str, repo_path: &Path) -> anyhow::Result<Targets> {
     const MAX_ATTEMPTS: usize = 2;
     let jsonl_path = PathBuf::from(repo_path).join(file_name);
-    let isolation_dir = buck2_isolation_dir(repo_path)?;
-
-    preheat(repo_path)?;
 
     for attempt in 1..=MAX_ATTEMPTS {
         tracing::debug!("Get targets for repo {repo_path:?} (attempt {attempt}/{MAX_ATTEMPTS})");
@@ -298,8 +251,7 @@ fn get_repo_targets(file_name: &str, repo_path: &Path) -> anyhow::Result<Targets
         command
             .env("BUCKD_STARTUP_TIMEOUT", "30")
             .env("BUCKD_STARTUP_INIT_TIMEOUT", "1200")
-            .args(targets_arguments())
-            .args(["--isolation-dir", &isolation_dir]);
+            .args(targets_arguments());
         command.current_dir(repo_path);
         let (mut child, stdout) = spawn(command)?;
         let mut writer = file_writer(&jsonl_path)?;
@@ -345,7 +297,6 @@ async fn get_build_targets(
 
     preheat_shallow(&mount_path, preheat_shallow_depth())?;
     let mut buck2 = Buck2::with_root("buck2".to_string(), mount_path.clone());
-    buck2.set_isolation_dir(buck2_isolation_dir(&mount_path)?);
     let mut cells = CellInfo::parse(
         &buck2
             .cells()
@@ -563,6 +514,7 @@ impl MountGuard {
         }
     }
 
+    #[allow(dead_code)]
     async fn unmount(&self) {
         if self.unmounted.swap(true, Ordering::AcqRel) {
             return;
@@ -660,9 +612,8 @@ pub async fn build(
         // Both mount the same monorepo root (`path = "/"`), but each call to
         // `mount_antares_fs()` creates a **new UUID** on the Antares side, so
         // the mountpoints are different (e.g. `/var/lib/antares/mounts/<uuid>`).
-        // This is why `--isolation-dir` (derived from the mountpoint path) is
-        // necessary — it prevents Buck2 daemons from cross-contaminating
-        // between the two mounts.  See `buck2_isolation_dir()` for details.
+        // Buck2 isolates daemons by project root, so distinct mount paths
+        // naturally get separate daemons without needing `--isolation-dir`.
         let id_for_old_repo = format!("{id}-old-{attempt}");
         let (old_repo_mount_point, mount_id_old_repo) =
             mount_antares_fs(&id_for_old_repo, None).await?;
@@ -699,19 +650,22 @@ pub async fn build(
                 break;
             }
             Err(e) => {
-                guard.unmount().await;
-                guard_old_repo.unmount().await;
+                // Keep mounts alive on failure for debugging.
+                // guard.unmount().await;
+                // guard_old_repo.unmount().await;
+                tracing::warn!(
+                    "[Task {}] Failed to get build targets (attempt {}/{}): {}. Mounts kept alive for debugging (old={}, new={}).",
+                    id,
+                    attempt,
+                    MAX_TARGETS_ATTEMPTS,
+                    e,
+                    old_repo_mount_point,
+                    repo_mount_point,
+                );
                 last_targets_error = Some(e);
                 if attempt == MAX_TARGETS_ATTEMPTS {
                     break;
                 }
-                tracing::warn!(
-                    "[Task {}] Failed to get build targets (attempt {}/{}): {}. Retrying with fresh mounts...",
-                    id,
-                    attempt,
-                    MAX_TARGETS_ATTEMPTS,
-                    last_targets_error.as_ref().unwrap()
-                );
             }
         }
     }
@@ -746,18 +700,14 @@ pub async fn build(
         // Run buck2 build from the sub-project directory, not the monorepo root.
         // This ensures buck2 uses the sub-project's .buckconfig and PACKAGE files.
         let project_root = PathBuf::from(&mount_point).join(repo_prefix);
-        let isolation_dir = buck2_isolation_dir(&project_root)?;
         let mut cmd = Command::new("buck2");
         // --event-log and --build-report are used to collect build execution status
         // at target level (e.g. pending / running / succeeded / failed).
         cmd.env("BUCKD_STARTUP_TIMEOUT", "30")
-            .env("BUCKD_STARTUP_INIT_TIMEOUT", "120")
-            .args([
-            "--isolation-dir", &isolation_dir,
-            "--event-log", EVENT_LOG_FILE,
-        ]);
+            .env("BUCKD_STARTUP_INIT_TIMEOUT", "1200");
         let cmd = cmd
             .arg("build")
+            .args(["--event-log", EVENT_LOG_FILE])
             .args(&targets)
             .arg("--target-platforms")
             .arg("prelude//platforms:default")
@@ -829,13 +779,15 @@ pub async fn build(
             }
         }
 
-        if let Some(status) = exit_status {
-            return Ok(status);
-        }
+        let status = match exit_status {
+            Some(s) => s,
+            None => child.wait().await?,
+        };
 
-        let status = child.wait().await?;
-
+        // Stop the build-status tracker cleanly.
         target_build_track.cancellation.cancel();
+        target_build_track.tail_handle.abort();
+        target_build_track.process_handle.abort();
         let _ = target_build_track.tail_handle.await;
         let _ = target_build_track.process_handle.await;
         tracing::info!("Target build status track finished");

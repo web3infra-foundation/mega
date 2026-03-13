@@ -52,6 +52,30 @@ where
 {
     let compressed_path = compressed_path.as_ref();
 
+    // Wait for the event log file to appear (buck2 creates it after startup).
+    // Use a bounded wait; if the file never shows up (e.g. zero targets) we
+    // exit gracefully so the caller is not blocked.
+    let wait_timeout = Duration::from_secs(30);
+    let wait_start = tokio::time::Instant::now();
+    loop {
+        if compressed_path.exists() {
+            break;
+        }
+        if tx.is_closed() {
+            // Nobody is listening for events anymore.
+            return Ok(());
+        }
+        if wait_start.elapsed() >= wait_timeout {
+            tracing::warn!(
+                "Event log file did not appear within {}s, skipping tail: {}",
+                wait_timeout.as_secs(),
+                compressed_path.display()
+            );
+            return Ok(());
+        }
+        tokio::time::sleep(poll_interval).await;
+    }
+
     // Create a temporary file
     let temp_file = NamedTempFile::new()?;
     let temp_path = temp_file.path().to_path_buf();
@@ -63,53 +87,77 @@ where
     let temp_file = File::create(&temp_path).await?;
     let mut temp_writer = BufWriter::with_capacity(256 * 1024, temp_file);
 
+    // Shared flag: set to true once decompression reaches EOF.
+    let decompress_done = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+
     // Spawn a task to asynchronously decompress into the temp file
-    let decompress_task = tokio::spawn(async move {
-        let mut buffer = vec![0u8; 256 * 1024];
-        loop {
-            let bytes_read = decoder.read(&mut buffer).await?;
-            if bytes_read == 0 {
-                break; // EOF
+    let decompress_task = {
+        let done = decompress_done.clone();
+        tokio::spawn(async move {
+            let mut buffer = vec![0u8; 256 * 1024];
+            loop {
+                let bytes_read = decoder.read(&mut buffer).await?;
+                if bytes_read == 0 {
+                    break; // EOF
+                }
+                temp_writer.write_all(&buffer[..bytes_read]).await?;
+                temp_writer.flush().await?;
             }
-            temp_writer.write_all(&buffer[..bytes_read]).await?;
-            temp_writer.flush().await?;
-        }
-        Ok::<(), anyhow::Error>(())
-    });
+            done.store(true, std::sync::atomic::Ordering::Release);
+            Ok::<(), anyhow::Error>(())
+        })
+    };
 
     // Spawn a task to asynchronously tail the temp file
-    let tail_task = tokio::spawn(async move {
-        // Open the temporary file for reading
-        let file = File::open(&temp_path).await?;
-        let mut reader = BufReader::with_capacity(256 * 1024, file);
+    let tail_task = {
+        let done = decompress_done;
+        tokio::spawn(async move {
+            // Open the temporary file for reading
+            let file = File::open(&temp_path).await?;
+            let mut reader = BufReader::with_capacity(256 * 1024, file);
 
-        let mut offset = 0u64;
-        let mut buffer = String::new();
+            let mut offset = 0u64;
+            let mut buffer = String::new();
+            // Count consecutive empty reads so we can exit after decompression is done.
+            let mut empty_polls: u32 = 0;
+            const MAX_EMPTY_POLLS_AFTER_DONE: u32 = 5;
 
-        loop {
-            // Seek to the last read offset
-            reader.seek(io::SeekFrom::Start(offset)).await?;
-            buffer.clear();
-            let bytes_read = reader.read_line(&mut buffer).await?;
+            loop {
+                // Seek to the last read offset
+                reader.seek(io::SeekFrom::Start(offset)).await?;
+                buffer.clear();
+                let bytes_read = reader.read_line(&mut buffer).await?;
 
-            if bytes_read == 0 {
-                // No new data, wait for the next poll
-                tokio::time::sleep(poll_interval).await;
-                continue;
+                if bytes_read == 0 {
+                    // If decompression is finished and we've drained all data, exit.
+                    if done.load(std::sync::atomic::Ordering::Acquire) {
+                        empty_polls += 1;
+                        if empty_polls >= MAX_EMPTY_POLLS_AFTER_DONE {
+                            break;
+                        }
+                    }
+                    if tx.is_closed() {
+                        break;
+                    }
+                    // No new data, wait for the next poll
+                    tokio::time::sleep(poll_interval).await;
+                    continue;
+                }
+
+                empty_polls = 0;
+                offset += bytes_read as u64;
+                let line = buffer.trim_end_matches(&['\n', '\r'][..]).to_string();
+
+                // Send the line, break if receiver has been dropped
+                if tx.send(line).await.is_err() {
+                    break;
+                }
             }
+            Ok::<(), anyhow::Error>(())
+        })
+    };
 
-            offset += bytes_read as u64;
-            let line = buffer.trim_end_matches(&['\n', '\r'][..]).to_string();
-
-            // Send the line, break if receiver has been dropped
-            if tx.send(line).await.is_err() {
-                break;
-            }
-        }
-        Ok::<(), anyhow::Error>(())
-    });
-
-    // Wait for both tasks to complete (decompression may finish first; tail will keep polling)
+    // Wait for both tasks to complete
     let (_, tail_result) = tokio::join!(decompress_task, tail_task);
 
     // Return the result of the tail task

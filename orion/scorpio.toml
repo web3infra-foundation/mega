@@ -8,22 +8,22 @@
 # ==============================================================================
 
 # Mega 服务地址（本地 mono 服务）
-base_url = "https://git.buck2hub.com"
-lfs_url = "https://git.buck2hub.com"
+base_url = "https://git.gitmega.com"
+lfs_url = "https://git.gitmega.com"
 
 # Dicfuse 数据存储
 store_path = "/tmp/megadir/store"
 
 # Scorpio daemon 主挂载点（orion 不再启动 scorpio daemon，但 scorpiofs 仍需此配置）
 workspace = "/tmp/megadir/mount"
-
+config_file = "./config.toml"
 # Git 提交信息
 git_author = "MEGA"
 git_email = "admin@mega.org"
 
 # Dicfuse 读取配置
 dicfuse_readable = "true"
-load_dir_depth = "3"
+load_dir_depth = "5"
 fetch_file_thread = "10"
 dicfuse_import_concurrency = "4"
 dicfuse_dir_sync_ttl_secs = "5"
