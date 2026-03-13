@@ -13,6 +13,7 @@ import { NoteRow } from '@/components/NotesIndex/NoteRow'
 import { NotesGrid } from '@/components/NotesIndex/NotesGrid'
 import { NotesList } from '@/components/NotesIndex/NotesList'
 import { SubjectCommand } from '@/components/Subject/SubjectCommand'
+import { useGetNotesPermissions } from '@/hooks/admin/useGetNotesPermissions'
 import { useGetCurrentUser } from '@/hooks/useGetCurrentUser'
 import { flattenInfiniteData } from '@/utils/flattenInfiniteData'
 
@@ -26,7 +27,14 @@ export function NotesContent({ getNotes, searching, hideProject }: Props) {
   const { data: currentUser } = useGetCurrentUser()
   const notes = useMemo(() => flattenInfiniteData(getNotes.data) ?? [], [getNotes.data])
 
-  if (getNotes.isLoading) {
+  // Batch query permissions for all notes
+  const { data: notesPermissions, isLoading: isLoadingPermissions } = useGetNotesPermissions({
+    notes,
+    enabled: notes.length > 0
+  })
+
+  // Wait for both notes data and permissions data to finish loading
+  if (getNotes.isLoading || isLoadingPermissions) {
     return <IndexPageLoading />
   }
 
@@ -39,11 +47,11 @@ export function NotesContent({ getNotes, searching, hideProject }: Props) {
   return (
     <>
       {searching ? (
-        <NotesSearchList notes={notes} hideProject={hideProject} />
+        <NotesSearchList notes={notes} hideProject={hideProject} notesPermissions={notesPermissions} />
       ) : layout === 'list' ? (
-        <NotesList notes={notes} hideProject={hideProject} />
+        <NotesList notes={notes} hideProject={hideProject} notesPermissions={notesPermissions} />
       ) : (
-        <NotesGrid notes={notes} hideProject={hideProject} />
+        <NotesGrid notes={notes} hideProject={hideProject} notesPermissions={notesPermissions} />
       )}
 
       <InfiniteLoader
@@ -57,7 +65,15 @@ export function NotesContent({ getNotes, searching, hideProject }: Props) {
   )
 }
 
-function NotesSearchList({ notes, hideProject }: { notes: Note[]; hideProject?: boolean }) {
+function NotesSearchList({
+  notes,
+  hideProject,
+  notesPermissions
+}: {
+  notes: Note[]
+  hideProject?: boolean
+  notesPermissions?: Record<string, { hasRead: boolean; hasWrite: boolean; isAdmin: boolean }>
+}) {
   const needsCommandWrap = !useCommand()
 
   return (
@@ -70,7 +86,13 @@ function NotesSearchList({ notes, hideProject }: { notes: Note[]; hideProject?: 
       )}
     >
       {notes.map((note) => (
-        <NoteRow note={note} key={note.id} display='search' hideProject={hideProject} />
+        <NoteRow
+          note={note}
+          key={note.id}
+          display='search'
+          hideProject={hideProject}
+          permission={notesPermissions?.[note.id]}
+        />
       ))}
     </ConditionalWrap>
   )

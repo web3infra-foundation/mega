@@ -141,12 +141,12 @@ export function AdminGroupEditDialog({ open, onOpenChange, groupId, onSuccess }:
   const allResources = resourcesData?.pages.flatMap((page) => page.data) || []
 
   useEffect(() => {
-    if (groupData?.data) {
+    if (groupData?.data && open) {
       setName(groupData.data.name)
       setDescription(groupData.data.description || '')
       setIsFormReady(true)
     }
-  }, [groupData])
+  }, [groupData, open])
 
   useEffect(() => {
     if (!open) {
