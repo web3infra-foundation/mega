@@ -1,22 +1,40 @@
 use std::ops::Deref;
 
+use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use callisto::{
-    bot_installations, bot_keys, bots,
-    sea_orm_active_enums::{
-        BotStatusEnum, InstallationBotStatusEnum, InstallationTargetTypeEnum, PermissionScopeEnum,
-    },
+    bot_keys, bot_tokens, bots,
+    sea_orm_active_enums::{BotStatusEnum, PermissionScopeEnum},
 };
+use chrono::Utc;
 use common::errors::MegaError;
+use hmac::{Hmac, Mac};
+use idgenerator::IdInstance;
 use rsa::{
-    RsaPrivateKey,
     pkcs8::{EncodePrivateKey, EncodePublicKey},
     rand_core::OsRng,
+    RsaPrivateKey,
 };
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter,
+    ActiveModelTrait,
+    ActiveValue::Set,
+    ColumnTrait,
+    EntityTrait,
+    IntoActiveModel,
+    QueryFilter,
+    QueryOrder,
+};
+use sea_orm::prelude::DateTimeWithTimeZone;
+use sea_orm::Condition;
+use sha2::Sha256;
+
+use crate::{
+    model::bot_token_dto::BotTokenInfo,
+    storage::base_storage::{BaseStorage, StorageConnector},
 };
 
-use crate::storage::base_storage::{BaseStorage, StorageConnector};
+const BOT_TOKEN_PREFIX: &str = "bot_";
+const BOT_TOKEN_RANDOM_LEN: usize = 32;
+const BOT_TOKEN_HMAC_KEY_ENV: &str = "MEGA_BOT_TOKEN_HMAC_SECRET";
 
 #[derive(Clone)]
 pub struct BotsStorage {
@@ -210,4 +228,175 @@ impl BotsStorage {
 
         Ok(res)
     }
+
+    /// Generate a new bot token, persist its HMAC-SHA256 hash and return the model with plaintext.
+    pub async fn generate_bot_token(
+        &self,
+        bot_id: i64,
+        token_name: &str,
+        expires_at: Option<DateTimeWithTimeZone>,
+    ) -> Result<(bot_tokens::Model, String), MegaError> {
+        let token_plain = generate_bot_token_plain()?;
+        let token_body = token_plain
+            .strip_prefix(BOT_TOKEN_PREFIX)
+            .unwrap_or(&token_plain);
+
+        let hmac_key = load_bot_token_hmac_key()?;
+        let token_hash = compute_bot_token_hash(token_body, &hmac_key);
+
+        let active = bot_tokens::ActiveModel {
+            id: Set(IdInstance::next_id()),
+            bot_id: Set(bot_id),
+            token_hash: Set(token_hash),
+            token_name: Set(token_name.to_owned()),
+            expires_at: Set(expires_at),
+            ..Default::default()
+        };
+
+        let model = active.insert(self.get_connection()).await?;
+        Ok((model, token_plain))
+    }
+
+    /// List tokens for a given bot, ordered by creation time descending.
+    pub async fn list_bot_tokens(&self, bot_id: i64) -> Result<Vec<BotTokenInfo>, MegaError> {
+        let models = bot_tokens::Entity::find()
+            .filter(bot_tokens::Column::BotId.eq(bot_id))
+            .order_by_desc(bot_tokens::Column::CreatedAt)
+            .all(self.get_connection())
+            .await?;
+
+        Ok(models
+            .into_iter()
+            .map(|m| BotTokenInfo {
+                id: m.id,
+                token_name: m.token_name,
+                expires_at: m.expires_at,
+                revoked: m.revoked,
+                created_at: m.created_at,
+            })
+            .collect())
+    }
+
+    /// Revoke a single token for a bot. Idempotent.
+    pub async fn revoke_bot_token(
+        &self,
+        bot_id: i64,
+        token_id: i64,
+    ) -> Result<(), MegaError> {
+        let conn = self.get_connection();
+
+        if let Some(model) = bot_tokens::Entity::find_by_id(token_id)
+            .filter(bot_tokens::Column::BotId.eq(bot_id))
+            .one(conn)
+            .await?
+        {
+            let mut active: bot_tokens::ActiveModel = model.into_active_model();
+            active.revoked = Set(true);
+            let _ = active.update(conn).await?;
+        }
+
+        Ok(())
+    }
+
+    /// Revoke all tokens belonging to the given bot. Idempotent.
+    pub async fn revoke_bot_tokens_by_bot(&self, bot_id: i64) -> Result<(), MegaError> {
+        let conn = self.get_connection();
+
+        let models = bot_tokens::Entity::find()
+            .filter(bot_tokens::Column::BotId.eq(bot_id))
+            .all(conn)
+            .await?;
+
+        if models.is_empty() {
+            return Ok(());
+        }
+
+        for model in models {
+            if model.revoked {
+                continue;
+            }
+            let mut active: bot_tokens::ActiveModel = model.into_active_model();
+            active.revoked = Set(true);
+            let _ = active.update(conn).await?;
+        }
+
+        Ok(())
+    }
+
+    /// Find bot and token by plaintext token string (with or without `bot_` prefix).
+    pub async fn find_bot_by_token(
+        &self,
+        token_plain: &str,
+    ) -> Result<Option<(bots::Model, bot_tokens::Model)>, MegaError> {
+        let token_body = token_plain
+            .strip_prefix(BOT_TOKEN_PREFIX)
+            .unwrap_or(token_plain);
+
+        let hmac_key = match load_bot_token_hmac_key() {
+            Ok(key) => key,
+            Err(e) => return Err(e),
+        };
+        let token_hash = compute_bot_token_hash(token_body, &hmac_key);
+
+        let now = Utc::now();
+
+        let conn = self.get_connection();
+
+        let token = bot_tokens::Entity::find()
+            .filter(bot_tokens::Column::TokenHash.eq(token_hash))
+            .filter(bot_tokens::Column::Revoked.eq(false))
+            .filter(
+                Condition::any()
+                    .add(bot_tokens::Column::ExpiresAt.is_null())
+                    .add(bot_tokens::Column::ExpiresAt.gt(now)),
+            )
+            .one(conn)
+            .await?;
+
+        let Some(token) = token else {
+            return Ok(None);
+        };
+
+        let bot = bots::Entity::find_by_id(token.bot_id)
+            .one(conn)
+            .await?;
+
+        let Some(bot) = bot else {
+            return Ok(None);
+        };
+
+        Ok(Some((bot, token)))
+    }
 }
+
+type HmacSha256 = Hmac<Sha256>;
+
+fn generate_bot_token_plain() -> Result<String, MegaError> {
+    use ring::rand::{SecureRandom, SystemRandom};
+
+    let rng = SystemRandom::new();
+    let mut bytes = [0u8; BOT_TOKEN_RANDOM_LEN];
+    rng.fill(&mut bytes).map_err(|_| {
+        MegaError::Other("failed to generate secure random bytes for bot token".to_string())
+    })?;
+
+    let encoded = BASE64_STANDARD.encode(bytes);
+    Ok(format!("{BOT_TOKEN_PREFIX}{encoded}"))
+}
+
+fn load_bot_token_hmac_key() -> Result<Vec<u8>, MegaError> {
+    let secret = std::env::var(BOT_TOKEN_HMAC_KEY_ENV).map_err(|_| {
+        MegaError::Other(format!(
+            "{BOT_TOKEN_HMAC_KEY_ENV} is not set for bot token HMAC"
+        ))
+    })?;
+    Ok(secret.into_bytes())
+}
+
+fn compute_bot_token_hash(token_body: &str, key: &[u8]) -> String {
+    let mut mac =
+        HmacSha256::new_from_slice(key).expect("HMAC-SHA256 can take a key of any size");
+    mac.update(token_body.as_bytes());
+    hex::encode(mac.finalize().into_bytes())
+}
+

@@ -3,139 +3,219 @@ use axum::{
     Json,
     extract::{Path, State},
 };
-use ceres::model::bots::{BotRes, ChangeInstallationStatus, InstallBotReq, InstallationTargetType};
+use chrono::{DateTime, Duration, Utc};
+use serde::{Deserialize, Serialize};
+use sea_orm::prelude::DateTimeWithTimeZone;
+use utoipa::ToSchema;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{
-    api::{MonoApiServiceState, error::ApiError},
-    server::http_server::BOTS_TAG,
+    api::{
+        MonoApiServiceState,
+        api_common::group_permission::ensure_admin,
+        error::ApiError,
+        oauth::model::LoginUser,
+    },
+    server::http_server::BOT_TAG,
 };
+
+/// Request body for creating a new bot token.
+#[derive(Deserialize, ToSchema)]
+pub struct CreateBotTokenRequest {
+    /// Human-readable token name for identification.
+    pub token_name: String,
+    /// Optional relative expiry in seconds from now.
+    pub expires_in: Option<i64>,
+}
+
+/// Response body when a bot token is created.
+///
+/// Note: `token_plain` is only returned once and is never stored in plaintext.
+#[derive(Serialize, ToSchema)]
+pub struct CreateBotTokenResponse {
+    pub id: i64,
+    pub token_name: String,
+    pub expires_at: Option<DateTime<Utc>>,
+    pub token_plain: String,
+}
+
+/// Item in the list bot tokens response.
+#[derive(Serialize, ToSchema)]
+pub struct ListBotTokenItem {
+    pub id: i64,
+    pub token_name: String,
+    pub expires_at: Option<DateTime<Utc>>,
+    pub revoked: bool,
+    pub created_at: DateTime<Utc>,
+}
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new().nest(
         "/bots",
         OpenApiRouter::new()
-            .routes(routes!(install_bot))
-            .routes(routes!(list_installed_bot))
-            .routes(routes!(change_installation_status))
-            .routes(routes!(uninstall_bot)),
+            .routes(routes!(create_bot_token))
+            .routes(routes!(list_bot_tokens))
+            .routes(routes!(revoke_bot_token))
+            .routes(routes!(revoke_all_bot_tokens)),
     )
 }
 
-/// Install bot
+/// POST /api/v1/bots/{bot_id}/tokens
+///
+/// Create a new bot token. Only admins can perform this operation.
 #[utoipa::path(
     post,
+    path = "/{bot_id}/tokens",
+    request_body = CreateBotTokenRequest,
     params(
-        ("id", description = "Bots ID"),
+        ("bot_id" = i64, Path, description = "Bot ID")
     ),
-    path = "/{id}/installations ",
     responses(
-        (status = 200, body = CommonResult<BotRes>, content_type = "application/json")
+        (status = 200, body = CommonResult<CreateBotTokenResponse>),
+        (status = 400, description = "Invalid request"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Forbidden - admin only"),
+        (status = 404, description = "Bot not found"),
     ),
-    tag = BOTS_TAG
+    tag = BOT_TAG
 )]
-async fn install_bot(
-    state: State<MonoApiServiceState>,
-    Path(id): Path<i64>,
-    Json(json): Json<InstallBotReq>,
-) -> Result<Json<CommonResult<BotRes>>, ApiError> {
-    let bot = state
+async fn create_bot_token(
+    user: LoginUser,
+    State(state): State<MonoApiServiceState>,
+    Path(bot_id): Path<i64>,
+    Json(req): Json<CreateBotTokenRequest>,
+) -> Result<Json<CommonResult<CreateBotTokenResponse>>, ApiError> {
+    ensure_admin(&state, &user).await?;
+
+    let expires_at: Option<DateTimeWithTimeZone> = req.expires_in.map(|seconds| {
+        let when = Utc::now() + Duration::seconds(seconds);
+        DateTimeWithTimeZone::from(when)
+    });
+
+    let (model, token_plain) = state
         .storage
         .bots_storage()
-        .install_bot(
-            id,
-            json.target_type.into(),
-            json.target_id,
-            json.installed_by,
-        )
+        .generate_bot_token(bot_id, &req.token_name, expires_at)
         .await?;
 
-    Ok(Json(CommonResult::success(Some(bot.into()))))
+    let resp = CreateBotTokenResponse {
+        id: model.id,
+        token_name: model.token_name,
+        expires_at: model.expires_at.map(|dt| dt.with_timezone(&Utc)),
+        token_plain,
+    };
+
+    Ok(Json(CommonResult::success(Some(resp))))
 }
 
-/// Get installed bot
+/// GET /api/v1/bots/{bot_id}/tokens
+///
+/// List existing tokens for a bot (without plaintext).
 #[utoipa::path(
     get,
+    path = "/{bot_id}/tokens",
     params(
-        ("id", description = "Bots ID"),
+        ("bot_id" = i64, Path, description = "Bot ID")
     ),
-    path = "/{id}/installations",
     responses(
-        (status = 200, body = CommonResult<Vec<BotRes>>, content_type = "application/json")
+        (status = 200, body = CommonResult<Vec<ListBotTokenItem>>),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Forbidden - admin only"),
+        (status = 404, description = "Bot not found"),
     ),
-    tag = BOTS_TAG
+    tag = BOT_TAG
 )]
-async fn list_installed_bot(
-    state: State<MonoApiServiceState>,
-    Path(id): Path<i64>,
-) -> Result<Json<CommonResult<Vec<BotRes>>>, ApiError> {
-    let models = state
+async fn list_bot_tokens(
+    user: LoginUser,
+    State(state): State<MonoApiServiceState>,
+    Path(bot_id): Path<i64>,
+) -> Result<Json<CommonResult<Vec<ListBotTokenItem>>>, ApiError> {
+    ensure_admin(&state, &user).await?;
+
+    let tokens = state
         .storage
         .bots_storage()
-        .get_installed_bot_by_id(id)
-        .await?
-        .into_iter()
-        .map(|m| m.into())
-        .collect();
-
-    Ok(Json(CommonResult::success(Some(models))))
-}
-
-#[utoipa::path(
-    patch,
-    params(
-        ("id", description = "Bot ID"),
-        ("installation_id", description = "Installation ID"),
-    ),
-    path = "/{id}/installations/{installation_id}",
-    responses(
-        (status = 200, body = CommonResult<BotRes>, content_type = "application/json")
-    ),
-    tag = BOTS_TAG
-)]
-async fn change_installation_status(
-    state: State<MonoApiServiceState>,
-    Path((id, installation_id)): Path<(i64, i64)>,
-    Json(json): Json<ChangeInstallationStatus>,
-) -> Result<Json<CommonResult<BotRes>>, ApiError> {
-    let model = state
-        .storage
-        .bots_storage()
-        .change_installed_bot_status(
-            id,
-            json.target_type.into(),
-            installation_id,
-            json.status.into(),
-        )
+        .list_bot_tokens(bot_id)
         .await?;
 
-    Ok(Json(CommonResult::success(Some(model.into()))))
+    let items = tokens
+        .into_iter()
+        .map(|t| ListBotTokenItem {
+            id: t.id,
+            token_name: t.token_name,
+            expires_at: t.expires_at.map(|dt| dt.with_timezone(&Utc)),
+            revoked: t.revoked,
+            created_at: t.created_at.with_timezone(&Utc),
+        })
+        .collect();
+
+    Ok(Json(CommonResult::success(Some(items))))
 }
 
+/// DELETE /api/v1/bots/{bot_id}/tokens/{id}
+///
+/// Revoke a single bot token. Idempotent.
 #[utoipa::path(
     delete,
+    path = "/{bot_id}/tokens/{id}",
     params(
-        ("id", description = "Bot ID"),
-        ("installation_id", description = "Installation ID"),
+        ("bot_id" = i64, Path, description = "Bot ID"),
+        ("id" = i64, Path, description = "Token ID")
     ),
-    path = "/{id}/installations/{installation_id}",
     responses(
-        (status = 200, body = CommonResult<String>, content_type = "application/json")
+        (status = 200, body = CommonResult<()>),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Forbidden - admin only"),
+        (status = 404, description = "Bot or token not found"),
     ),
-    tag = BOTS_TAG
+    tag = BOT_TAG
 )]
-async fn uninstall_bot(
-    state: State<MonoApiServiceState>,
-    Path((id, installation_id)): Path<(i64, i64)>,
-    Json(target_type): Json<InstallationTargetType>,
-) -> Result<Json<CommonResult<String>>, ApiError> {
+async fn revoke_bot_token(
+    user: LoginUser,
+    State(state): State<MonoApiServiceState>,
+    Path((bot_id, token_id)): Path<(i64, i64)>,
+) -> Result<Json<CommonResult<()>>, ApiError> {
+    ensure_admin(&state, &user).await?;
+
     state
         .storage
         .bots_storage()
-        .uninstall_bot(id, target_type.into(), installation_id)
+        .revoke_bot_token(bot_id, token_id)
         .await?;
 
-    Ok(Json(CommonResult::success(Some(
-        "Bot uninstalled successfully".to_string(),
-    ))))
+    Ok(Json(CommonResult::success(None)))
 }
+
+/// POST /api/v1/bots/{bot_id}/tokens/revoke_all
+///
+/// Revoke all tokens for a given bot. Idempotent.
+#[utoipa::path(
+    post,
+    path = "/{bot_id}/tokens/revoke_all",
+    params(
+        ("bot_id" = i64, Path, description = "Bot ID")
+    ),
+    responses(
+        (status = 200, body = CommonResult<()>),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Forbidden - admin only"),
+        (status = 404, description = "Bot not found"),
+    ),
+    tag = BOT_TAG
+)]
+async fn revoke_all_bot_tokens(
+    user: LoginUser,
+    State(state): State<MonoApiServiceState>,
+    Path(bot_id): Path<i64>,
+) -> Result<Json<CommonResult<()>>, ApiError> {
+    ensure_admin(&state, &user).await?;
+
+    state
+        .storage
+        .bots_storage()
+        .revoke_bot_tokens_by_bot(bot_id)
+        .await?;
+
+    Ok(Json(CommonResult::success(None)))
+}
+
