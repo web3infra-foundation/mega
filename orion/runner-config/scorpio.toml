@@ -22,8 +22,8 @@ git_email = "admin@mega.org"
 
 # Dicfuse 读取配置
 dicfuse_readable = "true"
-load_dir_depth = "3"
-fetch_file_thread = "10"
+load_dir_depth = "5"
+fetch_file_thread = "20"
 dicfuse_import_concurrency = "4"
 dicfuse_dir_sync_ttl_secs = "5"
 dicfuse_reply_ttl_secs = "2"

@@ -296,6 +296,8 @@ fn get_repo_targets(file_name: &str, repo_path: &Path) -> anyhow::Result<Targets
         tracing::debug!("Get targets for repo {repo_path:?} (attempt {attempt}/{MAX_ATTEMPTS})");
         let mut command = std::process::Command::new("buck2");
         command
+            .env("BUCKD_STARTUP_TIMEOUT", "30")
+            .env("BUCKD_STARTUP_INIT_TIMEOUT", "1200")
             .args(targets_arguments())
             .args(["--isolation-dir", &isolation_dir]);
         command.current_dir(repo_path);
@@ -748,7 +750,9 @@ pub async fn build(
         let mut cmd = Command::new("buck2");
         // --event-log and --build-report are used to collect build execution status
         // at target level (e.g. pending / running / succeeded / failed).
-        cmd.args([
+        cmd.env("BUCKD_STARTUP_TIMEOUT", "30")
+            .env("BUCKD_STARTUP_INIT_TIMEOUT", "120")
+            .args([
             "--isolation-dir", &isolation_dir,
             "--event-log", EVENT_LOG_FILE,
         ]);
