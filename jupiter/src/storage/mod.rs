@@ -1,3 +1,4 @@
+pub mod audit_storage;
 pub mod base_storage;
 pub mod bots_storage;
 pub mod buck_storage;
@@ -39,6 +40,7 @@ use crate::{
         webhook_service::WebhookService,
     },
     storage::{
+        audit_storage::AuditStorage,
         base_storage::{BaseStorage, StorageConnector},
         bots_storage::BotsStorage,
         buck_storage::BuckStorage,
@@ -90,6 +92,7 @@ pub struct AppService {
     pub build_trigger_storage: BuildTriggerStorage,
     pub bots_storage: BotsStorage,
     pub webhook_storage: WebhookStorage,
+    pub audit_storage: AuditStorage,
 }
 
 impl AppService {
@@ -121,6 +124,7 @@ impl AppService {
             build_trigger_storage: BuildTriggerStorage { base: mock.clone() },
             bots_storage: BotsStorage { base: mock.clone() },
             webhook_storage: WebhookStorage { base: mock.clone() },
+            audit_storage: AuditStorage { base: mock.clone() },
         })
     }
 }
@@ -184,6 +188,7 @@ impl Storage {
         let build_trigger_storage = BuildTriggerStorage { base: base.clone() };
         let bots_storage = BotsStorage { base: base.clone() };
         let webhook_storage = WebhookStorage { base: base.clone() };
+        let audit_storage = AuditStorage { base: base.clone() };
 
         let git_service = GitService {
             obj_storage: ObjectStorageFactory::build(
@@ -244,6 +249,7 @@ impl Storage {
             build_trigger_storage,
             bots_storage,
             webhook_storage: webhook_storage.clone(),
+            audit_storage,
         };
         let merge_queue_service = MergeQueueService::new(base.clone());
         let buck_service = BuckService::new(
@@ -430,6 +436,14 @@ impl Storage {
 
     pub fn webhook_storage(&self) -> WebhookStorage {
         self.app_service.webhook_storage.clone()
+    }
+
+    pub fn audit_storage(&self) -> AuditStorage {
+        self.app_service.audit_storage.clone()
+    }
+
+    pub fn bots_storage(&self) -> BotsStorage {
+        self.app_service.bots_storage.clone()
     }
 
     pub fn mock() -> Self {
