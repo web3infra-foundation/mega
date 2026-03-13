@@ -3,6 +3,7 @@ import { format } from 'date-fns'
 
 import { Note } from '@gitmono/types'
 import { GlobeIcon, HighlightedCommandItem, NoteFilledIcon, Tooltip, UIText } from '@gitmono/ui'
+import { cn } from '@gitmono/ui/src/utils'
 
 import { NoteOverflowMenu } from '@/components/NoteOverflowMenu'
 import { useHandleCommandListSubjectSelect } from '@/components/Projects/hooks/useHandleHighlightedItemSelect'
@@ -17,22 +18,38 @@ interface NoteRowProps {
   note: Note
   display?: 'default' | 'pinned' | 'search'
   hideProject?: boolean
+  permission?: { hasRead: boolean; hasWrite: boolean; isAdmin: boolean }
 }
 
-export const NoteRow = memo(({ note, display = 'default', hideProject = false }: NoteRowProps) => {
+export const NoteRow = memo(({ note, display = 'default', hideProject = false, permission }: NoteRowProps) => {
   const { scope } = useScope()
   const { handleSelect } = useHandleCommandListSubjectSelect()
 
+  const isAdmin = permission?.isAdmin || false
+  const hasRead = permission?.hasRead || false
+
   const href = `/${scope}/notes/${note.id}`
+  const canAccess = isAdmin || hasRead
+  const isDisabled = !canAccess
+
+  const handleSelectWithPermission = (value: string) => {
+    if (isDisabled) return
+    handleSelect(value)
+  }
 
   if (display === 'pinned') {
-    return (
-      <div className='relative flex items-center gap-3 px-3 py-2.5'>
+    const content = (
+      <div
+        className={cn('relative flex items-center gap-3 px-3 py-2.5', {
+          'cursor-not-allowed opacity-40': isDisabled
+        })}
+      >
         <NoteOverflowMenu type='context' note={note}>
           <HighlightedCommandItem
             className='absolute inset-0 z-0'
             value={encodeCommandListSubject(note, { href, pinned: true })}
-            onSelect={handleSelect}
+            onSelect={handleSelectWithPermission}
+            disabled={isDisabled}
           />
         </NoteOverflowMenu>
 
@@ -43,17 +60,26 @@ export const NoteRow = memo(({ note, display = 'default', hideProject = false }:
         <UIText weight='font-medium' className='break-anywhere line-clamp-1 max-w-lg'>
           {note.title || 'Untitled'}
         </UIText>
+
+        {isDisabled && <span className='text-xs text-gray-400'>🔒</span>}
       </div>
     )
+
+    return isDisabled ? <Tooltip label='You do not have permission to view this document'>{content}</Tooltip> : content
   }
 
-  return (
-    <div className='relative flex items-center gap-3 px-3 py-2.5'>
+  const content = (
+    <div
+      className={cn('relative flex items-center gap-3 px-3 py-2.5', {
+        'cursor-not-allowed opacity-40': isDisabled
+      })}
+    >
       <NoteOverflowMenu type='context' note={note}>
         <HighlightedCommandItem
           className='absolute inset-0 z-0'
           value={encodeCommandListSubject(note, { href })}
-          onSelect={handleSelect}
+          onSelect={handleSelectWithPermission}
+          disabled={isDisabled}
         />
       </NoteOverflowMenu>
 
@@ -71,6 +97,8 @@ export const NoteRow = memo(({ note, display = 'default', hideProject = false }:
             {format(note.created_at, 'MMM d, yyyy')}
           </UIText>
         )}
+
+        {isDisabled && <span className='text-xs text-gray-400'>🔒</span>}
       </div>
 
       <div className='flex items-center gap-1'>
@@ -85,5 +113,7 @@ export const NoteRow = memo(({ note, display = 'default', hideProject = false }:
       </div>
     </div>
   )
+
+  return isDisabled ? <Tooltip label='You do not have permission to view this document'>{content}</Tooltip> : content
 })
 NoteRow.displayName = 'NoteRow'

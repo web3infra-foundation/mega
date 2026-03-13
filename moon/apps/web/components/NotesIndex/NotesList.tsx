@@ -14,9 +14,10 @@ import { groupByDate } from '@/utils/groupByDate'
 interface Props {
   notes: Note[]
   hideProject?: boolean
+  notesPermissions?: Record<string, { hasRead: boolean; hasWrite: boolean; isAdmin: boolean }>
 }
 
-export function NotesList({ notes, hideProject }: Props) {
+export function NotesList({ notes, hideProject, notesPermissions }: Props) {
   const { scope } = useScope()
   const filter = useAtomValue(filterAtom(scope))
   const sort = useAtomValue(sortAtom({ scope, filter }))
@@ -46,7 +47,7 @@ export function NotesList({ notes, hideProject }: Props) {
 
             <div className='-mx-2 flex flex-col gap-px py-2'>
               {notes.map((note) => (
-                <NoteRow note={note} key={note.id} hideProject={hideProject} />
+                <NoteRow note={note} key={note.id} hideProject={hideProject} permission={notesPermissions?.[note.id]} />
               ))}
             </div>
           </div>
