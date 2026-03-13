@@ -32,5 +32,5 @@ utoipa.workspace = true
 common = { path = "../common" }
 ring = "0.17.14"
 hex = { workspace = true }
-scorpiofs = "0.1.1"
+scorpiofs = "0.2.0"
 tokio-util = { workspace = true }

@@ -59,6 +59,9 @@ impl Buck2 {
 
     pub fn command(&self) -> Command {
         let mut command = Command::new(&self.program);
+        command
+            .env("BUCKD_STARTUP_TIMEOUT", "30")
+            .env("BUCKD_STARTUP_INIT_TIMEOUT", "1200");
         match &self.isolation_dir {
             None => {}
             Some(isolation_dir) => {
