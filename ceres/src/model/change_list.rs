@@ -84,7 +84,15 @@ impl From<CLDetails> for CLDetailRes {
 
 #[derive(Serialize, ToSchema)]
 pub struct FilesChangedPage {
-    pub page: CommonPage<DiffItemSchema>,
+    pub page: CommonPage<ClFilesChangedItemSchema>,
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema, Clone)]
+pub struct ClFilesChangedItemSchema {
+    pub path: String,
+    pub data: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub old_path: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema, Clone)]
@@ -98,6 +106,16 @@ impl From<DiffItem> for DiffItemSchema {
         Self {
             path: item.path,
             data: item.data,
+        }
+    }
+}
+
+impl ClFilesChangedItemSchema {
+    pub fn new(item: DiffItem, old_path: Option<String>) -> Self {
+        Self {
+            path: item.path,
+            data: item.data,
+            old_path,
         }
     }
 }
@@ -379,10 +397,10 @@ pub struct BuckFile {
 mod tests {
     use std::{path::PathBuf, str::FromStr};
 
-    use git_internal::hash::ObjectHash;
+    use git_internal::{DiffItem, hash::ObjectHash};
     use serde_json::Value;
 
-    use super::{ClDiffFile, ClFilesRes};
+    use super::{ClDiffFile, ClFilesChangedItemSchema, ClFilesRes};
 
     #[test]
     fn relocated_files_serialize_as_renamed() {
@@ -416,5 +434,29 @@ mod tests {
         assert_eq!(moved_json["old_path"], "old_dir/file.rs");
         assert_eq!(moved_json["similarity"], 88);
         assert!(moved_json.get("display_action").is_none());
+    }
+
+    #[test]
+    fn cl_files_changed_item_schema_omits_old_path_for_non_relocated_items() {
+        let regular = ClFilesChangedItemSchema::new(
+            DiffItem {
+                path: "dir/file.rs".to_string(),
+                data: "diff --git a/dir/file.rs b/dir/file.rs\n".to_string(),
+            },
+            None,
+        );
+        let renamed = ClFilesChangedItemSchema::new(
+            DiffItem {
+                path: "new_dir/file.rs".to_string(),
+                data: "diff --git a/old_dir/file.rs b/new_dir/file.rs\n".to_string(),
+            },
+            Some("old_dir/file.rs".to_string()),
+        );
+
+        let regular_json: Value = serde_json::to_value(regular).unwrap();
+        let renamed_json: Value = serde_json::to_value(renamed).unwrap();
+
+        assert!(regular_json.get("old_path").is_none());
+        assert_eq!(renamed_json["old_path"], "old_dir/file.rs");
     }
 }

@@ -323,9 +323,8 @@ async fn cl_files_changed_by_page(
 ) -> Result<Json<CommonResult<FilesChangedPage>>, ApiError> {
     let (items, total) = state
         .monorepo()
-        .paged_content_diff(&link, json.pagination)
+        .paged_content_diff_for_cl(&link, json.pagination)
         .await?;
-    let items = items.into_iter().map(Into::into).collect();
     let res = CommonResult::success(Some(FilesChangedPage {
         page: CommonPage { total, items },
     }));
