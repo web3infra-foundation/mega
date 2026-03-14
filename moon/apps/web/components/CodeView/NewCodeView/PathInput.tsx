@@ -1,6 +1,6 @@
 'use client'
 
-import React, { KeyboardEvent, useEffect, useState } from 'react'
+import React, { KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 
 interface PathInputProps {
@@ -13,7 +13,8 @@ export default function PathInput({ pathState, nameState }: PathInputProps) {
   const [, setName] = nameState
   const params = useParams()
 
-  const [basePath, setBasePath] = useState<string[]>([])
+  // Store fixed base path in ref (no re-renders needed)
+  const fixedBasePathRef = useRef<string[]>([])
 
   const [userSegments, setUserSegments] = useState<string[]>([])
   const [current, setCurrent] = useState<string>('')
@@ -27,7 +28,7 @@ export default function PathInput({ pathState, nameState }: PathInputProps) {
   }
 
   useEffect(() => {
-    const raw = (params as any)?.path
+    const raw = params?.path
     let newBase: string[] = []
 
     if (Array.isArray(raw)) {
@@ -37,10 +38,10 @@ export default function PathInput({ pathState, nameState }: PathInputProps) {
     }
     newBase.unshift('')
 
-    setBasePath(newBase)
+    fixedBasePathRef.current = newBase
     updatePath(newBase, userSegments, current)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify((params as any)?.path)])
+  }, [params?.path])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
@@ -55,14 +56,14 @@ export default function PathInput({ pathState, nameState }: PathInputProps) {
 
         setUserSegments(nextUser)
         setCurrent(last)
-        updatePath(basePath, nextUser, last)
+        updatePath(fixedBasePathRef.current, nextUser, last)
       } else {
         setCurrent('')
-        updatePath(basePath, userSegments, '')
+        updatePath(fixedBasePathRef.current, userSegments, '')
       }
     } else {
       setCurrent(value)
-      updatePath(basePath, userSegments, value)
+      updatePath(fixedBasePathRef.current, userSegments, value)
     }
   }
 
@@ -73,26 +74,22 @@ export default function PathInput({ pathState, nameState }: PathInputProps) {
         const nextUser = userSegments.slice(0, -1)
 
         setUserSegments(nextUser)
-        updatePath(basePath, nextUser, '')
-      } else if (basePath.length > 1) {
-        const nextBase = basePath.slice(0, -1)
-
-        setBasePath(nextBase)
-        updatePath(nextBase, userSegments, '')
+        updatePath(fixedBasePathRef.current, nextUser, '')
       }
+      // basePath is now protected - cannot be deleted
     }
   }
 
   return (
     <div className='text-primary flex max-w-[900px] flex-wrap items-center gap-x-1 gap-y-2'>
-      {[...basePath, ...userSegments].map((seg, i, arr) => (
+      {[...fixedBasePathRef.current, ...userSegments].map((seg, i, arr) => (
         // eslint-disable-next-line react/no-array-index-key
         <React.Fragment key={i}>
           <span className='text-accent font-medium'>{seg}</span>
           {i < arr.length - 1 && <span className='text-secondary'>/</span>}
         </React.Fragment>
       ))}
-      {[...basePath, ...userSegments].length > 0 && <span className='text-secondary'>/</span>}
+      {[...fixedBasePathRef.current, ...userSegments].length > 0 && <span className='text-secondary'>/</span>}
 
       <input
         type='text'

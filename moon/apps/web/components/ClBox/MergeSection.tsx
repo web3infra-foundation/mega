@@ -17,12 +17,21 @@ interface MergeSectionProps {
   onApprove: () => void
   clLink: string
   clStatus?: string
+  claCheck?: boolean
 }
 
 const STATUS_POLL_INTERVAL_MS = 3000
 
 export const MergeSection = React.memo<MergeSectionProps>(
-  ({ isAllReviewerApproved, hasCheckFailures: _hasCheckFailures, isNowUserApprove, onApprove, clLink, clStatus }) => {
+  ({
+    isAllReviewerApproved,
+    hasCheckFailures: _hasCheckFailures,
+    isNowUserApprove,
+    onApprove,
+    clLink,
+    clStatus,
+    claCheck = true
+  }) => {
     const router = useRouter()
     const { scope } = useScope()
     const queryClient = useQueryClient()
@@ -69,7 +78,7 @@ export const MergeSection = React.memo<MergeSectionProps>(
 
     let statusNode: React.ReactNode
 
-    const isMergeable = isAllReviewerApproved
+    const isMergeable = isAllReviewerApproved && claCheck !== false
     const isDraft = clStatus?.toLowerCase() === 'draft'
 
     if (isDraft) {
@@ -137,6 +146,15 @@ export const MergeSection = React.memo<MergeSectionProps>(
                 className='w-full rounded-md bg-green-600 px-4 py-2 font-bold text-white duration-500 hover:bg-green-800 disabled:cursor-not-allowed disabled:bg-gray-400'
               >
                 Approve
+              </button>
+            )}
+
+            {claCheck === false && (
+              <button
+                onClick={() => router.push(`/me/settings/cla/sign`)}
+                className='w-full rounded-md bg-blue-600 px-4 py-2 font-bold text-white duration-500 hover:bg-blue-800'
+              >
+                Sign CLA
               </button>
             )}
 
