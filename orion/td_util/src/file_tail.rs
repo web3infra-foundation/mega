@@ -53,9 +53,14 @@ where
     let compressed_path = compressed_path.as_ref();
 
     // Wait for the event log file to appear (buck2 creates it after startup).
-    // Use a bounded wait; if the file never shows up (e.g. zero targets) we
-    // exit gracefully so the caller is not blocked.
-    let wait_timeout = Duration::from_secs(30);
+    // The buck2 daemon may take a long time to initialize on cold FUSE caches
+    // (up to BUCKD_STARTUP_INIT_TIMEOUT, typically 1200s), so we use a generous
+    // default here. Override via ORION_EVENT_LOG_WAIT_TIMEOUT_SECS if needed.
+    let wait_timeout_secs: u64 = std::env::var("ORION_EVENT_LOG_WAIT_TIMEOUT_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(300);
+    let wait_timeout = Duration::from_secs(wait_timeout_secs);
     let wait_start = tokio::time::Instant::now();
     loop {
         if compressed_path.exists() {
@@ -82,6 +87,9 @@ where
     drop(temp_file); // Close it for now, will open asynchronously later
 
     // Asynchronously open the compressed file and the temp file
+    // Note: there is a small TOCTOU window between the exists() check above
+    // and the File::open here (the file could be removed if buck2 is killed).
+    // This is acceptable because buck2 owns the file lifecycle during a build.
     let compressed_file = File::open(compressed_path).await?;
     let mut decoder = ZstdDecoder::new(BufReader::with_capacity(256 * 1024, compressed_file));
     let temp_file = File::create(&temp_path).await?;
@@ -119,6 +127,9 @@ where
             let mut offset = 0u64;
             let mut buffer = String::new();
             // Count consecutive empty reads so we can exit after decompression is done.
+            // After decompression finishes, we allow up to MAX_EMPTY_POLLS_AFTER_DONE
+            // consecutive empty reads (each separated by `poll_interval`) before exiting.
+            // With the default 200ms poll_interval this means ~1s of draining time.
             let mut empty_polls: u32 = 0;
             const MAX_EMPTY_POLLS_AFTER_DONE: u32 = 5;
 

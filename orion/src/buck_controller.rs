@@ -46,6 +46,14 @@ static PROJECT_ROOT: Lazy<String> =
 const DEFAULT_PREHEAT_SHALLOW_DEPTH: usize = 3;
 static BUILD_CONFIG: Lazy<Option<BuildConfig>> = Lazy::new(load_build_config);
 
+/// Check whether failed-build mounts should be kept alive for debugging.
+/// Controlled by the `ORION_KEEP_FAILED_MOUNTS` environment variable (set to "1" to enable).
+fn keep_failed_mounts() -> bool {
+    std::env::var("ORION_KEEP_FAILED_MOUNTS")
+        .map(|v| v == "1")
+        .unwrap_or(false)
+}
+
 /// Mount an Antares overlay filesystem for a build job.
 ///
 /// Creates a new Antares overlay mount using scorpiofs. The underlying Dicfuse
@@ -241,6 +249,12 @@ fn resolve_config_path() -> Option<PathBuf> {
 }
 
 /// Get target of a specific repo under tmp directory.
+///
+/// Note: `preheat()` was previously called here to warm the kernel VFS/FUSE
+/// cache, but it has been removed. The new `warmup_dicfuse()` at startup
+/// populates the Dicfuse backing store which makes subsequent FUSE reads
+/// fast, and `preheat_shallow()` in `get_build_targets()` handles the
+/// per-mount VFS cache warming.
 fn get_repo_targets(file_name: &str, repo_path: &Path) -> anyhow::Result<Targets> {
     const MAX_ATTEMPTS: usize = 2;
     let jsonl_path = PathBuf::from(repo_path).join(file_name);
@@ -514,7 +528,6 @@ impl MountGuard {
         }
     }
 
-    #[allow(dead_code)]
     async fn unmount(&self) {
         if self.unmounted.swap(true, Ordering::AcqRel) {
             return;
@@ -537,21 +550,22 @@ impl Drop for MountGuard {
         if self.unmounted.load(Ordering::Acquire) {
             return;
         }
-        // TODO: Temporarily keep mounts alive — skip auto-unmount on drop.
-        // Re-enable the spawn block below once post-build inspection is no longer needed.
-        tracing::info!(
-            "[Task {}] MountGuard dropped but unmount is temporarily disabled (mount_id={}).",
-            self.task_id,
-            self.mount_id,
-        );
-        // let mount_id = self.mount_id.clone();
-        // let task_id: String = self.task_id.clone();
-        // tokio::spawn(async move {
-        //     match unmount_antares_fs(&mount_id).await {
-        //         Ok(_) => tracing::info!("[Task {}] Filesystem unmounted successfully.", task_id),
-        //         Err(e) => tracing::error!("[Task {}] Failed to unmount filesystem: {}", task_id, e),
-        //     }
-        // });
+        if keep_failed_mounts() {
+            tracing::info!(
+                "[Task {}] MountGuard dropped — unmount skipped (ORION_KEEP_FAILED_MOUNTS=1, mount_id={}).",
+                self.task_id,
+                self.mount_id,
+            );
+            return;
+        }
+        let mount_id = self.mount_id.clone();
+        let task_id: String = self.task_id.clone();
+        tokio::spawn(async move {
+            match unmount_antares_fs(&mount_id).await {
+                Ok(_) => tracing::info!("[Task {}] Filesystem unmounted successfully.", task_id),
+                Err(e) => tracing::error!("[Task {}] Failed to unmount filesystem: {}", task_id, e),
+            }
+        });
     }
 }
 
@@ -650,9 +664,15 @@ pub async fn build(
                 break;
             }
             Err(e) => {
-                // Keep mounts alive on failure for debugging.
-                // guard.unmount().await;
-                // guard_old_repo.unmount().await;
+                if keep_failed_mounts() {
+                    tracing::info!(
+                        "[Task {}] Keeping failed mounts alive for debugging (ORION_KEEP_FAILED_MOUNTS=1)",
+                        id,
+                    );
+                } else {
+                    guard.unmount().await;
+                    guard_old_repo.unmount().await;
+                }
                 tracing::warn!(
                     "[Task {}] Failed to get build targets (attempt {}/{}): {}. Mounts kept alive for debugging (old={}, new={}).",
                     id,
@@ -703,6 +723,8 @@ pub async fn build(
         let mut cmd = Command::new("buck2");
         // --event-log and --build-report are used to collect build execution status
         // at target level (e.g. pending / running / succeeded / failed).
+        // FUSE-backed repos may trigger lazy loading during daemon init, which
+        // can be slow on cold caches — allow up to 1200s for the daemon to start.
         cmd.env("BUCKD_STARTUP_TIMEOUT", "30")
             .env("BUCKD_STARTUP_INIT_TIMEOUT", "1200");
         let cmd = cmd
@@ -785,35 +807,49 @@ pub async fn build(
         };
 
         // Stop the build-status tracker cleanly.
+        // Signal the processing loop to exit via cancellation token; it will
+        // flush its remaining buffer in the cleanup path after breaking out of
+        // the select! loop.
         target_build_track.cancellation.cancel();
+        // Abort the tail task — no more events need to be ingested.
         target_build_track.tail_handle.abort();
-        target_build_track.process_handle.abort();
         let _ = target_build_track.tail_handle.await;
-        let _ = target_build_track.process_handle.await;
+        // Give the processing loop a short grace period to flush its final
+        // buffered updates after observing the cancellation signal.
+        if tokio::time::timeout(
+            Duration::from_secs(2),
+            target_build_track.process_handle,
+        )
+        .await
+        .is_err()
+        {
+            tracing::warn!("Build status processing loop did not finish within 2s grace period");
+        }
         tracing::info!("Target build status track finished");
         Ok(status)
     }
     .await;
 
-    // TODO: Temporarily keep mounts alive for debugging / post-build inspection.
-    // Unmount is intentionally skipped here. Remember to re-enable once no longer needed.
-    // mount_guard.unmount().await;
-    // mount_guard_old_repo.unmount().await;
-    tracing::info!(
-        "[Task {}] Skipping unmount — mount directories are retained for inspection: \
-         new_repo mountpoint={}, mount_id={}; \
-         old_repo mountpoint={}, mount_id={}",
-        id,
-        mount_point,
-        mount_guard.mount_id,
-        old_repo_mount_point_saved.as_deref().unwrap_or("<unknown>"),
-        mount_guard_old_repo.mount_id,
-    );
-    // Prevent the Drop impl from unmounting.
-    mount_guard.unmounted.store(true, Ordering::Release);
-    mount_guard_old_repo
-        .unmounted
-        .store(true, Ordering::Release);
+    if keep_failed_mounts() {
+        tracing::info!(
+            "[Task {}] Skipping unmount (ORION_KEEP_FAILED_MOUNTS=1) — mount directories retained: \
+             new_repo mountpoint={}, mount_id={}; \
+             old_repo mountpoint={}, mount_id={}",
+            id,
+            mount_point,
+            mount_guard.mount_id,
+            old_repo_mount_point_saved.as_deref().unwrap_or("<unknown>"),
+            mount_guard_old_repo.mount_id,
+        );
+        // Prevent the Drop impl from unmounting.
+        mount_guard.unmounted.store(true, Ordering::Release);
+        mount_guard_old_repo
+            .unmounted
+            .store(true, Ordering::Release);
+    } else {
+        mount_guard.unmount().await;
+        mount_guard_old_repo.unmount().await;
+    }
 
     build_result
 }

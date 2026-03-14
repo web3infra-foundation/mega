@@ -134,14 +134,17 @@ pub(crate) async fn warmup_dicfuse() -> Result<(), DynError> {
     dicfuse.start_import();
 
     tokio::spawn(async move {
-        const DICFUSE_WARMUP_TIMEOUT_SECS: u64 = 1200;
+        let warmup_timeout_secs: u64 = std::env::var("ORION_DICFUSE_WARMUP_TIMEOUT_SECS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(1200);
         tracing::info!(
             "Waiting for Antares Dicfuse warmup to finish (timeout: {}s)",
-            DICFUSE_WARMUP_TIMEOUT_SECS
+            warmup_timeout_secs
         );
 
         match tokio::time::timeout(
-            Duration::from_secs(DICFUSE_WARMUP_TIMEOUT_SECS),
+            Duration::from_secs(warmup_timeout_secs),
             dicfuse.store.wait_for_ready(),
         )
         .await
@@ -149,7 +152,7 @@ pub(crate) async fn warmup_dicfuse() -> Result<(), DynError> {
             Ok(_) => tracing::info!("Antares Dicfuse warmup completed"),
             Err(_) => tracing::warn!(
                 "Antares Dicfuse warmup timed out after {}s",
-                DICFUSE_WARMUP_TIMEOUT_SECS
+                warmup_timeout_secs
             ),
         }
     });
