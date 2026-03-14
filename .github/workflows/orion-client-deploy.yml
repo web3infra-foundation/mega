@@ -181,6 +181,11 @@ jobs:
             sudo chmod +x /home/orion/orion-runner/run.sh
             sudo chmod +x /home/orion/orion-runner/cleanup.sh
 
+            # Grant CAP_DAC_READ_SEARCH file capability so orion can bypass
+            # DAC read/search checks without running as root
+            sudo setcap cap_dac_read_search+ep /home/orion/orion-runner/orion
+            getcap /home/orion/orion-runner/orion
+
             # Update systemd service file if changed
             if [ -f /home/orion/orion-runner/orion-runner.service ]; then
                 cp /home/orion/orion-runner/orion-runner.service /etc/systemd/system/
@@ -284,6 +289,11 @@ jobs:
             sudo chmod +x /home/orion/orion-runner/orion
             sudo chmod +x /home/orion/orion-runner/run.sh
             sudo chmod +x /home/orion/orion-runner/cleanup.sh
+
+            # Grant CAP_DAC_READ_SEARCH file capability so orion can bypass
+            # DAC read/search checks without running as root
+            sudo setcap cap_dac_read_search+ep /home/orion/orion-runner/orion
+            getcap /home/orion/orion-runner/orion
 
             # Update systemd service file if changed
             if [ -f /home/orion/orion-runner/orion-runner.service ]; then
