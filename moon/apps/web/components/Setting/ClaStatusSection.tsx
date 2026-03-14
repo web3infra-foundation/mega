@@ -1,7 +1,9 @@
-import { useClaStatus } from '@/hooks/Cla/useClaStatus'
-import * as SettingsSection from '@/components/SettingsSection'
-import { Button } from '@gitmono/ui'
 import { useRouter } from 'next/navigation'
+
+import { Button } from '@gitmono/ui'
+
+import * as SettingsSection from '@/components/SettingsSection'
+import { useClaStatus } from '@/hooks/Cla/useClaStatus'
 
 const ClaStatusSection = () => {
   const { data: claStatusData, isLoading } = useClaStatus()
@@ -49,12 +51,8 @@ const ClaStatusSection = () => {
               </span>
             )}
           </div>
-          
-          {!signed && !isLoading && (
-            <Button onClick={() => router.push('/me/settings/cla/sign')}>
-              Sign CLA
-            </Button>
-          )}
+
+          {!signed && !isLoading && <Button onClick={() => router.push('/me/settings/cla/sign')}>Sign CLA</Button>}
         </div>
       </SettingsSection.Body>
     </SettingsSection.Section>
