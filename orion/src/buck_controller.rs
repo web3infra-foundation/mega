@@ -118,7 +118,7 @@ fn preheat(repo_path: &Path) -> anyhow::Result<()> {
         repo = ?repo_path,
         elapsed_ms = start.elapsed().as_millis(),
         depth = depth,
-        ": completed"
+        "preheat: completed"
     );
     Ok(())
 }
