@@ -140,7 +140,13 @@ export const NoteContent = memo(
     })
 
     return (
-      <div ref={containerRef} className={cn('relative', { 'opacity-50': isSyncError })}>
+      <div
+        ref={containerRef}
+        className={cn('relative', {
+          'opacity-50': isSyncError,
+          '[&_.ProseMirror]:cursor-default [&_.ProseMirror]:caret-transparent': editable !== 'all'
+        })}
+      >
         <LayeredHotkeys
           keys={ADD_ATTACHMENT_SHORTCUT}
           callback={() => {

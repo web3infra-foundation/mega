@@ -48,9 +48,17 @@ export function useGetNotesPermissions({ notes, enabled = true }: UseGetNotesPer
       // Batch query permissions for all notes
       const permissionsPromises = notes.map(async (note) => {
         try {
-          const response = await legacyApiClient.v1
-            .getApiAdminUsersPermissionsByResourceId()
-            .request(currentUser?.username || '', 'note', note.id)
+          let response
+
+          if (isSystemAdmin) {
+            // Admin users: use admin endpoint
+            response = await legacyApiClient.v1
+              .getApiAdminUsersPermissionsByResourceId()
+              .request(currentUser?.username || '', 'note', note.id)
+          } else {
+            // Regular users: use /me endpoint
+            response = await legacyApiClient.v1.getApiPermissionsMeByResourceId().request('note', note.id)
+          }
 
           if (response?.data) {
             return {
