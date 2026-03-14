@@ -28,6 +28,7 @@ import { SubjectEspcapeLayeredHotkeys } from '@/components/Subject'
 import { ProjectAccessoryBreadcrumbIcon } from '@/components/Titlebar/BreadcrumbPageIcons'
 import { BreadcrumbLabel } from '@/components/Titlebar/BreadcrumbTitlebar'
 import { useScope } from '@/contexts/scope'
+import { useGetNotesPermissions } from '@/hooks/admin/useGetNotesPermissions'
 import { useCreateNoteView } from '@/hooks/useCreateNoteView'
 import { useGetNote } from '@/hooks/useGetNote'
 import { useGetNoteComments } from '@/hooks/useGetNoteComments'
@@ -85,6 +86,15 @@ function InnerNoteView({ note }: { note: Note }) {
   useCreateLingerNoteView(note.id, !!note)
   useLiveNoteUpdates(note)
 
+  // Get permissions for this note
+  const { data: notesPermissions } = useGetNotesPermissions({
+    notes: [note],
+    enabled: true
+  })
+
+  const permission = notesPermissions?.[note.id]
+  const hasWritePermission = permission?.hasWrite ?? note.viewer_can_edit
+
   // prefetch comments
   useGetNoteComments({ noteId: note.id })
   useGetNoteTimelineEvents({ noteId: note.id, enabled: true })
@@ -108,6 +118,7 @@ function InnerNoteView({ note }: { note: Note }) {
       </InboxSplitViewTitleBar>
 
       <PublicVisibilityBanner note={note} />
+      {!hasWritePermission && note.viewer_can_edit && <NoWritePermissionBanner />}
 
       <ScrollableContainer id='note-scroll-container'>
         <div
@@ -118,7 +129,7 @@ function InnerNoteView({ note }: { note: Note }) {
             <NoteEditor
               // key by note.id in order to reset tiptap editor state
               key={note.id}
-              note={note}
+              note={{ ...note, viewer_can_edit: hasWritePermission }}
             />
           )}
         </div>
@@ -143,6 +154,17 @@ function PublicVisibilityBanner({ note }: { note: Note }) {
         <ArrowUpRightIcon size={16} strokeWidth='2' />
       </div>
     </Link>
+  )
+}
+
+function NoWritePermissionBanner() {
+  return (
+    <div className='flex w-full items-center justify-center gap-3 border-b border-amber-100/60 bg-amber-50 px-4 py-2.5 text-sm text-amber-700 dark:border-amber-900/35 dark:bg-amber-900/20 dark:text-amber-200'>
+      <LockIcon size={18} className='flex-none' strokeWidth='2' />
+      <UIText weight='font-medium' inherit>
+        You have read-only access to this document
+      </UIText>
+    </div>
   )
 }
 

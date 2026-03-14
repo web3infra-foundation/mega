@@ -2,7 +2,7 @@ import { memo } from 'react'
 import { format } from 'date-fns'
 
 import { Note } from '@gitmono/types'
-import { GlobeIcon, HighlightedCommandItem, NoteFilledIcon, Tooltip, UIText } from '@gitmono/ui'
+import { GlobeIcon, HighlightedCommandItem, LockIcon, NoteFilledIcon, Tooltip, UIText } from '@gitmono/ui'
 import { cn } from '@gitmono/ui/src/utils'
 
 import { NoteOverflowMenu } from '@/components/NoteOverflowMenu'
@@ -41,7 +41,7 @@ export const NoteRow = memo(({ note, display = 'default', hideProject = false, p
     const content = (
       <div
         className={cn('relative flex items-center gap-3 px-3 py-2.5', {
-          'cursor-not-allowed opacity-40': isDisabled
+          'cursor-not-allowed opacity-50': isDisabled
         })}
       >
         <NoteOverflowMenu type='context' note={note}>
@@ -53,25 +53,36 @@ export const NoteRow = memo(({ note, display = 'default', hideProject = false, p
           />
         </NoteOverflowMenu>
 
-        <div className='flex h-11 w-11 items-center justify-center rounded-full bg-blue-50 text-blue-500 dark:bg-blue-900/50'>
-          <NoteFilledIcon size={24} />
+        <div
+          className={cn(
+            'flex h-11 w-11 items-center justify-center rounded-full',
+            isDisabled
+              ? 'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-600'
+              : 'bg-blue-50 text-blue-500 dark:bg-blue-900/50'
+          )}
+        >
+          {isDisabled ? <LockIcon size={24} strokeWidth='2' /> : <NoteFilledIcon size={24} />}
         </div>
 
         <UIText weight='font-medium' className='break-anywhere line-clamp-1 max-w-lg'>
           {note.title || 'Untitled'}
         </UIText>
-
-        {isDisabled && <span className='text-xs text-gray-400'>🔒</span>}
       </div>
     )
 
-    return isDisabled ? <Tooltip label='You do not have permission to view this document'>{content}</Tooltip> : content
+    return isDisabled ? (
+      <Tooltip label='You do not have permission to view this document' side='top' align='start'>
+        {content}
+      </Tooltip>
+    ) : (
+      content
+    )
   }
 
   const content = (
     <div
       className={cn('relative flex items-center gap-3 px-3 py-2.5', {
-        'cursor-not-allowed opacity-40': isDisabled
+        'cursor-not-allowed opacity-50': isDisabled
       })}
     >
       <NoteOverflowMenu type='context' note={note}>
@@ -84,7 +95,13 @@ export const NoteRow = memo(({ note, display = 'default', hideProject = false, p
       </NoteOverflowMenu>
 
       <div className='flex flex-1 items-center gap-3'>
-        <NotePrivacyIndicator note={note} />
+        {isDisabled ? (
+          <div className='flex h-5 w-5 items-center justify-center rounded bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'>
+            <LockIcon size={14} strokeWidth='2.5' />
+          </div>
+        ) : (
+          <NotePrivacyIndicator note={note} />
+        )}
 
         <ViewerFollowUpTag followUps={note.follow_ups} />
 
@@ -97,8 +114,6 @@ export const NoteRow = memo(({ note, display = 'default', hideProject = false, p
             {format(note.created_at, 'MMM d, yyyy')}
           </UIText>
         )}
-
-        {isDisabled && <span className='text-xs text-gray-400'>🔒</span>}
       </div>
 
       <div className='flex items-center gap-1'>
@@ -114,6 +129,12 @@ export const NoteRow = memo(({ note, display = 'default', hideProject = false, p
     </div>
   )
 
-  return isDisabled ? <Tooltip label='You do not have permission to view this document'>{content}</Tooltip> : content
+  return isDisabled ? (
+    <Tooltip label='You do not have permission to view this document' side='top' align='start'>
+      {content}
+    </Tooltip>
+  ) : (
+    content
+  )
 })
 NoteRow.displayName = 'NoteRow'
