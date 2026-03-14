@@ -3,7 +3,8 @@ use std::ops::Deref;
 use callisto::cla_sign_status;
 use common::errors::MegaError;
 use sea_orm::{
-    ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set, prelude::Expr, sea_query::OnConflict,
+    ColumnTrait, DbErr, EntityTrait, QueryFilter, QuerySelect, Set, prelude::Expr,
+    sea_query::OnConflict,
 };
 
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
@@ -44,14 +45,18 @@ impl ClaStorage {
             updated_at: Set(now),
         };
 
-        cla_sign_status::Entity::insert(model)
+        match cla_sign_status::Entity::insert(model)
             .on_conflict(
                 OnConflict::column(cla_sign_status::Column::Username)
                     .do_nothing()
                     .to_owned(),
             )
             .exec(self.get_connection())
-            .await?;
+            .await
+        {
+            Ok(_) | Err(DbErr::RecordNotInserted) => {}
+            Err(e) => return Err(e.into()),
+        }
 
         self.get_status(username)
             .await?
@@ -77,14 +82,18 @@ impl ClaStorage {
             updated_at: Set(now),
         };
 
-        cla_sign_status::Entity::insert(active_model)
+        match cla_sign_status::Entity::insert(active_model)
             .on_conflict(
                 OnConflict::column(cla_sign_status::Column::Username)
                     .do_nothing()
                     .to_owned(),
             )
             .exec(self.get_connection())
-            .await?;
+            .await
+        {
+            Ok(_) | Err(DbErr::RecordNotInserted) => {}
+            Err(e) => return Err(e.into()),
+        }
 
         cla_sign_status::Entity::update_many()
             .col_expr(cla_sign_status::Column::ClaSigned, Expr::value(true))
@@ -95,9 +104,18 @@ impl ClaStorage {
             .exec(self.get_connection())
             .await?;
 
-        self.get_status(username)
+        let model = self
+            .get_status(username)
             .await?
-            .ok_or_else(|| MegaError::Other("Failed to sign CLA status".to_string()))
+            .ok_or_else(|| MegaError::Other("Failed to sign CLA status".to_string()))?;
+
+        if !model.cla_signed {
+            return Err(MegaError::Other(
+                "CLA status still unsigned after sign operation".to_string(),
+            ));
+        }
+
+        Ok(model)
     }
 
     pub async fn unsigned_users(&self, usernames: &[String]) -> Result<Vec<String>, MegaError> {
