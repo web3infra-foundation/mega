@@ -3181,13 +3181,31 @@ export enum CheckType {
   ClSync = 'ClSync',
   MergeConflict = 'MergeConflict',
   CiStatus = 'CiStatus',
-  CodeReview = 'CodeReview'
+  CodeReview = 'CodeReview',
+  ClaSign = 'ClaSign'
 }
 
 export type ClFilesRes = {
   action: string
+  old_path?: string | null
   path: string
   sha: string
+  /**
+   * @format int32
+   * @min 0
+   */
+  similarity?: number | null
+}
+
+export type ClaContentRes = {
+  content: string
+}
+
+export type ClaSignStatusRes = {
+  cla_signed: boolean
+  /** @format int64 */
+  cla_signed_at?: number | null
+  username: string
 }
 
 export type CloneRepoPayload = {
@@ -3249,6 +3267,19 @@ export type CommitSummary = {
 
 export type CommonPage = {
   items: TagResponse[]
+  /**
+   * @format int64
+   * @min 0
+   */
+  total: number
+}
+
+export type CommonPageClFilesChangedItemSchema = {
+  items: {
+    data: string
+    old_path?: string | null
+    path: string
+  }[]
   /**
    * @format int64
    * @min 0
@@ -3326,6 +3357,25 @@ export type CommonResultCLDetailRes = {
     path: string
     status: MergeStatus
     title: string
+  }
+  err_message: string
+  req_result: boolean
+}
+
+export type CommonResultClaContentRes = {
+  data?: {
+    content: string
+  }
+  err_message: string
+  req_result: boolean
+}
+
+export type CommonResultClaSignStatusRes = {
+  data?: {
+    cla_signed: boolean
+    /** @format int64 */
+    cla_signed_at?: number | null
+    username: string
   }
   err_message: string
   req_result: boolean
@@ -3533,6 +3583,28 @@ export type CommonResultCommonPageTriggerResponse = {
   req_result: boolean
 }
 
+export type CommonResultCommonPageWebhookResponse = {
+  data?: {
+    items: {
+      active: boolean
+      created_at: string
+      event_types: string[]
+      /** @format int64 */
+      id: number
+      path_filter?: string | null
+      target_url: string
+      updated_at: string
+    }[]
+    /**
+     * @format int64
+     * @min 0
+     */
+    total: number
+  }
+  err_message: string
+  req_result: boolean
+}
+
 export type CommonResultCompleteResponse = {
   /**
    * Response for upload completion
@@ -3680,7 +3752,7 @@ export type CommonResultFileUploadResponse = {
 
 export type CommonResultFilesChangedPage = {
   data?: {
-    page: CommonPageDiffItemSchema
+    page: CommonPageClFilesChangedItemSchema
   }
   err_message: string
   req_result: boolean
@@ -4022,8 +4094,14 @@ export type CommonResultVec = {
 export type CommonResultVecClFilesRes = {
   data?: {
     action: string
+    old_path?: string | null
     path: string
     sha: string
+    /**
+     * @format int32
+     * @min 0
+     */
+    similarity?: number | null
   }[]
   err_message: string
   req_result: boolean
@@ -4157,6 +4235,21 @@ export type CommonResultVecTreeHashItem = {
     name: string
     oid: string
   }[]
+  err_message: string
+  req_result: boolean
+}
+
+export type CommonResultWebhookResponse = {
+  data?: {
+    active: boolean
+    created_at: string
+    event_types: string[]
+    /** @format int64 */
+    id: number
+    path_filter?: string | null
+    target_url: string
+    updated_at: string
+  }
   err_message: string
   req_result: boolean
 }
@@ -4338,6 +4431,15 @@ export type CreateTriggerRequest = {
   repo_path: string
 }
 
+export type CreateWebhookRequest = {
+  active?: boolean | null
+  /** Event types: "cl.created", "cl.updated", "cl.merged", "cl.closed", "cl.reopened", "cl.comment.created", "*" */
+  event_types: string[]
+  path_filter?: string | null
+  secret: string
+  target_url: string
+}
+
 export type DeleteGroupResponse = {
   /**
    * @format int64
@@ -4479,7 +4581,7 @@ export type FileUploadResponse = {
 }
 
 export type FilesChangedPage = {
-  page: CommonPageDiffItemSchema
+  page: CommonPageClFilesChangedItemSchema
 }
 
 export type GpgKey = {
@@ -5234,6 +5336,10 @@ export type UpdateClStatusPayload = {
   status: string
 }
 
+export type UpdateClaContentPayload = {
+  content: string
+}
+
 export type UpdateCommentRequest = {
   content: string
 }
@@ -5305,6 +5411,17 @@ export type VerifiableLockRequest = {
   limit?: number | null
   /** Git reference information */
   refs: Ref
+}
+
+export type WebhookResponse = {
+  active: boolean
+  created_at: string
+  event_types: string[]
+  /** @format int64 */
+  id: number
+  path_filter?: string | null
+  target_url: string
+  updated_at: string
 }
 
 /** Data transfer object for build information in API responses */
@@ -7067,6 +7184,14 @@ export type GetApiTriggersByIdData = CommonResultTriggerResponse
 
 export type PostApiTriggersRetryData = CommonResultTriggerResponse
 
+export type PostApiUserClaChangeSignStatusData = CommonResultClaSignStatusRes
+
+export type GetApiUserClaContentData = CommonResultClaContentRes
+
+export type PostApiUserClaContentData = CommonResultClaContentRes
+
+export type GetApiUserClaStatusData = CommonResultClaSignStatusRes
+
 export type PostApiUserSshData = CommonResultString
 
 export type GetApiUserSshListData = CommonResultVecListSSHKey
@@ -7078,6 +7203,27 @@ export type PostApiUserTokenGenerateData = CommonResultString
 export type GetApiUserTokenListData = CommonResultVecListToken
 
 export type DeleteApiUserTokenByKeyIdData = CommonResultString
+
+export type GetApiWebhooksParams = {
+  /**
+   * Page number, starts from 1. Default: 1
+   * @format int64
+   * @min 0
+   */
+  page?: number
+  /**
+   * Items per page. Default: 20
+   * @format int64
+   * @min 0
+   */
+  per_page?: number
+}
+
+export type GetApiWebhooksData = CommonResultCommonPageWebhookResponse
+
+export type PostApiWebhooksData = CommonResultWebhookResponse
+
+export type DeleteApiWebhooksByIdData = CommonResultString
 
 export type GetOrionClientStatusByIdData = OrionClientStatus
 
@@ -7152,6 +7298,10 @@ export type GetBuildEventsByTaskIdV2Error = MessageResponse
 export type GetBuildStateByBuildIdV2Data = BuildEventState
 
 export type GetBuildStateByBuildIdV2Error = MessageResponse
+
+export type GetBuildsLogsV2Data = LogLinesResponse
+
+export type GetBuildsLogsV2Error = LogErrorResponse
 
 export type GetHealthV2Data = any
 
@@ -18363,6 +18513,100 @@ It's for local testing purposes.
      * No description
      *
      * @tags User Management
+     * @name PostApiUserClaChangeSignStatus
+     * @summary Change CLA sign status for current user
+     * @request POST:/api/v1/user/cla/change-sign-status
+     */
+    postApiUserClaChangeSignStatus: () => {
+      const base = 'POST:/api/v1/user/cla/change-sign-status' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiUserClaChangeSignStatusData>([base]),
+        requestKey: () => dataTaggedQueryKey<PostApiUserClaChangeSignStatusData>([base]),
+        request: (params: RequestParams = {}) =>
+          this.request<PostApiUserClaChangeSignStatusData>({
+            path: `/api/v1/user/cla/change-sign-status`,
+            method: 'POST',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags User Management
+     * @name GetApiUserClaContent
+     * @summary Get latest CLA text content
+     * @request GET:/api/v1/user/cla/content
+     */
+    getApiUserClaContent: () => {
+      const base = 'GET:/api/v1/user/cla/content' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiUserClaContentData>([base]),
+        requestKey: () => dataTaggedQueryKey<GetApiUserClaContentData>([base]),
+        request: (params: RequestParams = {}) =>
+          this.request<GetApiUserClaContentData>({
+            path: `/api/v1/user/cla/content`,
+            method: 'GET',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags User Management
+     * @name PostApiUserClaContent
+     * @summary Update latest CLA text content
+     * @request POST:/api/v1/user/cla/content
+     */
+    postApiUserClaContent: () => {
+      const base = 'POST:/api/v1/user/cla/content' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiUserClaContentData>([base]),
+        requestKey: () => dataTaggedQueryKey<PostApiUserClaContentData>([base]),
+        request: (data: UpdateClaContentPayload, params: RequestParams = {}) =>
+          this.request<PostApiUserClaContentData>({
+            path: `/api/v1/user/cla/content`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags User Management
+     * @name GetApiUserClaStatus
+     * @summary Get current user's CLA sign status
+     * @request GET:/api/v1/user/cla/status
+     */
+    getApiUserClaStatus: () => {
+      const base = 'GET:/api/v1/user/cla/status' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiUserClaStatusData>([base]),
+        requestKey: () => dataTaggedQueryKey<GetApiUserClaStatusData>([base]),
+        request: (params: RequestParams = {}) =>
+          this.request<GetApiUserClaStatusData>({
+            path: `/api/v1/user/cla/status`,
+            method: 'GET',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags User Management
      * @name PostApiUserSsh
      * @summary Add SSH Key
      * @request POST:/api/v1/user/ssh
@@ -18493,6 +18737,78 @@ It's for local testing purposes.
         request: (keyId: number, params: RequestParams = {}) =>
           this.request<DeleteApiUserTokenByKeyIdData>({
             path: `/api/v1/user/token/${keyId}`,
+            method: 'DELETE',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Webhook
+     * @name GetApiWebhooks
+     * @summary List webhooks
+     * @request GET:/api/v1/webhooks
+     */
+    getApiWebhooks: () => {
+      const base = 'GET:/api/v1/webhooks' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiWebhooksData>([base]),
+        requestKey: (params: GetApiWebhooksParams) => dataTaggedQueryKey<GetApiWebhooksData>([base, params]),
+        request: (query: GetApiWebhooksParams, params: RequestParams = {}) =>
+          this.request<GetApiWebhooksData>({
+            path: `/api/v1/webhooks`,
+            method: 'GET',
+            query: query,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Webhook
+     * @name PostApiWebhooks
+     * @summary Create a webhook
+     * @request POST:/api/v1/webhooks
+     */
+    postApiWebhooks: () => {
+      const base = 'POST:/api/v1/webhooks' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiWebhooksData>([base]),
+        requestKey: () => dataTaggedQueryKey<PostApiWebhooksData>([base]),
+        request: (data: CreateWebhookRequest, params: RequestParams = {}) =>
+          this.request<PostApiWebhooksData>({
+            path: `/api/v1/webhooks`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Webhook
+     * @name DeleteApiWebhooksById
+     * @summary Delete a webhook
+     * @request DELETE:/api/v1/webhooks/{id}
+     */
+    deleteApiWebhooksById: () => {
+      const base = 'DELETE:/api/v1/webhooks/{id}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<DeleteApiWebhooksByIdData>([base]),
+        requestKey: (id: number) => dataTaggedQueryKey<DeleteApiWebhooksByIdData>([base, id]),
+        request: (id: number, params: RequestParams = {}) =>
+          this.request<DeleteApiWebhooksByIdData>({
+            path: `/api/v1/webhooks/${id}`,
             method: 'DELETE',
             ...params
           })
@@ -18727,6 +19043,30 @@ Continuously monitors the log file and streams new content as it becomes availab
         request: (buildId: string, params: RequestParams = {}) =>
           this.request<GetBuildStateByBuildIdV2Data>({
             path: `/v2/build-state/${buildId}`,
+            method: 'GET',
+            ...params
+          })
+      }
+    }
+  }
+  builds = {
+    /**
+     * No description
+     *
+     * @tags api
+     * @name GetBuildsLogsV2
+     * @summary Get complete log for a specific build event
+     * @request GET:/v2/builds/{build_id}/logs
+     */
+    getBuildsLogsV2: () => {
+      const base = 'GET:/v2/builds/{build_id}/logs' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetBuildsLogsV2Data>([base]),
+        requestKey: (buildId: string) => dataTaggedQueryKey<GetBuildsLogsV2Data>([base, buildId]),
+        request: (buildId: string, params: RequestParams = {}) =>
+          this.request<GetBuildsLogsV2Data>({
+            path: `/v2/builds/${buildId}/logs`,
             method: 'GET',
             ...params
           })

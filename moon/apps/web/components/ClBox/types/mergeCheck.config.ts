@@ -30,5 +30,6 @@ export const ADDITIONAL_CHECK_LABELS: Record<AdditionalCheckType, string> = {
   [CheckType.CiStatus]: 'CI Status',
   [CheckType.ClSync]: 'CL Sync Status',
   [CheckType.MergeConflict]: 'Merge Conflict Detection',
-  [CheckType.CodeReview]: 'Code Review Status'
+  [CheckType.CodeReview]: 'Code Review Status',
+  [CheckType.ClaSign]: 'CLA Status'
 }
