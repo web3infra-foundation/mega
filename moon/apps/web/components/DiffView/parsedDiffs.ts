@@ -5,10 +5,11 @@ import { getLanguageForFile } from '@/utils/shikiLanguageFallback'
 export interface DiffItem {
   data: string
   path: string
+  old_path?: string // Only present for renamed files
 }
 
 export interface ParsedFile {
-  file: { path: string; lang: string; diff: string }
+  file: { path: string; lang: string; diff: string; oldPath?: string }
   fileDiffMetadata: FileDiffMetadata | null
   stats: { additions: number; deletions: number }
   changeType: ChangeTypes | null
@@ -16,7 +17,7 @@ export interface ParsedFile {
   hasContent: boolean
 }
 
-export function parsedDiffs(diffText: DiffItem[]): { path: string; lang: string; diff: string }[] {
+export function parsedDiffs(diffText: DiffItem[]): { path: string; lang: string; diff: string; oldPath?: string }[] {
   if (diffText.length < 1) return []
 
   return diffText.map((block) => {
@@ -26,12 +27,15 @@ export function parsedDiffs(diffText: DiffItem[]): { path: string; lang: string;
     return {
       path: block.path,
       lang: isBinary ? 'binary' : 'auto',
-      diff
+      diff,
+      oldPath: block.old_path
     }
   })
 }
 
-export function generateParsedFiles(diffFiles: { path: string; lang: string; diff: string }[]): ParsedFile[] {
+export function generateParsedFiles(
+  diffFiles: { path: string; lang: string; diff: string; oldPath?: string }[]
+): ParsedFile[] {
   return diffFiles.map((file) => {
     let fileDiffMetadata: FileDiffMetadata | null = null
     let additions = 0
