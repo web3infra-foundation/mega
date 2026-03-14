@@ -7,10 +7,10 @@ import { Button, Dialog, LoadingSpinner, Logo } from '@gitmono/ui'
 
 import AuthAppProviders from '@/components/Providers/AuthAppProviders'
 import { BasicTitlebar } from '@/components/Titlebar'
+import { useAdminCheck } from '@/hooks/admin/useAdminCheck'
 import { useGetClaContent } from '@/hooks/Cla/useGetClaContent'
 import { usePostClaChangeSignStatus } from '@/hooks/Cla/usePostClaChangeSignStatus'
 import { usePostClaContent } from '@/hooks/Cla/usePostClaContent'
-import { useViewerIsAdmin } from '@/hooks/useViewerIsAdmin'
 import { PageWithProviders } from '@/utils/types'
 
 const CLASignPage: PageWithProviders<any> = () => {
@@ -22,7 +22,8 @@ const CLASignPage: PageWithProviders<any> = () => {
   const { data: claData, isLoading: isContentLoading } = useGetClaContent()
   const { mutate: signCla, isPending: isSigning } = usePostClaChangeSignStatus()
   const { mutate: saveClaContent, isPending: isSaving } = usePostClaContent()
-  const viewerIsAdmin = useViewerIsAdmin()
+  const { data: adminCheck } = useAdminCheck()
+  const isAdmin = adminCheck?.data?.is_admin || false
 
   const claContent = claData?.data?.content ?? ''
 
@@ -74,7 +75,7 @@ const CLASignPage: PageWithProviders<any> = () => {
             <div className='bg-primary border-primary rounded-xl border p-8 shadow-lg'>
               <div className='mb-2 mt-1 flex items-start justify-between'>
                 <h1 className='text-primary text-3xl font-bold'>Contributor License Agreement</h1>
-                {viewerIsAdmin && (
+                {isAdmin && (
                   <Button variant='plain' onClick={handleOpenEdit}>
                     Edit CLA
                   </Button>

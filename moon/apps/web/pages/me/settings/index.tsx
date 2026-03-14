@@ -57,7 +57,7 @@ const UserSettingsPage: PageWithProviders<any> = () => {
         <PersonalCallLinks />
         <ClaStatusSection />
         <ThemePicker />
-        <MenuPicker />
+        {isAdmin && <MenuPicker />}
         <Behaviors />
         <PushNotificationSettings />
         <NotificationSettings />
