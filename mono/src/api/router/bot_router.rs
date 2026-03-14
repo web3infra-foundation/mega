@@ -59,7 +59,7 @@ async fn install_bot(
     params(
         ("id", description = "Bots ID"),
     ),
-    path = "/{id}/installations ",
+    path = "/{id}/installations",
     responses(
         (status = 200, body = CommonResult<Vec<BotRes>>, content_type = "application/json")
     ),
