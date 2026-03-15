@@ -24,9 +24,9 @@ ExecStart=/home/orion/orion-runner/run.sh
 Restart=always
 RestartSec=2
 
-# Grant capabilities for FUSE mounting
+# Grant capabilities for FUSE mounting and read-search bypass
 AmbientCapabilities=CAP_SYS_ADMIN
-CapabilityBoundingSet=CAP_SYS_ADMIN CAP_DAC_OVERRIDE
+CapabilityBoundingSet=CAP_SYS_ADMIN CAP_DAC_OVERRIDE CAP_DAC_READ_SEARCH
 
 # Basic hardening (relaxed for FUSE operations)
 NoNewPrivileges=false
