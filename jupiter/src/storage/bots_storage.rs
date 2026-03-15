@@ -417,7 +417,19 @@ fn load_bot_token_hmac_key() -> Result<Vec<u8>, MegaError> {
             "{BOT_TOKEN_HMAC_KEY_ENV} is not set for bot token HMAC"
         ))
     })?;
-    Ok(secret.into_bytes())
+    let trimmed = secret.trim();
+    if trimmed.is_empty() {
+        return Err(MegaError::Other(format!(
+            "{BOT_TOKEN_HMAC_KEY_ENV} must not be empty for bot token HMAC"
+        )));
+    }
+    if trimmed.len() < BOT_TOKEN_HMAC_MIN_LEN {
+        return Err(MegaError::Other(format!(
+            "{BOT_TOKEN_HMAC_KEY_ENV} is too short for bot token HMAC; it must be at least {} characters long",
+            BOT_TOKEN_HMAC_MIN_LEN
+        )));
+    }
+    Ok(trimmed.as_bytes().to_vec())
 }
 
 fn compute_bot_token_hash(token_body: &str, key: &[u8]) -> String {
