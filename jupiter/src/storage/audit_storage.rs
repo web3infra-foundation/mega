@@ -7,7 +7,7 @@ use callisto::{
 use chrono::Utc;
 use common::errors::MegaError;
 use idgenerator::IdInstance;
-use sea_orm::{ActiveModelTrait, ActiveValue::Set};
+use sea_orm::{ActiveModelTrait, ActiveValue::Set, prelude::DateTimeWithTimeZone};
 
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
 
@@ -37,6 +37,7 @@ impl AuditStorage {
         target_id: i64,
         metadata: Option<serde_json::Value>,
     ) -> Result<audit_logs::Model, MegaError> {
+        let created_at: DateTimeWithTimeZone = Utc::now().into();
         let model = audit_logs::ActiveModel {
             id: Set(IdInstance::next_id()),
             actor_id: Set(actor_id),
@@ -45,7 +46,7 @@ impl AuditStorage {
             target_type: Set(target_type),
             target_id: Set(target_id),
             metadata: Set(metadata.map(Into::into)),
-            created_at: Set(Utc::now()),
+            created_at: Set(created_at),
         };
 
         let inserted = model.insert(self.get_connection()).await?;

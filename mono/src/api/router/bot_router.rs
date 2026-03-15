@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use api_model::common::CommonResult;
 use axum::{
     Json,
@@ -16,6 +17,24 @@ use crate::{
     },
     server::http_server::BOT_TAG,
 };
+
+/// Maximum allowed expires_in in seconds (10 years).
+const MAX_EXPIRES_IN_SECS: i64 = 365 * 24 * 3600 * 10;
+/// Minimum allowed expires_in in seconds.
+const MIN_EXPIRES_IN_SECS: i64 = 1;
+
+async fn ensure_bot_exists(state: &MonoApiServiceState, bot_id: i64) -> Result<(), ApiError> {
+    let bot = state
+        .storage
+        .bots_storage()
+        .get_bot_by_id(bot_id)
+        .await
+        .map_err(ApiError::from)?;
+    if bot.is_none() {
+        return Err(ApiError::not_found(anyhow!("Bot not found")));
+    }
+    Ok(())
+}
 
 /// Request body for creating a new bot token.
 #[derive(Deserialize, ToSchema)]
@@ -84,11 +103,22 @@ async fn create_bot_token(
     Json(req): Json<CreateBotTokenRequest>,
 ) -> Result<Json<CommonResult<CreateBotTokenResponse>>, ApiError> {
     ensure_admin(&state, &user).await?;
+    ensure_bot_exists(&state, bot_id).await?;
 
-    let expires_at: Option<DateTimeWithTimeZone> = req.expires_in.map(|seconds| {
-        let when = Utc::now() + Duration::seconds(seconds);
-        DateTimeWithTimeZone::from(when)
-    });
+    let expires_at: Option<DateTimeWithTimeZone> = match req.expires_in {
+        None => None,
+        Some(seconds) => {
+            if seconds < MIN_EXPIRES_IN_SECS || seconds > MAX_EXPIRES_IN_SECS {
+                return Err(ApiError::bad_request(anyhow!(
+                    "expires_in must be between {} and {} seconds",
+                    MIN_EXPIRES_IN_SECS,
+                    MAX_EXPIRES_IN_SECS
+                )));
+            }
+            let when = Utc::now() + Duration::seconds(seconds);
+            Some(DateTimeWithTimeZone::from(when))
+        }
+    };
 
     let (model, token_plain) = state
         .storage
@@ -129,6 +159,7 @@ async fn list_bot_tokens(
     Path(bot_id): Path<i64>,
 ) -> Result<Json<CommonResult<Vec<ListBotTokenItem>>>, ApiError> {
     ensure_admin(&state, &user).await?;
+    ensure_bot_exists(&state, bot_id).await?;
 
     let tokens = state.storage.bots_storage().list_bot_tokens(bot_id).await?;
 
@@ -170,6 +201,7 @@ async fn revoke_bot_token(
     Path((bot_id, token_id)): Path<(i64, i64)>,
 ) -> Result<Json<CommonResult<()>>, ApiError> {
     ensure_admin(&state, &user).await?;
+    ensure_bot_exists(&state, bot_id).await?;
 
     state
         .storage
@@ -203,6 +235,7 @@ async fn revoke_all_bot_tokens(
     Path(bot_id): Path<i64>,
 ) -> Result<Json<CommonResult<()>>, ApiError> {
     ensure_admin(&state, &user).await?;
+    ensure_bot_exists(&state, bot_id).await?;
 
     state
         .storage

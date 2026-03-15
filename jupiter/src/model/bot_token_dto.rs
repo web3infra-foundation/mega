@@ -8,4 +8,3 @@ pub struct BotTokenInfo {
     pub revoked: bool,
     pub created_at: DateTimeWithTimeZone,
 }
-

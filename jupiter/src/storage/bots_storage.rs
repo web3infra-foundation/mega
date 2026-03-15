@@ -15,8 +15,10 @@ use rsa::{
     rand_core::OsRng,
 };
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ColumnTrait, Condition, EntityTrait, IntoActiveModel,
-    QueryFilter, QueryOrder, prelude::DateTimeWithTimeZone,
+    ActiveModelTrait,
+    ActiveValue::Set,
+    ColumnTrait, Condition, EntityTrait, IntoActiveModel, QueryFilter, QueryOrder,
+    prelude::{DateTimeWithTimeZone, Expr},
 };
 use sha2::Sha256;
 
@@ -222,6 +224,13 @@ impl BotsStorage {
         Ok(res)
     }
 
+    /// Get a bot by ID. Returns None if the bot does not exist.
+    pub async fn get_bot_by_id(&self, bot_id: i64) -> Result<Option<bots::Model>, MegaError> {
+        Ok(bots::Entity::find_by_id(bot_id)
+            .one(self.get_connection())
+            .await?)
+    }
+
     /// Generate a new bot token, persist its HMAC-SHA256 hash and return the model with plaintext.
     pub async fn generate_bot_token(
         &self,
@@ -290,25 +299,12 @@ impl BotsStorage {
     /// Revoke all tokens belonging to the given bot. Idempotent.
     pub async fn revoke_bot_tokens_by_bot(&self, bot_id: i64) -> Result<(), MegaError> {
         let conn = self.get_connection();
-
-        let models = bot_tokens::Entity::find()
+        bot_tokens::Entity::update_many()
+            .col_expr(bot_tokens::Column::Revoked, Expr::value(true))
             .filter(bot_tokens::Column::BotId.eq(bot_id))
-            .all(conn)
+            .filter(bot_tokens::Column::Revoked.eq(false))
+            .exec(conn)
             .await?;
-
-        if models.is_empty() {
-            return Ok(());
-        }
-
-        for model in models {
-            if model.revoked {
-                continue;
-            }
-            let mut active: bot_tokens::ActiveModel = model.into_active_model();
-            active.revoked = Set(true);
-            let _ = active.update(conn).await?;
-        }
-
         Ok(())
     }
 
@@ -327,7 +323,7 @@ impl BotsStorage {
         };
         let token_hash = compute_bot_token_hash(token_body, &hmac_key);
 
-        let now = Utc::now();
+        let now: DateTimeWithTimeZone = Utc::now().into();
 
         let conn = self.get_connection();
 
@@ -371,13 +367,27 @@ fn generate_bot_token_plain() -> Result<String, MegaError> {
     Ok(format!("{BOT_TOKEN_PREFIX}{encoded}"))
 }
 
+const BOT_TOKEN_HMAC_MIN_LEN: usize = 32;
+
 fn load_bot_token_hmac_key() -> Result<Vec<u8>, MegaError> {
     let secret = std::env::var(BOT_TOKEN_HMAC_KEY_ENV).map_err(|_| {
         MegaError::Other(format!(
             "{BOT_TOKEN_HMAC_KEY_ENV} is not set for bot token HMAC"
         ))
     })?;
-    Ok(secret.into_bytes())
+    let trimmed = secret.trim();
+    if trimmed.is_empty() {
+        return Err(MegaError::Other(format!(
+            "{BOT_TOKEN_HMAC_KEY_ENV} must not be empty for bot token HMAC"
+        )));
+    }
+    if trimmed.len() < BOT_TOKEN_HMAC_MIN_LEN {
+        return Err(MegaError::Other(format!(
+            "{BOT_TOKEN_HMAC_KEY_ENV} is too short for bot token HMAC; it must be at least {} characters long",
+            BOT_TOKEN_HMAC_MIN_LEN
+        )));
+    }
+    Ok(trimmed.as_bytes().to_vec())
 }
 
 fn compute_bot_token_hash(token_body: &str, key: &[u8]) -> String {
