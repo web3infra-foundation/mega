@@ -1,6 +1,6 @@
 use std::ops::Deref;
 
-use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use callisto::{
     bot_keys, bot_tokens, bots,
     sea_orm_active_enums::{BotStatusEnum, PermissionScopeEnum},
@@ -10,21 +10,14 @@ use common::errors::MegaError;
 use hmac::{Hmac, Mac};
 use idgenerator::IdInstance;
 use rsa::{
+    RsaPrivateKey,
     pkcs8::{EncodePrivateKey, EncodePublicKey},
     rand_core::OsRng,
-    RsaPrivateKey,
 };
 use sea_orm::{
-    ActiveModelTrait,
-    ActiveValue::Set,
-    ColumnTrait,
-    EntityTrait,
-    IntoActiveModel,
-    QueryFilter,
-    QueryOrder,
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, Condition, EntityTrait, IntoActiveModel,
+    QueryFilter, QueryOrder, prelude::DateTimeWithTimeZone,
 };
-use sea_orm::prelude::DateTimeWithTimeZone;
-use sea_orm::Condition;
 use sha2::Sha256;
 
 use crate::{
@@ -278,11 +271,7 @@ impl BotsStorage {
     }
 
     /// Revoke a single token for a bot. Idempotent.
-    pub async fn revoke_bot_token(
-        &self,
-        bot_id: i64,
-        token_id: i64,
-    ) -> Result<(), MegaError> {
+    pub async fn revoke_bot_token(&self, bot_id: i64, token_id: i64) -> Result<(), MegaError> {
         let conn = self.get_connection();
 
         if let Some(model) = bot_tokens::Entity::find_by_id(token_id)
@@ -357,9 +346,7 @@ impl BotsStorage {
             return Ok(None);
         };
 
-        let bot = bots::Entity::find_by_id(token.bot_id)
-            .one(conn)
-            .await?;
+        let bot = bots::Entity::find_by_id(token.bot_id).one(conn).await?;
 
         let Some(bot) = bot else {
             return Ok(None);
@@ -394,9 +381,7 @@ fn load_bot_token_hmac_key() -> Result<Vec<u8>, MegaError> {
 }
 
 fn compute_bot_token_hash(token_body: &str, key: &[u8]) -> String {
-    let mut mac =
-        HmacSha256::new_from_slice(key).expect("HMAC-SHA256 can take a key of any size");
+    let mut mac = HmacSha256::new_from_slice(key).expect("HMAC-SHA256 can take a key of any size");
     mac.update(token_body.as_bytes());
     hex::encode(mac.finalize().into_bytes())
 }
-

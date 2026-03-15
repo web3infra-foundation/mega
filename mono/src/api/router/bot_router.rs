@@ -4,16 +4,14 @@ use axum::{
     extract::{Path, State},
 };
 use chrono::{DateTime, Duration, Utc};
-use serde::{Deserialize, Serialize};
 use sea_orm::prelude::DateTimeWithTimeZone;
+use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{
     api::{
-        MonoApiServiceState,
-        api_common::group_permission::ensure_admin,
-        error::ApiError,
+        MonoApiServiceState, api_common::group_permission::ensure_admin, error::ApiError,
         oauth::model::LoginUser,
     },
     server::http_server::BOT_TAG,
@@ -132,11 +130,7 @@ async fn list_bot_tokens(
 ) -> Result<Json<CommonResult<Vec<ListBotTokenItem>>>, ApiError> {
     ensure_admin(&state, &user).await?;
 
-    let tokens = state
-        .storage
-        .bots_storage()
-        .list_bot_tokens(bot_id)
-        .await?;
+    let tokens = state.storage.bots_storage().list_bot_tokens(bot_id).await?;
 
     let items = tokens
         .into_iter()
@@ -218,4 +212,3 @@ async fn revoke_all_bot_tokens(
 
     Ok(Json(CommonResult::success(None)))
 }
-
