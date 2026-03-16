@@ -226,6 +226,7 @@ export default function FileDiff({
   const DiffItemComponent = (index: number) => {
     const { file, fileDiffMetadata, stats, changeType, isBinary, hasContent } = parsedFiles[index]
     const isExpanded = expandedMap[file.path]
+    const isRenamed = changeType === 'rename-pure' || changeType === 'rename-changed'
 
     return (
       <div
@@ -247,7 +248,17 @@ export default function FileDiff({
             ) : (
               <ExpandIcon className='align-middle text-xl' />
             )}
-            <span className='ml-1'>{file.path}</span>
+            <span className='ml-1'>
+              {isRenamed && file.oldPath ? (
+                <span>
+                  <span className='text-secondary line-through'>{file.oldPath}</span>
+                  <span className='text-secondary mx-1'>→</span>
+                  <span>{file.path}</span>
+                </span>
+              ) : (
+                file.path
+              )}
+            </span>
           </span>
           <span className='text-xs font-bold'>
             <span className='text-green-500'>+{stats.additions}</span>{' '}
