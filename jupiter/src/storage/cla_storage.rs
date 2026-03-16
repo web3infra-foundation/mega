@@ -3,7 +3,8 @@ use std::ops::Deref;
 use callisto::cla_sign_status;
 use common::errors::MegaError;
 use sea_orm::{
-    ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set, prelude::Expr, sea_query::OnConflict,
+    ColumnTrait, DbErr, EntityTrait, QueryFilter, QuerySelect, Set, prelude::Expr,
+    sea_query::OnConflict,
 };
 
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
@@ -22,6 +23,13 @@ impl Deref for ClaStorage {
 }
 
 impl ClaStorage {
+    fn handle_record_not_inserted<T>(result: Result<T, DbErr>) -> Result<(), MegaError> {
+        match result {
+            Ok(_) | Err(DbErr::RecordNotInserted) => Ok(()),
+            Err(e) => Err(e.into()),
+        }
+    }
+
     pub async fn get_status(
         &self,
         username: &str,
@@ -44,14 +52,16 @@ impl ClaStorage {
             updated_at: Set(now),
         };
 
-        cla_sign_status::Entity::insert(model)
-            .on_conflict(
-                OnConflict::column(cla_sign_status::Column::Username)
-                    .do_nothing()
-                    .to_owned(),
-            )
-            .exec(self.get_connection())
-            .await?;
+        Self::handle_record_not_inserted(
+            cla_sign_status::Entity::insert(model)
+                .on_conflict(
+                    OnConflict::column(cla_sign_status::Column::Username)
+                        .do_nothing()
+                        .to_owned(),
+                )
+                .exec(self.get_connection())
+                .await,
+        )?;
 
         self.get_status(username)
             .await?
@@ -77,14 +87,16 @@ impl ClaStorage {
             updated_at: Set(now),
         };
 
-        cla_sign_status::Entity::insert(active_model)
-            .on_conflict(
-                OnConflict::column(cla_sign_status::Column::Username)
-                    .do_nothing()
-                    .to_owned(),
-            )
-            .exec(self.get_connection())
-            .await?;
+        Self::handle_record_not_inserted(
+            cla_sign_status::Entity::insert(active_model)
+                .on_conflict(
+                    OnConflict::column(cla_sign_status::Column::Username)
+                        .do_nothing()
+                        .to_owned(),
+                )
+                .exec(self.get_connection())
+                .await,
+        )?;
 
         cla_sign_status::Entity::update_many()
             .col_expr(cla_sign_status::Column::ClaSigned, Expr::value(true))
@@ -95,9 +107,19 @@ impl ClaStorage {
             .exec(self.get_connection())
             .await?;
 
-        self.get_status(username)
+        let model = self
+            .get_status(username)
             .await?
-            .ok_or_else(|| MegaError::Other("Failed to sign CLA status".to_string()))
+            .ok_or_else(|| MegaError::Other("Failed to sign CLA status".to_string()))?;
+
+        if !model.cla_signed {
+            return Err(MegaError::Other(format!(
+                "CLA status for user `{username}` still unsigned after sign operation (cla_signed={}) ",
+                model.cla_signed
+            )));
+        }
+
+        Ok(model)
     }
 
     pub async fn unsigned_users(&self, usernames: &[String]) -> Result<Vec<String>, MegaError> {
