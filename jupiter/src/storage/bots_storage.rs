@@ -2,8 +2,10 @@ use std::ops::Deref;
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use callisto::{
-    bot_keys, bot_tokens, bots,
-    sea_orm_active_enums::{BotStatusEnum, PermissionScopeEnum},
+    bot_installations, bot_keys, bot_tokens, bots,
+    sea_orm_active_enums::{
+        BotStatusEnum, InstallationBotStatusEnum, InstallationTargetTypeEnum, PermissionScopeEnum,
+    },
 };
 use chrono::Utc;
 use common::errors::MegaError;
@@ -111,14 +113,14 @@ impl BotsStorage {
         installed_by: i64,
     ) -> Result<bot_installations::Model, MegaError> {
         // Check if already installed
-        if (bot_installations::Entity::find()
+        let existing: Option<bot_installations::Model> = bot_installations::Entity::find()
             .filter(bot_installations::Column::BotId.eq(bot_id))
             .filter(bot_installations::Column::TargetType.eq(target_type.clone()))
             .filter(bot_installations::Column::TargetId.eq(target_id))
             .one(self.get_connection())
-            .await?)
-            .is_some()
-        {
+            .await?;
+
+        if existing.is_some() {
             return Err(MegaError::Other(
                 "Bot already installed on this target".into(),
             ));
@@ -152,13 +154,11 @@ impl BotsStorage {
             .filter(bot_installations::Column::TargetId.eq(target_id))
             .one(self.get_connection())
             .await?
-            .ok_or_else(|| MegaError::Other("Bot installation not found".into()))?
-            .into_active_model();
+            .ok_or_else(|| MegaError::Other("Bot installation not found".into()))?;
 
-        installation
-            .into_active_model()
-            .delete(self.get_connection())
-            .await?;
+        let active: bot_installations::ActiveModel = installation.into_active_model();
+
+        active.delete(self.get_connection()).await?;
 
         Ok(())
     }
@@ -171,7 +171,7 @@ impl BotsStorage {
         target_id: i64,
         status: InstallationBotStatusEnum,
     ) -> Result<bot_installations::Model, MegaError> {
-        let mut installation = bot_installations::Entity::find()
+        let mut installation: bot_installations::ActiveModel = bot_installations::Entity::find()
             .filter(bot_installations::Column::BotId.eq(bot_id))
             .filter(bot_installations::Column::TargetType.eq(target_type.clone()))
             .filter(bot_installations::Column::TargetId.eq(target_id))
