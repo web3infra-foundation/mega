@@ -7,6 +7,7 @@ import Head from 'next/head'
 import { AdminGroups } from '@/components/AdminGroups'
 import { CopyCurrentUrl } from '@/components/CopyCurrentUrl'
 import AuthAppProviders from '@/components/Providers/AuthAppProviders'
+import ClaStatusSection from '@/components/Setting/ClaStatusSection'
 import GPGKeys from '@/components/Setting/GPGKeys'
 import PersonalToken from '@/components/Setting/PersonalToken'
 import SSHKeys from '@/components/Setting/SSHKeys'
@@ -54,8 +55,9 @@ const UserSettingsPage: PageWithProviders<any> = () => {
         <GPGKeys />
         <PersonalToken />
         <PersonalCallLinks />
+        <ClaStatusSection />
         <ThemePicker />
-        <MenuPicker />
+        {isAdmin && <MenuPicker />}
         <Behaviors />
         <PushNotificationSettings />
         <NotificationSettings />

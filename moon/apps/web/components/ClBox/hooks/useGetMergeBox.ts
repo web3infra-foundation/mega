@@ -19,7 +19,8 @@ export const useGetMergeBox = (link: string) => {
       const response = await fetchMergeBox.request(link)
 
       return response.data ?? {}
-    }
+    },
+    refetchOnMount: 'always'
   })
 
   useEffect(() => {

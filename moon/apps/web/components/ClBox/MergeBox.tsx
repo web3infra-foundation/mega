@@ -3,6 +3,7 @@ import { FeedMergedIcon } from '@primer/octicons-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/router'
 
+import { CheckType, ConditionResult } from '@gitmono/types'
 import { LoadingSpinner } from '@gitmono/ui'
 
 import { useGetMergeBox } from '@/components/ClBox/hooks/useGetMergeBox'
@@ -63,6 +64,9 @@ export const MergeBox = React.memo<{ prId: string; status?: string }>(({ prId, s
 
   const additionalChecks = mergeBoxData?.merge_requirements?.conditions ?? []
 
+  const claCondition = additionalChecks.find((c) => c.type === CheckType.ClaSign)
+  const claCheck = claCondition ? claCondition.result === ConditionResult.PASSED : true
+
   return (
     <div className='flex'>
       <FeedMergedIcon size={24} className='text-tertiary ml-1' />
@@ -88,6 +92,7 @@ export const MergeBox = React.memo<{ prId: string; status?: string }>(({ prId, s
             onApprove={handleApprove}
             clStatus={status}
             clLink={id}
+            claCheck={claCheck}
           />
         </div>
       )}
