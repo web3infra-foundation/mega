@@ -45,7 +45,7 @@ impl AuditStorage {
             action: Set(action),
             target_type: Set(target_type),
             target_id: Set(target_id),
-            metadata: Set(metadata.map(Into::into)),
+            metadata: Set(metadata),
             created_at: Set(created_at),
         };
 

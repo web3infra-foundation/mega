@@ -188,7 +188,7 @@ async fn list_bot_tokens(
         ("id" = i64, Path, description = "Token ID")
     ),
     responses(
-        (status = 200, body = CommonResult<()>),
+        (status = 200, description = "Token revoked successfully"),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden - admin only"),
         (status = 404, description = "Bot or token not found"),
@@ -222,7 +222,7 @@ async fn revoke_bot_token(
         ("bot_id" = i64, Path, description = "Bot ID")
     ),
     responses(
-        (status = 200, body = CommonResult<()>),
+        (status = 200, description = "All tokens revoked successfully"),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden - admin only"),
         (status = 404, description = "Bot not found"),
