@@ -432,6 +432,10 @@ impl Storage {
         self.app_service.webhook_storage.clone()
     }
 
+    pub fn bots_storage(&self) -> BotsStorage {
+        self.app_service.bots_storage.clone()
+    }
+
     pub fn mock() -> Self {
         // During test time, we don't need a AppContext,
         // Put config in a leaked static variable thus the weak reference will always be valid.
