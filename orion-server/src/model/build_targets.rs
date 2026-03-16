@@ -15,8 +15,21 @@ impl BuildTarget {
             id,
             task_id,
             path: default_path.to_string(),
-            latest_state: "NOT_STARTED".to_string(),
+            latest_state: TargetState::Uninitialized.to_string(),
         }
+    }
+
+    /// Check if there is any target with `Uninitialized` state for the given task_id.
+    pub async fn has_initialized_target(
+        task_id: Uuid,
+        db: &impl ConnectionTrait,
+    ) -> Result<bool, DbErr> {
+        let target = callisto::build_targets::Entity::find()
+            .filter(callisto::build_targets::Column::TaskId.eq(task_id))
+            .filter(callisto::build_targets::Column::LatestState.eq(TargetState::Uninitialized.to_string()))
+            .one(db)
+            .await?;
+        Ok(target.is_some())
     }
 
     pub async fn insert_default_target(
@@ -54,7 +67,7 @@ impl BuildTarget {
 
             let state = match status {
                 Some(s) => TargetState::from(s.target_state),
-                None => TargetState::Pending,
+                None => TargetState::Uninitialized,
             };
 
             result.push(BuildTargetDTO {

@@ -315,6 +315,19 @@ impl TaskScheduler {
         Ok(build_event_id)
     }
 
+    pub async fn enqueue_task_with_build_id_v2(
+        &self,
+        build_event_id: Uuid,
+        task_id: Uuid,
+        cl_link: &str,
+        repo: String,
+        changes: Vec<Status<ProjectRelativePath>>,
+        target_path: Option<String>,
+        retry_count: i32,
+    ) -> Result<(), String> {
+        Ok(())
+    }
+
     /// Enqueue task build with given BuildEvent ID
     #[allow(clippy::too_many_arguments)]
     pub async fn enqueue_task_with_build_id(
