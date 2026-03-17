@@ -20,13 +20,16 @@ impl BuildTarget {
     }
 
     /// Check if there is any target with `Uninitialized` state for the given task_id.
-    pub async fn has_initialized_target(
+    pub async fn has_uninitialized_target(
         task_id: Uuid,
         db: &impl ConnectionTrait,
     ) -> Result<bool, DbErr> {
         let target = callisto::build_targets::Entity::find()
             .filter(callisto::build_targets::Column::TaskId.eq(task_id))
-            .filter(callisto::build_targets::Column::LatestState.eq(TargetState::Uninitialized.to_string()))
+            .filter(
+                callisto::build_targets::Column::LatestState
+                    .eq(TargetState::Uninitialized.to_string()),
+            )
             .one(db)
             .await?;
         Ok(target.is_some())
@@ -44,14 +47,19 @@ impl BuildTarget {
     }
 
     #[allow(dead_code)]
-    pub async fn find_build_targets(
+    pub async fn find_initialized_build_targets(
         build_id: Uuid,
         task_id: Uuid,
         db: &impl ConnectionTrait,
     ) -> Result<Vec<BuildTargetDTO>, DbErr> {
+        if Self::has_uninitialized_target(task_id, db).await? {
+            return Ok(vec![]);
+        }
+
         // Get all targets of corresponding build
         let all_targets = callisto::build_targets::Entity::find()
             .filter(callisto::build_targets::Column::TaskId.eq(task_id))
+            .filter(callisto::build_targets::Column::LatestState.ne(TargetState::Uninitialized))
             .all(db)
             .await?;
 
@@ -120,6 +128,7 @@ impl BuildTarget {
 }
 
 #[allow(dead_code)]
+#[derive(Debug, Clone)]
 pub struct BuildTargetDTO {
     id: Uuid,
     path: String,

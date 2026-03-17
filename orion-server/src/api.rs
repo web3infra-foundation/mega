@@ -560,29 +560,44 @@ pub async fn task_handler_v2(
         )
             .into_response();
     } else {
-        tracing::info!("No idle workers available, attempting to enqueue task {}", task_id);
+        tracing::info!(
+            "No idle workers available, attempting to enqueue task {}",
+            task_id
+        );
         match state
             .scheduler
-            .enqueue_task(
-                task_id, 
-                &req.cl_link, 
-                req.repo, 
-                req.changes, 
-                None,
-                0,
-            )
-            .await {
-                
+            .enqueue_task_v2(task_id, &req.cl_link, req.repo, req.changes, 0)
+            .await
+        {
+            Ok(build_id) => {
+                tracing::info!("Build {}/{} queued successfully", task_id, build_id);
+                result = OrionBuildResult {
+                    build_id: build_id.to_string(),
+                    status: "queued".to_string(),
+                    message: "Task queued for processing when workers become available".to_string(),
+                };
+                return (
+                    StatusCode::OK,
+                    Json(OrionServerResponse {
+                        task_id: task_id.to_string(),
+                        results: vec![result],
+                    }),
+                )
+                    .into_response();
             }
+
+            Err(e) => {
+                tracing::warn!("Failed to queue task: {}", e);
+                return (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    Json(serde_json::json!({
+                        "message": format!("Unable to queue task: {}", e)
+                    })),
+                )
+                    .into_response();
+            }
+        }
     }
-    // TODO: to be implemented for queuing logic
-    (
-        StatusCode::SERVICE_UNAVAILABLE,
-        Json(serde_json::json!({
-            "message": "No available workers at the moment, please try again later"
-        })),
-    )
-        .into_response()
 }
 
 /// Creates build tasks and returns the task ID and status (immediate or queued)
@@ -1679,6 +1694,7 @@ pub struct TargetSummaryDTO {
     pub completed: u64,
     pub failed: u64,
     pub interrupted: u64,
+    pub uninitialized: u64,
 }
 
 impl TaskInfoDTO {
@@ -1897,6 +1913,7 @@ pub async fn task_targets_summary_handler(
         completed: 0,
         failed: 0,
         interrupted: 0,
+        uninitialized: 0,
     };
 
     for target in targets {
@@ -1906,6 +1923,7 @@ pub async fn task_targets_summary_handler(
             TargetState::Completed => summary.completed += 1,
             TargetState::Failed => summary.failed += 1,
             TargetState::Interrupted => summary.interrupted += 1,
+            TargetState::Uninitialized => summary.uninitialized += 1,
         }
     }
 
