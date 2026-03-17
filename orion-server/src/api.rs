@@ -28,7 +28,7 @@ use chrono::{FixedOffset, Utc};
 use dashmap::DashMap;
 use futures::stream::select;
 use futures_util::{SinkExt, Stream, StreamExt};
-use rand::Rng;
+use rand::RngExt;
 use sea_orm::{
     ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter as _, QueryOrder,
     QuerySelect, prelude::DateTimeUtc,
