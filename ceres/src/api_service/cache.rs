@@ -3,9 +3,13 @@ use std::sync::Arc;
 use common::errors::MegaError;
 use git_internal::{
     hash::ObjectHash,
-    internal::object::{commit::Commit, tree::Tree},
+    internal::object::{
+        commit::{ArchivedCommit, Commit},
+        tree::{ArchivedTree, Tree},
+    },
 };
 use redis::{AsyncCommands, aio::ConnectionManager};
+use rkyv::rancor::Error;
 
 #[derive(Clone)]
 pub struct GitObjectCache {
@@ -13,7 +17,7 @@ pub struct GitObjectCache {
     pub prefix: String,
 }
 
-const DEFAULT_EXPIRY_SECONDS: u64 = 60 * 60 * 24 * 7; // 7 days
+const DEFAULT_EXPIRY_SECONDS: u64 = 60 * 60 * 24; // 1 days
 
 impl GitObjectCache {
     pub async fn get_tree<F, Fut>(
@@ -30,16 +34,24 @@ impl GitObjectCache {
 
         if let Ok(data) = conn.get::<_, Vec<u8>>(&key).await
             && !data.is_empty()
-            && let Ok((tree, _)) = bincode::decode_from_slice(&data, bincode::config::standard())
         {
-            return Ok(Arc::new(tree));
+            match rkyv::access::<ArchivedTree, Error>(&data) {
+                Ok(archived) => {
+                    let tree = rkyv::deserialize::<Tree, Error>(archived)?;
+                    return Ok(Arc::new(tree));
+                }
+                Err(err) => {
+                    tracing::error!("deserialize failed with fetch key: {:?}, err{:?}", key, err);
+                }
+            }
         }
 
         let tree_raw = fetch_tree(oid).await?;
+        let serialized = rkyv::to_bytes::<Error>(&tree_raw)?;
         let tree = Arc::new(tree_raw);
-
-        let serialized = bincode::encode_to_vec(tree.as_ref(), bincode::config::standard())?;
-        let _: () = conn.set_ex(key, serialized, DEFAULT_EXPIRY_SECONDS).await?;
+        let _: () = conn
+            .set_ex(key, serialized.as_slice(), DEFAULT_EXPIRY_SECONDS)
+            .await?;
 
         Ok(tree)
     }
@@ -58,16 +70,24 @@ impl GitObjectCache {
 
         if let Ok(data) = conn.get::<_, Vec<u8>>(&key).await
             && !data.is_empty()
-            && let Ok((commit, _)) = bincode::decode_from_slice(&data, bincode::config::standard())
         {
-            return Ok(Arc::new(commit));
+            match rkyv::access::<ArchivedCommit, Error>(&data) {
+                Ok(archived) => {
+                    let commit = rkyv::deserialize::<Commit, Error>(archived)?;
+                    return Ok(Arc::new(commit));
+                }
+                Err(err) => {
+                    tracing::error!("deserialize failed with fetch key: {:?} err{:?}", key, err);
+                }
+            }
         }
 
         let commit_raw = fetch_commit(oid).await?;
+        let serialized = rkyv::to_bytes::<Error>(&commit_raw)?;
         let commit = Arc::new(commit_raw);
-
-        let serialized = bincode::encode_to_vec(commit.as_ref(), bincode::config::standard())?;
-        let _: () = conn.set_ex(key, serialized, DEFAULT_EXPIRY_SECONDS).await?;
+        let _: () = conn
+            .set_ex(key, serialized.as_slice(), DEFAULT_EXPIRY_SECONDS)
+            .await?;
 
         Ok(commit)
     }

@@ -11,7 +11,7 @@ use api_model::buck2::{
 };
 use chrono::FixedOffset;
 use dashmap::DashMap;
-use rand::Rng;
+use rand::RngExt;
 use sea_orm::{ActiveModelTrait, ActiveValue::Set, DatabaseConnection, prelude::DateTimeUtc};
 use serde::{Deserialize, Serialize};
 use tokio::sync::{Mutex, Notify, mpsc::UnboundedSender};
