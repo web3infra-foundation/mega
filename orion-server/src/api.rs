@@ -150,6 +150,7 @@ pub fn routers() -> Router<AppState> {
         .route("/v2/build-events/{task_id}", get(build_event_get_handler))
         .route("/v2/targets/{task_id}", get(targets_get_handler))
         .route("/v2/build-state/{build_id}", get(build_state_handler))
+        .route("/v2/builds/{build_id}/logs", get(build_logs_handler))
         .route(
             "/v2/latest_build_result/{task_id}",
             get(latest_build_result_handler),
@@ -2582,6 +2583,99 @@ pub async fn targets_get_handler(
 
     Ok(Json(dtos))
 }
+
+    /// Get complete log for a specific build event
+    #[utoipa::path(
+        get,
+        path = "/v2/builds/{build_id}/logs",
+        params(("build_id" = String, Path, description = "Build event ID")),
+        responses(
+            (status = 200, description = "Complete log content", body = api_model::buck2::types::LogLinesResponse),
+            (status = 400, description = "Invalid build ID", body = LogErrorResponse),
+            (status = 404, description = "Build event or log not found", body = LogErrorResponse),
+            (status = 500, description = "Database or log read error", body = LogErrorResponse),
+        )
+    )]
+    pub async fn build_logs_handler(
+        State(state): State<AppState>,
+        Path(build_id): Path<String>,
+    ) -> Result<Json<LogLinesResponse>, (StatusCode, Json<LogErrorResponse>)> {
+        let build_uuid = build_id.parse::<Uuid>().map_err(|_| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(LogErrorResponse {
+                    message: "Invalid build ID".to_string(),
+                }),
+            )
+        })?;
+
+        // Get build event to extract log storage path
+        let build_event = callisto::build_events::Entity::find_by_id(build_uuid)
+            .one(&state.conn)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to fetch build event {}: {}", build_id, e);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(LogErrorResponse {
+                        message: "Database error".to_string(),
+                    }),
+                )
+            })?
+            .ok_or_else(|| {
+                (
+                    StatusCode::NOT_FOUND,
+                    Json(LogErrorResponse {
+                        message: "Build event not found".to_string(),
+                    }),
+                )
+            })?;
+
+        // Get the associated Orion task to extract repository name
+        let orion_task = callisto::orion_tasks::Entity::find_by_id(build_event.task_id)
+            .one(&state.conn)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to fetch Orion task {}: {}", build_event.task_id, e);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(LogErrorResponse {
+                        message: "Database error".to_string(),
+                    }),
+                )
+            })?
+            .ok_or_else(|| {
+                (
+                    StatusCode::NOT_FOUND,
+                    Json(LogErrorResponse {
+                        message: "Task not found".to_string(),
+                    }),
+                )
+            })?;
+
+        let task_id = build_event.task_id.to_string();
+        let repo_name = &orion_task.repo_name;
+
+        // Read complete log using existing LogService
+        let log_content = state
+            .log_service
+            .read_full_log(&task_id, repo_name, &build_id)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to read log for build {}: {}", build_id, e);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(LogErrorResponse {
+                        message: "Failed to read log".to_string(),
+                    }),
+                )
+            })?;
+
+        // Format response
+        let lines: Vec<String> = log_content.lines().map(str::to_string).collect();
+        let len = lines.len();
+        Ok(Json(LogLinesResponse { data: lines, len }))
+    }
 
 /// Get build state by build ID
 #[utoipa::path(
