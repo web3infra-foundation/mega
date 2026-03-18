@@ -118,7 +118,7 @@ export const ConversationTab = React.memo<ConversationTabProps>(
         <div style={{ marginTop: '12px' }} className='prose'>
           <div className='w-full'>
             {clDetail && (clDetail.status === 'Open' || clDetail.status === 'Draft') && (
-              <MergeBox prId={id} status={clDetail.status} />
+              <MergeBox prId={id} status={clDetail.status} author={clDetail.author} />
             )}
           </div>
           <h2 style={{ marginTop: '15px', marginBottom: '15px' }}>Add a comment</h2>

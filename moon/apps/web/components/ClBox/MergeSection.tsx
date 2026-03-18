@@ -18,6 +18,7 @@ interface MergeSectionProps {
   clLink: string
   clStatus?: string
   claCheck?: boolean
+  isClAuthor?: boolean
 }
 
 const STATUS_POLL_INTERVAL_MS = 3000
@@ -30,7 +31,8 @@ export const MergeSection = React.memo<MergeSectionProps>(
     onApprove,
     clLink,
     clStatus,
-    claCheck = true
+    claCheck = true,
+    isClAuthor = false
   }) => {
     const router = useRouter()
     const { scope } = useScope()
@@ -149,7 +151,7 @@ export const MergeSection = React.memo<MergeSectionProps>(
               </button>
             )}
 
-            {claCheck === false && (
+            {claCheck === false && isClAuthor && (
               <button
                 onClick={() => router.push(`/me/settings/cla/sign`)}
                 className='w-full rounded-md bg-blue-600 px-4 py-2 font-bold text-white duration-500 hover:bg-blue-800'

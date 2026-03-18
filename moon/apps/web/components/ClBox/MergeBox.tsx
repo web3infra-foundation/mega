@@ -19,7 +19,7 @@ import { useMergeChecks } from './hooks/useMergeChecks'
 import { MergeSection } from './MergeSection'
 import { ReviewerSection } from './ReviewerSection'
 
-export const MergeBox = React.memo<{ prId: string; status?: string }>(({ prId, status }) => {
+export const MergeBox = React.memo<{ prId: string; status?: string; author?: string }>(({ prId, status, author }) => {
   const { checks } = useMergeChecks(prId)
   const [hasCheckFailures, setHasCheckFailures] = useState(true)
   const route = useRouter()
@@ -67,6 +67,8 @@ export const MergeBox = React.memo<{ prId: string; status?: string }>(({ prId, s
   const claCondition = additionalChecks.find((c) => c.type === CheckType.ClaSign)
   const claCheck = claCondition ? claCondition.result === ConditionResult.PASSED : true
 
+  const isClAuthor = data?.username === author
+
   return (
     <div className='flex'>
       <FeedMergedIcon size={24} className='text-tertiary ml-1' />
@@ -93,6 +95,7 @@ export const MergeBox = React.memo<{ prId: string; status?: string }>(({ prId, s
             clStatus={status}
             clLink={id}
             claCheck={claCheck}
+            isClAuthor={isClAuthor}
           />
         </div>
       )}
