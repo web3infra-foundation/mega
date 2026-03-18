@@ -1,5 +1,6 @@
 pub mod admin_router;
 pub mod bot_router;
+pub mod bot_router;
 pub mod buck_router;
 pub mod build_trigger_router;
 pub mod cl_router;

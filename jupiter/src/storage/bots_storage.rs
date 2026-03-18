@@ -395,3 +395,33 @@ fn compute_bot_token_hash(token_body: &str, key: &[u8]) -> String {
     mac.update(token_body.as_bytes());
     hex::encode(mac.finalize().into_bytes())
 }
+
+type HmacSha256 = Hmac<Sha256>;
+
+fn generate_bot_token_plain() -> Result<String, MegaError> {
+    use ring::rand::{SecureRandom, SystemRandom};
+
+    let rng = SystemRandom::new();
+    let mut bytes = [0u8; BOT_TOKEN_RANDOM_LEN];
+    rng.fill(&mut bytes).map_err(|_| {
+        MegaError::Other("failed to generate secure random bytes for bot token".to_string())
+    })?;
+
+    let encoded = BASE64_STANDARD.encode(bytes);
+    Ok(format!("{BOT_TOKEN_PREFIX}{encoded}"))
+}
+
+fn load_bot_token_hmac_key() -> Result<Vec<u8>, MegaError> {
+    let secret = std::env::var(BOT_TOKEN_HMAC_KEY_ENV).map_err(|_| {
+        MegaError::Other(format!(
+            "{BOT_TOKEN_HMAC_KEY_ENV} is not set for bot token HMAC"
+        ))
+    })?;
+    Ok(secret.into_bytes())
+}
+
+fn compute_bot_token_hash(token_body: &str, key: &[u8]) -> String {
+    let mut mac = HmacSha256::new_from_slice(key).expect("HMAC-SHA256 can take a key of any size");
+    mac.update(token_body.as_bytes());
+    hex::encode(mac.finalize().into_bytes())
+}
