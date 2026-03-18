@@ -1,0 +1,46 @@
+name: Prepare Orion deployment artifacts
+description: Normalize Orion build artifacts for deployment targets
+
+inputs:
+  artifact-dir:
+    description: Directory where orion-bins artifact was downloaded
+    required: true
+    default: artifacts
+
+runs:
+  using: composite
+  steps:
+    - name: Prepare deployment files
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        ARTIFACT_DIR="${{ inputs.artifact-dir }}"
+
+        echo "==> Listing downloaded artifacts structure:"
+        find "${ARTIFACT_DIR}" -type f -ls
+
+        echo "==> Preparing deployment files..."
+        # IMPORTANT: Move config files first (while orion/ directory still exists)
+        mv "${ARTIFACT_DIR}"/orion/runner-config/.env.prod "${ARTIFACT_DIR}"/.env
+        mv "${ARTIFACT_DIR}"/orion/runner-config/scorpio.toml "${ARTIFACT_DIR}"/
+        mv "${ARTIFACT_DIR}"/orion/runner-config/run.sh "${ARTIFACT_DIR}"/
+        mv "${ARTIFACT_DIR}"/orion/runner-config/cleanup.sh "${ARTIFACT_DIR}"/
+
+        # Move systemd service file
+        mv "${ARTIFACT_DIR}"/orion/systemd/orion-runner.service "${ARTIFACT_DIR}"/
+
+        # Clean up empty directories before moving binary
+        rm -rf "${ARTIFACT_DIR}"/orion
+
+        # Now move the binary (orion/ directory has been removed)
+        mv "${ARTIFACT_DIR}"/target/release/orion "${ARTIFACT_DIR}"/orion
+        rm -rf "${ARTIFACT_DIR}"/target
+
+        # Set executable permissions
+        chmod +x "${ARTIFACT_DIR}"/orion
+        chmod +x "${ARTIFACT_DIR}"/run.sh
+        chmod +x "${ARTIFACT_DIR}"/cleanup.sh
+
+        echo "==> Final artifact structure:"
+        ls -la "${ARTIFACT_DIR}"/
