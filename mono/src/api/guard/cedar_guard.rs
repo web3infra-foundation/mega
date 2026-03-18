@@ -1,7 +1,7 @@
 use std::{collections::HashMap, path::Path, str::FromStr};
 
 use axum::{
-    extract::{FromRef, Request, State},
+    extract::{FromRef, Request, RequestPartsExt, State},
     middleware::Next,
     response::Response,
 };
@@ -109,7 +109,7 @@ fn match_operation(
 
 pub async fn cedar_guard(
     State(state): State<MonoApiServiceState>,
-    req: Request,
+    mut req: Request,
     next: Next,
 ) -> Result<Response, ApiError> {
     let request_path = req.uri().path().to_owned();
@@ -138,8 +138,8 @@ pub async fn cedar_guard(
     //     .ok_or_else(|| MegaError::with_message(format!("Change list not found for link: {}", link)))?;
     // let repo_path: PathBuf = cl_model.path.into();
 
-    let login_user = req.extensions().get::<LoginUser>();
-    let bot_identity = req.extensions().get::<BotIdentity>();
+    let bot_identity = req.extract::<BotIdentity>().await.ok();
+    let login_user = req.extract::<LoginUser>().await.ok();
 
     let (principal_type, principal_id) = if let Some(bot) = bot_identity {
         ("Bot".to_string(), bot.bot.id.to_string())

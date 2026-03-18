@@ -314,7 +314,7 @@ async fn list_bot_tokens(
         (status = 200, description = "Token revoked successfully"),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden - admin only"),
-        (status = 404, description = "Bot or token not found"),
+        (status = 404, description = "Bot not found"),
     ),
     tag = BOT_TAG
 )]
