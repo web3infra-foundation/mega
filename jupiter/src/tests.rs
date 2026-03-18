@@ -18,6 +18,7 @@ use crate::{
     },
     storage::{
         AppService, Storage,
+        audit_storage::AuditStorage,
         base_storage::{BaseStorage, StorageConnector},
         bots_storage::BotsStorage,
         buck_storage::BuckStorage,
@@ -89,6 +90,7 @@ pub async fn test_storage(temp_dir: impl AsRef<Path>) -> Storage {
         build_trigger_storage: BuildTriggerStorage { base: base.clone() },
         bots_storage: BotsStorage { base: base.clone() },
         webhook_storage: WebhookStorage { base: base.clone() },
+        audit_storage: AuditStorage { base: base.clone() },
     };
 
     apply_migrations(&connection, true).await.unwrap();

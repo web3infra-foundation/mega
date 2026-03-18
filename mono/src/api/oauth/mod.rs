@@ -13,6 +13,7 @@ use axum_extra::{
     headers::{self, Authorization, authorization::Bearer},
     typed_header::TypedHeaderRejectionReason,
 };
+use callisto::{bot_tokens, bots};
 use chrono::{Duration, Utc};
 use common::config::OauthConfig;
 use http::request::Parts;
@@ -190,6 +191,59 @@ pub struct AuthRedirect;
 impl IntoResponse for AuthRedirect {
     fn into_response(self) -> Response {
         (StatusCode::UNAUTHORIZED, "Login first").into_response()
+    }
+}
+
+pub struct BotIdentity {
+    pub bot: bots::Model,
+    pub token: bot_tokens::Model,
+}
+
+impl<S> FromRequestParts<S> for BotIdentity
+where
+    MonoApiServiceState: FromRef<S>,
+    S: Send + Sync,
+{
+    type Rejection = AuthRedirect;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        // Extract Authorization: Bearer <token> header
+        let bearer = parts
+            .extract::<TypedHeader<Authorization<Bearer>>>()
+            .await
+            .map_err(|e| {
+                tracing::debug!("BotIdentity: missing or invalid Authorization header: {e}");
+                AuthRedirect
+            })?
+            .0
+            .0;
+
+        let raw_token = bearer.token();
+        const BOT_PREFIX: &str = "bot_";
+
+        // Enforce bot_ prefix for bot identity routes
+        if !raw_token.starts_with(BOT_PREFIX) {
+            tracing::debug!("BotIdentity: bearer token does not start with expected bot_ prefix");
+            return Err(AuthRedirect);
+        }
+
+        // Delegate token validation to Jupiter storage (BotsStorage)
+        let state_ref = MonoApiServiceState::from_ref(state);
+        let bots_storage = state_ref.storage.bots_storage();
+
+        // BotsStorage::find_bot_by_token is tolerant to presence/absence of the prefix,
+        // but we pass the original token string here for clarity.
+        match bots_storage.find_bot_by_token(raw_token).await {
+            Ok(Some((bot, token))) => Ok(BotIdentity { bot, token }),
+            Ok(None) => {
+                tracing::warn!("BotIdentity: bot token not found, revoked, or expired");
+                Err(AuthRedirect)
+            }
+            Err(e) => {
+                tracing::error!("BotIdentity: error while validating bot token: {:?}", e);
+                Err(AuthRedirect)
+            }
+        }
     }
 }
 
