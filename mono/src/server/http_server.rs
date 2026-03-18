@@ -249,7 +249,7 @@ pub async fn app(ctx: AppContext, host: String, port: u16) -> Router {
     let oauth_config = config.oauth.clone();
     let git_object_cache = Arc::new(GitObjectCache {
         connection: ctx.connection.clone(),
-        prefix: "git-object-bincode".to_string(),
+        prefix: "git-object-rkyv:v1".to_string(),
     });
 
     let api_state = MonoApiServiceState {
@@ -429,7 +429,7 @@ pub const CODE_REVIEW_TAG: &str = "Code Review";
 pub const BUILD_TRIGGER_TAG: &str = "Build Trigger";
 pub const GROUP_PERMISSION_TAG: &str = "Group Permission Management";
 pub const WEBHOOK_TAG: &str = "Webhook";
-pub const BOTS_TAG: &str = "Bots";
+pub const BOT_TAG: &str = "Bot Management";
 #[derive(OpenApi)]
 #[openapi()]
 struct ApiDoc;

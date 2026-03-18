@@ -18,7 +18,7 @@ pub mod mega_refs;
 pub mod reactions;
 
 use idgenerator::IdInstance;
-use rand::Rng;
+use rand::RngExt;
 use sha2::{Digest, Sha256};
 
 pub fn generate_id() -> i64 {
