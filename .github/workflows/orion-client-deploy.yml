@@ -85,13 +85,14 @@ jobs:
 
   deploy:
     name: Deploy (${{ matrix.target }})
+    if: ${{ github.repository == 'web3infra-foundation/mega' }}
     runs-on: ubuntu-latest
     needs: build
     timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
-        target: ${{ fromJson(github.repository == 'web3infra-foundation/mega' && '["legacy","gcp","aws-gitmono"]' || '["aws-gitmono"]') }}
+        target: [aws-gitmega, gcp, aws-gitmono]
 
     steps:
       - name: Checkout code
@@ -108,39 +109,88 @@ jobs:
         with:
           artifact-dir: artifacts
 
+      - name: Resolve deploy target variables
+        id: deploy_vars
+        env:
+          GCP_HOST: ${{ secrets.ORION_GCP_VM_HOST }}
+          GCP_KEY: ${{ secrets.ORION_GCP_VM_SSH_KEY }}
+          AWS_GITMEGA_HOST: ${{ secrets.ORION_AWS_GITMEGA_HOST }}
+          AWS_GITMEGA_KEY: ${{ secrets.ORION_AWS_GITMEGA_SSH_KEY }}
+          AWS_GITMONO_HOST: ${{ secrets.ORION_AWS_GITMONO_HOST }}
+          AWS_GITMONO_KEY: ${{ secrets.ORION_AWS_GITMONO_SSH_KEY }}
+        run: |
+          set -euo pipefail
+
+          target="${{ matrix.target }}"
+          host=""
+          user="orion"
+          port="22"
+          key=""
+
+          case "$target" in
+            aws-gitmega)
+              host="${AWS_GITMEGA_HOST:-}"
+              key="${AWS_GITMEGA_KEY:-}"
+              ;;
+            gcp)
+              host="${GCP_HOST:-}"
+              key="${GCP_KEY:-}"
+              ;;
+            aws-gitmono)
+              host="${AWS_GITMONO_HOST:-}"
+              key="${AWS_GITMONO_KEY:-}"
+              ;;
+            *)
+              echo "Unknown deploy target: $target" >&2
+              exit 1
+              ;;
+          esac
+
+          if [ -z "$host" ]; then
+            echo "Missing required host secret for target: $target" >&2
+            exit 1
+          fi
+          if [ -z "$key" ]; then
+            echo "Missing required ssh key secret for target: $target" >&2
+            exit 1
+          fi
+
+          {
+            echo "host=$host"
+            echo "user=$user"
+            echo "port=$port"
+            echo "key<<__SSH_KEY__"
+            printf '%s\n' "$key"
+            echo "__SSH_KEY__"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Stop service (before deployment)
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ matrix.target == 'legacy' && secrets.ORION_DEPLOY_HOST || matrix.target == 'aws-gitmono' && secrets.ORION_AWS_GITMONO_HOST || secrets.ORION_GCP_VM_HOST }}
-          username: ${{ matrix.target == 'legacy' && 'root' || 'orion' }}
-          port: ${{ matrix.target == 'legacy' && 62223 || 22 }}
-          key: ${{ matrix.target == 'legacy' && secrets.ORION_DEPLOY_SSH_KEY || matrix.target == 'aws-gitmono' && secrets.ORION_AWS_GITMONO_SSH_KEY || secrets.ORION_GCP_VM_SSH_KEY }}
+          host: ${{ steps.deploy_vars.outputs.host }}
+          username: ${{ steps.deploy_vars.outputs.user }}
+          port: ${{ steps.deploy_vars.outputs.port }}
+          key: ${{ steps.deploy_vars.outputs.key }}
           script: |
             set -e
 
-            if [ "${{ matrix.target }}" = "gcp" ] || [ "${{ matrix.target }}" = "aws-gitmono" ]; then
-              SUDO="sudo"
-            else
-              SUDO=""
-            fi
-
             # Stop service to allow binary replacement
-            $SUDO systemctl stop orion-runner.service || echo "Service not running"
+            sudo systemctl stop orion-runner.service || echo "Service not running"
             sleep 2
 
             # Force cleanup if service is stuck
-            $SUDO pkill -9 orion || true
+            sudo pkill -9 orion || true
 
             # Force unmount FUSE if still mounted
             fusermount -uz /workspace/mount 2>/dev/null || true
-            $SUDO umount -lf /workspace/mount 2>/dev/null || true
+            sudo umount -lf /workspace/mount 2>/dev/null || true
 
       - name: Upload binaries and configs via rsync
         env:
-          DEPLOY_HOST: ${{ matrix.target == 'legacy' && secrets.ORION_DEPLOY_HOST || matrix.target == 'aws-gitmono' && secrets.ORION_AWS_GITMONO_HOST || secrets.ORION_GCP_VM_HOST }}
-          DEPLOY_USER: ${{ matrix.target == 'legacy' && 'root' || 'orion' }}
-          DEPLOY_PORT: ${{ matrix.target == 'legacy' && '62223' || '22' }}
-          SSH_PRIVATE_KEY: ${{ matrix.target == 'legacy' && secrets.ORION_DEPLOY_SSH_KEY || matrix.target == 'aws-gitmono' && secrets.ORION_AWS_GITMONO_SSH_KEY || secrets.ORION_GCP_VM_SSH_KEY }}
+          DEPLOY_HOST: ${{ steps.deploy_vars.outputs.host }}
+          DEPLOY_USER: ${{ steps.deploy_vars.outputs.user }}
+          DEPLOY_PORT: ${{ steps.deploy_vars.outputs.port }}
+          SSH_PRIVATE_KEY: ${{ steps.deploy_vars.outputs.key }}
         run: |
           set -euo pipefail
 
@@ -154,18 +204,18 @@ jobs:
             artifacts/ \
             "$DEPLOY_USER@$DEPLOY_HOST:/home/orion/orion-runner/"
 
-      - name: Patch .env for legacy target
-        if: ${{ matrix.target == 'legacy' }}
+      - name: Patch .env for aws-gitmega target
+        if: ${{ matrix.target == 'aws-gitmega' }}
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.ORION_DEPLOY_HOST }}
-          username: root
-          port: 62223
-          key: ${{ secrets.ORION_DEPLOY_SSH_KEY }}
+          host: ${{ steps.deploy_vars.outputs.host }}
+          username: ${{ steps.deploy_vars.outputs.user }}
+          port: ${{ steps.deploy_vars.outputs.port }}
+          key: ${{ steps.deploy_vars.outputs.key }}
           script: |
             if [ -f /home/orion/orion-runner/.env ]; then
-              sed -i 's|^SERVER_WS=.*|SERVER_WS="wss://orion.gitmega.com/ws" # aws-dev|' /home/orion/orion-runner/.env
-              echo "✓ Updated SERVER_WS for legacy orion_vm"
+              sed -i 's|^SERVER_WS=.*|SERVER_WS="wss://orion.gitmega.com/ws"|' /home/orion/orion-runner/.env
+              echo "✓ Updated SERVER_WS for aws-gitmega"
             else
               echo "✗ /home/orion/orion-runner/.env not found"
               exit 1
@@ -173,7 +223,7 @@ jobs:
 
             if [ -f /home/orion/orion-runner/scorpio.toml ]; then
               sed -i 's|buck2hub|gitmega|g' /home/orion/orion-runner/scorpio.toml
-              echo "✓ Updated scorpio.toml host for legacy orion_vm"
+              echo "✓ Updated scorpio.toml host for aws-gitmega"
             else
               echo "✗ /home/orion/orion-runner/scorpio.toml not found"
               exit 1
@@ -183,10 +233,10 @@ jobs:
         if: ${{ matrix.target == 'aws-gitmono' }}
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.ORION_AWS_GITMONO_HOST }}
-          username: orion
-          port: 22
-          key: ${{ secrets.ORION_AWS_GITMONO_SSH_KEY }}
+          host: ${{ steps.deploy_vars.outputs.host }}
+          username: ${{ steps.deploy_vars.outputs.user }}
+          port: ${{ steps.deploy_vars.outputs.port }}
+          key: ${{ steps.deploy_vars.outputs.key }}
           script: |
             if [ -f /home/orion/orion-runner/.env ]; then
               sed -i 's|^SERVER_WS=.*|SERVER_WS="wss://orion.gitmono.com/ws"|' /home/orion/orion-runner/.env
@@ -207,48 +257,37 @@ jobs:
       - name: Start service
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ matrix.target == 'legacy' && secrets.ORION_DEPLOY_HOST || matrix.target == 'aws-gitmono' && secrets.ORION_AWS_GITMONO_HOST || secrets.ORION_GCP_VM_HOST }}
-          username: ${{ matrix.target == 'legacy' && 'root' || 'orion' }}
-          port: ${{ matrix.target == 'legacy' && 62223 || 22 }}
-          key: ${{ matrix.target == 'legacy' && secrets.ORION_DEPLOY_SSH_KEY || matrix.target == 'aws-gitmono' && secrets.ORION_AWS_GITMONO_SSH_KEY || secrets.ORION_GCP_VM_SSH_KEY }}
+          host: ${{ steps.deploy_vars.outputs.host }}
+          username: ${{ steps.deploy_vars.outputs.user }}
+          port: ${{ steps.deploy_vars.outputs.port }}
+          key: ${{ steps.deploy_vars.outputs.key }}
           command_timeout: 30s
           script: |
             set -e
 
-            if [ "${{ matrix.target }}" = "gcp" ] || [ "${{ matrix.target }}" = "aws-gitmono" ]; then
-              SUDO="sudo"
-            else
-              SUDO=""
-            fi
-
             # Create runtime directories
-            if [ "${{ matrix.target }}" = "gcp" ] || [ "${{ matrix.target }}" = "aws-gitmono" ]; then
-              sudo mkdir -p /data/scorpio/{store,antares/{upper,cl,mnt}}
-              sudo mkdir -p /workspace/mount
-              sudo chown -R orion:orion /data/scorpio /workspace/mount
-            else
-              mkdir -p /data/scorpio/{store,antares/{upper,cl,mnt}}
-              mkdir -p /workspace/mount
-            fi
+            sudo mkdir -p /data/scorpio/{store,antares/{upper,cl,mnt}}
+            sudo mkdir -p /workspace/mount
+            sudo chown -R orion:orion /data/scorpio /workspace/mount
 
             # Set permissions
-            $SUDO chown -R orion:orion /home/orion/orion-runner
-            $SUDO chmod +x /home/orion/orion-runner/orion
-            $SUDO chmod +x /home/orion/orion-runner/run.sh
-            $SUDO chmod +x /home/orion/orion-runner/cleanup.sh
+            sudo chown -R orion:orion /home/orion/orion-runner
+            sudo chmod +x /home/orion/orion-runner/orion
+            sudo chmod +x /home/orion/orion-runner/run.sh
+            sudo chmod +x /home/orion/orion-runner/cleanup.sh
 
             # Grant CAP_DAC_READ_SEARCH file capability so orion can bypass
             # DAC read/search checks without running as root
-            $SUDO setcap cap_dac_read_search+ep /home/orion/orion-runner/orion
+            sudo setcap cap_dac_read_search+ep /home/orion/orion-runner/orion
             getcap /home/orion/orion-runner/orion
 
             # Update systemd service file if changed
             if [ -f /home/orion/orion-runner/orion-runner.service ]; then
-              $SUDO cp /home/orion/orion-runner/orion-runner.service /etc/systemd/system/
+              sudo cp /home/orion/orion-runner/orion-runner.service /etc/systemd/system/
               echo "✓ Updated systemd service file"
             fi
 
             # Reload and start service asynchronously to avoid SSH timeout
-            $SUDO systemctl daemon-reload
-            nohup $SUDO systemctl start orion-runner.service > /tmp/orion-start.log 2>&1 &
+            sudo systemctl daemon-reload
+            nohup sudo systemctl start orion-runner.service > /tmp/orion-start.log 2>&1 &
             echo "✓ Service start command issued (async)"
