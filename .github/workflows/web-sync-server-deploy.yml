@@ -1,22 +1,28 @@
 name: Web Sync Server deploy
+
 on:
   push:
     branches:
       - main
     paths:
-      - '.github/workflows/web-sync-server*'
-      - 'moon/apps/sync-server/**'
-      - 'moon/packages/editor/**'
-      - 'moon/packages/config/**'
-      - 'moon/packages/types/**'
-
+      - ".github/workflows/web-sync-server*"
+      - "moon/apps/sync-server/**"
+      - "moon/packages/editor/**"
+      - "moon/packages/config/**"
+      - "moon/packages/types/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  REGISTRY_ALIAS: m8q5m4u3
+  REPOSITORY: mega/web-sync-server
+  IMAGE_TAG: latest
+  GCP_PROJECT_ID: infra-20250121-20260121-0235
+
 jobs:
-  web-sync-server-deploy:
+  build-and-push:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -25,7 +31,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -40,26 +46,86 @@ jobs:
         with:
           registry-type: public
 
+      - name: Auth to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Configure docker for GCP
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev
+
       - name: Build, tag, and push docker image to Amazon ECR Public
         working-directory: moon
         env:
           REGISTRY: ${{ steps.login-ecr-public.outputs.registry }}
-          REGISTRY_ALIAS: m8q5m4u3
-          REPOSITORY: mega/web-sync-server
-          IMAGE_TAG: latest
         run: |
+          set -euo pipefail
+
+          AWS_IMAGE_BASE="$REGISTRY/${{ env.REGISTRY_ALIAS }}/${{ env.REPOSITORY }}"
+          GCP_IMAGE_BASE="us-central1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}"
+          IMAGE_TAG="${{ env.IMAGE_TAG }}"
+
           docker build \
             -f apps/sync-server/Dockerfile \
-            -t $REGISTRY/$REGISTRY_ALIAS/$REPOSITORY:$IMAGE_TAG .
-          docker push $REGISTRY/$REGISTRY_ALIAS/$REPOSITORY:$IMAGE_TAG
+            -t "$AWS_IMAGE_BASE:$IMAGE_TAG" .
 
+          # Push to AWS ECR Public
+          docker push "$AWS_IMAGE_BASE:$IMAGE_TAG"
+
+          # Tag and push to GCP Artifact Registry
+          docker tag "$AWS_IMAGE_BASE:$IMAGE_TAG" "$GCP_IMAGE_BASE:$IMAGE_TAG"
+          docker push "$GCP_IMAGE_BASE:$IMAGE_TAG"
+
+  deploy-aws:
+    needs: build-and-push
+    if: ${{ github.repository == 'web3infra-foundation/mega' }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - cluster: gitmega-com
+            service: mega-web-sync-server-dev-service-v3hdlyk8
+          # TODO: update service name to actual gitmono sync server ECS service
+          - cluster: gitmono-com-mega-app
+            service: mega-web-sync-service
+    steps:
       - name: Force ECS redeploy
         run: |
           aws ecs update-service \
-            --cluster gitmega-com \
-            --service mega-web-sync-server-dev-service-v3hdlyk8 \
+            --cluster ${{ matrix.cluster }} \
+            --service ${{ matrix.service }} \
             --force-new-deployment
         env:
           AWS_REGION: ap-southeast-2
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+  deploy-gcp:
+    needs: build-and-push
+    if: ${{ github.repository == 'web3infra-foundation/mega' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Auth to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Deploy to Cloud Run (force new revision)
+        env:
+          REGION: asia-east1
+          SERVICE_NAME: buck2hub-notesync
+        run: |
+          set -euo pipefail
+
+          IMAGE=$(gcloud run services describe "$SERVICE_NAME" \
+            --project "$GCP_PROJECT_ID" \
+            --region "$REGION" \
+            --format="value(spec.template.spec.containers[0].image)")
+
+          echo "Current image: $IMAGE"
+
+          gcloud run deploy "$SERVICE_NAME" \
+            --image "$IMAGE" \
+            --region "$REGION" \
+            --project "$GCP_PROJECT_ID" \
+            --quiet
