@@ -139,11 +139,10 @@ pub async fn cedar_guard(
     // let repo_path: PathBuf = cl_model.path.into();
 
     let bot_identity = req.extract::<BotIdentity>().await.ok();
-    let login_user = req.extract::<LoginUser>().await.ok();
 
     let (principal_type, principal_id) = if let Some(bot) = bot_identity {
         ("Bot".to_string(), bot.bot.id.to_string())
-    } else if let Some(user) = login_user {
+    } else if let Some(user) = req.extract::<LoginUser>().await.ok() {
         ("User".to_string(), user.username.clone())
     } else {
         ("User".to_string(), "reader".to_string())
