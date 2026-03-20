@@ -1,7 +1,7 @@
 use std::{collections::HashMap, path::Path, str::FromStr};
 
 use axum::{
-    extract::{FromRef, Request, RequestPartsExt, State},
+    extract::{FromRef, FromRequestParts, Request, State},
     middleware::Next,
     response::Response,
 };
@@ -138,11 +138,16 @@ pub async fn cedar_guard(
     //     .ok_or_else(|| MegaError::with_message(format!("Change list not found for link: {}", link)))?;
     // let repo_path: PathBuf = cl_model.path.into();
 
-    let bot_identity = req.extract::<BotIdentity>().await.ok();
+    let bot_identity = BotIdentity::from_request_parts(req.parts_mut(), &state)
+        .await
+        .ok();
 
     let (principal_type, principal_id) = if let Some(bot) = bot_identity {
         ("Bot".to_string(), bot.bot.id.to_string())
-    } else if let Some(user) = req.extract::<LoginUser>().await.ok() {
+    } else if let Some(user) = LoginUser::from_request_parts(req.parts_mut(), &state)
+        .await
+        .ok()
+    {
         ("User".to_string(), user.username.clone())
     } else {
         ("User".to_string(), "reader".to_string())
