@@ -93,7 +93,6 @@ ctrlc = "3.5.2"
 cedar-policy = "4.9.1"
 secp256k1 = "0.30.0"
 pgp = "0.15.0"
-oauth2 = "5.0.0"
 base64 = "0.22.1"
 
 utoipa = { version = "5.4.0", features = ["chrono"] }

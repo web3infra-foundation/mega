@@ -39,12 +39,13 @@ FROM chef AS builder
 WORKDIR /opt/mega
 
 # Install system dependencies required for building
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl-dev \
     ca-certificates \
     clang \
     protobuf-compiler \
-    libprotobuf-dev
+    libprotobuf-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 
 # Copy the dependency recipe from the planner stage
@@ -56,19 +57,24 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     cargo chef cook --bin mono --release --recipe-path recipe.json
 
-# Copy the full source code AFTER dependencies are cached
-# Changes to source code will not invalidate the dependency cache
-COPY . .
+# Copy only the workspace sources AFTER dependencies are cached.
+# This avoids sending the entire repo context (which can be multiple GB) to the builder.
+COPY Cargo.toml ./
+COPY api-model ./api-model
+COPY ceres ./ceres
+COPY common ./common
+COPY config ./config
+COPY context ./context
+COPY io-orbit ./io-orbit
+COPY jupiter ./jupiter
+COPY mono ./mono
+COPY orion ./orion
+COPY orion-server ./orion-server
+COPY saturn ./saturn
+COPY vault ./vault
 
-# Build arguments to control release / debug mode
-ARG BUILD_TYPE=release
-
-# Build the mono binary
-RUN if [ "$BUILD_TYPE" = "release" ]; then \
-    cargo build --release -p mono; \
-    else \
-    cargo build -p mono; \
-    fi
+# Build the mono binary (fixed release)
+RUN cargo build --release -p mono
 
 
 # ---------- runtime stage ----------
@@ -76,16 +82,14 @@ RUN if [ "$BUILD_TYPE" = "release" ]; then \
 FROM debian:bookworm-slim
 
 # Install runtime dependencies
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     less \
     libssl3 \
     && rm -rf /var/lib/apt/lists/*
 
-ARG BUILD_TYPE=release
-
 # Copy the compiled binary and startup script
-COPY --from=builder /opt/mega/target/$BUILD_TYPE/mono /usr/local/bin/mono
+COPY --from=builder /opt/mega/target/release/mono /usr/local/bin/mono
 COPY --from=builder /opt/mega/mono/start-mono.sh /usr/local/bin/start-mono.sh
 
 # Ensure binaries are executable

@@ -23,17 +23,10 @@ use jupiter::{
         webhook_storage::WebhookStorage,
     },
 };
-use oauth2::{
-    Client, EndpointNotSet, EndpointSet, StandardRevocableToken,
-    basic::{
-        BasicErrorResponse, BasicRevocationErrorResponse, BasicTokenIntrospectionResponse,
-        BasicTokenResponse,
-    },
-};
 use saturn::entitystore::EntityStore;
 use tower_sessions::MemoryStore;
 
-use crate::api::oauth::campsite_store::CampsiteApiStore;
+use crate::api::oauth::api_store::OAuthApiStore;
 pub mod api_common;
 pub mod api_router;
 pub mod error;
@@ -42,31 +35,11 @@ pub mod notes;
 pub mod oauth;
 pub mod router;
 
-pub type GithubClient<
-    HasAuthUrl = EndpointSet,
-    HasDeviceAuthUrl = EndpointNotSet,
-    HasIntrospectionUrl = EndpointNotSet,
-    HasRevocationUrl = EndpointNotSet,
-    HasTokenUrl = EndpointSet,
-> = Client<
-    BasicErrorResponse,
-    BasicTokenResponse,
-    BasicTokenIntrospectionResponse,
-    StandardRevocableToken,
-    BasicRevocationErrorResponse,
-    HasAuthUrl,
-    HasDeviceAuthUrl,
-    HasIntrospectionUrl,
-    HasRevocationUrl,
-    HasTokenUrl,
->;
-
 #[derive(Clone)]
 pub struct MonoApiServiceState {
     pub storage: Storage,
     pub git_object_cache: Arc<GitObjectCache>,
-    pub oauth_client: Option<GithubClient>,
-    pub session_store: Option<CampsiteApiStore>,
+    pub session_store: Option<OAuthApiStore>,
     pub listen_addr: String,
     pub entity_store: EntityStore,
     pub bellatrix: Arc<Bellatrix>,
@@ -78,15 +51,9 @@ impl FromRef<MonoApiServiceState> for MemoryStore {
     }
 }
 
-impl FromRef<MonoApiServiceState> for CampsiteApiStore {
+impl FromRef<MonoApiServiceState> for OAuthApiStore {
     fn from_ref(state: &MonoApiServiceState) -> Self {
         state.session_store.clone().unwrap()
-    }
-}
-
-impl FromRef<MonoApiServiceState> for GithubClient {
-    fn from_ref(state: &MonoApiServiceState) -> Self {
-        state.oauth_client.clone().unwrap()
     }
 }
 

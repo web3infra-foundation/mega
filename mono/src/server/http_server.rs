@@ -34,7 +34,10 @@ use crate::{
         MonoApiServiceState,
         api_router::{self},
         guard::cedar_guard::cedar_guard,
-        oauth::{campsite_store::CampsiteApiStore, oauth_client},
+        oauth::{
+            api_store::OAuthApiStore, campsite_store::CampsiteApiStore,
+            tinyship_store::TinyshipApiStore,
+        },
         router::lfs_router,
     },
     git_protocol::InfoRefsParams,
@@ -254,11 +257,14 @@ pub async fn app(ctx: AppContext, host: String, port: u16) -> Router {
 
     let api_state = MonoApiServiceState {
         storage: storage.clone(),
-        oauth_client: Some(oauth_client(oauth_config.clone()).unwrap()),
-        session_store: Some(CampsiteApiStore::new(
-            oauth_config.campsite_api_domain,
-            storage.user_storage(),
-        )),
+        session_store: Some(match oauth_config.api_store_backend {
+            common::config::OauthApiStoreBackend::Campsite => {
+                OAuthApiStore::Campsite(CampsiteApiStore::new(oauth_config.campsite_api_domain))
+            }
+            common::config::OauthApiStoreBackend::Tinyship => {
+                OAuthApiStore::Tinyship(TinyshipApiStore::new(oauth_config.tinyship_api_domain))
+            }
+        }),
         listen_addr: format!("http://{host}:{port}"),
         entity_store: EntityStore::new(),
         git_object_cache,
