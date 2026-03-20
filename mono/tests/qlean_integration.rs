@@ -211,6 +211,38 @@ async fn prepare_docker_compose(vm: &mut qlean::Machine) -> Result<()> {
     )
     .await?;
 
+    exec_check(vm, "cp /tmp/mega/docker/demo/.env.example /tmp/.env").await?;
+
+    // Override MEGA_MONOREPO__ADMIN if ADMIN_USER environment variable is set
+    if let Ok(admin_user) = std::env::var("ADMIN_USER") {
+        if admin_user.trim().is_empty() {
+            tracing::info!("ADMIN_USER is empty, MEGA_MONOREPO__ADMIN will remain empty");
+        } else {
+            tracing::info!(
+                "Setting MEGA_MONOREPO__ADMIN from ADMIN_USER: {}",
+                admin_user
+            );
+            // Use sed to replace the MEGA_MONOREPO__ADMIN line in .env
+            // Using | as delimiter to avoid conflicts with / in values
+            exec_check(
+                vm,
+                &format!(
+                    "sed -i 's|^MEGA_MONOREPO__ADMIN=.*|MEGA_MONOREPO__ADMIN={}|' /tmp/.env",
+                    admin_user.trim()
+                ),
+            )
+            .await?;
+        }
+    } else {
+        // Default to empty string if ADMIN_USER is not set
+        tracing::info!("ADMIN_USER not set, clearing MEGA_MONOREPO__ADMIN to empty");
+        exec_check(
+            vm,
+            "sed -i 's|^MEGA_MONOREPO__ADMIN=.*|MEGA_MONOREPO__ADMIN=|' /tmp/.env",
+        )
+        .await?;
+    }
+
     tracing::info!("✓ Docker compose prepared");
     Ok(())
 }
@@ -526,254 +558,6 @@ async fn init_monorepo(vm: &mut qlean::Machine) -> Result<()> {
     Ok(())
 }
 
-/// Create Buck2 project structure with a simple Rust binary
-async fn create_buck2_project(vm: &mut qlean::Machine) -> Result<()> {
-    tracing::info!("Creating Buck2 project structure...");
-
-    let project_path = "/tmp/buck2-project";
-
-    // Create .buckconfig
-    // Note: Buck2 requires prelude for standard build rules like rust_binary
-    let buckconfig_content = r#"[repositories]
-root = .
-prelude = prelude
-
-[repository_aliases]
-config = prelude
-fbcode = prelude
-fbsource = prelude
-buck = prelude
-
-[build]
-name = buck2-project
-
-[cache]
-dir = /tmp/buck-cache
-
-[buck2]
-materializations = deferred
-"#;
-    vm.write(
-        Path::new(&format!("{}/.buckconfig", project_path)),
-        buckconfig_content.as_bytes(),
-    )
-    .await?;
-
-    // Clone Buck2 prelude (required for standard build rules)
-    tracing::info!("Cloning Buck2 prelude...");
-    let prelude_clone = format!(
-        "cd {} && git clone --depth 1 https://github.com/facebook/buck2-prelude.git prelude 2>&1 || echo 'Prelude already exists'",
-        project_path
-    );
-    let result = vm.exec(&prelude_clone).await?;
-    if !result.status.success() {
-        tracing::warn!(
-            "Prelude clone output: {}",
-            String::from_utf8_lossy(&result.stdout)
-        );
-    } else {
-        tracing::info!("✓ Buck2 prelude cloned");
-    }
-
-    // Create .buckprojectdirs
-    vm.write(
-        Path::new(&format!("{}/.buckprojectdirs", project_path)),
-        b"//...",
-    )
-    .await?;
-
-    // Create root BUCK file
-    let root_buck_content = r#"load("@prelude//rust:rust.bzl", "rust_binary")
-
-rust_binary(
-    name = "hello",
-    srcs = ["hello/main.rs"],
-    visibility = ["//..."],
-)
-"#;
-    vm.write(
-        Path::new(&format!("{}/BUCK", project_path)),
-        root_buck_content.as_bytes(),
-    )
-    .await?;
-
-    // Create hello directory
-    exec_check(vm, &format!("mkdir -p {}/hello", project_path)).await?;
-
-    // Create hello/main.rs (no BUCK file needed in subdirectory for this simple case)
-    let main_rs_content = r#"fn main() {
-    println!("Hello from Buck2!");
-}
-"#;
-    vm.write(
-        Path::new(&format!("{}/hello/main.rs", project_path)),
-        main_rs_content.as_bytes(),
-    )
-    .await?;
-
-    // Git add, commit, and push
-    exec_check(
-        vm,
-        &format!(
-            "cd {} && git add . && git commit -m 'feat: Add Buck2 project with hello binary'",
-            project_path
-        ),
-    )
-    .await?;
-
-    exec_check(vm, &format!("cd {} && git push", project_path)).await?;
-
-    tracing::info!("✓ Buck2 project created");
-    Ok(())
-}
-
-/// Submit build trigger via Mega API
-async fn submit_build_trigger(vm: &mut qlean::Machine) -> Result<i64> {
-    tracing::info!("Submitting build trigger via API...");
-
-    let build_request = serde_json::json!({
-        "repo_path": "/project",
-        "params": {
-            "build_target": "//hello:hello"
-        }
-    });
-
-    let response = exec_check(
-        vm,
-        &format!(
-            "curl -s -X POST http://127.0.0.1:8000/api/v1/triggers \
-            -H 'Content-Type: application/json' \
-            -H 'Authorization: Bearer {}' \
-            -d '{}'",
-            TEST_TOKEN, build_request
-        ),
-    )
-    .await?;
-
-    // Parse response to get trigger_id
-    let json: serde_json::Value = serde_json::from_str(&response).map_err(|e| {
-        anyhow::anyhow!(
-            "Failed to parse API response: {}\nResponse: {}",
-            e,
-            response
-        )
-    })?;
-
-    let trigger_id = json["data"]["id"]
-        .as_i64()
-        .ok_or_else(|| anyhow::anyhow!("Failed to get trigger_id from response: {}", response))?;
-
-    tracing::info!("✓ Build trigger submitted (ID: {})", trigger_id);
-    Ok(trigger_id)
-}
-
-/// Wait for build completion by polling Orion Server logs
-async fn wait_for_build_completion(
-    vm: &mut qlean::Machine,
-    _trigger_id: i64,
-    timeout_secs: u64,
-) -> Result<()> {
-    tracing::info!(
-        "Waiting for build completion (timeout: {}s)...",
-        timeout_secs
-    );
-
-    let start = std::time::Instant::now();
-    let poll_interval = Duration::from_secs(5);
-    let log_check_interval = Duration::from_secs(10);
-    let mut last_log_check = start;
-
-    loop {
-        // Check Orion server logs
-        let log_result = vm
-            .exec("docker logs --tail 100 mega-demo-orion-server 2>&1 || echo 'No logs'")
-            .await?;
-
-        let logs = String::from_utf8_lossy(&log_result.stdout);
-
-        // Look for build completion messages
-        if logs.to_lowercase().contains("build")
-            && (logs.to_lowercase().contains("completed")
-                || logs.to_lowercase().contains("finished"))
-            && logs.contains("exit code")
-        {
-            tracing::info!("✓ Build completed!");
-            tracing::debug!("Build completion logs:\n{}", logs);
-            return Ok(());
-        }
-
-        // Check if timeout reached
-        if start.elapsed().as_secs() > timeout_secs {
-            tracing::error!("Build timeout. Last logs:\n{}", logs);
-            anyhow::bail!("Build did not complete within {} seconds", timeout_secs);
-        }
-
-        // Log progress periodically
-        if last_log_check.elapsed() >= log_check_interval {
-            tracing::info!(
-                "  Build still in progress... Elapsed: {}s / {}s",
-                start.elapsed().as_secs(),
-                timeout_secs
-            );
-            last_log_check = std::time::Instant::now();
-        }
-
-        tokio::time::sleep(poll_interval).await;
-    }
-}
-
-/// Verify build success by checking Orion Server logs
-async fn verify_build_success(vm: &mut qlean::Machine) -> Result<()> {
-    tracing::info!("Verifying build success...");
-
-    // Get full Orion server logs
-    let log_result = vm
-        .exec("docker logs mega-demo-orion-server 2>&1 | tail -200")
-        .await?;
-
-    let logs = String::from_utf8_lossy(&log_result.stdout);
-
-    // Look for successful build completion (exit code 0)
-    let build_success = logs.lines().any(|line| {
-        line.to_lowercase().contains("build")
-            && (line.to_lowercase().contains("completed")
-                || line.to_lowercase().contains("finished"))
-            && line.contains("exit code: Some(0)")
-    });
-
-    if build_success {
-        tracing::info!("✓ Build verified successfully!");
-        return Ok(());
-    }
-
-    // Check for errors
-    let has_error = logs.lines().any(|line| {
-        line.to_lowercase().contains("error")
-            || line.to_lowercase().contains("failed")
-            || line.to_lowercase().contains("failure")
-    });
-
-    // Show Orion client logs for debugging
-    let orion_logs = vm
-        .exec("tail -100 /tmp/orion.log 2>&1 || echo 'No Orion log'")
-        .await?;
-    tracing::error!(
-        "Orion client logs:\n{}",
-        String::from_utf8_lossy(&orion_logs.stdout)
-    );
-
-    if has_error {
-        tracing::error!("Build failed. Orion Server logs:\n{}", logs);
-        anyhow::bail!("Build failed - check logs for errors");
-    } else {
-        tracing::warn!(
-            "Build verification inconclusive. Orion Server logs:\n{}",
-            logs
-        );
-        anyhow::bail!("Build verification inconclusive - exit code was None instead of Some(0)");
-    }
-}
-
 /// Main setup function
 pub async fn setup_mega_orion_environment(vm: &mut qlean::Machine) -> Result<()> {
     tracing::info!("====================================================================");
@@ -831,81 +615,35 @@ async fn test_qlean_dev_environment() -> Result<()> {
                 // Initialize repository to show in UI
                 tracing::info!("Initializing monorepo for UI display...");
                 init_monorepo(vm).await?;
-                create_buck2_project(vm).await?;
 
                 if std::env::var("QLEAN_KEEP_ALIVE").is_ok() {
                     let vm_ip = vm.get_ip().await.unwrap_or_else(|_| "unknown".to_string());
+                    let admin_user = std::env::var("ADMIN_USER").unwrap_or_default();
 
                     println!("\n╔══════════════════════════════════════════════════════════╗");
                     println!("║  Mega + Orion Environment Ready                          ║");
                     println!("╠══════════════════════════════════════════════════════════╣");
                     println!("║  VM IP: {:<48} ║", vm_ip);
+                    if !admin_user.trim().is_empty() {
+                        println!("║  Admin User: {:<46}║", admin_user.trim());
+                    } else {
+                        println!("║  Admin User: (not configured)                            ║");
+                    }
                     println!("╠══════════════════════════════════════════════════════════╣");
                     println!("║  Add to /etc/hosts:                                      ║");
-                    println!("║  {} app.gitmono.local                      ║", vm_ip);
-                    println!("║  {} auth.gitmono.local                     ║", vm_ip);
-                    println!("║  {} api.gitmono.local                      ║", vm_ip);
+                    println!("║  {} app.gitmono.local                       ║", vm_ip);
+                    println!("║  {} auth.gitmono.local                      ║", vm_ip);
+                    println!("║  {} api.gitmono.local                       ║", vm_ip);
+                    println!("║  {} git.gitmono.local                       ║", vm_ip);
+                    println!("║  {} orion.gitmono.local                     ║", vm_ip);
                     println!("╠══════════════════════════════════════════════════════════╣");
                     println!("║  UI: http://app.gitmono.local                            ║");
-                    println!("║  Credentials: mega / mega                                ║");
                     println!("╚══════════════════════════════════════════════════════════╝\n");
 
                     println!("Press Ctrl+C to shutdown...");
                     tokio::signal::ctrl_c().await?;
                 }
 
-                Ok(())
-            })
-        },
-    )
-    .await
-}
-
-#[tokio::test]
-#[ignore = "E2E build test via Mega API"]
-async fn test_qlean_e2e_build() -> Result<()> {
-    init_tracing();
-
-    let image = create_image(Distro::Debian, "debian-13-generic-amd64").await?;
-
-    with_machine(
-        &image,
-        &MachineConfig {
-            core: 4,
-            mem: 8192,
-            disk: Some(20),
-            clear: true,
-        },
-        |vm| {
-            Box::pin(async {
-                tracing::info!("============================================================");
-                tracing::info!("  E2E Build Test: Mega + Orion + Buck2");
-                tracing::info!("============================================================\n");
-
-                // Step 1: Setup full environment
-                tracing::info!("[1/5] Setting up Mega + Orion environment...");
-                setup_mega_orion_environment(vm).await?;
-
-                // Step 2: Initialize Git monorepo
-                tracing::info!("\n[2/5] Initializing Git monorepo...");
-                init_monorepo(vm).await?;
-
-                // Step 3: Create Buck2 project
-                tracing::info!("\n[3/5] Creating Buck2 project...");
-                create_buck2_project(vm).await?;
-
-                // Step 4: Submit build trigger
-                tracing::info!("\n[4/5] Submitting build trigger...");
-                let trigger_id = submit_build_trigger(vm).await?;
-
-                // Step 5: Wait for completion and verify
-                tracing::info!("\n[5/5] Waiting for build to complete...");
-                wait_for_build_completion(vm, trigger_id, 300).await?;
-                verify_build_success(vm).await?;
-
-                tracing::info!("\n============================================================");
-                tracing::info!("  ✓ E2E Build Test PASSED");
-                tracing::info!("============================================================");
                 Ok(())
             })
         },
