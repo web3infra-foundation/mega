@@ -606,22 +606,28 @@ pub struct ObjectStorageConfig {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct OauthConfig {
-    pub github_client_id: String,
-    pub github_client_secret: String,
-    pub ui_domain: String,
-    pub cookie_domain: String,
     pub campsite_api_domain: String,
+    pub tinyship_api_domain: String,
+    #[serde(default)]
+    pub api_store_backend: OauthApiStoreBackend,
     pub allowed_cors_origins: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+#[derive(Default)]
+pub enum OauthApiStoreBackend {
+    #[default]
+    Campsite,
+    Tinyship,
 }
 
 impl Default for OauthConfig {
     fn default() -> Self {
         Self {
-            github_client_id: String::new(),
-            github_client_secret: String::new(),
-            ui_domain: "http://localhost".to_string(),
-            cookie_domain: "localhost".to_string(),
             campsite_api_domain: "http://api.gitmono.test:3001".to_string(),
+            tinyship_api_domain: "https://libra.tools".to_string(),
+            api_store_backend: OauthApiStoreBackend::Campsite,
             allowed_cors_origins: vec![
                 "http://localhost",
                 "http://app.gitmega.com",

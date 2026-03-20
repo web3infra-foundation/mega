@@ -167,18 +167,15 @@ bucket = "gitmega"
 root_dir = "${base_dir}/objects"
 
 [oauth]
-# GitHub OAuth application client id and secret
-github_client_id = ""
-github_client_secret = ""
-
-# Used for redirect to ui after login, for example: http://app.gitmega.com
-ui_domain = "http://local.gitmega.com"
-
-# Set your own domain here, for example: .gitmono.com
-cookie_domain = "localhost"
-
 # Used for call api from campsite server, for example: http://api.gitmono.test:3001
 campsite_api_domain = "http://api.gitmono.test:3001"
+
+# Used for call api from tinyship server, for example: https://libra.tools
+tinyship_api_domain = "https://libra.tools"
+
+# Which auth API to use when loading users (campsite or tinyship)
+api_store_backend = "campsite"
+
 
 # allowed cors origins
 allowed_cors_origins = [
@@ -278,4 +275,3 @@ default_items = [
     { public_id = "rust", label = "Rust", href = "/rust", visible = false, order_index = 11 },
     { public_id = "oc", label = "Orion Client", href = "/oc", visible = true, order_index = 13 },
 ]
-

@@ -51,7 +51,7 @@ impl CedarContext {
         let output = validator.validate(&policies, ValidationMode::default());
 
         if output.validation_passed() {
-            tracing::info!("All policy validation passed!");
+            tracing::debug!("All policy validation passed!");
             let authorizer = Authorizer::new();
             let c = Self {
                 entities,
@@ -79,7 +79,7 @@ impl CedarContext {
         let output = validator.validate(&policies, ValidationMode::default());
 
         if output.validation_passed() {
-            tracing::info!("All policy validation passed!");
+            tracing::debug!("All policy validation passed!");
             let authorizer = Authorizer::new();
             let c = Self {
                 entities,
@@ -114,14 +114,14 @@ impl CedarContext {
             Some(&self.schema),
         )
         .map_err(|e| SaturnContextError::Request(e.to_string()))?;
-        tracing::info!(
+        tracing::debug!(
             "is_authorized request: principal: {}, action: {}, resource: {}",
             principal.as_ref(),
             action.as_ref(),
             resource.as_ref()
         );
         let response = self.authorizer.is_authorized(&q, &self.policies, &es);
-        tracing::info!("Auth response: {:?}", response);
+        tracing::debug!("Auth response: {:?}", response);
         match response.decision() {
             Decision::Allow => Ok(()),
             Decision::Deny => Err(SaturnContextError::AuthDenied(
