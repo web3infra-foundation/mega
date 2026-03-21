@@ -109,7 +109,7 @@ fn match_operation(
 
 pub async fn cedar_guard(
     State(state): State<MonoApiServiceState>,
-    mut req: Request,
+    req: Request,
     next: Next,
 ) -> Result<Response, ApiError> {
     let request_path = req.uri().path().to_owned();
@@ -138,16 +138,15 @@ pub async fn cedar_guard(
     //     .ok_or_else(|| MegaError::with_message(format!("Change list not found for link: {}", link)))?;
     // let repo_path: PathBuf = cl_model.path.into();
 
-    let bot_identity = BotIdentity::from_request_parts(req.parts_mut(), &state)
+    let (mut parts, body) = req.into_parts();
+
+    let bot_identity = BotIdentity::from_request_parts(&mut parts, &state)
         .await
         .ok();
 
     let (principal_type, principal_id) = if let Some(bot) = bot_identity {
         ("Bot".to_string(), bot.bot.id.to_string())
-    } else if let Some(user) = LoginUser::from_request_parts(req.parts_mut(), &state)
-        .await
-        .ok()
-    {
+    } else if let Some(user) = LoginUser::from_request_parts(&mut parts, &state).await.ok() {
         ("User".to_string(), user.username.clone())
     } else {
         ("User".to_string(), "reader".to_string())
@@ -173,6 +172,8 @@ pub async fn cedar_guard(
                 MegaError::Other(format!("Guard Authorization failed: {}", e)),
             )
         })?;
+
+    let req = Request::from_parts(parts, body);
     let response = next.run(req).await;
 
     if response.status().is_client_error() {
