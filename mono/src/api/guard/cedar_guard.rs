@@ -140,17 +140,14 @@ pub async fn cedar_guard(
 
     let (mut parts, body) = req.into_parts();
 
-    let bot_identity = BotIdentity::from_request_parts(&mut parts, &state)
-        .await
-        .ok();
-
-    let (principal_type, principal_id) = if let Some(bot) = bot_identity {
-        ("Bot".to_string(), bot.bot.id.to_string())
-    } else if let Some(user) = LoginUser::from_request_parts(&mut parts, &state).await.ok() {
-        ("User".to_string(), user.username.clone())
-    } else {
-        ("User".to_string(), "reader".to_string())
-    };
+    let (principal_type, principal_id) =
+        if let Ok(bot) = BotIdentity::from_request_parts(&mut parts, &state).await {
+            ("Bot".to_string(), bot.bot.id.to_string())
+        } else if let Ok(user) = LoginUser::from_request_parts(&mut parts, &state).await {
+            ("User".to_string(), user.username.clone())
+        } else {
+            ("User".to_string(), "reader".to_string())
+        };
 
     // let policy_path = repo_path.join("cedar/policies.cedar");
     // let policy_content = get_blob_string(&state, &policy_path).await?;
