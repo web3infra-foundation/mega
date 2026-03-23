@@ -1,7 +1,7 @@
 use std::{collections::HashMap, path::Path, str::FromStr};
 
 use axum::{
-    extract::{FromRef, Request, State},
+    extract::{FromRef, FromRequestParts, Request, State},
     middleware::Next,
     response::Response,
 };
@@ -138,16 +138,16 @@ pub async fn cedar_guard(
     //     .ok_or_else(|| MegaError::with_message(format!("Change list not found for link: {}", link)))?;
     // let repo_path: PathBuf = cl_model.path.into();
 
-    let login_user = req.extensions().get::<LoginUser>();
-    let bot_identity = req.extensions().get::<BotIdentity>();
+    let (mut parts, body) = req.into_parts();
 
-    let (principal_type, principal_id) = if let Some(bot) = bot_identity {
-        ("Bot".to_string(), bot.bot.id.to_string())
-    } else if let Some(user) = login_user {
-        ("User".to_string(), user.username.clone())
-    } else {
-        ("User".to_string(), "reader".to_string())
-    };
+    let (principal_type, principal_id) =
+        if let Ok(bot) = BotIdentity::from_request_parts(&mut parts, &state).await {
+            ("Bot".to_string(), bot.bot.id.to_string())
+        } else if let Ok(user) = LoginUser::from_request_parts(&mut parts, &state).await {
+            ("User".to_string(), user.username.clone())
+        } else {
+            ("User".to_string(), "reader".to_string())
+        };
 
     // let policy_path = repo_path.join("cedar/policies.cedar");
     // let policy_content = get_blob_string(&state, &policy_path).await?;
@@ -169,6 +169,8 @@ pub async fn cedar_guard(
                 MegaError::Other(format!("Guard Authorization failed: {}", e)),
             )
         })?;
+
+    let req = Request::from_parts(parts, body);
     let response = next.run(req).await;
 
     if response.status().is_client_error() {
