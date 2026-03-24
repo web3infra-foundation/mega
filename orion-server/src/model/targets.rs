@@ -24,6 +24,8 @@ pub enum TargetState {
     Failed,
     #[sea_orm(string_value = "Interrupted")]
     Interrupted,
+    #[sea_orm(string_value = "Uninitialized")]
+    Uninitialized,
 }
 
 impl From<String> for TargetState {
@@ -34,6 +36,7 @@ impl From<String> for TargetState {
             "Completed" => TargetState::Completed,
             "Failed" => TargetState::Failed,
             "Interrupted" => TargetState::Interrupted,
+            "Uninitialized" => TargetState::Uninitialized,
             _ => TargetState::Pending, // Default to Pending for unknown states
         }
     }
@@ -47,6 +50,7 @@ impl Display for TargetState {
             TargetState::Completed => "Completed",
             TargetState::Failed => "Failed",
             TargetState::Interrupted => "Interrupted",
+            TargetState::Uninitialized => "Uninitialized",
         };
         write!(f, "{}", s)
     }

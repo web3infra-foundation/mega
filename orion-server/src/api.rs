@@ -560,15 +560,45 @@ pub async fn task_handler_v2(
             }),
         )
             .into_response();
+    } else {
+        tracing::info!(
+            "No idle workers available, attempting to enqueue task {}",
+            task_id
+        );
+        match state
+            .scheduler
+            .enqueue_task_v2(task_id, &req.cl_link, req.repo, req.changes, 0)
+            .await
+        {
+            Ok(build_id) => {
+                tracing::info!("Build {}/{} queued successfully", task_id, build_id);
+                result = OrionBuildResult {
+                    build_id: build_id.to_string(),
+                    status: "queued".to_string(),
+                    message: "Task queued for processing when workers become available".to_string(),
+                };
+                return (
+                    StatusCode::OK,
+                    Json(OrionServerResponse {
+                        task_id: task_id.to_string(),
+                        results: vec![result],
+                    }),
+                )
+                    .into_response();
+            }
+
+            Err(e) => {
+                tracing::warn!("Failed to queue task: {}", e);
+                return (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    Json(serde_json::json!({
+                        "message": format!("Unable to queue task: {}", e)
+                    })),
+                )
+                    .into_response();
+            }
+        }
     }
-    // TODO: to be implemented for queuing logic
-    (
-        StatusCode::SERVICE_UNAVAILABLE,
-        Json(serde_json::json!({
-            "message": "No available workers at the moment, please try again later"
-        })),
-    )
-        .into_response()
 }
 
 /// Creates build tasks and returns the task ID and status (immediate or queued)
@@ -1665,6 +1695,7 @@ pub struct TargetSummaryDTO {
     pub completed: u64,
     pub failed: u64,
     pub interrupted: u64,
+    pub uninitialized: u64,
 }
 
 impl TaskInfoDTO {
@@ -1883,6 +1914,7 @@ pub async fn task_targets_summary_handler(
         completed: 0,
         failed: 0,
         interrupted: 0,
+        uninitialized: 0,
     };
 
     for target in targets {
@@ -1892,6 +1924,7 @@ pub async fn task_targets_summary_handler(
             TargetState::Completed => summary.completed += 1,
             TargetState::Failed => summary.failed += 1,
             TargetState::Interrupted => summary.interrupted += 1,
+            TargetState::Uninitialized => summary.uninitialized += 1,
         }
     }
 
@@ -2551,79 +2584,18 @@ pub async fn targets_get_handler(
     Ok(Json(dtos))
 }
 
-/// Get build state by build ID
-#[utoipa::path(
-    get,
-    path = "/v2/build-state/{build_id}",
-    params(("build_id" = String, Path, description = "Build ID")),
-    responses(
-        (status = 200, description = "Get build state successfully", body = BuildEventState),
-        (status = 404, description = "Not found build", body = MessageResponse),
-    )
-)]
-pub async fn build_state_handler(
-    State(state): State<AppState>,
-    Path(build_id): Path<String>,
-) -> Result<Json<BuildEventState>, (StatusCode, Json<MessageResponse>)> {
-    let build_uuid = build_id.parse::<Uuid>().map_err(|_| {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(MessageResponse {
-                message: "Invalid build ID".to_string(),
-            }),
-        )
-    })?;
-
-    // First check if the build is currently active (running or pending)
-    if state.scheduler.active_builds.contains_key(&build_id) {
-        return Ok(Json(BuildEventState::Running));
-    }
-
-    // If not active, check the build_events table
-    let build_event = callisto::build_events::Entity::find_by_id(build_uuid)
-        .one(&state.conn)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to fetch build event {}: {}", build_id, e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(MessageResponse {
-                    message: "Database error".to_string(),
-                }),
-            )
-        })?
-        .ok_or_else(|| {
-            (
-                StatusCode::NOT_FOUND,
-                Json(MessageResponse {
-                    message: "Build not found".to_string(),
-                }),
-            )
-        })?;
-
-    // Determine state based on build event fields
-    let state_enum = match (build_event.end_at, build_event.exit_code) {
-        (None, _) => BuildEventState::Running, // Still running but not in active_builds (shouldn't happen)
-        (Some(_), Some(0)) => BuildEventState::Success,
-        (Some(_), Some(_)) => BuildEventState::Failure,
-        (Some(_), None) => BuildEventState::Failure, // Interrupted case
-    };
-
-    Ok(Json(state_enum))
-}
-
 /// Get complete log for a specific build event
 #[utoipa::path(
-    get,
-    path = "/v2/builds/{build_id}/logs",
-    params(("build_id" = String, Path, description = "Build event ID")),
-    responses(
-        (status = 200, description = "Complete log content", body = api_model::buck2::types::LogLinesResponse),
-        (status = 400, description = "Invalid build ID", body = LogErrorResponse),
-        (status = 404, description = "Build event or log not found", body = LogErrorResponse),
-        (status = 500, description = "Database or log read error", body = LogErrorResponse),
-    )
-)]
+        get,
+        path = "/v2/builds/{build_id}/logs",
+        params(("build_id" = String, Path, description = "Build event ID")),
+        responses(
+            (status = 200, description = "Complete log content", body = api_model::buck2::types::LogLinesResponse),
+            (status = 400, description = "Invalid build ID", body = LogErrorResponse),
+            (status = 404, description = "Build event or log not found", body = LogErrorResponse),
+            (status = 500, description = "Database or log read error", body = LogErrorResponse),
+        )
+    )]
 pub async fn build_logs_handler(
     State(state): State<AppState>,
     Path(build_id): Path<String>,
@@ -2703,6 +2675,67 @@ pub async fn build_logs_handler(
     let lines: Vec<String> = log_content.lines().map(str::to_string).collect();
     let len = lines.len();
     Ok(Json(LogLinesResponse { data: lines, len }))
+}
+
+/// Get build state by build ID
+#[utoipa::path(
+    get,
+    path = "/v2/build-state/{build_id}",
+    params(("build_id" = String, Path, description = "Build ID")),
+    responses(
+        (status = 200, description = "Get build state successfully", body = BuildEventState),
+        (status = 404, description = "Not found build", body = MessageResponse),
+    )
+)]
+pub async fn build_state_handler(
+    State(state): State<AppState>,
+    Path(build_id): Path<String>,
+) -> Result<Json<BuildEventState>, (StatusCode, Json<MessageResponse>)> {
+    let build_uuid = build_id.parse::<Uuid>().map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(MessageResponse {
+                message: "Invalid build ID".to_string(),
+            }),
+        )
+    })?;
+
+    // First check if the build is currently active (running or pending)
+    if state.scheduler.active_builds.contains_key(&build_id) {
+        return Ok(Json(BuildEventState::Running));
+    }
+
+    // If not active, check the build_events table
+    let build_event = callisto::build_events::Entity::find_by_id(build_uuid)
+        .one(&state.conn)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to fetch build event {}: {}", build_id, e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(MessageResponse {
+                    message: "Database error".to_string(),
+                }),
+            )
+        })?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(MessageResponse {
+                    message: "Build not found".to_string(),
+                }),
+            )
+        })?;
+
+    // Determine state based on build event fields
+    let state_enum = match (build_event.end_at, build_event.exit_code) {
+        (None, _) => BuildEventState::Running, // Still running but not in active_builds (shouldn't happen)
+        (Some(_), Some(0)) => BuildEventState::Success,
+        (Some(_), Some(_)) => BuildEventState::Failure,
+        (Some(_), None) => BuildEventState::Failure, // Interrupted case
+    };
+
+    Ok(Json(state_enum))
 }
 
 /// Get latest build result by task ID
