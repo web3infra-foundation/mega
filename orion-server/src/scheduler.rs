@@ -23,6 +23,7 @@ use crate::{
     auto_retry::AutoRetryJudger,
     log::log_service::LogService,
     model::{
+        build_targets::{BuildTarget, BuildTargetDTO},
         builds,
         targets::{self, TargetState},
     },
@@ -75,6 +76,8 @@ impl Default for TaskQueueConfig {
 pub struct TaskQueue {
     /// Queue storage (FIFO)
     queue: VecDeque<PendingBuildEvent>,
+    /// Queue storage for v2 (should replace the original queue in the future)
+    queue_v2: VecDeque<PendingBuildEventV2>,
     /// Queue configuration
     config: TaskQueueConfig,
 }
@@ -83,6 +86,7 @@ impl TaskQueue {
     pub fn new(config: TaskQueueConfig) -> Self {
         Self {
             queue: VecDeque::new(),
+            queue_v2: VecDeque::new(),
             config,
         }
     }
@@ -95,6 +99,16 @@ impl TaskQueue {
         }
 
         self.queue.push_back(task);
+        Ok(())
+    }
+
+    pub fn enqueue_v2(&mut self, task: PendingBuildEventV2) -> Result<(), String> {
+        // Check if queue is full
+        if self.queue_v2.len() >= self.config.max_queue_size {
+            return Err("Queue is full".to_string());
+        }
+
+        self.queue_v2.push_back(task);
         Ok(())
     }
 
@@ -156,6 +170,14 @@ pub struct PendingBuildEvent {
     pub event_payload: BuildEventPayload,
     pub target_id: Option<Uuid>,
     pub target_path: Option<String>,
+    pub changes: Vec<Status<ProjectRelativePath>>,
+    pub created_at: Instant,
+}
+
+#[derive(Debug, Clone)]
+pub struct PendingBuildEventV2 {
+    pub event_payload: BuildEventPayload,
+    pub targets: Vec<BuildTargetDTO>,
     pub changes: Vec<Status<ProjectRelativePath>>,
     pub created_at: Instant,
 }
@@ -313,6 +335,68 @@ impl TaskScheduler {
         .await?;
 
         Ok(build_event_id)
+    }
+
+    pub async fn enqueue_task_v2(
+        &self,
+        task_id: Uuid,
+        cl_link: &str,
+        repo: String,
+        changes: Vec<Status<ProjectRelativePath>>,
+        retry_count: i32,
+    ) -> Result<Uuid, String> {
+        let build_event_id = Uuid::now_v7();
+
+        self.enqueue_task_with_build_id_v2(
+            build_event_id,
+            task_id,
+            cl_link,
+            repo,
+            changes,
+            retry_count,
+        )
+        .await?;
+
+        Ok(build_event_id)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn enqueue_task_with_build_id_v2(
+        &self,
+        build_event_id: Uuid,
+        task_id: Uuid,
+        cl_link: &str,
+        repo: String,
+        changes: Vec<Status<ProjectRelativePath>>,
+        retry_count: i32,
+    ) -> Result<(), String> {
+        let targets =
+            BuildTarget::find_initialized_build_targets(build_event_id, task_id, &self.conn)
+                .await
+                .map_err(|e| format!("Failed to find initialized build targets: {e}"))?;
+        let event = BuildEventPayload::new(
+            build_event_id,
+            task_id,
+            cl_link.to_string(),
+            repo,
+            retry_count,
+        );
+
+        let pending_build_event = PendingBuildEventV2 {
+            event_payload: event,
+            targets,
+            changes,
+            created_at: Instant::now(),
+        };
+
+        {
+            let mut queue = self.pending_tasks.lock().await;
+            queue.enqueue_v2(pending_build_event)?;
+        }
+
+        // Notify that there's a new task to process
+        self.task_notifier.notify_one();
+        Ok(())
     }
 
     /// Enqueue task build with given BuildEvent ID

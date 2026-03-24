@@ -15,8 +15,24 @@ impl BuildTarget {
             id,
             task_id,
             path: default_path.to_string(),
-            latest_state: "NOT_STARTED".to_string(),
+            latest_state: TargetState::Uninitialized.to_string(),
         }
+    }
+
+    /// Check if there is any target with `Uninitialized` state for the given task_id.
+    pub async fn has_uninitialized_target(
+        task_id: Uuid,
+        db: &impl ConnectionTrait,
+    ) -> Result<bool, DbErr> {
+        let target = callisto::build_targets::Entity::find()
+            .filter(callisto::build_targets::Column::TaskId.eq(task_id))
+            .filter(
+                callisto::build_targets::Column::LatestState
+                    .eq(TargetState::Uninitialized.to_string()),
+            )
+            .one(db)
+            .await?;
+        Ok(target.is_some())
     }
 
     pub async fn insert_default_target(
@@ -31,14 +47,22 @@ impl BuildTarget {
     }
 
     #[allow(dead_code)]
-    pub async fn find_build_targets(
+    pub async fn find_initialized_build_targets(
         build_id: Uuid,
         task_id: Uuid,
         db: &impl ConnectionTrait,
     ) -> Result<Vec<BuildTargetDTO>, DbErr> {
+        if Self::has_uninitialized_target(task_id, db).await? {
+            return Ok(vec![]);
+        }
+
         // Get all targets of corresponding build
         let all_targets = callisto::build_targets::Entity::find()
             .filter(callisto::build_targets::Column::TaskId.eq(task_id))
+            .filter(
+                callisto::build_targets::Column::LatestState
+                    .ne(TargetState::Uninitialized.to_string()),
+            )
             .all(db)
             .await?;
 
@@ -54,7 +78,7 @@ impl BuildTarget {
 
             let state = match status {
                 Some(s) => TargetState::from(s.target_state),
-                None => TargetState::Pending,
+                None => TargetState::Uninitialized,
             };
 
             result.push(BuildTargetDTO {
@@ -107,6 +131,7 @@ impl BuildTarget {
 }
 
 #[allow(dead_code)]
+#[derive(Debug, Clone)]
 pub struct BuildTargetDTO {
     id: Uuid,
     path: String,
