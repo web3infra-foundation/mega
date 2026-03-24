@@ -175,6 +175,7 @@ pub struct PendingBuildEvent {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct PendingBuildEventV2 {
     pub event_payload: BuildEventPayload,
     pub targets: Vec<BuildTargetDTO>,

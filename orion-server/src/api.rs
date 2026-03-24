@@ -553,14 +553,14 @@ pub async fn task_handler_v2(
         )
         .await;
 
-        return (
+        (
             StatusCode::OK,
             Json(OrionServerResponse {
                 task_id: task_id.to_string(),
                 results: vec![result],
             }),
         )
-            .into_response();
+            .into_response()
     } else {
         tracing::info!(
             "No idle workers available, attempting to enqueue task {}",
@@ -578,25 +578,25 @@ pub async fn task_handler_v2(
                     status: "queued".to_string(),
                     message: "Task queued for processing when workers become available".to_string(),
                 };
-                return (
+                (
                     StatusCode::OK,
                     Json(OrionServerResponse {
                         task_id: task_id.to_string(),
                         results: vec![result],
                     }),
                 )
-                    .into_response();
+                    .into_response()
             }
 
             Err(e) => {
                 tracing::warn!("Failed to queue task: {}", e);
-                return (
+                (
                     StatusCode::SERVICE_UNAVAILABLE,
                     Json(serde_json::json!({
                         "message": format!("Unable to queue task: {}", e)
                     })),
                 )
-                    .into_response();
+                    .into_response()
             }
         }
     }
@@ -703,7 +703,6 @@ pub async fn task_handler(
         .into_response()
 }
 
-#[allow(dead_code)]
 async fn handle_immediate_task_dispatch_v2(
     state: AppState,
     task_id: Uuid,
@@ -2347,8 +2346,8 @@ pub struct BuildTargetDTO {
 }
 
 #[derive(ToSchema, Serialize)]
-#[allow(dead_code)]
 pub enum BuildEventState {
+    #[allow(dead_code)]
     Pending,
     Running,
     Success,
