@@ -1,13 +1,3 @@
-mod api;
-mod auto_retry;
-mod buck2;
-mod log;
-mod model;
-mod orion_common;
-mod scheduler;
-mod server;
-mod service;
-
 /// Orion Build Server
 /// A distributed build system that manages build tasks and worker nodes
 #[tokio::main]
@@ -20,5 +10,5 @@ async fn main() {
     // Load environment variables from .env file (optional)
     dotenvy::dotenv().ok();
 
-    server::start_server().await;
+    orion_server::server::start_server().await;
 }

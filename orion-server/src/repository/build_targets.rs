@@ -4,7 +4,8 @@ use sea_orm::{
 };
 use uuid::Uuid;
 
-use crate::model::targets::TargetState;
+use crate::entity::targets::TargetState;
+
 /// A collection of utility methods for the `build_targets` database table.
 pub struct BuildTarget;
 
@@ -91,6 +92,7 @@ impl BuildTarget {
         Ok(result)
     }
 
+    #[allow(dead_code)]
     pub async fn update_build_targets(
         target_state: TargetState,
         build_id: &str,

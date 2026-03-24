@@ -30,7 +30,6 @@ impl EntityStore {
         }
     }
 
-    #[allow(dead_code)]
     pub fn as_entities(&self, schema: &Schema) -> Entities {
         let users = self.users.values().map(|user| user.clone().into());
         let repos = self.repos.values().map(|repo| repo.clone().into());

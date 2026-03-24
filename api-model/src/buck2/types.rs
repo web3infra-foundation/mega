@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 /// Task phase when in buck2 build
-#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
 pub enum TaskPhase {
     DownloadingSource,

@@ -290,11 +290,11 @@ async fn migrate_all(
         // Periodically await some tasks to keep the number of in-memory
         // JoinHandles bounded. Semaphore still enforces the true I/O
         // concurrency; this only caps bookkeeping overhead.
-        if tasks.len() >= concurrency.saturating_mul(4).max(64) {
-            if let Some(t) = tasks.pop() {
-                t.await
-                    .map_err(|e| MegaError::Other(format!("migration task panicked: {e}")))??;
-            }
+        if tasks.len() >= concurrency.saturating_mul(4).max(64)
+            && let Some(t) = tasks.pop()
+        {
+            t.await
+                .map_err(|e| MegaError::Other(format!("migration task panicked: {e}")))??;
         }
     }
 

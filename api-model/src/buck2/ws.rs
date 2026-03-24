@@ -8,7 +8,6 @@ use crate::buck2::{
 };
 
 /// Message protocol for WebSocket communication between worker and server.
-#[allow(dead_code)]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(tag = "type")]
 pub enum WSMessage {

@@ -1,16 +1,11 @@
 use api_model::buck2::{status::Status, types::ProjectRelativePath};
-use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, DbErr, IntoActiveModel};
-use serde::{Deserialize, Serialize};
-use serde_json::{Value, to_value};
-use utoipa::ToSchema;
+use serde_json::to_value;
 use uuid::Uuid;
 
-#[allow(dead_code)]
 pub struct OrionTask;
 
 impl OrionTask {
-    #[allow(dead_code)]
     fn create_task(
         task_id: Uuid,
         cl_link: &str,
@@ -26,7 +21,6 @@ impl OrionTask {
         })
     }
 
-    #[allow(dead_code)]
     pub async fn insert_task(
         task_id: Uuid,
         cl_link: &str,
@@ -37,26 +31,5 @@ impl OrionTask {
         let task_model = Self::create_task(task_id, cl_link, repo, changes)
             .map_err(|e| DbErr::Custom(e.to_string()))?;
         task_model.into_active_model().insert(db).await
-    }
-}
-
-#[derive(ToSchema, Serialize, Deserialize)]
-pub struct OrionTaskDTO {
-    pub id: String,
-    pub changes: Value,
-    pub repo_name: String,
-    pub cl: String,
-    pub created_at: String,
-}
-
-impl From<&callisto::orion_tasks::Model> for OrionTaskDTO {
-    fn from(model: &callisto::orion_tasks::Model) -> Self {
-        Self {
-            id: model.id.to_string(),
-            changes: model.changes.clone(),
-            repo_name: model.repo_name.clone(),
-            cl: model.cl.clone(),
-            created_at: model.created_at.with_timezone(&Utc).to_string(),
-        }
     }
 }
