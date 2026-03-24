@@ -302,7 +302,7 @@ pub enum RequirementsState {
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, utoipa::ToSchema)]
-#[allow(dead_code)]
+
 pub struct VerifyClPayload {
     pub assignees: Vec<String>,
 }
@@ -385,12 +385,6 @@ impl ClDiffFile {
             ClDiffFile::Modified(_, _, _) => 4,
         }
     }
-}
-#[derive(Serialize)]
-pub struct BuckFile {
-    pub buck: ObjectHash,
-    pub buck_config: ObjectHash,
-    pub path: PathBuf,
 }
 
 #[cfg(test)]

@@ -1,6 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
-    path::{Component, Path, PathBuf},
+    path::{Component, PathBuf},
     str::FromStr,
     sync::{
         Arc,
@@ -39,9 +39,9 @@ use tokio::sync::{RwLock, mpsc};
 use tokio_stream::wrappers::ReceiverStream;
 
 use crate::{
-    api_service::{ApiHandler, cache::GitObjectCache, mono_api_service::MonoApiService, tree_ops},
+    api_service::{ApiHandler, cache::GitObjectCache, mono_api_service::MonoApiService},
     code_edit::{on_push::OnpushCodeEdit, utils::get_changed_files},
-    model::change_list::{BuckFile, ClDiffFile},
+    model::change_list::ClDiffFile,
     pack::RepoHandler,
     protocol::import_refs::{RefCommand, Refs},
 };
@@ -589,93 +589,6 @@ impl MonoRepo {
         Ok(cl_link)
     }
 
-    #[allow(dead_code)]
-    async fn search_buck_under_cl(&self, cl_path: &Path) -> Result<Vec<BuckFile>, MegaError> {
-        let mut res = vec![];
-        let mono_stg = self.storage.mono_storage();
-        let mono_api_service: MonoApiService = self.into();
-
-        let mut path = Some(cl_path);
-        let mut path_q = Vec::new();
-        while let Some(p) = path {
-            path_q.push(p);
-            path = p.parent();
-        }
-        if path_q.len() > 2 {
-            path_q.pop();
-            path_q.pop();
-
-            let p = path_q[path_q.len() - 1];
-            if p.parent().is_some()
-                && let Some(tree) = tree_ops::search_tree_by_path(&mono_api_service, p, None)
-                    .await
-                    .ok()
-                    .flatten()
-                && let Some(buck) = self.try_extract_buck(tree, cl_path)
-            {
-                return Ok(vec![buck]);
-            };
-            return Ok(vec![]);
-        }
-
-        let mut search_trees: Vec<(PathBuf, Tree)> = vec![];
-
-        let diff_trees = self.diff_trees_from_cl().await?;
-        for (path, new, old) in diff_trees {
-            match (new, old) {
-                (None, _) => {
-                    continue;
-                }
-                (Some(sha1), _) => {
-                    let tree = mono_stg.get_tree_by_hash(&sha1.to_string()).await?.unwrap();
-                    search_trees.push((path, Tree::from_mega_model(tree)));
-                }
-            }
-        }
-
-        for (path, tree) in search_trees {
-            if let Some(buck) = self.try_extract_buck(tree, &cl_path.join(path)) {
-                res.push(buck);
-            }
-        }
-
-        Ok(res)
-    }
-
-    fn try_extract_buck(&self, tree: Tree, cl_path: &Path) -> Option<BuckFile> {
-        let mut buck = None;
-        let mut buck_config = None;
-        for item in tree.tree_items {
-            if item.is_blob() && item.name == "BUCK" {
-                buck = Some(item.id)
-            }
-            if item.is_blob() && item.name == ".buckconfig" {
-                buck_config = Some(item.id)
-            }
-        }
-        match (buck, buck_config) {
-            (Some(buck), Some(buck_config)) => Some(BuckFile {
-                buck,
-                buck_config,
-                path: cl_path.to_path_buf(),
-            }),
-            _ => None,
-        }
-    }
-
-    async fn diff_trees_from_cl(
-        &self,
-    ) -> Result<Vec<(PathBuf, Option<ObjectHash>, Option<ObjectHash>)>, MegaError> {
-        let mono_stg = self.storage.mono_storage();
-        let from_c = mono_stg.get_commit_by_hash(&self.from_hash).await?.unwrap();
-        let from_tree: Tree =
-            Tree::from_mega_model(mono_stg.get_tree_by_hash(&from_c.tree).await?.unwrap());
-        let to_c = mono_stg.get_commit_by_hash(&self.to_hash).await?.unwrap();
-        let to_tree: Tree =
-            Tree::from_mega_model(mono_stg.get_tree_by_hash(&to_c.tree).await?.unwrap());
-        diff_trees(&to_tree, &from_tree)
-    }
-
     pub fn username(&self) -> String {
         self.username.clone().unwrap_or(String::from("Anonymous"))
     }
@@ -840,36 +753,4 @@ impl MonoRepo {
 
         Ok(())
     }
-}
-
-#[allow(dead_code)]
-type DiffResult = Vec<(PathBuf, Option<ObjectHash>, Option<ObjectHash>)>;
-
-#[allow(dead_code)]
-fn diff_trees(theirs: &Tree, base: &Tree) -> Result<DiffResult, MegaError> {
-    let their_items: HashMap<_, _> = get_plain_items(theirs).into_iter().collect();
-    let base_items: HashMap<_, _> = get_plain_items(base).into_iter().collect();
-    let all_paths: HashSet<_> = their_items.keys().chain(base_items.keys()).collect();
-
-    let mut diffs = Vec::new();
-
-    for path in all_paths {
-        let their_hash = their_items.get(path).cloned();
-        let base_hash = base_items.get(path).cloned();
-        if their_hash != base_hash {
-            diffs.push((path.clone(), their_hash, base_hash));
-        }
-    }
-    Ok(diffs)
-}
-
-#[allow(dead_code)]
-fn get_plain_items(tree: &Tree) -> Vec<(PathBuf, ObjectHash)> {
-    let mut items = Vec::new();
-    for item in tree.tree_items.iter() {
-        if item.is_tree() {
-            items.push((PathBuf::from(item.name.clone()), item.id));
-        }
-    }
-    items
 }

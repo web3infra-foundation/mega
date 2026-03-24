@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::Path, str::FromStr};
+use std::{collections::HashMap, str::FromStr};
 
 use axum::{
     extract::{FromRef, FromRequestParts, Request, State},
@@ -214,27 +214,6 @@ async fn authorize(
         .map_err(|e| MegaError::Other(format!("Authorization failed: {}", e)))?;
 
     Ok(())
-}
-
-#[allow(dead_code)]
-async fn get_blob_string(state: &MonoApiServiceState, path: &Path) -> Result<String, ApiError> {
-    // Use main as default branch
-    let refs = None;
-    let data = state
-        .api_handler(path.as_ref())
-        .await?
-        .get_blob_as_string(path.into(), refs)
-        .await?;
-
-    match data {
-        Some(content) => Ok(content),
-        None => {
-            Err(MegaError::Other(format!(
-                "Blob not found at path: {}",
-                path.display()
-            )))
-        }?,
-    }
 }
 
 #[cfg(test)]

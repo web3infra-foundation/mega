@@ -1,6 +1,5 @@
 use std::{env, net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
 
-use api_model::buck2::types::TaskPhase;
 use axum::{Router, routing::get};
 use chrono::{FixedOffset, Utc};
 use common::{
@@ -19,74 +18,17 @@ use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::{
-    api::{self, AppState},
+    api,
+    api_doc::ApiDoc,
+    app_state::AppState,
     buck2::set_mono_base_url,
+    entity::builds,
     log::{
         log_service::LogService,
         store::{LogStore, io_orbit_store::IoOrbitLogStore, local_log_store, noop_log_store},
     },
-    model::builds,
+    repository::targets::TargetRepository,
 };
-
-/// OpenAPI documentation configuration
-#[derive(OpenApi)]
-#[openapi(
-    paths(
-        api::task_handler,
-        api::task_build_list_handler,
-        api::task_output_handler,
-        api::task_history_output_handler,
-        api::target_logs_handler,
-        api::tasks_handler,
-        api::task_targets_handler,
-        api::task_targets_summary_handler,
-        api::get_orion_clients_info,
-        api::get_orion_client_status_by_id,
-        api::build_retry_handler,
-        api::health_check_handler,
-        api::task_retry_handler,
-        api::task_get_handler,
-        api::build_event_get_handler,
-        api::targets_get_handler,
-        api::build_state_handler,
-        api::build_logs_handler,
-        api::latest_build_result_handler,
-        api::targets_status_handler,
-        api::single_target_status_handle,
-    ),
-    components(
-        schemas(
-            crate::scheduler::BuildRequest,
-            api_model::buck2::types::LogLinesResponse,
-            api_model::buck2::types::TargetLogLinesResponse,
-            api_model::buck2::types::LogErrorResponse,
-            api::TaskStatusEnum,
-            api::BuildDTO,
-            api::TargetDTO,
-            api::TargetSummaryDTO,
-            api_model::buck2::types::TargetLogQuery,
-            api_model::buck2::types::LogReadMode,
-            api_model::buck2::types::TaskHistoryQuery,
-            api::TaskInfoDTO,
-            api::OrionClientInfo,
-            api::OrionClientStatus,
-            api::CoreWorkerStatus,
-            api::OrionClientQuery,
-            crate::model::targets::TargetState,
-            TaskPhase,
-            api::MessageResponse,
-            crate::model::build_events::BuildEventDTO,
-            crate::model::orion_tasks::OrionTaskDTO,
-            api::BuildTargetDTO,
-            api::BuildEventState,
-            api_model::buck2::types::TargetStatusResponse,
-        )
-    ),
-    tags(
-        (name = "Build", description = "Build related endpoints")
-    )
-)]
-pub struct ApiDoc;
 
 pub async fn init_log_service(config: Config) -> Result<LogService, MegaError> {
     // Read buffer size from environment, defaulting to 4096 if unset or invalid
@@ -214,7 +156,7 @@ pub async fn start_server() {
     tokio::spawn(start_health_check_task(state.clone()));
 
     // Start queue manager
-    tokio::spawn(api::start_queue_manager(state.clone()));
+    tokio::spawn(state.clone().start_queue_manager());
 
     // Start background dp operation
     state.start_background_tasks();
@@ -363,10 +305,10 @@ async fn start_health_check_task(state: AppState) {
                             );
                         }
 
-                        if let Err(e) = crate::model::targets::update_state(
+                        if let Err(e) = TargetRepository::update_state(
                             &state.conn,
                             build_model.target_id,
-                            crate::model::targets::TargetState::Interrupted,
+                            crate::entity::targets::TargetState::Interrupted,
                             None,
                             Some(Utc::now().with_timezone(&utc_offset)),
                             None,

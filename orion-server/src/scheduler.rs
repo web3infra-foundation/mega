@@ -19,20 +19,23 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::{
-    api::CoreWorkerStatus,
     auto_retry::AutoRetryJudger,
-    log::log_service::LogService,
-    model::{
-        build_targets::{BuildTarget, BuildTargetDTO},
+    entity::{
         builds,
         targets::{self, TargetState},
+    },
+    log::log_service::LogService,
+    model::dto::CoreWorkerStatus,
+    repository::{
+        build_targets::{BuildTarget, BuildTargetDTO},
+        targets::TargetRepository,
     },
 };
 
 /// Request payload for creating a new build task
-#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct BuildRequest {
+    #[allow(dead_code)]
     pub changes: Vec<Status<ProjectRelativePath>>,
     /// Buck2 target path (e.g. //app:server). Optional for backward compatibility.
     #[serde(default, alias = "target_path")]
@@ -188,12 +191,12 @@ pub struct PendingBuildEventV2 {
 pub struct BuildInfo {
     pub event_payload: BuildEventPayload,
     pub target_id: Uuid,
+    #[allow(dead_code)]
     pub target_path: String,
     pub changes: Vec<Status<ProjectRelativePath>>,
     #[allow(dead_code)]
     pub started_at: DateTimeUtc,
     pub auto_retry_judger: AutoRetryJudger,
-    #[allow(dead_code)]
     pub worker_id: String,
 }
 
@@ -266,21 +269,6 @@ pub struct TaskScheduler {
     pub conn: DatabaseConnection,
 }
 
-/// Errors when reading a log segment
-#[allow(dead_code)]
-#[derive(Debug)]
-pub enum LogReadError {
-    NotFound,
-    OffsetOutOfRange { size: u64 },
-    Io(std::io::Error),
-}
-
-impl From<std::io::Error> for LogReadError {
-    fn from(e: std::io::Error) -> Self {
-        Self::Io(e)
-    }
-}
-
 impl TaskScheduler {
     /// Create new task scheduler instance
     pub fn new(
@@ -308,7 +296,7 @@ impl TaskScheduler {
         target_path: &str,
     ) -> Result<targets::Model, sea_orm::DbErr> {
         // Find-or-create target for (task_id, target_path)
-        targets::Entity::find_or_create(&self.conn, task_id, target_path.to_string()).await
+        TargetRepository::find_or_create(&self.conn, task_id, target_path.to_string()).await
     }
 
     /// Bound corresponding task build ID to the given task and enqueue
@@ -472,7 +460,6 @@ impl TaskScheduler {
     }
 
     /// Search available worker and claim the worker for current build
-    #[allow(dead_code)]
     pub fn search_and_claim_worker(&self, build_id: &str) -> Option<String> {
         let idle_workers: Vec<String> = self
             .workers
@@ -496,7 +483,6 @@ impl TaskScheduler {
         }
     }
 
-    #[allow(dead_code)]
     pub async fn release_worker(&self, worker_id: &str) {
         tracing::info!("Releasing worker {} back to idle", worker_id);
         if let Some(mut worker) = self.workers.get_mut(worker_id) {
@@ -625,7 +611,7 @@ impl TaskScheduler {
         if let Some(mut worker) = self.workers.get_mut(&chosen_id) {
             if worker.sender.send(msg).is_ok() {
                 // Only mark Building after send succeeds
-                if let Err(e) = targets::update_state(
+                if let Err(e) = TargetRepository::update_state(
                     &self.conn,
                     //TODO: update target_id here
                     pending_build_event.target_id.unwrap_or(Uuid::nil()),
@@ -656,7 +642,7 @@ impl TaskScheduler {
                 Ok(())
             } else {
                 // Send failed: best-effort mark target back to Pending
-                let _ = targets::update_state(
+                let _ = TargetRepository::update_state(
                     &self.conn,
                     // TODO: update target_id here
                     pending_build_event.target_id.unwrap_or(Uuid::nil()),

@@ -14,7 +14,6 @@ use utoipa::ToSchema;
 use crate::buck2::{status::Status, types::ProjectRelativePath};
 
 /// Parameters required to build a task.
-#[allow(dead_code)]
 #[derive(Debug, Deserialize, Serialize, ToSchema)]
 pub struct TaskBuildRequest {
     /// The repository base path
@@ -47,7 +46,6 @@ pub struct RetryBuildRequest {
 }
 
 /// Result of a task build operation containing status and metadata. Used by Orion-Server
-#[allow(dead_code)]
 #[derive(Debug, Deserialize, Serialize, ToSchema)]
 pub struct OrionBuildResult {
     /// Unique identifier for the build task

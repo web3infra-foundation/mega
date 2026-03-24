@@ -14,7 +14,6 @@ pub struct CedarContext {
     schema: Schema,
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Error)]
 pub enum ContextError {
     #[error("{0}")]
@@ -33,7 +32,6 @@ pub enum ContextError {
     Json(#[from] serde_json::Error),
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Error)]
 pub enum SaturnContextError {
     #[error("Authorization Denied")]

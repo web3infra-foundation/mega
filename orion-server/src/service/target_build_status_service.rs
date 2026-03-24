@@ -6,32 +6,33 @@ use sea_orm::{
 };
 use uuid::Uuid;
 
+pub struct NewTargetStatusInput {
+    pub id: Uuid,
+    pub task_id: Uuid,
+    pub target_package: String,
+    pub target_name: String,
+    pub target_configuration: String,
+    pub category: String,
+    pub identifier: String,
+    pub action: String,
+    pub status: OrionTargetStatusEnum,
+}
+
 pub struct TargetBuildStatusService;
 
 impl TargetBuildStatusService {
-    #[allow(clippy::too_many_arguments)]
-    pub fn new_active_model(
-        id: Uuid,
-        task_id: Uuid,
-        target_package: String,
-        target_name: String,
-        target_configuration: String,
-        category: String,
-        identifier: String,
-        action: String,
-        status: OrionTargetStatusEnum,
-    ) -> target_build_status::ActiveModel {
+    pub fn new_active_model(input: NewTargetStatusInput) -> target_build_status::ActiveModel {
         let now = Utc::now().into();
         target_build_status::ActiveModel {
-            id: Set(id),
-            task_id: Set(task_id),
-            target_package: Set(target_package),
-            target_name: Set(target_name),
-            target_configuration: Set(target_configuration),
-            category: Set(category),
-            identifier: Set(identifier),
-            action: Set(action),
-            status: Set(status),
+            id: Set(input.id),
+            task_id: Set(input.task_id),
+            target_package: Set(input.target_package),
+            target_name: Set(input.target_name),
+            target_configuration: Set(input.target_configuration),
+            category: Set(input.category),
+            identifier: Set(input.identifier),
+            action: Set(input.action),
+            status: Set(input.status),
             created_at: Set(now),
             updated_at: Set(now),
         }

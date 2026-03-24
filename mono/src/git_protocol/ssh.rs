@@ -21,7 +21,7 @@ use tokio::{io::AsyncReadExt, sync::Mutex};
 use crate::git_protocol::http::search_subsequence;
 
 type ClientMap = HashMap<(usize, ChannelId), Channel<Msg>>;
-#[allow(dead_code)]
+
 #[derive(Clone)]
 pub struct SshServer {
     pub clients: Arc<Mutex<ClientMap>>,
