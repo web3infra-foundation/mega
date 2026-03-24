@@ -175,6 +175,7 @@ pub struct PendingBuildEvent {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct PendingBuildEventV2 {
     pub event_payload: BuildEventPayload,
     pub targets: Vec<BuildTargetDTO>,
@@ -795,14 +796,14 @@ mod tests {
             dequeued1.event_payload.build_event_id,
             task1.event_payload.build_event_id
         );
-        assert_eq!(dequeued1.event_payload.repo, "/test/repo");
+        assert_eq!(dequeued1.event_payload.repo, "test/repo");
 
         let dequeued2 = queue.dequeue().unwrap();
         assert_eq!(
             dequeued2.event_payload.build_event_id,
             task2.event_payload.build_event_id
         );
-        assert_eq!(dequeued2.event_payload.repo, "/test2/repo");
+        assert_eq!(dequeued2.event_payload.repo, "test2/repo");
     }
 
     /// Test queue capacity limit

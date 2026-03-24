@@ -3,26 +3,18 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use super::sea_orm_active_enums::MergeStatusEnum;
-
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
-#[sea_orm(table_name = "mega_cl")]
+#[sea_orm(table_name = "non_member_note_views")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: i64,
-    pub link: String,
-    #[sea_orm(column_type = "Text")]
-    pub title: String,
-    pub merge_date: Option<DateTime>,
-    pub status: MergeStatusEnum,
-    #[sea_orm(column_type = "Text")]
-    pub path: String,
-    pub from_hash: String,
-    pub to_hash: String,
+    pub note_id: i64,
+    pub user_id: Option<i64>,
+    pub anonymized_ip: String,
+    #[sea_orm(column_type = "Text", nullable)]
+    pub user_agent: Option<String>,
     pub created_at: DateTime,
     pub updated_at: DateTime,
-    pub username: String,
-    pub base_branch: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

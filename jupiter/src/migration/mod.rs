@@ -95,6 +95,8 @@ mod m20260308_191753_create_webhook;
 mod m20260308_220000_add_base_branch_to_mega_cl;
 mod m20260308_230000_normalize_webhook_event_types;
 mod m20260316_120000_add_bot_tokens_token_hash_index;
+mod m20260324_024559_add_notes;
+mod m20260324_033322_fix_migration;
 
 /// Creates a primary key column definition with big integer type.
 ///
@@ -180,6 +182,8 @@ impl MigratorTrait for Migrator {
             Box::new(m20260308_220000_add_base_branch_to_mega_cl::Migration),
             Box::new(m20260308_230000_normalize_webhook_event_types::Migration),
             Box::new(m20260316_120000_add_bot_tokens_token_hash_index::Migration),
+            Box::new(m20260324_024559_add_notes::Migration),
+            Box::new(m20260324_033322_fix_migration::Migration),
         ]
     }
 }

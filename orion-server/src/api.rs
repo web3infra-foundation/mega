@@ -59,6 +59,7 @@ use crate::{
     scheduler::{
         BuildEventPayload, BuildInfo, TaskQueueStats, TaskScheduler, WorkerInfo, WorkerStatus,
     },
+    service::target_build_status_service::TargetBuildStatusService,
 };
 
 const RETRY_COUNT_MAX: i32 = 3;
@@ -552,14 +553,14 @@ pub async fn task_handler_v2(
         )
         .await;
 
-        return (
+        (
             StatusCode::OK,
             Json(OrionServerResponse {
                 task_id: task_id.to_string(),
                 results: vec![result],
             }),
         )
-            .into_response();
+            .into_response()
     } else {
         tracing::info!(
             "No idle workers available, attempting to enqueue task {}",
@@ -577,25 +578,25 @@ pub async fn task_handler_v2(
                     status: "queued".to_string(),
                     message: "Task queued for processing when workers become available".to_string(),
                 };
-                return (
+                (
                     StatusCode::OK,
                     Json(OrionServerResponse {
                         task_id: task_id.to_string(),
                         results: vec![result],
                     }),
                 )
-                    .into_response();
+                    .into_response()
             }
 
             Err(e) => {
                 tracing::warn!("Failed to queue task: {}", e);
-                return (
+                (
                     StatusCode::SERVICE_UNAVAILABLE,
                     Json(serde_json::json!({
                         "message": format!("Unable to queue task: {}", e)
                     })),
                 )
-                    .into_response();
+                    .into_response()
             }
         }
     }
@@ -702,7 +703,6 @@ pub async fn task_handler(
         .into_response()
 }
 
-#[allow(dead_code)]
 async fn handle_immediate_task_dispatch_v2(
     state: AppState,
     task_id: Uuid,
@@ -2346,8 +2346,8 @@ pub struct BuildTargetDTO {
 }
 
 #[derive(ToSchema, Serialize)]
-#[allow(dead_code)]
 pub enum BuildEventState {
+    #[allow(dead_code)]
     Pending,
     Running,
     Success,
@@ -2872,7 +2872,7 @@ impl TargetStatusCache {
             action: event.target.action.clone(),
         };
 
-        let active_model = target_build_status::Model::new_active_model(
+        let active_model = TargetBuildStatusService::new_active_model(
             Uuid::new_v4(), // id is not auto-incremented
             task_id,
             event.target.configured_target_package,
@@ -2928,8 +2928,7 @@ impl TargetStatusCache {
                         continue;
                     }
 
-                    if let Err(e) =
-                        target_build_status::Entity::upsert_batch(&conn, models).await
+                    if let Err(e) = TargetBuildStatusService::upsert_batch(&conn, models).await
                     {
                         tracing::error!("Auto flush failed: {:?}", e);
                     }
@@ -2941,7 +2940,7 @@ impl TargetStatusCache {
                     let models = self.flush_all().await;
 
                     if !models.is_empty() {
-                        let _ = target_build_status::Entity::upsert_batch(&conn, models).await;
+                        let _ = TargetBuildStatusService::upsert_batch(&conn, models).await;
                     }
 
                     break;
@@ -3006,8 +3005,7 @@ pub async fn targets_status_handler(
         Err(_) => return Err((StatusCode::BAD_REQUEST, "Invalid task_id".to_string())),
     };
 
-    let targets = match target_build_status::Entity::fetch_by_task_id(&state.conn, task_uuid).await
-    {
+    let targets = match TargetBuildStatusService::fetch_by_task_id(&state.conn, task_uuid).await {
         Ok(list) => list,
         Err(e) => {
             tracing::error!(
@@ -3069,11 +3067,7 @@ pub async fn single_target_status_handle(
     };
 
     // 查询数据库
-    let target = match target_build_status::Entity::find()
-        .filter(target_build_status::Column::Id.eq(target_uuid))
-        .one(&state.conn)
-        .await
-    {
+    let target = match TargetBuildStatusService::find_by_id(&state.conn, target_uuid).await {
         Ok(Some(t)) => t,
         Ok(None) => return Err((StatusCode::NOT_FOUND, "Target not found".to_string())),
         Err(e) => {

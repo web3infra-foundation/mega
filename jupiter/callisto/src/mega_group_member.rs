@@ -14,6 +14,21 @@ pub struct Model {
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {}
+pub enum Relation {
+    #[sea_orm(
+        belongs_to = "super::mega_group::Entity",
+        from = "Column::GroupId",
+        to = "super::mega_group::Column::Id",
+        on_update = "NoAction",
+        on_delete = "Cascade"
+    )]
+    MegaGroup,
+}
+
+impl Related<super::mega_group::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::MegaGroup.def()
+    }
+}
 
 impl ActiveModelBehavior for ActiveModel {}

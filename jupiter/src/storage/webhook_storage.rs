@@ -107,7 +107,7 @@ impl WebhookStorage {
         let candidates = mega_webhook::Entity::find()
             .join(
                 JoinType::InnerJoin,
-                mega_webhook::Relation::WebhookEventTypes.def(),
+                mega_webhook::Relation::MegaWebhookEventType.def(),
             )
             .filter(mega_webhook::Column::Active.eq(true))
             .filter(
@@ -156,7 +156,7 @@ impl WebhookStorage {
         for event_type in event_types {
             mega_webhook_event_type::ActiveModel {
                 webhook_id: Set(webhook_id),
-                event_type: Set(*event_type),
+                event_type: Set(event_type.clone()),
             }
             .insert(self.get_connection())
             .await?;
@@ -190,10 +190,9 @@ impl WebhookStorage {
 }
 
 fn normalize_event_types(event_types: Vec<WebhookEventTypeEnum>) -> Vec<WebhookEventTypeEnum> {
-    let mut dedup = std::collections::HashSet::new();
     let mut normalized = Vec::new();
     for event in event_types {
-        if dedup.insert(event) {
+        if !normalized.contains(&event) {
             normalized.push(event);
         }
     }
