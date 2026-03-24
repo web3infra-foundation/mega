@@ -59,7 +59,10 @@ impl BuildTarget {
         // Get all targets of corresponding build
         let all_targets = callisto::build_targets::Entity::find()
             .filter(callisto::build_targets::Column::TaskId.eq(task_id))
-            .filter(callisto::build_targets::Column::LatestState.ne(TargetState::Uninitialized))
+            .filter(
+                callisto::build_targets::Column::LatestState
+                    .ne(TargetState::Uninitialized.to_string()),
+            )
             .all(db)
             .await?;
 
