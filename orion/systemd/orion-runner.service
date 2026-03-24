@@ -30,7 +30,8 @@ CapabilityBoundingSet=CAP_SYS_ADMIN CAP_DAC_OVERRIDE CAP_DAC_READ_SEARCH
 
 # Basic hardening (relaxed for FUSE operations)
 NoNewPrivileges=false
-PrivateTmp=true
+PrivateTmp=false
+PrivateMounts=no
 
 [Install]
 WantedBy=multi-user.target

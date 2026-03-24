@@ -3,12 +3,19 @@
 //! This module provides a singleton wrapper around `scorpiofs::AntaresManager`
 //! for managing overlay filesystem mounts used during build operations.
 
-use std::{error::Error, io, path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    error::Error,
+    io,
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
 
 use scorpiofs::{AntaresConfig, AntaresManager, AntaresPaths};
 use tokio::sync::OnceCell;
 
 static MANAGER: OnceCell<Arc<AntaresManager>> = OnceCell::const_new();
+const TEST_BROWSE_JOB_ID: &str = "antares_test";
 
 type DynError = Box<dyn Error + Send + Sync>;
 
@@ -128,6 +135,7 @@ pub async fn mount_job(job_id: &str, cl: Option<&str>) -> Result<AntaresConfig, 
 pub(crate) async fn warmup_dicfuse() -> Result<(), DynError> {
     tracing::info!("Initializing Antares Dicfuse during Orion startup");
     let manager = get_manager().await?;
+    let manager_for_test_mount = Arc::clone(manager);
     let dicfuse = manager.dicfuse();
 
     // Idempotent: safe even if the manager already started import internally.
@@ -149,7 +157,17 @@ pub(crate) async fn warmup_dicfuse() -> Result<(), DynError> {
         )
         .await
         {
-            Ok(_) => tracing::info!("Antares Dicfuse warmup completed"),
+            Ok(_) => {
+                tracing::info!("Antares Dicfuse warmup completed");
+                log_dicfuse_root_tree();
+                if is_test_mount_enabled() {
+                    ensure_test_mount(manager_for_test_mount.as_ref()).await;
+                } else {
+                    tracing::info!(
+                        "Antares test mount disabled by ORION_ENABLE_ANTARES_TEST_MOUNT"
+                    );
+                }
+            }
             Err(_) => tracing::warn!(
                 "Antares Dicfuse warmup timed out after {}s",
                 warmup_timeout_secs
@@ -158,6 +176,131 @@ pub(crate) async fn warmup_dicfuse() -> Result<(), DynError> {
     });
 
     Ok(())
+}
+
+fn is_test_mount_enabled() -> bool {
+    match std::env::var("ORION_ENABLE_ANTARES_TEST_MOUNT") {
+        Ok(v) => {
+            let v = v.trim().to_ascii_lowercase();
+            !(v == "0" || v == "false" || v == "no" || v == "off")
+        }
+        Err(_) => true,
+    }
+}
+
+async fn ensure_test_mount(manager: &AntaresManager) {
+    match manager.mount_job(TEST_BROWSE_JOB_ID, None).await {
+        Ok(config) => {
+            tracing::info!(
+                "Antares test mount ready: job_id={}, mountpoint={}",
+                TEST_BROWSE_JOB_ID,
+                config.mountpoint.display()
+            );
+        }
+        Err(err) => {
+            tracing::warn!(
+                "Failed to create Antares test mount job_id={}: {}",
+                TEST_BROWSE_JOB_ID,
+                err
+            );
+        }
+    }
+}
+
+fn log_dicfuse_root_tree() {
+    let root = PathBuf::from(scorpiofs::util::config::workspace());
+    let max_depth = std::env::var("ORION_DICFUSE_ROOT_TREE_DEPTH")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(2);
+    let max_entries = std::env::var("ORION_DICFUSE_ROOT_TREE_MAX_ENTRIES")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(200);
+
+    tracing::info!(
+        root = %root.display(),
+        max_depth,
+        max_entries,
+        "Dicfuse init: printing workspace root tree"
+    );
+
+    if !root.exists() {
+        tracing::warn!("Dicfuse workspace path does not exist: {}", root.display());
+        return;
+    }
+
+    let mut printed = 0usize;
+    tracing::info!("[dicfuse-root] /");
+    log_tree_recursive(&root, &root, 0, max_depth, max_entries, &mut printed);
+
+    if printed >= max_entries {
+        tracing::info!(
+            "Dicfuse root tree output truncated at {} entries (set ORION_DICFUSE_ROOT_TREE_MAX_ENTRIES to increase)",
+            max_entries
+        );
+    }
+}
+
+fn log_tree_recursive(
+    root: &Path,
+    current: &Path,
+    depth: usize,
+    max_depth: usize,
+    max_entries: usize,
+    printed: &mut usize,
+) {
+    if depth >= max_depth || *printed >= max_entries {
+        return;
+    }
+
+    let entries = match std::fs::read_dir(current) {
+        Ok(entries) => entries,
+        Err(err) => {
+            tracing::warn!("Failed to read {}: {}", current.display(), err);
+            return;
+        }
+    };
+
+    let mut children: Vec<(String, PathBuf, bool)> = Vec::new();
+    for entry in entries {
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(err) => {
+                tracing::warn!("read_dir entry error under {}: {}", current.display(), err);
+                continue;
+            }
+        };
+
+        let path = entry.path();
+        let name = entry.file_name().to_string_lossy().to_string();
+        let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
+        children.push((name, path, is_dir));
+    }
+
+    children.sort_by(|a, b| a.0.cmp(&b.0));
+
+    for (_name, path, is_dir) in children {
+        if *printed >= max_entries {
+            return;
+        }
+
+        let rel = path
+            .strip_prefix(root)
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|_| path.display().to_string());
+        let indent = "  ".repeat(depth + 1);
+        if is_dir {
+            tracing::info!("[dicfuse-root] {}{}/", indent, rel);
+        } else {
+            tracing::info!("[dicfuse-root] {}{}", indent, rel);
+        }
+        *printed += 1;
+
+        if is_dir {
+            log_tree_recursive(root, &path, depth + 1, max_depth, max_entries, printed);
+        }
+    }
 }
 
 /// Unmount and cleanup a job overlay filesystem.

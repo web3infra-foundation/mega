@@ -10,7 +10,7 @@ on:
     paths:
       - ".github/workflows/orion-client-deploy.yml"
       - "orion/**"
-      
+
   workflow_dispatch:
 
 concurrency:
@@ -21,6 +21,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_DIR: /home/runner/.cache/sccache
 
     steps:
       - name: Checkout code
@@ -30,14 +33,32 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install sccache
+        run: |
+          set -e
+          sudo apt-get update
+          sudo apt-get install -y sccache
+
+      - name: Cache sccache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.SCCACHE_DIR }}
+          key: sccache-${{ runner.os }}-stable-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            sccache-${{ runner.os }}-stable-
+
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: release
+          shared-key: orion-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           cache-on-failure: true
 
       - name: Build Orion
-        run: cargo build --release -p orion --bin orion
+        run: |
+          set -e
+          sccache --start-server || true
+          cargo build --release -p orion --bin orion
+          sccache --show-stats || true
 
       - name: Verify build artifacts
         run: |
@@ -62,14 +83,21 @@ jobs:
             orion/systemd/orion-runner.service
           retention-days: 7
 
-  # Deploy to legacy orion_vm (root user, backward compatibility)
-  deploy-legacy:
+  deploy:
+    name: Deploy (${{ matrix.target }})
     if: ${{ github.repository == 'web3infra-foundation/mega' }}
     runs-on: ubuntu-latest
     needs: build
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [aws-gitmega, gcp, aws-gitmono]
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
@@ -77,178 +105,75 @@ jobs:
           path: ./artifacts
 
       - name: Prepare deployment files
+        uses: ./.github/actions/prepare-orion-artifacts
+        with:
+          artifact-dir: artifacts
+
+      - name: Resolve deploy target variables
+        id: deploy_vars
+        env:
+          GCP_HOST: ${{ secrets.ORION_GCP_VM_HOST }}
+          GCP_KEY: ${{ secrets.ORION_GCP_VM_SSH_KEY }}
+          AWS_GITMEGA_HOST: ${{ secrets.ORION_AWS_GITMEGA_HOST }}
+          AWS_GITMEGA_KEY: ${{ secrets.ORION_AWS_GITMEGA_SSH_KEY }}
+          AWS_GITMONO_HOST: ${{ secrets.ORION_AWS_GITMONO_HOST }}
+          AWS_GITMONO_KEY: ${{ secrets.ORION_AWS_GITMONO_SSH_KEY }}
         run: |
-          set -e
-          echo "==> Listing downloaded artifacts structure:"
-          find artifacts -type f -ls
+          set -euo pipefail
 
-          echo "==> Preparing deployment files..."
-          # IMPORTANT: Move config files first (while orion/ directory still exists)
-          mv artifacts/orion/runner-config/.env.prod artifacts/.env
-          mv artifacts/orion/runner-config/scorpio.toml artifacts/
-          mv artifacts/orion/runner-config/run.sh artifacts/
-          mv artifacts/orion/runner-config/cleanup.sh artifacts/
+          target="${{ matrix.target }}"
+          host=""
+          user="orion"
+          port="22"
+          key=""
 
-          # Move systemd service file
-          mv artifacts/orion/systemd/orion-runner.service artifacts/
-
-          # Clean up empty orion directory before moving binary
-          rm -rf artifacts/orion
-
-          # Now move the binary (orion/ directory has been removed)
-          mv artifacts/target/release/orion artifacts/orion
-          rm -rf artifacts/target
-
-          # Set executable permissions
-          chmod +x artifacts/orion
-          chmod +x artifacts/run.sh
-          chmod +x artifacts/cleanup.sh
-
-          echo "==> Final artifact structure:"
-          ls -la artifacts/
-
-      # NOTE:
-      # The legacy orion_vm was provisioned with root-only SSH access.
-      # For backward compatibility and to avoid breaking existing
-      # production automation, deployment continues to use the root user.
-      - name: Stop service on orion_vm (before deployment)
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.ORION_DEPLOY_HOST }}
-          username: root
-          key: ${{ secrets.ORION_DEPLOY_SSH_KEY }}
-          script: |
-            # Stop service to allow binary replacement
-            systemctl stop orion-runner.service || echo "Service not running"
-            sleep 2
-
-            # Force cleanup if service is stuck
-            pkill -9 orion || true
-
-            # Force unmount FUSE if still mounted
-            fusermount -uz /workspace/mount 2>/dev/null || true
-            umount -lf /workspace/mount 2>/dev/null || true
-
-      - name: Upload binaries and configs via rsync to orion_vm
-        uses: burnett01/rsync-deployments@8.0.4
-        with:
-          switches: -avz --progress
-          path: artifacts/
-          remote_path: /home/orion/orion-runner/
-          remote_host: ${{ secrets.ORION_DEPLOY_HOST }}
-          remote_user: root
-          remote_key: ${{ secrets.ORION_DEPLOY_SSH_KEY }}
-          strict_hostkeys_checking: no
-
-      - name: Patch .env for legacy orion_vm
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.ORION_DEPLOY_HOST }}
-          username: root
-          key: ${{ secrets.ORION_DEPLOY_SSH_KEY }}
-          script: |
-            if [ -f /home/orion/orion-runner/.env ]; then
-              sed -i 's|^SERVER_WS=.*|SERVER_WS="wss://orion.gitmega.com/ws" # aws-dev|' /home/orion/orion-runner/.env
-              echo "✓ Updated SERVER_WS for legacy orion_vm"
-            else
-              echo "✗ /home/orion/orion-runner/.env not found"
+          case "$target" in
+            aws-gitmega)
+              host="${AWS_GITMEGA_HOST:-}"
+              key="${AWS_GITMEGA_KEY:-}"
+              ;;
+            gcp)
+              host="${GCP_HOST:-}"
+              key="${GCP_KEY:-}"
+              ;;
+            aws-gitmono)
+              host="${AWS_GITMONO_HOST:-}"
+              key="${AWS_GITMONO_KEY:-}"
+              ;;
+            *)
+              echo "Unknown deploy target: $target" >&2
               exit 1
-            fi
+              ;;
+          esac
 
-            if [ -f /home/orion/orion-runner/scorpio.toml ]; then
-              sed -i 's|buck2hub|gitmega|g' /home/orion/orion-runner/scorpio.toml
-              echo "✓ Updated scorpio.toml host for legacy orion_vm"
-            else
-              echo "✗ /home/orion/orion-runner/scorpio.toml not found"
-              exit 1
-            fi
+          if [ -z "$host" ]; then
+            echo "Missing required host secret for target: $target" >&2
+            exit 1
+          fi
+          if [ -z "$key" ]; then
+            echo "Missing required ssh key secret for target: $target" >&2
+            exit 1
+          fi
 
-      - name: Start service on orion_vm
+          {
+            echo "host=$host"
+            echo "user=$user"
+            echo "port=$port"
+            echo "key<<__SSH_KEY__"
+            printf '%s\n' "$key"
+            echo "__SSH_KEY__"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Stop service (before deployment)
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.ORION_DEPLOY_HOST }}
-          username: root
-          key: ${{ secrets.ORION_DEPLOY_SSH_KEY }}
-          command_timeout: 30s
+          host: ${{ steps.deploy_vars.outputs.host }}
+          username: ${{ steps.deploy_vars.outputs.user }}
+          port: ${{ steps.deploy_vars.outputs.port }}
+          key: ${{ steps.deploy_vars.outputs.key }}
           script: |
-            # Create runtime directories
-            mkdir -p /data/scorpio/{store,antares/{upper,cl,mnt}}
-            mkdir -p /workspace/mount
+            set -e
 
-            # Set permissions
-            sudo chown -R orion:orion /home/orion/orion-runner
-            sudo chmod +x /home/orion/orion-runner/orion
-            sudo chmod +x /home/orion/orion-runner/run.sh
-            sudo chmod +x /home/orion/orion-runner/cleanup.sh
-
-            # Grant CAP_DAC_READ_SEARCH file capability so orion can bypass
-            # DAC read/search checks without running as root
-            sudo setcap cap_dac_read_search+ep /home/orion/orion-runner/orion
-            getcap /home/orion/orion-runner/orion
-
-            # Update systemd service file if changed
-            if [ -f /home/orion/orion-runner/orion-runner.service ]; then
-                cp /home/orion/orion-runner/orion-runner.service /etc/systemd/system/
-                echo "✓ Updated systemd service file"
-            fi
-
-            # Reload and start service asynchronously to avoid SSH timeout
-            systemctl daemon-reload
-            nohup systemctl start orion-runner.service > /tmp/orion-start.log 2>&1 &
-            echo "✓ Service start command issued (async)"
-
-  # Deploy to new GCP VM (orion user, best practice)
-  deploy-gcp:
-    if: ${{ github.repository == 'web3infra-foundation/mega' }}
-    runs-on: ubuntu-latest
-    needs: build
-    timeout-minutes: 10
-
-    steps:
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: orion-bins
-          path: ./artifacts
-
-      - name: Prepare deployment files
-        run: |
-          set -e
-          echo "==> Listing downloaded artifacts structure:"
-          find artifacts -type f -ls
-          
-          echo "==> Preparing deployment files..."
-          # IMPORTANT: Move config files first (while orion/ directory still exists)
-          mv artifacts/orion/runner-config/.env.prod artifacts/.env
-          mv artifacts/orion/runner-config/scorpio.toml artifacts/
-          mv artifacts/orion/runner-config/run.sh artifacts/
-          mv artifacts/orion/runner-config/cleanup.sh artifacts/
-
-          # Move systemd service file
-          mv artifacts/orion/systemd/orion-runner.service artifacts/
-
-          # Clean up empty directories before moving binary
-          rm -rf artifacts/orion
-
-          # Now move the binary (orion/ directory has been removed)
-          mv artifacts/target/release/orion artifacts/orion
-          rm -rf artifacts/target
-
-          # Set executable permissions
-          chmod +x artifacts/orion
-          chmod +x artifacts/run.sh
-          chmod +x artifacts/cleanup.sh
-
-          echo "==> Final artifact structure:"
-          ls -la artifacts/
-
-      - name: Stop service on gcp_vm (before deployment)
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.ORION_GCP_VM_HOST }}
-          username: orion
-          key: ${{ secrets.ORION_GCP_VM_SSH_KEY }}
-          script: |
             # Stop service to allow binary replacement
             sudo systemctl stop orion-runner.service || echo "Service not running"
             sleep 2
@@ -260,25 +185,86 @@ jobs:
             fusermount -uz /workspace/mount 2>/dev/null || true
             sudo umount -lf /workspace/mount 2>/dev/null || true
 
-      - name: Upload binaries and configs via rsync to gcp_vm
-        uses: burnett01/rsync-deployments@8.0.4
-        with:
-          switches: -avz --progress
-          path: artifacts/
-          remote_path: /home/orion/orion-runner/
-          remote_host: ${{ secrets.ORION_GCP_VM_HOST }}
-          remote_user: orion
-          remote_key: ${{ secrets.ORION_GCP_VM_SSH_KEY }}
-          strict_hostkeys_checking: no
-      
-      - name: Start service on gcp_vm
+      - name: Upload binaries and configs via rsync
+        env:
+          DEPLOY_HOST: ${{ steps.deploy_vars.outputs.host }}
+          DEPLOY_USER: ${{ steps.deploy_vars.outputs.user }}
+          DEPLOY_PORT: ${{ steps.deploy_vars.outputs.port }}
+          SSH_PRIVATE_KEY: ${{ steps.deploy_vars.outputs.key }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p ~/.ssh
+          KEY_PATH=~/.ssh/orion_deploy_key
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$KEY_PATH"
+          chmod 600 "$KEY_PATH"
+
+          rsync -avz --progress \
+            -e "ssh -i $KEY_PATH -p $DEPLOY_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+            artifacts/ \
+            "$DEPLOY_USER@$DEPLOY_HOST:/home/orion/orion-runner/"
+
+      - name: Patch .env for aws-gitmega target
+        if: ${{ matrix.target == 'aws-gitmega' }}
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.ORION_GCP_VM_HOST }}
-          username: orion
-          key: ${{ secrets.ORION_GCP_VM_SSH_KEY }}
+          host: ${{ steps.deploy_vars.outputs.host }}
+          username: ${{ steps.deploy_vars.outputs.user }}
+          port: ${{ steps.deploy_vars.outputs.port }}
+          key: ${{ steps.deploy_vars.outputs.key }}
+          script: |
+            if [ -f /home/orion/orion-runner/.env ]; then
+              sed -i 's|^SERVER_WS=.*|SERVER_WS="wss://orion.gitmega.com/ws"|' /home/orion/orion-runner/.env
+              echo "✓ Updated SERVER_WS for aws-gitmega"
+            else
+              echo "✗ /home/orion/orion-runner/.env not found"
+              exit 1
+            fi
+
+            if [ -f /home/orion/orion-runner/scorpio.toml ]; then
+              sed -i 's|buck2hub|gitmega|g' /home/orion/orion-runner/scorpio.toml
+              echo "✓ Updated scorpio.toml host for aws-gitmega"
+            else
+              echo "✗ /home/orion/orion-runner/scorpio.toml not found"
+              exit 1
+            fi
+
+      - name: Patch .env for aws-gitmono target
+        if: ${{ matrix.target == 'aws-gitmono' }}
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ steps.deploy_vars.outputs.host }}
+          username: ${{ steps.deploy_vars.outputs.user }}
+          port: ${{ steps.deploy_vars.outputs.port }}
+          key: ${{ steps.deploy_vars.outputs.key }}
+          script: |
+            if [ -f /home/orion/orion-runner/.env ]; then
+              sed -i 's|^SERVER_WS=.*|SERVER_WS="wss://orion.gitmono.com/ws"|' /home/orion/orion-runner/.env
+              echo "✓ Updated SERVER_WS for aws-gitmono"
+            else
+              echo "✗ /home/orion/orion-runner/.env not found"
+              exit 1
+            fi
+
+            if [ -f /home/orion/orion-runner/scorpio.toml ]; then
+              sed -i 's|buck2hub|gitmono|g' /home/orion/orion-runner/scorpio.toml
+              echo "✓ Updated scorpio.toml host for aws-gitmono"
+            else
+              echo "✗ /home/orion/orion-runner/scorpio.toml not found"
+              exit 1
+            fi
+
+      - name: Start service
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ steps.deploy_vars.outputs.host }}
+          username: ${{ steps.deploy_vars.outputs.user }}
+          port: ${{ steps.deploy_vars.outputs.port }}
+          key: ${{ steps.deploy_vars.outputs.key }}
           command_timeout: 30s
           script: |
+            set -e
+
             # Create runtime directories
             sudo mkdir -p /data/scorpio/{store,antares/{upper,cl,mnt}}
             sudo mkdir -p /workspace/mount
@@ -297,8 +283,8 @@ jobs:
 
             # Update systemd service file if changed
             if [ -f /home/orion/orion-runner/orion-runner.service ]; then
-                sudo cp /home/orion/orion-runner/orion-runner.service /etc/systemd/system/
-                echo "✓ Updated systemd service file"
+              sudo cp /home/orion/orion-runner/orion-runner.service /etc/systemd/system/
+              echo "✓ Updated systemd service file"
             fi
 
             # Reload and start service asynchronously to avoid SSH timeout

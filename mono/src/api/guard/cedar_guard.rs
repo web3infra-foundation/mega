@@ -1,7 +1,7 @@
 use std::{collections::HashMap, path::Path, str::FromStr};
 
 use axum::{
-    extract::{FromRef, Request, State},
+    extract::{FromRef, FromRequestParts, Request, State},
     middleware::Next,
     response::Response,
 };
@@ -11,7 +11,11 @@ use http::StatusCode;
 use once_cell::sync::Lazy;
 use saturn::{ActionEnum, context::CedarContext, entitystore::EntityStore, util::SaturnEUid};
 
-use crate::api::{MonoApiServiceState, error::ApiError, oauth::model::LoginUser};
+use crate::api::{
+    MonoApiServiceState,
+    error::ApiError,
+    oauth::{BotIdentity, model::LoginUser},
+};
 
 // TODO: All users are temporary allowed during development stage
 const POLICY_CONTENT: &str = r#"
@@ -134,13 +138,16 @@ pub async fn cedar_guard(
     //     .ok_or_else(|| MegaError::with_message(format!("Change list not found for link: {}", link)))?;
     // let repo_path: PathBuf = cl_model.path.into();
 
-    let user = req.extensions().get::<LoginUser>().cloned();
+    let (mut parts, body) = req.into_parts();
 
-    let _username = match user {
-        Some(user) => user.username,
-        None => "reader".to_string(),
-    };
-    let username = "reader".to_string(); // For testing purpose only
+    let (principal_type, principal_id) =
+        if let Ok(bot) = BotIdentity::from_request_parts(&mut parts, &state).await {
+            ("Bot".to_string(), bot.bot.id.to_string())
+        } else if let Ok(user) = LoginUser::from_request_parts(&mut parts, &state).await {
+            ("User".to_string(), user.username.clone())
+        } else {
+            ("User".to_string(), "reader".to_string())
+        };
 
     // let policy_path = repo_path.join("cedar/policies.cedar");
     // let policy_content = get_blob_string(&state, &policy_path).await?;
@@ -149,12 +156,12 @@ pub async fn cedar_guard(
     let entity_store = EntityStore::from_ref(&state);
     let c = CedarContext::from(entity_store, &policy_content)?;
 
-    authorize(&c, &username, &action.to_string())
+    authorize(&c, &principal_type, &principal_id, &action.to_string())
         .await
         .map_err(|e| {
             tracing::debug!(
                 "Authorization failed for {}: {}",
-                &username,
+                &principal_id,
                 &action.to_string()
             );
             ApiError::with_status(
@@ -162,6 +169,8 @@ pub async fn cedar_guard(
                 MegaError::Other(format!("Guard Authorization failed: {}", e)),
             )
         })?;
+
+    let req = Request::from_parts(parts, body);
     let response = next.run(req).await;
 
     if response.status().is_client_error() {
@@ -177,14 +186,14 @@ pub async fn cedar_guard(
 
 async fn authorize(
     cedar_context: &CedarContext,
-    user_id: &str,
-    // repo_id: &str,
+    principal_type: &str,
+    principal_id: &str,
     action: &str,
 ) -> Result<(), MegaError> {
-    let user_entity = EntityId::from_str(user_id)?;
+    let user_entity = EntityId::from_str(principal_id)?;
     let action_entity = EntityId::from_str(action)?;
 
-    let role_entity = EntityTypeName::from_str("User")?;
+    let role_entity = EntityTypeName::from_str(principal_type)?;
     let actiontype_entity = EntityTypeName::from_str("Action")?;
 
     let principal = SaturnEUid::from(EntityUid::from_type_name_and_id(role_entity, user_entity));
