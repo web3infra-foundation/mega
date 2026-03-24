@@ -1,6 +1,7 @@
 use std::ops::Deref;
 
 use callisto::notes;
+use chrono::Utc;
 use common::errors::MegaError;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter,
@@ -47,14 +48,16 @@ impl NoteStorage {
         &self,
         payload: CreateNotePayload,
     ) -> Result<Option<notes::Model>, MegaError> {
+        let now = Utc::now().naive_utc();
         let note_active_model = notes::ActiveModel {
             public_id: Set(payload.public_id),
-            organization_membership_id: Set(payload.organization_membership_id),
+            user_id: Set(payload.user_id),
             title: Set(payload.title),
             description_html: Set(payload.description_html),
             description_state: Set(payload.description_state),
-            project_id: Set(payload.project_id),
             visibility: Set(payload.visibility.unwrap_or(0)),
+            created_at: Set(now),
+            updated_at: Set(now),
             ..Default::default()
         };
 
@@ -88,12 +91,11 @@ impl NoteStorage {
 #[derive(Clone, Debug)]
 pub struct CreateNotePayload {
     pub public_id: String,
-    pub organization_membership_id: i64,
+    pub user_id: i64,
 
     pub title: Option<String>,
     pub description_html: Option<String>,
     pub description_state: Option<String>,
 
-    pub project_id: Option<i64>,
     pub visibility: Option<i32>,
 }

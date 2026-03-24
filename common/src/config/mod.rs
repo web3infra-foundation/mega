@@ -84,7 +84,6 @@ pub struct Config {
     pub database: DbConfig,
     pub monorepo: MonoConfig,
     pub pack: PackConfig,
-    pub authentication: AuthConfig,
     pub lfs: LFSConfig,
     #[serde(default)]
     pub blame: BlameConfig,
@@ -129,7 +128,6 @@ impl Config {
             database: DbConfig::default(),
             monorepo: MonoConfig::default(),
             pack: PackConfig::default(),
-            authentication: AuthConfig::default(),
             lfs: LFSConfig::default(),
             blame: BlameConfig::default(),
             oauth: OauthConfig::default(),
@@ -172,10 +170,6 @@ impl Config {
 
     pub fn from_config(config: c::Config) -> Result<Self, ConfigError> {
         config.try_deserialize::<Config>()
-    }
-
-    pub fn enable_http_auth(&self) -> bool {
-        self.authentication.enable_http_auth
     }
 }
 
@@ -351,25 +345,6 @@ impl Default for RenameConfig {
         }
     }
 }
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct AuthConfig {
-    pub enable_http_auth: bool,
-    pub enable_test_user: bool,
-    pub test_user_name: String,
-    pub test_user_token: String,
-}
-
-impl Default for AuthConfig {
-    fn default() -> Self {
-        Self {
-            enable_http_auth: false,
-            enable_test_user: false,
-            test_user_name: String::from("mega"),
-            test_user_token: String::from("mega"),
-        }
-    }
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PackConfig {
     #[serde(deserialize_with = "string_or_usize")]

@@ -37,8 +37,6 @@ async-recursion = { workspace = true }
 rand = { workspace = true }
 sysinfo = { workspace = true }
 utoipa = { workspace = true }
-base64 = { workspace = true }
-http = { workspace = true }
 regex = { workspace = true }
 tokio-util = { workspace = true }
 uuid = { workspace = true, features = ["v4"] }

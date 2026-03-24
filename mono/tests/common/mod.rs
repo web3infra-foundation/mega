@@ -409,12 +409,6 @@ acquire_timeout = 3
 connect_timeout = 3
 sqlx_logging = false
 
-[authentication]
-enable_http_auth = true
-enable_test_user = false
-test_user_name = "mega"
-test_user_token = "mega"
-
 [monorepo]
 import_dir = "/tmp/mega/import"
 admin = ["admin"]

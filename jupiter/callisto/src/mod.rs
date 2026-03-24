@@ -55,6 +55,8 @@ pub mod mega_webhook;
 pub mod mega_webhook_delivery;
 pub mod mega_webhook_event_type;
 pub mod merge_queue;
+pub mod non_member_note_views;
+pub mod note_views;
 pub mod notes;
 pub mod orion_tasks;
 pub mod path_check_configs;

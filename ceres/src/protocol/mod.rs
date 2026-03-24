@@ -1,14 +1,12 @@
 use core::fmt;
 use std::{path::PathBuf, str::FromStr, sync::Arc};
 
-use base64::{engine::general_purpose, prelude::*};
 use bellatrix::Bellatrix;
 use callisto::sea_orm_active_enums::RefTypeEnum;
 use common::{
     errors::{MegaError, ProtocolError},
     utils::ZERO_ID,
 };
-use http::{HeaderMap, HeaderValue};
 use import_refs::RefCommand;
 use jupiter::redis::lock::RedLock;
 use repo::Repo;
@@ -224,62 +222,6 @@ impl SmartProtocol {
             }
             Ok(Arc::new(res))
         }
-    }
-
-    pub fn enable_http_auth(&self, state: &ProtocolApiState) -> bool {
-        state.storage.config().enable_http_auth()
-    }
-
-    pub async fn http_auth(
-        &mut self,
-        state: &ProtocolApiState,
-        header: &HeaderMap<HeaderValue>,
-    ) -> bool {
-        for (k, v) in header {
-            if k == http::header::AUTHORIZATION {
-                let decoded = general_purpose::STANDARD
-                    .decode(
-                        v.to_str()
-                            .unwrap()
-                            .strip_prefix("Basic ")
-                            .unwrap()
-                            .as_bytes(),
-                    )
-                    .unwrap();
-                let credentials = String::from_utf8(decoded).unwrap_or_default();
-                let mut parts = credentials.splitn(2, ':');
-                let username = parts.next().unwrap_or("");
-                self.username = Some(username.to_owned());
-                let token = parts.next().unwrap_or("");
-                let auth_config = state.storage.config().authentication.clone();
-                if auth_config.enable_test_user
-                    && username == auth_config.test_user_name
-                    && token == auth_config.test_user_token
-                {
-                    self.authenticated_user = Some(PushUserInfo {
-                        username: username.to_string(),
-                    });
-                    return true;
-                }
-                let token_valid = state
-                    .storage
-                    .user_storage()
-                    .check_token(username, token)
-                    .await
-                    .unwrap_or(false);
-
-                if token_valid {
-                    // Valid token: set minimal authenticated user info
-                    self.authenticated_user = Some(PushUserInfo {
-                        username: username.to_string(),
-                    });
-                    return true;
-                }
-
-                return token_valid;
-            }
-        }
-        false
     }
 }
 

@@ -1,3 +1,10 @@
+//! OAuth / session extractors for Axum API routes.
+//!
+//! Git smart HTTP (`/git-receive-pack`, etc.) is handled by [`crate::server::http_server::handle_smart_protocol`],
+//! which takes a raw [`axum::http::Request`] and does not run `FromRequestParts`. For the same Mono access-token
+//! validation as [`AccessTokenUser`], call [`bearer_token_from_authorization_value`] and
+//! [`login_user_from_mono_access_token`] from that code path instead of the extractor.
+
 use axum::{
     RequestPartsExt,
     extract::{FromRef, FromRequestParts},
@@ -9,26 +16,12 @@ use axum_extra::{
     headers::{self, Authorization, authorization::Bearer},
 };
 use callisto::{bot_tokens, bots};
+use common::errors::MegaError;
 use http::request::Parts;
 use jupiter::storage::user_storage::UserStorage;
 use model::LoginUser;
 
 use crate::api::{MonoApiServiceState, oauth::api_store::OAuthApiStore};
-
-/// Resolves `LoginUser` from a Mono-stored personal access token (e.g. Git HTTP `Authorization: Bearer`).
-/// This path is independent of Campsite/Tinyship cookie session (`OAuthApiStore`).
-async fn login_user_from_mono_access_token(
-    user_storage: &UserStorage,
-    token: &str,
-) -> anyhow::Result<Option<LoginUser>> {
-    if let Some(username) = user_storage.find_user_by_token(token).await? {
-        return Ok(Some(LoginUser {
-            username,
-            ..Default::default()
-        }));
-    }
-    Ok(None)
-}
 
 pub mod api_store;
 pub mod campsite_store;
@@ -46,6 +39,39 @@ impl IntoResponse for AuthRedirect {
 pub struct BotIdentity {
     pub bot: bots::Model,
     pub token: bot_tokens::Model,
+}
+
+pub struct AccessTokenUser(pub LoginUser);
+
+/// Authenticated user resolved from a **browser session cookie** (Campsite or Tinyship),
+/// not from `Authorization: Bearer` or the Mono DB access-token table.
+///
+/// The Axum extractor reads the HTTP `Cookie` header, takes the value named by
+/// [`OAuthApiStore::session_cookie_name`], and loads the user via [`OAuthApiStore::load_user_from_api`].
+/// For API clients that send a Mono access token in `Authorization`, use [`AccessTokenUser`] instead.
+pub struct SessionUser(pub LoginUser);
+
+/// Parses a raw `Authorization` header value for `Bearer <token>` (case-insensitive `bearer` prefix).
+/// Matches the Git HTTP receive-pack path so CLI clients and API routes share one rule.
+pub fn bearer_token_from_authorization_value(value: &str) -> Option<&str> {
+    value
+        .strip_prefix("Bearer ")
+        .or_else(|| value.strip_prefix("bearer "))
+        .map(str::trim)
+}
+
+/// Validates a Mono DB access token; same as [`AccessTokenUser`] but usable outside Axum extractors.
+pub async fn login_user_from_mono_access_token(
+    user_storage: &UserStorage,
+    token: &str,
+) -> Result<Option<LoginUser>, MegaError> {
+    let Some(username) = user_storage.find_user_by_token(token).await? else {
+        return Ok(None);
+    };
+    Ok(Some(LoginUser {
+        username,
+        ..Default::default()
+    }))
 }
 
 impl<S> FromRequestParts<S> for BotIdentity
@@ -96,43 +122,57 @@ where
     }
 }
 
-impl<S> FromRequestParts<S> for LoginUser
+impl<S> FromRequestParts<S> for AccessTokenUser
 where
-    OAuthApiStore: FromRef<S>,
     UserStorage: FromRef<S>,
     S: Send + Sync,
 {
-    // If anything goes wrong or no session is found, redirect to the auth page
     type Rejection = AuthRedirect;
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        let store = OAuthApiStore::from_ref(state);
         let user_storage = UserStorage::from_ref(state);
 
-        // Bearer: Mono personal access token (Git HTTP / CLI), not external session cookie.
-        if let Ok(TypedHeader(Authorization(bearer))) =
-            parts.extract::<TypedHeader<Authorization<Bearer>>>().await
-        {
-            let token = bearer.token();
-            match login_user_from_mono_access_token(&user_storage, token).await {
-                Ok(Some(user)) => return Ok(user),
-                Ok(None) => {
-                    tracing::debug!("LoginUser: invalid or expired bearer token");
-                    return Err(AuthRedirect);
-                }
-                Err(e) => {
-                    tracing::warn!("LoginUser: error validating bearer token: {e:?}");
-                    return Err(AuthRedirect);
-                }
+        let TypedHeader(Authorization(bearer)) = parts
+            .extract::<TypedHeader<Authorization<Bearer>>>()
+            .await
+            .map_err(|e| {
+                tracing::debug!("AccessTokenUser: missing or invalid bearer token: {e}");
+                AuthRedirect
+            })?;
+
+        match login_user_from_mono_access_token(&user_storage, bearer.token()).await {
+            Ok(Some(user)) => Ok(AccessTokenUser(user)),
+            Ok(None) => {
+                tracing::debug!("AccessTokenUser: invalid or expired bearer token");
+                Err(AuthRedirect)
+            }
+            Err(e) => {
+                tracing::warn!("AccessTokenUser: error validating bearer token: {e:?}");
+                Err(AuthRedirect)
             }
         }
+    }
+}
+
+impl<S> FromRequestParts<S> for SessionUser
+where
+    OAuthApiStore: FromRef<S>,
+    S: Send + Sync,
+{
+    type Rejection = AuthRedirect;
+
+    /// Reads the session cookie from the request and resolves [`LoginUser`] through the
+    /// configured [`OAuthApiStore`] (external auth API). Missing cookie, unknown session, or
+    /// API errors become [`AuthRedirect`] (401).
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let store = OAuthApiStore::from_ref(state);
 
         // Cookie: external auth session (Campsite or Tinyship per `OAuthApiStore`).
         let cookies = parts
             .extract::<TypedHeader<headers::Cookie>>()
             .await
             .map_err(|e| {
-                tracing::debug!("LoginUser: failed to read Cookie header: {e}");
+                tracing::debug!("SessionUser: failed to read Cookie header: {e}");
                 AuthRedirect
             })?;
 
@@ -142,15 +182,30 @@ where
 
         // Load user from external API
         match store.load_user_from_api(session_cookie.to_string()).await {
-            Ok(Some(user)) => Ok(user),
+            Ok(Some(user)) => Ok(SessionUser(user)),
             Ok(None) => {
-                tracing::debug!("LoginUser: invalid or expired session (external auth)");
+                tracing::debug!("SessionUser: invalid or expired session (external auth)");
                 Err(AuthRedirect)
             }
             Err(e) => {
-                tracing::warn!("LoginUser: error loading user from cookie session: {e:?}");
+                tracing::warn!("SessionUser: error loading user from cookie session: {e:?}");
                 Err(AuthRedirect)
             }
         }
+    }
+}
+
+// Backward-compatible extractor: `LoginUser` now maps to cookie session only.
+// Use `AccessTokenUser` explicitly where bearer token auth is required.
+impl<S> FromRequestParts<S> for LoginUser
+where
+    OAuthApiStore: FromRef<S>,
+    S: Send + Sync,
+{
+    type Rejection = AuthRedirect;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let SessionUser(user) = SessionUser::from_request_parts(parts, state).await?;
+        Ok(user)
     }
 }

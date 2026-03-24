@@ -6,6 +6,7 @@ mod model;
 mod orion_common;
 mod scheduler;
 mod server;
+mod service;
 
 /// Orion Build Server
 /// A distributed build system that manages build tasks and worker nodes

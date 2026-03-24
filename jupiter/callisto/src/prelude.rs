@@ -26,6 +26,7 @@ pub use super::{
     mega_tag::Entity as MegaTag, mega_tree::Entity as MegaTree,
     mega_webhook::Entity as MegaWebhook, mega_webhook_delivery::Entity as MegaWebhookDelivery,
     mega_webhook_event_type::Entity as MegaWebhookEventType, merge_queue::Entity as MergeQueue,
+    non_member_note_views::Entity as NonMemberNoteViews, note_views::Entity as NoteViews,
     notes::Entity as Notes, orion_tasks::Entity as OrionTasks,
     path_check_configs::Entity as PathCheckConfigs, reactions::Entity as Reactions,
     ssh_keys::Entity as SshKeys, target_build_status::Entity as TargetBuildStatus,

@@ -85,13 +85,19 @@ jobs:
 
           ECR_IMAGE="$ECR_REGISTRY/${{ env.REGISTRY_ALIAS }}/${{ env.REPOSITORY }}:$IMAGE_TAG"
           GCP_IMAGE="us-central1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}:$IMAGE_TAG"
+          ECR_CACHE_IMAGE="$ECR_REGISTRY/${{ env.REGISTRY_ALIAS }}/${{ env.REPOSITORY }}:buildcache-${ARCH_SUFFIX}"
+          CACHE_SCOPE="mono-engine-${ARCH_SUFFIX}"
 
           echo "ECR_IMAGE=$ECR_IMAGE"
           echo "GCP_IMAGE=$GCP_IMAGE"
+          echo "ECR_CACHE_IMAGE=$ECR_CACHE_IMAGE"
+          echo "CACHE_SCOPE=$CACHE_SCOPE"
 
           docker buildx build \
-            --cache-from type=gha \
-            --cache-to type=gha,mode=max \
+            --cache-from type=gha,scope=$CACHE_SCOPE \
+            --cache-from type=registry,ref=$ECR_CACHE_IMAGE \
+            --cache-to type=gha,mode=max,scope=$CACHE_SCOPE \
+            --cache-to type=registry,ref=$ECR_CACHE_IMAGE,mode=max \
             --provenance=false \
             --sbom=false \
             -f ./mono/Dockerfile \

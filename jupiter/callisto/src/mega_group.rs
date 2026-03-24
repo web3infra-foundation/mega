@@ -16,6 +16,23 @@ pub struct Model {
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {}
+pub enum Relation {
+    #[sea_orm(has_many = "super::mega_group_member::Entity")]
+    MegaGroupMember,
+    #[sea_orm(has_many = "super::mega_resource_permission::Entity")]
+    MegaResourcePermission,
+}
+
+impl Related<super::mega_group_member::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::MegaGroupMember.def()
+    }
+}
+
+impl Related<super::mega_resource_permission::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::MegaResourcePermission.def()
+    }
+}
 
 impl ActiveModelBehavior for ActiveModel {}

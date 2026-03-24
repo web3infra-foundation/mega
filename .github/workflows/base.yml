@@ -8,15 +8,18 @@
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
   pull_request:
     paths-ignore:
-      - 'config/**'
-      - 'docker/**'
-      - 'docs/**'
-      - 'moon/**'
-      - 'scripts/**'
-      - 'toolchains/**'
-      - '.github/workflows/web-**'
+      - "config/**"
+      - "docker/**"
+      - "docs/**"
+      - "moon/**"
+      - "scripts/**"
+      - "toolchains/**"
+      - ".github/workflows/web-**"
 
 name: Base GitHub Action for Check, Test and Lints
 
@@ -26,7 +29,7 @@ concurrency:
 
 jobs:
   format:
-    if: ${{ github.repository == 'web3infra-foundation/mega' }}
+    if: ${{ !(github.repository == 'web3infra-foundation/mega' && github.event_name == 'push') }}
     name: Rustfmt Check
     runs-on: ubuntu-latest
     steps:
@@ -44,7 +47,7 @@ jobs:
 
   #
   clippy:
-    if: ${{ github.repository == 'web3infra-foundation/mega' }}
+    if: ${{ !(github.repository == 'web3infra-foundation/mega' && github.event_name == 'push') }}
     name: Clippy Check
     runs-on: ubuntu-latest
     env:
@@ -66,21 +69,13 @@ jobs:
           cargo +stable clippy --all-targets --all-features -- -D warnings
 
   test:
+    if: ${{ !(github.repository == 'web3infra-foundation/mega' && github.event_name == 'push') }}
     name: Full Test
-    if: ${{ github.repository == 'web3infra-foundation/mega' }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu
-            runs-on: [self-hosted, Linux, X64]
-            home: /home/github
-
-    runs-on: ${{ matrix.runs-on }}
+    runs-on: ${{ fromJson(github.repository == 'web3infra-foundation/mega' && '["self-hosted","Linux","X64"]' || '"ubuntu-latest"') }}
     env:
       CARGO_TERM_COLOR: always
       RUSTUP_TOOLCHAIN: stable
-      HOME: ${{ matrix.home }}
+      HOME: ${{ github.repository == 'web3infra-foundation/mega' && '/home/github' || '/home/runner' }}
     steps:
       - name: Install Redis
         run: sudo apt-get update && sudo apt-get install -y redis-server
@@ -95,13 +90,13 @@ jobs:
         uses: ./.github/install-dep
         with:
           cache-key: sysdeps
-          platform: ${{ matrix.os }}
-          self-hosted: true
+          platform: ubuntu
+          self-hosted: ${{ github.repository == 'web3infra-foundation/mega' }}
           use-gtk: false
 
       - name: Set up git lfs
         run: |
-          echo "GPG_TTY=${{ matrix.os == 'windows' && 'CON' || '$(tty)' }}" >> $GITHUB_ENV
+          echo "GPG_TTY=$(tty)" >> $GITHUB_ENV
           git lfs install
           git config --global user.email "mega@github.com"
           git config --global user.name "Mega"
@@ -114,6 +109,7 @@ jobs:
           cargo test --manifest-path ceres/Cargo.toml --all-features --no-fail-fast -- --nocapture
           cargo test --manifest-path vault/Cargo.toml --all-features --no-fail-fast -- --nocapture
           cargo test --manifest-path saturn/Cargo.toml --all-features --no-fail-fast -- --nocapture
+          cargo test --manifest-path orion-server/Cargo.toml --all-features --no-fail-fast -- --nocapture
 
   # Note: The fuse/scorpio job has been removed as scorpio has been moved
   # to its own repository: https://github.com/web3infra-foundation/scorpiofs

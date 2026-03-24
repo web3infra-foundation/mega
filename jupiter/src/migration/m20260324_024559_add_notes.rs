@@ -1,0 +1,339 @@
+use sea_orm::DatabaseBackend;
+use sea_orm_migration::prelude::*;
+
+use crate::migration::pk_bigint;
+
+#[derive(Iden)]
+enum Notes {
+    Table,
+    Id,
+    PublicId,
+    CommentsCount,
+    DiscardedAt,
+    UserId,
+    DescriptionHtml,
+    DescriptionState,
+    DescriptionSchemaVersion,
+    Title,
+    CreatedAt,
+    UpdatedAt,
+    OriginalPostId,
+    OriginalDigestId,
+    Visibility,
+    NonMemberViewsCount,
+    ResolvedCommentsCount,
+    LastActivityAt,
+    ContentUpdatedAt,
+}
+
+#[derive(Iden)]
+enum NoteViews {
+    Table,
+    Id,
+    NoteId,
+    UserId,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(Iden)]
+enum NonMemberNoteViews {
+    Table,
+    Id,
+    NoteId,
+    UserId,
+    AnonymizedIp,
+    UserAgent,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(DeriveMigrationName)]
+pub struct Migration;
+
+#[async_trait::async_trait]
+impl MigrationTrait for Migration {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .drop_table(Table::drop().table(Notes::Table).if_exists().to_owned())
+            .await?;
+
+        manager
+            .create_table(
+                Table::create()
+                    .table(Notes::Table)
+                    .if_not_exists()
+                    .col(pk_bigint(Notes::Id))
+                    .col(ColumnDef::new(Notes::PublicId).string_len(12).not_null())
+                    .col(
+                        ColumnDef::new(Notes::CommentsCount)
+                            .unsigned()
+                            .not_null()
+                            .default(0),
+                    )
+                    .col(ColumnDef::new(Notes::DiscardedAt).date_time().null())
+                    .col(ColumnDef::new(Notes::UserId).big_unsigned().not_null())
+                    .col(ColumnDef::new(Notes::DescriptionHtml).text())
+                    .col(ColumnDef::new(Notes::DescriptionState).text())
+                    .col(
+                        ColumnDef::new(Notes::DescriptionSchemaVersion)
+                            .integer()
+                            .not_null()
+                            .default(0),
+                    )
+                    .col(ColumnDef::new(Notes::Title).text())
+                    .col(ColumnDef::new(Notes::CreatedAt).date_time().not_null())
+                    .col(ColumnDef::new(Notes::UpdatedAt).date_time().not_null())
+                    .col(ColumnDef::new(Notes::OriginalPostId).big_unsigned().null())
+                    .col(
+                        ColumnDef::new(Notes::OriginalDigestId)
+                            .big_unsigned()
+                            .null(),
+                    )
+                    .col(
+                        ColumnDef::new(Notes::Visibility)
+                            .integer()
+                            .not_null()
+                            .default(0),
+                    )
+                    .col(
+                        ColumnDef::new(Notes::NonMemberViewsCount)
+                            .integer()
+                            .not_null()
+                            .default(0),
+                    )
+                    .col(
+                        ColumnDef::new(Notes::ResolvedCommentsCount)
+                            .integer()
+                            .default(0_i32),
+                    )
+                    .col(ColumnDef::new(Notes::LastActivityAt).date_time().null())
+                    .col(ColumnDef::new(Notes::ContentUpdatedAt).date_time().null())
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_index(
+                Index::create()
+                    .if_not_exists()
+                    .unique()
+                    .name("index_notes_on_public_id")
+                    .table(Notes::Table)
+                    .col(Notes::PublicId)
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .if_not_exists()
+                    .name("index_notes_on_content_updated_at")
+                    .table(Notes::Table)
+                    .col(Notes::ContentUpdatedAt)
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .if_not_exists()
+                    .name("index_notes_on_created_at")
+                    .table(Notes::Table)
+                    .col(Notes::CreatedAt)
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .if_not_exists()
+                    .name("index_notes_on_discarded_at")
+                    .table(Notes::Table)
+                    .col(Notes::DiscardedAt)
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .if_not_exists()
+                    .name("index_notes_on_last_activity_at")
+                    .table(Notes::Table)
+                    .col(Notes::LastActivityAt)
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .if_not_exists()
+                    .name("index_notes_on_user_id")
+                    .table(Notes::Table)
+                    .col(Notes::UserId)
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_table(
+                Table::create()
+                    .table(NoteViews::Table)
+                    .if_not_exists()
+                    .col(pk_bigint(NoteViews::Id))
+                    .col(ColumnDef::new(NoteViews::NoteId).big_unsigned().not_null())
+                    .col(ColumnDef::new(NoteViews::UserId).big_unsigned().not_null())
+                    .col(ColumnDef::new(NoteViews::CreatedAt).date_time().not_null())
+                    .col(ColumnDef::new(NoteViews::UpdatedAt).date_time().not_null())
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_index(
+                Index::create()
+                    .if_not_exists()
+                    .unique()
+                    .name("index_note_views_on_note_id_and_user_id")
+                    .table(NoteViews::Table)
+                    .col(NoteViews::NoteId)
+                    .col(NoteViews::UserId)
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .if_not_exists()
+                    .name("index_note_views_on_note_id")
+                    .table(NoteViews::Table)
+                    .col(NoteViews::NoteId)
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .if_not_exists()
+                    .name("index_note_views_on_user_id")
+                    .table(NoteViews::Table)
+                    .col(NoteViews::UserId)
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_table(
+                Table::create()
+                    .table(NonMemberNoteViews::Table)
+                    .if_not_exists()
+                    .col(pk_bigint(NonMemberNoteViews::Id))
+                    .col(
+                        ColumnDef::new(NonMemberNoteViews::NoteId)
+                            .big_unsigned()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(NonMemberNoteViews::UserId)
+                            .big_unsigned()
+                            .null(),
+                    )
+                    .col(
+                        ColumnDef::new(NonMemberNoteViews::AnonymizedIp)
+                            .string_len(255)
+                            .not_null(),
+                    )
+                    .col(ColumnDef::new(NonMemberNoteViews::UserAgent).text())
+                    .col(
+                        ColumnDef::new(NonMemberNoteViews::CreatedAt)
+                            .date_time()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(NonMemberNoteViews::UpdatedAt)
+                            .date_time()
+                            .not_null(),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
+        match manager.get_database_backend() {
+            DatabaseBackend::Postgres => {
+                manager
+                    .create_index(
+                        Index::create()
+                            .if_not_exists()
+                            .name("idx_non_member_note_views_on_note_ip_and_user_agent")
+                            .table(NonMemberNoteViews::Table)
+                            .col(NonMemberNoteViews::NoteId)
+                            .col(NonMemberNoteViews::AnonymizedIp)
+                            .col(NonMemberNoteViews::UserAgent)
+                            .to_owned(),
+                    )
+                    .await?;
+            }
+            _ => {
+                manager
+                    .create_index(
+                        Index::create()
+                            .if_not_exists()
+                            .name("idx_non_member_note_views_on_note_ip_and_user_agent")
+                            .table(NonMemberNoteViews::Table)
+                            .col(NonMemberNoteViews::NoteId)
+                            .col(NonMemberNoteViews::AnonymizedIp)
+                            .col((NonMemberNoteViews::UserAgent, 320_u32))
+                            .to_owned(),
+                    )
+                    .await?;
+            }
+        }
+        manager
+            .create_index(
+                Index::create()
+                    .if_not_exists()
+                    .name("index_non_member_note_views_on_note_id_and_user_id")
+                    .table(NonMemberNoteViews::Table)
+                    .col(NonMemberNoteViews::NoteId)
+                    .col(NonMemberNoteViews::UserId)
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .if_not_exists()
+                    .name("index_non_member_note_views_on_note_id")
+                    .table(NonMemberNoteViews::Table)
+                    .col(NonMemberNoteViews::NoteId)
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .if_not_exists()
+                    .name("index_non_member_note_views_on_user_id")
+                    .table(NonMemberNoteViews::Table)
+                    .col(NonMemberNoteViews::UserId)
+                    .to_owned(),
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .drop_table(Table::drop().table(NonMemberNoteViews::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(NoteViews::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(Notes::Table).to_owned())
+            .await?;
+
+        Ok(())
+    }
+}

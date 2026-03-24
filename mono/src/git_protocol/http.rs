@@ -8,14 +8,18 @@ use axum::{
 use bytes::{Bytes, BytesMut};
 use ceres::{
     api_service::state::ProtocolApiState,
-    protocol::{ServiceType, SmartProtocol, smart},
+    protocol::{PushUserInfo, ServiceType, SmartProtocol, smart},
 };
 use common::errors::ProtocolError;
 use futures::{TryStreamExt, stream};
+use http::header::AUTHORIZATION;
 use tokio::io::AsyncReadExt;
 use tokio_stream::StreamExt;
 
-use crate::git_protocol::InfoRefsParams;
+use crate::{
+    api::oauth::{bearer_token_from_authorization_value, login_user_from_mono_access_token},
+    git_protocol::InfoRefsParams,
+};
 
 // # Discovering Reference
 // HTTP clients that support the "smart" protocol (or both the "smart" and "dumb" protocols) MUST
@@ -48,11 +52,37 @@ fn auth_failed() -> Result<Response<Body>, ProtocolError> {
         .status(401)
         .header(
             http::header::WWW_AUTHENTICATE,
-            HeaderValue::from_static("Basic realm=Mega"),
+            HeaderValue::from_static("Bearer realm=\"Mega\""),
         )
         .body(Body::empty())
         .unwrap();
     Ok(resp)
+}
+
+/// Uses [`crate::api::oauth::login_user_from_mono_access_token`] (same as [`crate::api::oauth::AccessTokenUser`]).
+async fn git_receive_pack_bearer_auth(
+    state: &ProtocolApiState,
+    pack_protocol: &mut SmartProtocol,
+    headers: &http::HeaderMap,
+) -> Result<bool, ProtocolError> {
+    let token = headers
+        .get(AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(bearer_token_from_authorization_value);
+    let Some(token) = token else {
+        return Ok(false);
+    };
+
+    let Some(user) =
+        login_user_from_mono_access_token(&state.storage.user_storage(), token).await?
+    else {
+        return Ok(false);
+    };
+
+    let username = user.username;
+    pack_protocol.username = Some(username.clone());
+    pack_protocol.authenticated_user = Some(PushUserInfo { username });
+    Ok(true)
 }
 
 /// # Handles a Git upload pack request and prepares the response.
@@ -145,8 +175,7 @@ pub async fn git_receive_pack(
     req: Request<Body>,
     mut pack_protocol: SmartProtocol,
 ) -> Result<Response<Body>, ProtocolError> {
-    if pack_protocol.enable_http_auth(state) && !pack_protocol.http_auth(state, req.headers()).await
-    {
+    if !git_receive_pack_bearer_auth(state, &mut pack_protocol, req.headers()).await? {
         return auth_failed();
     }
     // Convert the request body into a data stream.

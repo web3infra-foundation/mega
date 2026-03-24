@@ -128,7 +128,7 @@ impl WebhookService {
         let event_type_str = event_type.to_value();
         let webhooks = self
             .storage
-            .find_matching_webhooks(event_type, path)
+            .find_matching_webhooks(event_type.clone(), path)
             .await?;
 
         for webhook in webhooks {
@@ -168,7 +168,7 @@ impl WebhookService {
                         let delivery = callisto::mega_webhook_delivery::Model {
                             id: IdInstance::next_id(),
                             webhook_id: webhook.id,
-                            event_type,
+                            event_type: event_type.clone(),
                             payload: payload_json.clone(),
                             response_status: Some(status as i32),
                             response_body: Some(body),
@@ -193,7 +193,7 @@ impl WebhookService {
                         let delivery = callisto::mega_webhook_delivery::Model {
                             id: IdInstance::next_id(),
                             webhook_id: webhook.id,
-                            event_type,
+                            event_type: event_type.clone(),
                             payload: payload_json.clone(),
                             response_status: None,
                             response_body: None,

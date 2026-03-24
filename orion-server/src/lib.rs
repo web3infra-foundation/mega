@@ -6,3 +6,4 @@ pub mod model;
 pub mod orion_common;
 pub mod scheduler;
 pub mod server;
+pub mod service;
