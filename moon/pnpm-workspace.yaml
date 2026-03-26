@@ -275,4 +275,4 @@ catalog:
   material-file-icons: ^2.4.0
   colord: ^2.9.3
   merge-stream: ^2.0.0
-  picomatch: ^4.0.3
+  picomatch: ^2.3.2
