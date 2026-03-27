@@ -1,15 +1,16 @@
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, IntoActiveModel,
-    QueryFilter,
+    QueryFilter as _,
 };
 use uuid::Uuid;
 
-use crate::entity::targets::TargetState;
+use crate::model::{internal::BuildTargetStateDTO, target_state::TargetState};
 
-/// A collection of utility methods for the `build_targets` database table.
-pub struct BuildTarget;
+pub struct BuildTargetsRepo;
 
-impl BuildTarget {
+type BuildTargetDTO = BuildTargetStateDTO;
+
+impl BuildTargetsRepo {
     pub fn create_default_target(id: Uuid, task_id: Uuid) -> callisto::build_targets::Model {
         let default_path = "//";
         callisto::build_targets::Model {
@@ -47,8 +48,7 @@ impl BuildTarget {
         Ok(path.to_string())
     }
 
-    #[allow(dead_code)]
-    pub async fn find_initialized_build_targets(
+    pub(crate) async fn find_initialized_build_targets(
         build_id: Uuid,
         task_id: Uuid,
         db: &impl ConnectionTrait,
@@ -57,7 +57,6 @@ impl BuildTarget {
             return Ok(vec![]);
         }
 
-        // Get all targets of corresponding build
         let all_targets = callisto::build_targets::Entity::find()
             .filter(callisto::build_targets::Column::TaskId.eq(task_id))
             .filter(
@@ -69,7 +68,6 @@ impl BuildTarget {
 
         let mut result = Vec::with_capacity(all_targets.len());
 
-        // Search corresponding target state under current build
         for target in all_targets {
             let status = callisto::target_state_histories::Entity::find()
                 .filter(callisto::target_state_histories::Column::BuildTargetId.eq(target.id))
@@ -82,7 +80,7 @@ impl BuildTarget {
                 None => TargetState::Uninitialized,
             };
 
-            result.push(BuildTargetDTO {
+            result.push(BuildTargetStateDTO {
                 id: target.id,
                 path: target.path,
                 state,
@@ -130,12 +128,64 @@ impl BuildTarget {
 
         Ok(())
     }
-}
 
-#[allow(dead_code)]
-#[derive(Debug, Clone)]
-pub struct BuildTargetDTO {
-    id: Uuid,
-    path: String,
-    state: TargetState,
+    pub async fn find_by_id(
+        conn: &impl ConnectionTrait,
+        id: Uuid,
+    ) -> Result<Option<callisto::build_targets::Model>, DbErr> {
+        callisto::build_targets::Entity::find_by_id(id)
+            .one(conn)
+            .await
+    }
+
+    pub async fn list_by_task_id(
+        conn: &impl ConnectionTrait,
+        task_id: Uuid,
+    ) -> Result<Vec<callisto::build_targets::Model>, DbErr> {
+        callisto::build_targets::Entity::find()
+            .filter(callisto::build_targets::Column::TaskId.eq(task_id))
+            .all(conn)
+            .await
+    }
+
+    pub async fn ensure_any_target_for_task(
+        conn: &impl ConnectionTrait,
+        task_id: Uuid,
+    ) -> Result<callisto::build_targets::Model, DbErr> {
+        if let Some(t) = callisto::build_targets::Entity::find()
+            .filter(callisto::build_targets::Column::TaskId.eq(task_id))
+            .one(conn)
+            .await?
+        {
+            return Ok(t);
+        }
+
+        let id = Uuid::now_v7();
+        let _ = Self::insert_default_target(id, task_id, conn).await?;
+        Ok(callisto::build_targets::Entity::find_by_id(id)
+            .one(conn)
+            .await?
+            .unwrap_or(callisto::build_targets::Model {
+                id,
+                task_id,
+                path: "//".to_string(),
+                latest_state: TargetState::Uninitialized.to_string(),
+            }))
+    }
+
+    pub async fn update_latest_state(
+        conn: &impl ConnectionTrait,
+        build_target_id: Uuid,
+        state: TargetState,
+    ) -> Result<(), DbErr> {
+        callisto::build_targets::Entity::update_many()
+            .filter(callisto::build_targets::Column::Id.eq(build_target_id))
+            .set(callisto::build_targets::ActiveModel {
+                latest_state: sea_orm::Set(state.to_string()),
+                ..Default::default()
+            })
+            .exec(conn)
+            .await?;
+        Ok(())
+    }
 }

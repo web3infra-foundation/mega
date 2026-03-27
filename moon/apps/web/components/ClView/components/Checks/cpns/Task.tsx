@@ -3,12 +3,11 @@ import { CheckIcon, ChevronDownIcon, FileDirectoryIcon, XIcon } from '@primer/oc
 import { format } from 'date-fns'
 import { useAtom } from 'jotai'
 
-import { BuildDTO, TaskInfoDTO } from '@gitmono/types/generated'
 import { LoadingSpinner } from '@gitmono/ui/Spinner'
 
 import { buildIdAtom } from '@/components/Issues/utils/store'
 
-import { Status } from './store'
+import { BuildDTO, Status, TaskInfoDTO } from './store'
 
 /**
  * Format ISO date string to readable format

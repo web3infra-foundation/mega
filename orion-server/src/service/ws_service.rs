@@ -9,16 +9,18 @@ use axum::{
     response::IntoResponse,
 };
 use futures_util::{SinkExt, StreamExt};
-use sea_orm::{ActiveValue::Set, ColumnTrait, EntityTrait, QueryFilter as _};
 use tokio::sync::mpsc::{self, UnboundedSender};
 use uuid::Uuid;
 
 use crate::{
     app_state::AppState,
     auto_retry::AutoRetryJudger,
-    entity::{builds, targets::TargetState},
     log::log_service::LogService,
-    repository::{build_events::BuildEvent, targets::TargetRepository},
+    model::target_state::TargetState,
+    repository::{
+        build_events_repo::BuildEventsRepo, build_targets_repo::BuildTargetsRepo,
+        target_state_histories_repo::TargetStateHistoriesRepo,
+    },
     scheduler::{WorkerInfo, WorkerStatus},
 };
 
@@ -205,18 +207,12 @@ async fn process_message(
                             build_info.event_payload.retry_count = retry_count;
                             build_info.auto_retry_judger = AutoRetryJudger::new();
                         }
-                        let _ = builds::Entity::update_many()
-                            .set(builds::ActiveModel {
-                                retry_count: Set(retry_count),
-                                ..Default::default()
-                            })
-                            .filter(
-                                builds::Column::Id.eq(build_id
-                                    .parse::<uuid::Uuid>()
-                                    .unwrap_or_else(|_| Uuid::nil())),
-                            )
-                            .exec(&state.conn)
-                            .await;
+                        let _ = BuildEventsRepo::update_retry_count(
+                            &build_id,
+                            retry_count,
+                            &state.conn,
+                        )
+                        .await;
 
                         let msg = WSMessage::TaskBuild {
                             build_id: build_id.clone(),
@@ -240,40 +236,32 @@ async fn process_message(
                     });
                     state.scheduler.active_builds.remove(&build_id);
 
-                    let _ =
-                        BuildEvent::update_build_complete_result(&build_id, exit_code, &state.conn)
-                            .await;
+                    let _ = BuildEventsRepo::update_build_complete_result(
+                        &build_id,
+                        exit_code,
+                        &state.conn,
+                    )
+                    .await;
 
                     let target_state = match (success, exit_code) {
                         (true, Some(0)) => TargetState::Completed,
                         (_, None) => TargetState::Interrupted,
                         _ => TargetState::Failed,
                     };
-                    let error_summary = if matches!(target_state, TargetState::Failed) {
-                        match state
-                            .log_service
-                            .read_full_log(
-                                &task_id.to_string(),
-                                &LogService::last_segment(&repo),
-                                &build_id.to_string(),
-                            )
-                            .await
-                        {
-                            Ok(content) => find_caused_by_next_line_in_content(&content).await,
-                            Err(_) => None,
-                        }
-                    } else {
-                        None
-                    };
-                    let _ = TargetRepository::update_state(
+                    let now = chrono::Utc::now().with_timezone(
+                        &chrono::FixedOffset::east_opt(0).unwrap_or_else(|| unreachable!()),
+                    );
+                    let build_event_uuid = build_id.parse::<Uuid>().unwrap_or_else(|_| Uuid::nil());
+
+                    let _ =
+                        BuildTargetsRepo::update_latest_state(&state.conn, target_id, target_state)
+                            .await;
+                    let _ = TargetStateHistoriesRepo::upsert_state(
                         &state.conn,
                         target_id,
-                        target_state,
-                        None,
-                        Some(chrono::Utc::now().with_timezone(
-                            &chrono::FixedOffset::east_opt(0).unwrap_or_else(|| unreachable!()),
-                        )),
-                        error_summary,
+                        build_event_uuid,
+                        target_state.to_string(),
+                        now,
                     )
                     .await;
 
@@ -316,17 +304,4 @@ async fn process_message(
         _ => {}
     }
     ControlFlow::Continue(())
-}
-
-async fn find_caused_by_next_line_in_content(content: &str) -> Option<String> {
-    let mut last_was_caused = false;
-    for line in content.lines() {
-        if last_was_caused {
-            return Some(line.to_string());
-        }
-        if line.trim() == "Caused by:" {
-            last_was_caused = true;
-        }
-    }
-    None
 }
