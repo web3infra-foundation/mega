@@ -10,7 +10,7 @@ import { useGetClTask } from '@/hooks/SSE/useGetClTask'
 import { fetchHTTPLog } from '@/hooks/SSE/useGetHTTPLog'
 
 import { useTaskSSE } from '../../hook/useSSM'
-import { statusMapAtom } from './cpns/store'
+import { BuildDTO, statusMapAtom, TaskInfoDTO } from './cpns/store'
 import { TreeRoot } from './cpns/Task'
 
 type LogStatus = 'idle' | 'loading' | 'success' | 'empty' | 'error'
@@ -19,9 +19,9 @@ const MIN_LEFT_WIDTH = 200
 const MAX_LEFT_WIDTH_PERCENT = 0.7
 const DEFAULT_LEFT_WIDTH_PERCENT = 0.3
 
-const Checks = ({ cl, path }: { cl: number; path?: string }) => {
+const Checks = ({ cl, path }: { cl: string; path?: string }) => {
   const [buildid, setBuildId] = useAtom(buildIdAtom)
-  const { logsMap, setEventSource, eventSourcesRef, setLogsMap } = useTaskSSE()
+  const { logsMap, setLogsMap } = useTaskSSE()
   const [statusMap, _setStatusMap] = useAtom(statusMapAtom)
   const { data: tasks, isError: isTasksError, isLoading: isTasksLoading } = useGetClTask(cl)
   const [logStatus, setLogStatus] = useState<Record<string, LogStatus>>({})
@@ -155,28 +155,25 @@ const Checks = ({ cl, path }: { cl: number; path?: string }) => {
   useEffect(() => {
     if (!tasks || tasks.length === 0) return
 
-    const builds = tasks.flatMap((task) =>
-      (task.build_list ?? []).map((build) => ({
-        build_id: build.id,
-        task_id: build.task_id ?? task.task_id,
-        repo: build.repo
+    const builds = tasks.flatMap((task: TaskInfoDTO) =>
+      (task.build_list ?? []).map((build: BuildDTO) => ({
+        build_id: build.id
       }))
     )
 
-    const validBuilds = builds.filter((b) => Boolean(b.build_id && b.task_id && b.repo))
+    const validBuilds = builds.filter((b) => Boolean(b.build_id))
 
     if (validBuilds.length === 0) return
 
     validBuilds.forEach((b) => {
-      setEventSource(b.build_id)
       setLogStatus((prev) => ({ ...prev, [b.build_id]: 'loading' }))
     })
 
     const fetchLogs = async () => {
       const logsResult = await Promise.allSettled(
-        validBuilds.map(async ({ build_id, task_id, repo }) => {
+        validBuilds.map(async ({ build_id }) => {
           try {
-            const res = await fetchHTTPLog({ task_id, build_id, repo })
+            const res = await fetchHTTPLog(build_id)
 
             return { id: build_id, res, error: null }
           } catch (error) {
@@ -252,10 +249,10 @@ const Checks = ({ cl, path }: { cl: number; path?: string }) => {
   }, [tasks, selectedTaskId])
 
   // Helper functions for dropdown
-  const getTaskFileName = (task: any) => {
+  const getTaskFileName = (task: TaskInfoDTO) => {
     if (!task.targets || task.targets.length === 0) return task.task_name || 'Unnamed Task'
 
-    const firstTarget = task.targets[0] as any
+    const firstTarget = task.targets[0]
 
     if (!firstTarget.builds || firstTarget.builds.length === 0) return task.task_name || 'Unnamed Task'
 
@@ -276,10 +273,10 @@ const Checks = ({ cl, path }: { cl: number; path?: string }) => {
     }
   }
 
-  const getTaskStatus = (task: any) => {
+  const getTaskStatus = (task: TaskInfoDTO) => {
     if (!task.targets || task.targets.length === 0) return null
 
-    const states = task.targets.map((t: any) => t.state)
+    const states = task.targets.map((t) => t.state)
 
     if (states.some((s: string) => s === 'Failed')) {
       return { status: 'Failed', color: 'text-red-600 dark:text-red-400' }
@@ -403,7 +400,7 @@ const Checks = ({ cl, path }: { cl: number; path?: string }) => {
       )
     }
 
-    if (status === 'success' && logsMap[buildid] && eventSourcesRef.current[buildid]) {
+    if (status === 'success' && logsMap[buildid]) {
       return (
         <div ref={logContainerRef} className='h-full select-text [&_*]:select-text'>
           <LazyLog key={buildid} extraLines={1} text={logsMap[buildid]} stream enableSearch caseInsensitive />

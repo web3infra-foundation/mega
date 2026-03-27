@@ -1,19 +1,19 @@
 import { useQuery } from '@tanstack/react-query'
 
-import { GetTaskHistoryOutputData, GetTaskHistoryOutputParams, RequestParams } from '@gitmono/types/generated'
+import { GetBuildsLogsV2Data, RequestParams } from '@gitmono/types/generated'
 
 import { orionApiClient } from '@/utils/queryClient'
 
-export function useGetHTTPLog(query: GetTaskHistoryOutputParams, params?: RequestParams) {
-  const request = orionApiClient.getTaskHistoryOutput()
+export function useGetHTTPLog(buildId: string, params?: RequestParams) {
+  const request = orionApiClient.builds.getBuildsLogsV2()
 
-  return useQuery<GetTaskHistoryOutputData, Error>({
-    queryKey: [...request.requestKey(query), params],
-    queryFn: () => request.request(query, params),
-    enabled: Boolean(query?.task_id && query?.build_id && query?.repo)
+  return useQuery<GetBuildsLogsV2Data, Error>({
+    queryKey: [...request.requestKey(buildId), params],
+    queryFn: () => request.request(buildId, params),
+    enabled: Boolean(buildId)
   })
 }
 
-export const fetchHTTPLog = (query: GetTaskHistoryOutputParams, params?: RequestParams) => {
-  return orionApiClient.getTaskHistoryOutput().request(query, params)
+export const fetchHTTPLog = (buildId: string, params?: RequestParams) => {
+  return orionApiClient.builds.getBuildsLogsV2().request(buildId, params)
 }

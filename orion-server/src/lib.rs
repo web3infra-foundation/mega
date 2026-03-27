@@ -3,7 +3,6 @@ pub mod api_doc;
 pub mod app_state;
 pub mod auto_retry;
 pub mod buck2;
-pub mod entity;
 pub mod log;
 pub mod model;
 pub mod repository;

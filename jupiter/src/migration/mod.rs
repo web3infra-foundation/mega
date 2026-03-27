@@ -28,10 +28,7 @@
 //! // Refresh all migrations (development only)
 //! apply_migrations(&db, true).await?;
 //! ```
-use common::errors::MegaError;
-use sea_orm::DatabaseConnection;
 use sea_orm_migration::{prelude::*, schema::big_integer};
-use tracing::log;
 
 mod m20250314_025943_init;
 mod m20250427_031332_add_mr_refs_tag;
@@ -97,6 +94,9 @@ mod m20260308_230000_normalize_webhook_event_types;
 mod m20260316_120000_add_bot_tokens_token_hash_index;
 mod m20260324_024559_add_notes;
 mod m20260324_033322_fix_migration;
+mod m20260327_034553_drop_legacy_tasks;
+mod runner;
+pub use runner::apply_migrations;
 
 /// Creates a primary key column definition with big integer type.
 ///
@@ -184,59 +184,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260316_120000_add_bot_tokens_token_hash_index::Migration),
             Box::new(m20260324_024559_add_notes::Migration),
             Box::new(m20260324_033322_fix_migration::Migration),
+            Box::new(m20260327_034553_drop_legacy_tasks::Migration),
         ]
-    }
-}
-/// Applies database migrations to the given database connection.
-///
-/// # Arguments
-///
-/// * `db` - Reference to the database connection
-/// * `refresh` - If true, refreshes all migrations (drops and recreates). If false, applies pending migrations only
-///
-/// # Returns
-///
-/// * `Ok(())` - If migrations were applied successfully
-/// * `Err(MegaError)` - If migration failed, with error details logged
-///
-/// # Errors
-///
-/// Returns `MegaError` when:
-/// - Database connection fails
-/// - Migration SQL execution fails
-/// - Schema validation errors occur
-pub async fn apply_migrations(db: &DatabaseConnection, refresh: bool) -> Result<(), MegaError> {
-    match refresh {
-        true => Migrator::refresh(db).await,
-        false => Migrator::up(db, None).await,
-    }
-    .map_err(|e| {
-        log::error!("Failed to apply migrations: {e}");
-        e.into()
-    })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::tests::test_db_connection;
-
-    #[tokio::test]
-    async fn test_apply_migrations() {
-        let temp_dir = tempfile::TempDir::new().expect("Failed to create temporary directory");
-        let db = test_db_connection(temp_dir.path()).await;
-        // Apply migrations to the mock database
-        let result = apply_migrations(&db, false).await;
-        assert!(
-            result.is_ok(),
-            "Failed to apply migrations: {:?}",
-            result.err()
-        );
-
-        // Verify that the migrations were applied correctly
-        let applied_migrations = Migrator::get_applied_migrations(&db).await.unwrap();
-        assert!(!applied_migrations.is_empty(), "No migrations were applied");
-
-        // Additional assertions can be added here to verify the state of the database
     }
 }

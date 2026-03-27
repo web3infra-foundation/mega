@@ -2,98 +2,10 @@ use api_model::buck2::types::TaskPhase;
 use chrono::Utc;
 use sea_orm::prelude::DateTimeUtc;
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde_json::Value;
 use utoipa::ToSchema;
 
-use crate::{
-    entity::{builds, targets},
-    model::task_status::TaskStatusEnum,
-    scheduler::{WorkerInfo, WorkerStatus},
-};
-
-/// Data transfer object for build information in API responses.
-#[derive(Debug, Serialize, ToSchema, Clone)]
-pub struct BuildDTO {
-    pub id: String,
-    pub task_id: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub target_id: Option<String>,
-    pub exit_code: Option<i32>,
-    pub start_at: String,
-    pub end_at: Option<String>,
-    pub repo: String,
-    pub target: String,
-    pub args: Option<Value>,
-    pub output_file: String,
-    pub created_at: String,
-    pub retry_count: i32,
-    pub status: TaskStatusEnum,
-    pub cause_by: Option<String>,
-}
-
-impl BuildDTO {
-    pub fn from_model(
-        model: builds::Model,
-        target: Option<&targets::Model>,
-        status: TaskStatusEnum,
-    ) -> Self {
-        let target_path = target.map(|t| t.target_path.clone()).unwrap_or_default();
-        Self {
-            id: model.id.to_string(),
-            task_id: model.task_id.to_string(),
-            target_id: target.map(|t| t.id.to_string()),
-            exit_code: model.exit_code,
-            start_at: model.start_at.with_timezone(&Utc).to_rfc3339(),
-            end_at: model.end_at.map(|dt| dt.with_timezone(&Utc).to_rfc3339()),
-            repo: model.repo,
-            target: target_path,
-            args: model.args.map(|v| json!(v)),
-            output_file: model.output_file,
-            created_at: model.created_at.with_timezone(&Utc).to_rfc3339(),
-            retry_count: model.retry_count,
-            status,
-            cause_by: None,
-        }
-    }
-
-    pub fn determine_status(model: &builds::Model, is_active: bool) -> TaskStatusEnum {
-        if is_active {
-            TaskStatusEnum::Building
-        } else if model.end_at.is_none() {
-            TaskStatusEnum::Pending
-        } else if model.exit_code.is_none() {
-            TaskStatusEnum::Interrupted
-        } else if model.exit_code == Some(0) {
-            TaskStatusEnum::Completed
-        } else {
-            TaskStatusEnum::Failed
-        }
-    }
-}
-
-pub type TargetDTO = targets::TargetWithBuilds<BuildDTO>;
-
-#[derive(Debug, Serialize, ToSchema)]
-pub struct TaskInfoDTO {
-    pub task_id: String,
-    pub cl_id: i64,
-    pub task_name: Option<String>,
-    pub template: Option<serde_json::Value>,
-    pub created_at: String,
-    pub build_list: Vec<BuildDTO>,
-    pub targets: Vec<TargetDTO>,
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-pub struct TargetSummaryDTO {
-    pub task_id: String,
-    pub pending: u64,
-    pub building: u64,
-    pub completed: u64,
-    pub failed: u64,
-    pub interrupted: u64,
-    pub uninitialized: u64,
-}
+use crate::scheduler::{WorkerInfo, WorkerStatus};
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct OrionClientInfo {
@@ -217,10 +129,8 @@ impl From<&callisto::orion_tasks::Model> for OrionTaskDTO {
 }
 
 #[derive(ToSchema, Serialize)]
-pub enum BuildEventState {
-    #[allow(dead_code)]
-    Pending,
+pub enum BuildStatus {
     Running,
-    Success,
-    Failure,
+    Completed,
+    Failed,
 }

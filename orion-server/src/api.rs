@@ -18,13 +18,18 @@ use axum::{
     response::IntoResponse,
     routing::{any, get, post},
 };
+use uuid::Uuid;
 
 use crate::{
     app_state::AppState,
-    model::dto::{
-        BuildEventDTO, BuildEventState, BuildTargetDTO, MessageResponse, OrionClientInfo,
-        OrionClientQuery, OrionClientStatus, OrionTaskDTO, TargetSummaryDTO, TaskInfoDTO,
+    model::{
+        dto::{
+            BuildEventDTO, BuildStatus, BuildTargetDTO, MessageResponse, OrionClientInfo,
+            OrionClientQuery, OrionClientStatus, OrionTaskDTO,
+        },
+        internal::target_build_status::orion_target_status_to_api_str,
     },
+    repository::target_build_status_repo::TargetBuildStatusRepo,
     scheduler::TaskQueueStats,
     service::{api_v2_service, ws_service},
 };
@@ -53,12 +58,6 @@ fn task_routes() -> Router<AppState> {
         .route("/task-build-list/{id}", get(task_build_list_handler))
         .route("/task-output/{id}", get(task_output_handler))
         .route("/task-history-output", get(task_history_output_handler))
-        .route("/tasks/{cl}", get(tasks_handler))
-        .route("/tasks/{task_id}/targets", get(task_targets_handler))
-        .route(
-            "/tasks/{task_id}/targets/summary",
-            get(task_targets_summary_handler),
-        )
         .route("/v2/task-retry/{id}", post(task_retry_handler))
         .route("/v2/task/{cl}", get(task_get_handler))
 }
@@ -270,67 +269,6 @@ async fn ws_handler(
     ws_service::ws_handler(ws, ConnectInfo(addr), State(state)).await
 }
 
-#[utoipa::path(
-    get,
-    path = "/tasks/{cl}",
-    tag = "Task",
-    params(
-        ("cl" = i64, Path, description = "CL number to filter tasks by")
-    ),
-    responses(
-    (status = 200, description = "All tasks with their current status", body = [TaskInfoDTO]),
-    (status = 500, description = "Internal error", body = serde_json::Value)
-    )
-)]
-/// Return all tasks with their current status (combining /cl-task and /task-status logic)
-pub async fn tasks_handler(
-    State(state): State<AppState>,
-    Path(cl): Path<i64>,
-) -> Result<Json<Vec<TaskInfoDTO>>, (StatusCode, Json<serde_json::Value>)> {
-    api_v2_service::tasks_by_cl(&state, cl).await
-}
-
-#[utoipa::path(
-    get,
-    path = "/tasks/{task_id}/targets",
-    tag = "Task",
-    params(
-        ("task_id" = String, Path, description = "Task ID to query targets for")
-    ),
-    responses(
-        (status = 200, description = "Task with targets", body = TaskInfoDTO),
-        (status = 400, description = "Invalid task ID", body = serde_json::Value),
-        (status = 404, description = "Task not found", body = serde_json::Value),
-        (status = 500, description = "Internal error", body = serde_json::Value)
-    )
-)]
-pub async fn task_targets_handler(
-    State(state): State<AppState>,
-    Path(task_id): Path<String>,
-) -> Result<Json<TaskInfoDTO>, (StatusCode, Json<serde_json::Value>)> {
-    api_v2_service::task_targets(&state, &task_id).await
-}
-
-#[utoipa::path(
-    get,
-    path = "/tasks/{task_id}/targets/summary",
-    tag = "Task",
-    params(
-        ("task_id" = String, Path, description = "Task ID to query target summary for")
-    ),
-    responses(
-        (status = 200, description = "Target summary", body = TargetSummaryDTO),
-        (status = 400, description = "Invalid task ID", body = serde_json::Value),
-        (status = 500, description = "Internal error", body = serde_json::Value)
-    )
-)]
-pub async fn task_targets_summary_handler(
-    State(state): State<AppState>,
-    Path(task_id): Path<String>,
-) -> Result<Json<TargetSummaryDTO>, (StatusCode, Json<serde_json::Value>)> {
-    api_v2_service::task_targets_summary(&state, &task_id).await
-}
-
 /// Endpoint to retrieve paginated Orion client information.
 #[utoipa::path(
     post,
@@ -491,14 +429,14 @@ pub async fn build_logs_handler(
     tag = "Build",
     params(("build_id" = String, Path, description = "Build ID")),
     responses(
-        (status = 200, description = "Get build state successfully", body = BuildEventState),
+        (status = 200, description = "Get build state successfully", body = BuildStatus),
         (status = 404, description = "Not found build", body = MessageResponse),
     )
 )]
 pub async fn build_state_handler(
     State(state): State<AppState>,
     Path(build_id): Path<String>,
-) -> Result<Json<BuildEventState>, (StatusCode, Json<MessageResponse>)> {
+) -> Result<Json<BuildStatus>, (StatusCode, Json<MessageResponse>)> {
     api_v2_service::build_state(&state, &build_id).await
 }
 
@@ -509,14 +447,14 @@ pub async fn build_state_handler(
     tag = "Build",
     params(("task_id" = String, Path, description = "Task ID")),
     responses(
-        (status = 200, description = "Get latest build result successfully", body = BuildEventState),
+        (status = 200, description = "Get latest build result successfully", body = BuildStatus),
         (status = 404, description = "Not found task", body = MessageResponse),
     )
 )]
 pub async fn latest_build_result_handler(
     State(state): State<AppState>,
     Path(task_id): Path<String>,
-) -> Result<Json<BuildEventState>, (StatusCode, Json<MessageResponse>)> {
+) -> Result<Json<BuildStatus>, (StatusCode, Json<MessageResponse>)> {
     api_v2_service::latest_build_result(&state, &task_id).await
 }
 
@@ -537,7 +475,7 @@ pub async fn targets_status_handler(
     State(state): State<AppState>,
     Path(task_id): Path<String>,
 ) -> Result<Json<Vec<TargetStatusResponse>>, (StatusCode, String)> {
-    crate::service::target_status_cache_service::targets_status_by_task_id(&state.conn, &task_id)
+    targets_status_by_task_id(&state.conn, &task_id)
         .await
         .map(Json)
 }
@@ -559,9 +497,73 @@ pub async fn single_target_status_handle(
     State(state): State<AppState>,
     Path(target_id): Path<String>,
 ) -> Result<Json<TargetStatusResponse>, (StatusCode, String)> {
-    crate::service::target_status_cache_service::target_status_by_id(&state.conn, &target_id)
+    target_status_by_id(&state.conn, &target_id).await.map(Json)
+}
+
+async fn targets_status_by_task_id(
+    conn: &sea_orm::DatabaseConnection,
+    task_id: &str,
+) -> Result<Vec<TargetStatusResponse>, (StatusCode, String)> {
+    let task_uuid = Uuid::parse_str(task_id)
+        .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid task_id".to_string()))?;
+    let targets = TargetBuildStatusRepo::fetch_by_task_id(conn, task_uuid)
         .await
-        .map(Json)
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Database error".to_string(),
+            )
+        })?;
+    if targets.is_empty() {
+        return Err((StatusCode::NOT_FOUND, "No target status found".to_string()));
+    }
+    Ok(targets
+        .into_iter()
+        .map(|t| TargetStatusResponse {
+            id: t.id.to_string(),
+            task_id: t.task_id.to_string(),
+            package: t.target_package,
+            name: t.target_name,
+            configuration: t.target_configuration,
+            category: t.category,
+            identifier: t.identifier,
+            action: t.action,
+            status: orion_target_status_to_api_str(&t.status).to_owned(),
+        })
+        .collect())
+}
+
+async fn target_status_by_id(
+    conn: &sea_orm::DatabaseConnection,
+    target_id: &str,
+) -> Result<TargetStatusResponse, (StatusCode, String)> {
+    let target_uuid = Uuid::parse_str(target_id).map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            format!("Invalid target_id '{}': {}", target_id, e),
+        )
+    })?;
+    let target = TargetBuildStatusRepo::find_by_id(conn, target_uuid)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Database query failed: {}", e),
+            )
+        })?
+        .ok_or((StatusCode::NOT_FOUND, "Target not found".to_string()))?;
+
+    Ok(TargetStatusResponse {
+        id: target.id.to_string(),
+        task_id: target.task_id.to_string(),
+        package: target.target_package,
+        name: target.target_name,
+        configuration: target.target_configuration,
+        category: target.category,
+        identifier: target.identifier,
+        action: target.action,
+        status: orion_target_status_to_api_str(&target.status).to_string(),
+    })
 }
 
 #[cfg(test)]

@@ -3141,6 +3141,19 @@ export type BlameResult = {
   total_lines: number
 }
 
+export type BotRes = {
+  /** @format int64 */
+  bot_id: number
+  /** @format int64 */
+  id: number
+  /** @format int64 */
+  installed_by: number
+  status: InstallationBotStatus
+  /** @format int64 */
+  target_id: number
+  target_type: InstallationTargetType
+}
+
 /** Optional build parameters */
 export type BuildParams = {
   /** Specific Buck build target (e.g., "//path/to:target") */
@@ -3162,6 +3175,11 @@ export type CLDetailRes = {
   path: string
   status: MergeStatus
   title: string
+}
+
+export type ChangeInstallationStatus = {
+  status: InstallationBotStatus
+  target_type: InstallationTargetType
 }
 
 export type ChangeReviewStatePayload = {
@@ -3337,6 +3355,23 @@ export type CommonResultBlameResult = {
     page_size?: number | null
     /** @min 0 */
     total_lines: number
+  }
+  err_message: string
+  req_result: boolean
+}
+
+export type CommonResultBotRes = {
+  data?: {
+    /** @format int64 */
+    bot_id: number
+    /** @format int64 */
+    id: number
+    /** @format int64 */
+    installed_by: number
+    status: InstallationBotStatus
+    /** @format int64 */
+    target_id: number
+    target_type: InstallationTargetType
   }
   err_message: string
   req_result: boolean
@@ -3638,6 +3673,24 @@ export type CommonResultCompleteResponse = {
     from_hash: string
     /** Repository path (for build trigger context) */
     repo_path: string
+  }
+  err_message: string
+  req_result: boolean
+}
+
+export type CommonResultCreateBotTokenResponse = {
+  /**
+   * Response body when a bot token is created.
+   *
+   * Note: `token_plain` is only returned once and is never stored in plaintext.
+   */
+  data?: {
+    /** @format date-time */
+    expires_at?: string | null
+    /** @format int64 */
+    id: number
+    token_name: string
+    token_plain: string
   }
   err_message: string
   req_result: boolean
@@ -4091,6 +4144,23 @@ export type CommonResultVec = {
   req_result: boolean
 }
 
+export type CommonResultVecBotRes = {
+  data?: {
+    /** @format int64 */
+    bot_id: number
+    /** @format int64 */
+    id: number
+    /** @format int64 */
+    installed_by: number
+    status: InstallationBotStatus
+    /** @format int64 */
+    target_id: number
+    target_type: InstallationTargetType
+  }[]
+  err_message: string
+  req_result: boolean
+}
+
 export type CommonResultVecClFilesRes = {
   data?: {
     action: string
@@ -4142,6 +4212,21 @@ export type CommonResultVecIssueSuggestions = {
     link: string
     title: string
     type: string
+  }[]
+  err_message: string
+  req_result: boolean
+}
+
+export type CommonResultVecListBotTokenItem = {
+  data?: {
+    /** @format date-time */
+    created_at: string
+    /** @format date-time */
+    expires_at?: string | null
+    /** @format int64 */
+    id: number
+    revoked: boolean
+    token_name: string
   }[]
   err_message: string
   req_result: boolean
@@ -4358,6 +4443,31 @@ export type ConversationItem = {
   /** @format int64 */
   updated_at: number
   username: string
+}
+
+/** Request body for creating a new bot token. */
+export type CreateBotTokenRequest = {
+  /**
+   * Optional relative expiry in seconds from now.
+   * @format int64
+   */
+  expires_in?: number | null
+  /** Human-readable token name for identification. */
+  token_name: string
+}
+
+/**
+ * Response body when a bot token is created.
+ *
+ * Note: `token_plain` is only returned once and is never stored in plaintext.
+ */
+export type CreateBotTokenResponse = {
+  /** @format date-time */
+  expires_at?: string | null
+  /** @format int64 */
+  id: number
+  token_name: string
+  token_plain: string
 }
 
 export type CreateEntryInfo = {
@@ -4633,6 +4743,24 @@ export type InitializeCommentRequest = {
   original_line_number: number
 }
 
+export type InstallBotReq = {
+  /** @format int64 */
+  installed_by: number
+  /** @format int64 */
+  target_id: number
+  target_type: InstallationTargetType
+}
+
+export enum InstallationBotStatus {
+  Disabled = 'Disabled',
+  Enabled = 'Enabled'
+}
+
+export enum InstallationTargetType {
+  Organization = 'Organization',
+  Repository = 'Repository'
+}
+
 export type IsAdminResponse = {
   is_admin: boolean
 }
@@ -4708,6 +4836,18 @@ export type Link = {
   expires_at: string
   header?: Record<string, string>
   href: string
+}
+
+/** Item in the list bot tokens response. */
+export type ListBotTokenItem = {
+  /** @format date-time */
+  created_at: string
+  /** @format date-time */
+  expires_at?: string | null
+  /** @format int64 */
+  id: number
+  revoked: boolean
+  token_name: string
 }
 
 export type ListPayload = {
@@ -5424,27 +5564,6 @@ export type WebhookResponse = {
   updated_at: string
 }
 
-/** Data transfer object for build information in API responses */
-export type BuildDTO = {
-  args?: any
-  cause_by?: string | null
-  created_at: string
-  end_at?: string | null
-  /** @format int32 */
-  exit_code?: number | null
-  id: string
-  output_file: string
-  repo: string
-  /** @format int32 */
-  retry_count: number
-  start_at: string
-  /** Enumeration of possible task statuses */
-  status: TaskStatusEnum
-  target: string
-  target_id?: string | null
-  task_id: string
-}
-
 export type BuildEventDTO = {
   end_at?: string | null
   /** @format int32 */
@@ -5458,18 +5577,10 @@ export type BuildEventDTO = {
   task_id: string
 }
 
-export enum BuildEventState {
-  Pending = 'Pending',
+export enum BuildStatus {
   Running = 'Running',
-  Success = 'Success',
-  Failure = 'Failure'
-}
-
-/** Request payload for creating a new build task */
-export type BuildRequest = {
-  changes: StatusProjectRelativePath[]
-  /** Buck2 target path (e.g. //app:server). Optional for backward compatibility. */
-  target?: string | null
+  Completed = 'Completed',
+  Failed = 'Failed'
 }
 
 export type BuildTargetDTO = {
@@ -5535,10 +5646,6 @@ export type OrionClientInfo = {
   start_time: string
 }
 
-/**
- * Additional query parameters for querying Orion clients.
- * When no extra conditions are required, this struct can be left empty.
- */
 export type OrionClientQuery = {
   hostname?: string | null
   phase?: null | TaskPhase
@@ -5546,11 +5653,8 @@ export type OrionClientQuery = {
 }
 
 export type OrionClientStatus = {
-  /** Core (Idle / Busy / Error / Lost) */
   core_status: CoreWorkerStatus
-  /** Only when error */
   error_message?: string | null
-  /** Only when building */
   phase?: null | TaskPhase
 }
 
@@ -5563,10 +5667,6 @@ export type OrionTaskDTO = {
 }
 
 export type PageParamsOrionClientQuery = {
-  /**
-   * Additional query parameters for querying Orion clients.
-   * When no extra conditions are required, this struct can be left empty.
-   */
   additional: {
     hostname?: string | null
     phase?: null | TaskPhase
@@ -5620,7 +5720,8 @@ export enum TargetState {
   Building = 'Building',
   Completed = 'Completed',
   Failed = 'Failed',
-  Interrupted = 'Interrupted'
+  Interrupted = 'Interrupted',
+  Uninitialized = 'Uninitialized'
 }
 
 /** Target status for buck2 build */
@@ -5634,47 +5735,6 @@ export type TargetStatusResponse = {
   package: string
   status: string
   task_id: string
-}
-
-/** Target summary counts for a task. */
-export type TargetSummaryDTO = {
-  /**
-   * @format int64
-   * @min 0
-   */
-  building: number
-  /**
-   * @format int64
-   * @min 0
-   */
-  completed: number
-  /**
-   * @format int64
-   * @min 0
-   */
-  failed: number
-  /**
-   * @format int64
-   * @min 0
-   */
-  interrupted: number
-  /**
-   * @format int64
-   * @min 0
-   */
-  pending: number
-  task_id: string
-}
-
-/** Target DTO with a generic builds payload. */
-export type TargetWithBuilds = {
-  builds: BuildDTO[]
-  end_at?: string | null
-  error_summary?: string | null
-  id: string
-  start_at?: string | null
-  state: TargetState
-  target_path: string
 }
 
 /** Parameters required to build a task. */
@@ -5702,32 +5762,10 @@ export type TaskHistoryQuery = {
   task_id: string
 }
 
-/** Task information including current status */
-export type TaskInfoDTO = {
-  build_list: BuildDTO[]
-  /** @format int64 */
-  cl_id: number
-  created_at: string
-  targets: TargetWithBuilds[]
-  task_id: string
-  task_name?: string | null
-  template?: any
-}
-
 /** Task phase when in buck2 build */
 export enum TaskPhase {
   DownloadingSource = 'DownloadingSource',
   RunningBuild = 'RunningBuild'
-}
-
-/** Enumeration of possible task statuses */
-export enum TaskStatusEnum {
-  Pending = 'Pending',
-  Building = 'Building',
-  Interrupted = 'Interrupted',
-  Failed = 'Failed',
-  Completed = 'Completed',
-  NotFound = 'NotFound'
 }
 
 export type PostActivityViewsData = UserNotificationCounts
@@ -6917,6 +6955,22 @@ export type GetApiBlobParams = {
 
 export type GetApiBlobData = CommonResultString
 
+export type GetApiBotsTokensData = CommonResultVecListBotTokenItem
+
+export type PostApiBotsTokensData = CommonResultCreateBotTokenResponse
+
+export type PostApiBotsTokensRevokeAllData = any
+
+export type DeleteApiBotsTokensByIdData = any
+
+export type GetApiBotsInstallationsData = CommonResultVecBotRes
+
+export type PostApiBotsInstallationsData = CommonResultBotRes
+
+export type DeleteApiBotsInstallationsByInstallationIdData = CommonResultString
+
+export type PatchApiBotsInstallationsByInstallationIdData = CommonResultBotRes
+
 export type PostApiBuckSessionStartData = CommonResultSessionResponse
 
 export type PostApiBuckSessionCompletePayload = null | CompletePayload
@@ -7283,19 +7337,13 @@ export type GetTaskHistoryOutputError = LogErrorResponse
 
 export type GetTaskOutputByIdData = any
 
-export type GetTasksByClData = TaskInfoDTO[]
-
-export type GetTasksTargetsData = TaskInfoDTO
-
-export type GetTasksTargetsSummaryData = TargetSummaryDTO
-
 export type GetAllTargetStatusByTaskIdV2Data = any
 
 export type GetBuildEventsByTaskIdV2Data = BuildEventDTO[]
 
 export type GetBuildEventsByTaskIdV2Error = MessageResponse
 
-export type GetBuildStateByBuildIdV2Data = BuildEventState
+export type GetBuildStateByBuildIdV2Data = BuildStatus
 
 export type GetBuildStateByBuildIdV2Error = MessageResponse
 
@@ -7305,7 +7353,7 @@ export type GetBuildsLogsV2Error = LogErrorResponse
 
 export type GetHealthV2Data = any
 
-export type GetLatestBuildResultByTaskIdV2Data = BuildEventState
+export type GetLatestBuildResultByTaskIdV2Data = BuildStatus
 
 export type GetLatestBuildResultByTaskIdV2Error = MessageResponse
 
@@ -7609,7 +7657,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
   /**
    * No description
    *
-   * @tags api
+   * @tags Worker
    * @name PostOrionClientsInfo
    * @summary Endpoint to retrieve paginated Orion client information.
    * @request POST:/orion-clients-info
@@ -7634,7 +7682,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
   /**
    * No description
    *
-   * @tags api
+   * @tags Build
    * @name PostRetryBuild
    * @summary Retry the build
    * @request POST:/retry-build
@@ -7659,7 +7707,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
   /**
    * No description
    *
-   * @tags api
+   * @tags Task
    * @name PostTask
    * @summary Creates build tasks and returns the task ID and status (immediate or queued)
    * @request POST:/task
@@ -7684,7 +7732,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
   /**
  * No description
  *
- * @tags api
+ * @tags Task
  * @name GetTaskHistoryOutput
  * @summary Provides the ability to read historical task logs
 supporting either retrieving the entire log at once or segmenting it by line count.
@@ -16125,6 +16173,198 @@ supporting either retrieving the entire log at once or segmenting it by line cou
     },
 
     /**
+     * @description List existing tokens for a bot (without plaintext).
+     *
+     * @tags Bot Management
+     * @name GetApiBotsTokens
+     * @summary GET /api/v1/bots/{bot_id}/tokens
+     * @request GET:/api/v1/bots/{bot_id}/tokens
+     */
+    getApiBotsTokens: () => {
+      const base = 'GET:/api/v1/bots/{bot_id}/tokens' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiBotsTokensData>([base]),
+        requestKey: (botId: number) => dataTaggedQueryKey<GetApiBotsTokensData>([base, botId]),
+        request: (botId: number, params: RequestParams = {}) =>
+          this.request<GetApiBotsTokensData>({
+            path: `/api/v1/bots/${botId}/tokens`,
+            method: 'GET',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * @description Create a new bot token. Only admins can perform this operation.
+     *
+     * @tags Bot Management
+     * @name PostApiBotsTokens
+     * @summary POST /api/v1/bots/{bot_id}/tokens
+     * @request POST:/api/v1/bots/{bot_id}/tokens
+     */
+    postApiBotsTokens: () => {
+      const base = 'POST:/api/v1/bots/{bot_id}/tokens' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiBotsTokensData>([base]),
+        requestKey: (botId: number) => dataTaggedQueryKey<PostApiBotsTokensData>([base, botId]),
+        request: (botId: number, data: CreateBotTokenRequest, params: RequestParams = {}) =>
+          this.request<PostApiBotsTokensData>({
+            path: `/api/v1/bots/${botId}/tokens`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * @description Revoke all tokens for a given bot. Idempotent.
+     *
+     * @tags Bot Management
+     * @name PostApiBotsTokensRevokeAll
+     * @summary POST /api/v1/bots/{bot_id}/tokens/revoke_all
+     * @request POST:/api/v1/bots/{bot_id}/tokens/revoke_all
+     */
+    postApiBotsTokensRevokeAll: () => {
+      const base = 'POST:/api/v1/bots/{bot_id}/tokens/revoke_all' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiBotsTokensRevokeAllData>([base]),
+        requestKey: (botId: number) => dataTaggedQueryKey<PostApiBotsTokensRevokeAllData>([base, botId]),
+        request: (botId: number, params: RequestParams = {}) =>
+          this.request<PostApiBotsTokensRevokeAllData>({
+            path: `/api/v1/bots/${botId}/tokens/revoke_all`,
+            method: 'POST',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * @description Revoke a single bot token. Idempotent.
+     *
+     * @tags Bot Management
+     * @name DeleteApiBotsTokensById
+     * @summary DELETE /api/v1/bots/{bot_id}/tokens/{id}
+     * @request DELETE:/api/v1/bots/{bot_id}/tokens/{id}
+     */
+    deleteApiBotsTokensById: () => {
+      const base = 'DELETE:/api/v1/bots/{bot_id}/tokens/{id}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<DeleteApiBotsTokensByIdData>([base]),
+        requestKey: (botId: number, id: number) => dataTaggedQueryKey<DeleteApiBotsTokensByIdData>([base, botId, id]),
+        request: (botId: number, id: number, params: RequestParams = {}) =>
+          this.request<DeleteApiBotsTokensByIdData>({
+            path: `/api/v1/bots/${botId}/tokens/${id}`,
+            method: 'DELETE',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Bot Management
+     * @name GetApiBotsInstallations
+     * @summary Get installed bot
+     * @request GET:/api/v1/bots/{id}/installations
+     */
+    getApiBotsInstallations: () => {
+      const base = 'GET:/api/v1/bots/{id}/installations' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiBotsInstallationsData>([base]),
+        requestKey: (id: number) => dataTaggedQueryKey<GetApiBotsInstallationsData>([base, id]),
+        request: (id: number, params: RequestParams = {}) =>
+          this.request<GetApiBotsInstallationsData>({
+            path: `/api/v1/bots/${id}/installations`,
+            method: 'GET',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Bot Management
+     * @name PostApiBotsInstallations
+     * @summary Install bot
+     * @request POST:/api/v1/bots/{id}/installations
+     */
+    postApiBotsInstallations: () => {
+      const base = 'POST:/api/v1/bots/{id}/installations' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiBotsInstallationsData>([base]),
+        requestKey: (id: number) => dataTaggedQueryKey<PostApiBotsInstallationsData>([base, id]),
+        request: (id: number, data: InstallBotReq, params: RequestParams = {}) =>
+          this.request<PostApiBotsInstallationsData>({
+            path: `/api/v1/bots/${id}/installations`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Bot Management
+     * @name DeleteApiBotsInstallationsByInstallationId
+     * @request DELETE:/api/v1/bots/{id}/installations/{installation_id}
+     */
+    deleteApiBotsInstallationsByInstallationId: () => {
+      const base = 'DELETE:/api/v1/bots/{id}/installations/{installation_id}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<DeleteApiBotsInstallationsByInstallationIdData>([base]),
+        requestKey: (id: number, installationId: number) =>
+          dataTaggedQueryKey<DeleteApiBotsInstallationsByInstallationIdData>([base, id, installationId]),
+        request: (id: number, installationId: number, data: InstallationTargetType, params: RequestParams = {}) =>
+          this.request<DeleteApiBotsInstallationsByInstallationIdData>({
+            path: `/api/v1/bots/${id}/installations/${installationId}`,
+            method: 'DELETE',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Bot Management
+     * @name PatchApiBotsInstallationsByInstallationId
+     * @request PATCH:/api/v1/bots/{id}/installations/{installation_id}
+     */
+    patchApiBotsInstallationsByInstallationId: () => {
+      const base = 'PATCH:/api/v1/bots/{id}/installations/{installation_id}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PatchApiBotsInstallationsByInstallationIdData>([base]),
+        requestKey: (id: number, installationId: number) =>
+          dataTaggedQueryKey<PatchApiBotsInstallationsByInstallationIdData>([base, id, installationId]),
+        request: (id: number, installationId: number, data: ChangeInstallationStatus, params: RequestParams = {}) =>
+          this.request<PatchApiBotsInstallationsByInstallationIdData>({
+            path: `/api/v1/bots/${id}/installations/${installationId}`,
+            method: 'PATCH',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
      * @description Creates a new upload session and pre-creates a Draft CL.
      *
      * @tags Buck Upload API
@@ -18819,7 +19059,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags api
+     * @tags Worker
      * @name GetOrionClientStatusById
      * @summary Retrieve the current status of a specific Orion client by its ID.
      * @request GET:/orion-client-status/{id}
@@ -18842,7 +19082,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags api
+     * @tags Task
      * @name GetTaskBuildListById
      * @request GET:/task-build-list/{id}
      */
@@ -18864,7 +19104,7 @@ It's for local testing purposes.
     /**
  * No description
  *
- * @tags api
+ * @tags Task
  * @name GetTaskOutputById
  * @summary Streams build output logs in real-time using Server-Sent Events (SSE)
 Continuously monitors the log file and streams new content as it becomes available
@@ -18889,7 +19129,7 @@ Continuously monitors the log file and streams new content as it becomes availab
     /**
      * No description
      *
-     * @tags api
+     * @tags TargetStatus
      * @name GetTargetsLogs
      * @request GET:/targets/{target_id}/logs
      */
@@ -18909,80 +19149,11 @@ Continuously monitors the log file and streams new content as it becomes availab
       }
     }
   }
-  cl = {
-    /**
-     * No description
-     *
-     * @tags api
-     * @name GetTasksByCl
-     * @summary Return all tasks with their current status (combining /cl-task and /task-status logic)
-     * @request GET:/tasks/{cl}
-     */
-    getTasksByCl: () => {
-      const base = 'GET:/tasks/{cl}' as const
-
-      return {
-        baseKey: dataTaggedQueryKey<GetTasksByClData>([base]),
-        requestKey: (cl: number) => dataTaggedQueryKey<GetTasksByClData>([base, cl]),
-        request: (cl: number, params: RequestParams = {}) =>
-          this.request<GetTasksByClData>({
-            path: `/tasks/${cl}`,
-            method: 'GET',
-            ...params
-          })
-      }
-    }
-  }
-  taskId = {
-    /**
-     * No description
-     *
-     * @tags api
-     * @name GetTasksTargets
-     * @request GET:/tasks/{task_id}/targets
-     */
-    getTasksTargets: () => {
-      const base = 'GET:/tasks/{task_id}/targets' as const
-
-      return {
-        baseKey: dataTaggedQueryKey<GetTasksTargetsData>([base]),
-        requestKey: (taskId: string) => dataTaggedQueryKey<GetTasksTargetsData>([base, taskId]),
-        request: (taskId: string, params: RequestParams = {}) =>
-          this.request<GetTasksTargetsData>({
-            path: `/tasks/${taskId}/targets`,
-            method: 'GET',
-            ...params
-          })
-      }
-    },
-
-    /**
-     * No description
-     *
-     * @tags api
-     * @name GetTasksTargetsSummary
-     * @request GET:/tasks/{task_id}/targets/summary
-     */
-    getTasksTargetsSummary: () => {
-      const base = 'GET:/tasks/{task_id}/targets/summary' as const
-
-      return {
-        baseKey: dataTaggedQueryKey<GetTasksTargetsSummaryData>([base]),
-        requestKey: (taskId: string) => dataTaggedQueryKey<GetTasksTargetsSummaryData>([base, taskId]),
-        request: (taskId: string, params: RequestParams = {}) =>
-          this.request<GetTasksTargetsSummaryData>({
-            path: `/tasks/${taskId}/targets/summary`,
-            method: 'GET',
-            ...params
-          })
-      }
-    }
-  }
   allTargetStatus = {
     /**
      * No description
      *
-     * @tags api
+     * @tags TargetStatus
      * @name GetAllTargetStatusByTaskIdV2
      * @summary Get target status with task_id
      * @request GET:/v2/all-target-status/{task_id}
@@ -19006,7 +19177,7 @@ Continuously monitors the log file and streams new content as it becomes availab
     /**
      * No description
      *
-     * @tags api
+     * @tags Build
      * @name GetBuildEventsByTaskIdV2
      * @request GET:/v2/build-events/{task_id}
      */
@@ -19029,7 +19200,7 @@ Continuously monitors the log file and streams new content as it becomes availab
     /**
      * No description
      *
-     * @tags api
+     * @tags Build
      * @name GetBuildStateByBuildIdV2
      * @summary Get build state by build ID
      * @request GET:/v2/build-state/{build_id}
@@ -19053,7 +19224,7 @@ Continuously monitors the log file and streams new content as it becomes availab
     /**
      * No description
      *
-     * @tags api
+     * @tags Build
      * @name GetBuildsLogsV2
      * @summary Get complete log for a specific build event
      * @request GET:/v2/builds/{build_id}/logs
@@ -19077,7 +19248,7 @@ Continuously monitors the log file and streams new content as it becomes availab
     /**
  * No description
  *
- * @tags api
+ * @tags System
  * @name GetHealthV2
  * @summary Health check endpoint for Orion Server
 Returns simple health status based on database connectivity
@@ -19102,7 +19273,7 @@ Returns simple health status based on database connectivity
     /**
      * No description
      *
-     * @tags api
+     * @tags Build
      * @name GetLatestBuildResultByTaskIdV2
      * @summary Get latest build result by task ID
      * @request GET:/v2/latest_build_result/{task_id}
@@ -19126,7 +19297,7 @@ Returns simple health status based on database connectivity
     /**
      * No description
      *
-     * @tags api
+     * @tags TargetStatus
      * @name GetTargetStatusByTargetIdV2
      * @summary Get target status with target id
      * @request GET:/v2/target-status/{target_id}
@@ -19150,7 +19321,7 @@ Returns simple health status based on database connectivity
     /**
      * No description
      *
-     * @tags api
+     * @tags Build
      * @name GetTargetsByTaskIdV2
      * @request GET:/v2/targets/{task_id}
      */
@@ -19173,7 +19344,7 @@ Returns simple health status based on database connectivity
     /**
      * No description
      *
-     * @tags api
+     * @tags Task
      * @name PostTaskRetryByIdV2
      * @request POST:/v2/task-retry/{id}
      */
@@ -19196,7 +19367,7 @@ Returns simple health status based on database connectivity
     /**
      * No description
      *
-     * @tags api
+     * @tags Task
      * @name GetTaskByClV2
      * @request GET:/v2/task/{cl}
      */

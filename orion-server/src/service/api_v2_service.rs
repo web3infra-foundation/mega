@@ -1,4 +1,4 @@
-use std::{collections::HashMap, convert::Infallible, pin::Pin, sync::Arc, time::Duration};
+use std::{convert::Infallible, pin::Pin, time::Duration};
 
 use api_model::{
     buck2::{
@@ -17,11 +17,9 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response, Sse, sse::Event},
 };
-use dashmap::DashMap;
 use futures::stream::select;
 use futures_util::{Stream, StreamExt};
 use rand::RngExt;
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter as _, QueryOrder, QuerySelect};
 use serde_json::{Value, json};
 use tokio::sync::watch;
 use tokio_stream::wrappers::IntervalStream;
@@ -30,19 +28,17 @@ use uuid::Uuid;
 use crate::{
     app_state::AppState,
     auto_retry::AutoRetryJudger,
-    entity::{builds, targets, targets::TargetState, tasks},
     log::log_service::LogService,
     model::{
         dto::{
-            BuildDTO, BuildEventDTO, BuildEventState, BuildTargetDTO, MessageResponse,
-            OrionClientInfo, OrionClientQuery, OrionClientStatus, OrionTaskDTO, TargetDTO,
-            TargetSummaryDTO, TaskInfoDTO,
+            BuildEventDTO, BuildStatus, BuildTargetDTO, MessageResponse, OrionClientInfo,
+            OrionClientQuery, OrionClientStatus, OrionTaskDTO,
         },
-        task_status::TaskStatusEnum,
+        target_state::TargetState,
     },
     repository::{
-        build_targets::BuildTarget, builds::BuildRepository, orion_tasks::OrionTask,
-        targets::TargetRepository, tasks::TaskRepository,
+        build_events_repo::BuildEventsRepo, build_targets_repo::BuildTargetsRepo,
+        orion_tasks_repo::OrionTasksRepo, target_state_histories_repo::TargetStateHistoriesRepo,
     },
     scheduler::{BuildEventPayload, BuildInfo, TaskQueueStats, WorkerStatus},
 };
@@ -130,10 +126,7 @@ async fn task_exists_by_id(
     conn: &sea_orm::DatabaseConnection,
     task_id: Uuid,
 ) -> Result<bool, sea_orm::DbErr> {
-    callisto::orion_tasks::Entity::find_by_id(task_id)
-        .one(conn)
-        .await
-        .map(|task| task.is_some())
+    OrionTasksRepo::exists_by_id(conn, task_id).await
 }
 
 pub async fn task_retry(
@@ -141,8 +134,7 @@ pub async fn task_retry(
     id: &str,
 ) -> Result<Json<MessageResponse>, MessageErrorResponse> {
     let task_uuid = parse_uuid_or_message_error(id, "Invalid task ID format")?;
-    let task = callisto::orion_tasks::Entity::find_by_id(task_uuid)
-        .one(&state.conn)
+    let task = OrionTasksRepo::find_by_id(&state.conn, task_uuid)
         .await
         .map_err(|e| {
             tracing::error!("Failed to fetch task {}: {}", id, e);
@@ -158,9 +150,7 @@ pub async fn task_get(
     state: &AppState,
     cl: &str,
 ) -> Result<Json<OrionTaskDTO>, JsonValueErrorResponse> {
-    let tasks: Vec<callisto::orion_tasks::Model> = callisto::orion_tasks::Entity::find()
-        .filter(callisto::orion_tasks::Column::Cl.eq(cl))
-        .all(&state.conn)
+    let tasks = OrionTasksRepo::find_by_cl(&state.conn, cl)
         .await
         .map_err(|e| {
             tracing::error!("Failed to fetch tasks by CL {}: {}", cl, e);
@@ -189,9 +179,7 @@ pub async fn build_event_get(
         return Err(value_error(StatusCode::NOT_FOUND, "Task not found"));
     }
 
-    let build_events = callisto::build_events::Entity::find()
-        .filter(callisto::build_events::Column::TaskId.eq(task_uuid))
-        .all(&state.conn)
+    let build_events = BuildEventsRepo::list_by_task_id(&state.conn, task_uuid)
         .await
         .map_err(|e| {
             tracing::error!("Failed to fetch build events for task {}: {}", task_id, e);
@@ -221,9 +209,7 @@ pub async fn targets_get(
         return Err(message_error(StatusCode::NOT_FOUND, "Task not found"));
     }
 
-    let build_targets = callisto::build_targets::Entity::find()
-        .filter(callisto::build_targets::Column::TaskId.eq(task_uuid))
-        .all(&state.conn)
+    let build_targets = BuildTargetsRepo::list_by_task_id(&state.conn, task_uuid)
         .await
         .map_err(|e| {
             tracing::error!("Failed to fetch build targets for task {}: {}", task_id, e);
@@ -256,8 +242,7 @@ pub async fn build_logs(
         )
     })?;
 
-    let build_event = callisto::build_events::Entity::find_by_id(build_uuid)
-        .one(&state.conn)
+    let build_event = BuildEventsRepo::find_by_id(&state.conn, build_uuid)
         .await
         .map_err(|e| {
             tracing::error!("Failed to fetch build event {}: {}", build_id, e);
@@ -277,8 +262,7 @@ pub async fn build_logs(
             )
         })?;
 
-    let orion_task = callisto::orion_tasks::Entity::find_by_id(build_event.task_id)
-        .one(&state.conn)
+    let orion_task = OrionTasksRepo::find_by_id(&state.conn, build_event.task_id)
         .await
         .map_err(|e| {
             tracing::error!("Failed to fetch Orion task {}: {}", build_event.task_id, e);
@@ -324,14 +308,13 @@ pub async fn build_logs(
 pub async fn build_state(
     state: &AppState,
     build_id: &str,
-) -> Result<Json<BuildEventState>, MessageErrorResponse> {
+) -> Result<Json<BuildStatus>, MessageErrorResponse> {
     let build_uuid = parse_uuid_or_message_error(build_id, "Invalid build ID")?;
     if state.scheduler.active_builds.contains_key(build_id) {
-        return Ok(Json(BuildEventState::Running));
+        return Ok(Json(BuildStatus::Running));
     }
 
-    let build_event = callisto::build_events::Entity::find_by_id(build_uuid)
-        .one(&state.conn)
+    let build_event = BuildEventsRepo::find_by_id(&state.conn, build_uuid)
         .await
         .map_err(|e| {
             tracing::error!("Failed to fetch build event {}: {}", build_id, e);
@@ -340,10 +323,10 @@ pub async fn build_state(
         .ok_or_else(|| message_error(StatusCode::NOT_FOUND, "Build not found"))?;
 
     let state_enum = match (build_event.end_at, build_event.exit_code) {
-        (None, _) => BuildEventState::Running,
-        (Some(_), Some(0)) => BuildEventState::Success,
-        (Some(_), Some(_)) => BuildEventState::Failure,
-        (Some(_), None) => BuildEventState::Failure,
+        (None, _) => BuildStatus::Running,
+        (Some(_), Some(0)) => BuildStatus::Completed,
+        (Some(_), Some(_)) => BuildStatus::Failed,
+        (Some(_), None) => BuildStatus::Failed,
     };
     Ok(Json(state_enum))
 }
@@ -351,7 +334,7 @@ pub async fn build_state(
 pub async fn latest_build_result(
     state: &AppState,
     task_id: &str,
-) -> Result<Json<BuildEventState>, MessageErrorResponse> {
+) -> Result<Json<BuildStatus>, MessageErrorResponse> {
     let task_uuid = parse_uuid_or_message_error(task_id, "Invalid task ID")?;
     let task_exists = task_exists_by_id(&state.conn, task_uuid)
         .await
@@ -363,10 +346,7 @@ pub async fn latest_build_result(
         return Err(message_error(StatusCode::NOT_FOUND, "Task not found"));
     }
 
-    let latest_build_event = callisto::build_events::Entity::find()
-        .filter(callisto::build_events::Column::TaskId.eq(task_uuid))
-        .order_by_desc(callisto::build_events::Column::StartAt)
-        .one(&state.conn)
+    let latest_build_event = BuildEventsRepo::latest_by_task_id(&state.conn, task_uuid)
         .await
         .map_err(|e| {
             tracing::error!(
@@ -382,10 +362,10 @@ pub async fn latest_build_result(
     })?;
 
     let state_enum = match (build_event.end_at, build_event.exit_code) {
-        (None, _) => BuildEventState::Running,
-        (Some(_), Some(0)) => BuildEventState::Success,
-        (Some(_), Some(_)) => BuildEventState::Failure,
-        (Some(_), None) => BuildEventState::Failure,
+        (None, _) => BuildStatus::Running,
+        (Some(_), Some(0)) => BuildStatus::Completed,
+        (Some(_), Some(_)) => BuildStatus::Failed,
+        (Some(_), None) => BuildStatus::Failed,
     };
     Ok(Json(state_enum))
 }
@@ -396,8 +376,8 @@ pub async fn queue_stats(state: &AppState) -> (StatusCode, Json<TaskQueueStats>)
 }
 
 pub async fn health_check(state: &AppState) -> (StatusCode, Json<Value>) {
-    match tasks::Entity::find().limit(1).all(&state.conn).await {
-        Ok(_) => (StatusCode::OK, Json(json!({"status": "healthy"}))),
+    match OrionTasksRepo::ping(&state.conn).await {
+        Ok(()) => (StatusCode::OK, Json(json!({"status": "healthy"}))),
         Err(e) => {
             tracing::error!("Health check failed: {}", e);
             (
@@ -460,10 +440,7 @@ pub async fn target_logs(
         )
     })?;
 
-    let target_model = match targets::Entity::find_by_id(target_uuid)
-        .one(&state.conn)
-        .await
-    {
+    let build_target = match BuildTargetsRepo::find_by_id(&state.conn, target_uuid).await {
         Ok(Some(target)) => target,
         Ok(None) => {
             return Err((
@@ -484,7 +461,7 @@ pub async fn target_logs(
         }
     };
 
-    let build_model = if let Some(build_id) = params.build_id.as_ref() {
+    let build_event = if let Some(build_id) = params.build_id.as_ref() {
         let build_uuid = build_id.parse::<Uuid>().map_err(|_| {
             (
                 StatusCode::BAD_REQUEST,
@@ -494,17 +471,21 @@ pub async fn target_logs(
             )
         })?;
 
-        match builds::Entity::find_by_id(build_uuid)
-            .filter(builds::Column::TargetId.eq(target_uuid))
-            .one(&state.conn)
-            .await
-        {
-            Ok(Some(build)) => build,
+        match BuildEventsRepo::find_by_id(&state.conn, build_uuid).await {
+            Ok(Some(build)) if build.task_id == build_target.task_id => build,
+            Ok(Some(_)) => {
+                return Err((
+                    StatusCode::BAD_REQUEST,
+                    Json(LogErrorResponse {
+                        message: "Build does not belong to this target".to_string(),
+                    }),
+                ));
+            }
             Ok(None) => {
                 return Err((
                     StatusCode::NOT_FOUND,
                     Json(LogErrorResponse {
-                        message: "Build not found for target".to_string(),
+                        message: "Build not found".to_string(),
                     }),
                 ));
             }
@@ -519,13 +500,7 @@ pub async fn target_logs(
             }
         }
     } else {
-        match builds::Entity::find()
-            .filter(builds::Column::TargetId.eq(target_uuid))
-            .order_by_desc(builds::Column::EndAt)
-            .order_by_desc(builds::Column::CreatedAt)
-            .one(&state.conn)
-            .await
-        {
+        match BuildEventsRepo::latest_by_task_id(&state.conn, build_target.task_id).await {
             Ok(Some(build)) => build,
             Ok(None) => {
                 return Err((
@@ -547,16 +522,23 @@ pub async fn target_logs(
         }
     };
 
-    let repo_segment = LogService::last_segment(&build_model.repo);
+    let orion_task = OrionTasksRepo::find_by_id(&state.conn, build_target.task_id)
+        .await
+        .ok()
+        .flatten();
+    let repo_segment = orion_task
+        .as_ref()
+        .map(|t| LogService::last_segment(&t.repo_name))
+        .unwrap_or_else(|| "".to_string());
     let log_result = if matches!(params.r#type, LogReadMode::Segment) {
         let offset = params.offset.unwrap_or(0);
         let limit = params.limit.unwrap_or(200);
         state
             .log_service
             .read_log_range(
-                &target_model.task_id.to_string(),
+                &build_target.task_id.to_string(),
                 &repo_segment,
-                &build_model.id.to_string(),
+                &build_event.id.to_string(),
                 offset,
                 offset + limit,
             )
@@ -565,9 +547,9 @@ pub async fn target_logs(
         state
             .log_service
             .read_full_log(
-                &target_model.task_id.to_string(),
+                &build_target.task_id.to_string(),
                 &repo_segment,
-                &build_model.id.to_string(),
+                &build_event.id.to_string(),
             )
             .await
     };
@@ -578,14 +560,14 @@ pub async fn target_logs(
             Ok(Json(TargetLogLinesResponse {
                 len: lines.len(),
                 data: lines,
-                build_id: build_model.id.to_string(),
+                build_id: build_event.id.to_string(),
             }))
         }
         Err(e) => {
             tracing::error!(
                 "Failed to read logs for target {} build {}: {}",
                 target_uuid,
-                build_model.id,
+                build_event.id,
                 e
             );
             Err((
@@ -598,238 +580,11 @@ pub async fn target_logs(
     }
 }
 
-async fn assemble_task_info(
-    task: tasks::Model,
-    state: &AppState,
-    active_builds: &Arc<DashMap<String, BuildInfo>>,
-) -> TaskInfoDTO {
-    let target_models = targets::Entity::find()
-        .filter(targets::Column::TaskId.eq(task.id))
-        .all(&state.conn)
-        .await
-        .unwrap_or_else(|_| vec![]);
-    let build_models = builds::Entity::find()
-        .filter(builds::Column::TaskId.eq(task.id))
-        .all(&state.conn)
-        .await
-        .unwrap_or_else(|_| vec![]);
-
-    let target_map: HashMap<Uuid, targets::Model> =
-        target_models.iter().cloned().map(|t| (t.id, t)).collect();
-    let mut build_list: Vec<BuildDTO> = Vec::new();
-    let mut target_build_map: HashMap<Uuid, Vec<BuildDTO>> = HashMap::new();
-
-    for build_model in build_models {
-        let build_id_str = build_model.id.to_string();
-        let is_active = active_builds.contains_key(&build_id_str);
-        let status = BuildDTO::determine_status(&build_model, is_active);
-        let mut dto = BuildDTO::from_model(
-            build_model.clone(),
-            target_map.get(&build_model.target_id),
-            status.clone(),
-        );
-        if matches!(status, TaskStatusEnum::Failed)
-            && let Some(t) = target_map.get(&build_model.target_id)
-            && let Some(summary) = &t.error_summary
-        {
-            dto.cause_by = Some(summary.clone());
-        }
-        target_build_map
-            .entry(build_model.target_id)
-            .or_default()
-            .push(dto.clone());
-        build_list.push(dto);
-    }
-
-    let mut target_list: Vec<TargetDTO> = Vec::new();
-    for target in target_models {
-        let target_builds = target_build_map.remove(&target.id).unwrap_or_default();
-        target_list.push(crate::entity::targets::TargetWithBuilds::from_model(
-            target,
-            target_builds,
-        ));
-    }
-
-    TaskInfoDTO {
-        task_id: task.id.to_string(),
-        cl_id: task.cl_id,
-        task_name: task.task_name,
-        template: task.template,
-        created_at: task.created_at.with_timezone(&chrono::Utc).to_rfc3339(),
-        build_list,
-        targets: target_list,
-    }
-}
-
-pub async fn tasks_by_cl(
-    state: &AppState,
-    cl: i64,
-) -> Result<Json<Vec<TaskInfoDTO>>, (StatusCode, Json<Value>)> {
-    let active_builds = state.scheduler.active_builds.clone();
-    let task_models = tasks::Entity::find()
-        .filter(tasks::Column::ClId.eq(cl))
-        .all(&state.conn)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to fetch tasks: {e}");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({"message": "Failed to fetch tasks"})),
-            )
-        })?;
-    let mut result = Vec::with_capacity(task_models.len());
-    for model in task_models {
-        result.push(assemble_task_info(model, state, &active_builds).await);
-    }
-    Ok(Json(result))
-}
-
-pub async fn task_targets(
-    state: &AppState,
-    task_id: &str,
-) -> Result<Json<TaskInfoDTO>, (StatusCode, Json<Value>)> {
-    let task_uuid = task_id.parse::<Uuid>().map_err(|_| {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(json!({"message": "Invalid task ID"})),
-        )
-    })?;
-    let task_model = tasks::Entity::find_by_id(task_uuid)
-        .one(&state.conn)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to fetch task {}: {}", task_id, e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({"message": "Failed to fetch task"})),
-            )
-        })?
-        .ok_or_else(|| {
-            (
-                StatusCode::NOT_FOUND,
-                Json(json!({"message": "Task not found"})),
-            )
-        })?;
-    let info = assemble_task_info(task_model, state, &state.scheduler.active_builds).await;
-    Ok(Json(info))
-}
-
-pub async fn task_targets_summary(
-    state: &AppState,
-    task_id: &str,
-) -> Result<Json<TargetSummaryDTO>, (StatusCode, Json<Value>)> {
-    let task_uuid = task_id.parse::<Uuid>().map_err(|_| {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "message": "Invalid task ID" })),
-        )
-    })?;
-    let target_models = targets::Entity::find()
-        .filter(targets::Column::TaskId.eq(task_uuid))
-        .all(&state.conn)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to fetch target summary: {e}");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "message": "Failed to fetch target summary" })),
-            )
-        })?;
-    let mut summary = TargetSummaryDTO {
-        task_id: task_id.to_string(),
-        pending: 0,
-        building: 0,
-        completed: 0,
-        failed: 0,
-        interrupted: 0,
-        uninitialized: 0,
-    };
-    for target in target_models {
-        match target.state {
-            TargetState::Pending => summary.pending += 1,
-            TargetState::Building => summary.building += 1,
-            TargetState::Completed => summary.completed += 1,
-            TargetState::Failed => summary.failed += 1,
-            TargetState::Interrupted => summary.interrupted += 1,
-            TargetState::Uninitialized => summary.uninitialized += 1,
-        }
-    }
-    Ok(Json(summary))
-}
-
-async fn immediate_retry_work(
-    state: &AppState,
-    build_id: Uuid,
-    idle_workers: &[String],
-    build: &builds::Model,
-    target: &targets::Model,
-    req: &api_model::buck2::api::RetryBuildRequest,
-    retry_count: i32,
-) -> bool {
-    let chosen_index = {
-        let mut rng = rand::rng();
-        rng.random_range(0..idle_workers.len())
-    };
-    let chosen_id = idle_workers[chosen_index].clone();
-    let start_at = chrono::Utc::now();
-    let event = BuildEventPayload::new(
-        build.id,
-        build.task_id,
-        req.cl_link.clone(),
-        build.repo.clone(),
-        retry_count,
-    );
-    let build_info = BuildInfo {
-        event_payload: event,
-        target_id: target.id,
-        target_path: target.target_path.clone(),
-        changes: req.changes.clone(),
-        worker_id: chosen_id.clone(),
-        auto_retry_judger: AutoRetryJudger::new(),
-        started_at: start_at,
-    };
-    let msg = api_model::buck2::ws::WSMessage::TaskBuild {
-        build_id: build.id.to_string(),
-        repo: build.repo.to_string(),
-        changes: req.changes.clone(),
-        cl_link: req.cl_link.to_string(),
-    };
-    if let Some(mut worker) = state.scheduler.workers.get_mut(&chosen_id)
-        && worker.sender.send(msg).is_ok()
-    {
-        worker.status = WorkerStatus::Busy {
-            build_id: build_id.to_string(),
-            phase: None,
-        };
-        if let Err(e) = TargetRepository::update_state(
-            &state.conn,
-            target.id,
-            TargetState::Building,
-            Some(start_at.with_timezone(
-                &chrono::FixedOffset::east_opt(0).unwrap_or_else(|| unreachable!()),
-            )),
-            None,
-            None,
-        )
-        .await
-        {
-            tracing::error!("Failed to update target state to Building: {}", e);
-        }
-        state
-            .scheduler
-            .active_builds
-            .insert(build.id.to_string(), build_info);
-        true
-    } else {
-        false
-    }
-}
-
 pub async fn build_retry(
     state: &AppState,
     req: api_model::buck2::api::RetryBuildRequest,
 ) -> Response {
-    let build_id = match req.build_id.parse::<uuid::Uuid>() {
+    let old_build_id = match req.build_id.parse::<uuid::Uuid>() {
         Ok(uuid) => uuid,
         Err(_) => {
             return (
@@ -839,6 +594,7 @@ pub async fn build_retry(
                 .into_response();
         }
     };
+
     if state.scheduler.active_builds.contains_key(&req.build_id) {
         return (
             StatusCode::BAD_REQUEST,
@@ -846,33 +602,13 @@ pub async fn build_retry(
         )
             .into_response();
     }
-    let build = match builds::Entity::find_by_id(build_id).one(&state.conn).await {
-        Ok(Some(build)) => build,
+
+    let old_event = match BuildEventsRepo::find_by_id(&state.conn, old_build_id).await {
+        Ok(Some(e)) => e,
         Ok(None) => {
             return (
                 StatusCode::NOT_FOUND,
-                Json(json!({"message": "Build not found"})),
-            )
-                .into_response();
-        }
-        Err(_) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({"message": "Database find failed"})),
-            )
-                .into_response();
-        }
-    };
-    let retry_count = build.retry_count + 1;
-    let target_model = match targets::Entity::find_by_id(build.target_id)
-        .one(&state.conn)
-        .await
-    {
-        Ok(Some(target)) => target,
-        Ok(None) => {
-            return (
-                StatusCode::NOT_FOUND,
-                Json(json!({"message": "Target not found for build"})),
+                Json(json!({"message": "Build event not found"})),
             )
                 .into_response();
         }
@@ -885,18 +621,52 @@ pub async fn build_retry(
         }
     };
 
-    let idle_workers = state.scheduler.get_idle_workers();
-    if idle_workers.is_empty() {
-        let new_build_id = Uuid::now_v7();
+    let task = match OrionTasksRepo::find_by_id(&state.conn, old_event.task_id).await {
+        Ok(Some(t)) => t,
+        Ok(None) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({"message": "Task not found"})),
+            )
+                .into_response();
+        }
+        Err(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"message": "Database find failed"})),
+            )
+                .into_response();
+        }
+    };
+
+    let retry_count = old_event.retry_count + 1;
+    let repo = task.repo_name.clone();
+    let cl_link = task.cl.clone();
+
+    let build_target =
+        match BuildTargetsRepo::ensure_any_target_for_task(&state.conn, task.id).await {
+            Ok(t) => t,
+            Err(_) => {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({"message": "Database find failed"})),
+                )
+                    .into_response();
+            }
+        };
+
+    let new_build_id = Uuid::now_v7();
+
+    // If no idle workers, enqueue the retry build.
+    if !state.scheduler.has_idle_workers() {
         match state
             .scheduler
-            .enqueue_task_with_build_id(
+            .enqueue_task_with_build_id_v2(
                 new_build_id,
-                build.task_id,
-                &req.cl_link,
-                build.repo.clone(),
-                req.changes.clone(),
-                target_model.target_path.clone(),
+                task.id,
+                &cl_link,
+                repo,
+                req.changes,
                 retry_count,
             )
             .await
@@ -906,32 +676,101 @@ pub async fn build_retry(
                 Json(json!({"message": "Build queued for later processing"})),
             )
                 .into_response(),
-            Err(_) => (
+            Err(e) => (
                 StatusCode::SERVICE_UNAVAILABLE,
-                Json(json!({"message": "No available workers at the moment"})),
+                Json(json!({"message": format!("Unable to queue build: {e}")})),
             )
                 .into_response(),
         }
-    } else if immediate_retry_work(
-        state,
-        build_id,
-        &idle_workers,
-        &build,
-        &target_model,
-        &req,
-        retry_count,
-    )
-    .await
-    {
+    } else {
+        if let Err(e) =
+            BuildEventsRepo::insert_build(&state.conn, new_build_id, task.id, repo.clone()).await
+        {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"message": format!("Failed to create build event: {e}")})),
+            )
+                .into_response();
+        }
+
+        // Dispatch immediately to a chosen worker.
+        let idle_workers = state.scheduler.get_idle_workers();
+        let chosen_index = {
+            let mut rng = rand::rng();
+            rng.random_range(0..idle_workers.len())
+        };
+        let chosen_id = idle_workers[chosen_index].clone();
+
+        let started_at = chrono::Utc::now();
+        let event_payload = BuildEventPayload::new(
+            new_build_id,
+            task.id,
+            cl_link.clone(),
+            repo.clone(),
+            retry_count,
+        );
+        let build_info = BuildInfo {
+            event_payload: event_payload.clone(),
+            target_id: build_target.id,
+            target_path: build_target.path.clone(),
+            changes: req.changes.clone(),
+            worker_id: chosen_id.clone(),
+            auto_retry_judger: AutoRetryJudger::new(),
+            started_at,
+        };
+
+        let msg = api_model::buck2::ws::WSMessage::TaskBuild {
+            build_id: new_build_id.to_string(),
+            repo: repo.clone(),
+            changes: req.changes,
+            cl_link,
+        };
+
+        let Some(mut worker) = state.scheduler.workers.get_mut(&chosen_id) else {
+            return (
+                StatusCode::BAD_GATEWAY,
+                Json(json!({"message": "Worker not found"})),
+            )
+                .into_response();
+        };
+        let key = new_build_id.to_string();
+        state
+            .scheduler
+            .active_builds
+            .insert(key.clone(), build_info);
+        worker.status = WorkerStatus::Busy {
+            build_id: key.clone(),
+            phase: None,
+        };
+        if worker.sender.send(msg).is_err() {
+            state.scheduler.active_builds.remove(&key);
+            worker.status = WorkerStatus::Idle;
+            return (
+                StatusCode::BAD_GATEWAY,
+                Json(json!({"message": "Failed to dispatch build retry to worker"})),
+            )
+                .into_response();
+        }
+
+        let now_tz = started_at.with_timezone(&chrono::FixedOffset::east_opt(0).unwrap());
+        let _ = BuildTargetsRepo::update_latest_state(
+            &state.conn,
+            build_target.id,
+            TargetState::Building,
+        )
+        .await;
+        let _ = TargetStateHistoriesRepo::upsert_state(
+            &state.conn,
+            build_target.id,
+            new_build_id,
+            TargetState::Building.to_string(),
+            now_tz,
+        )
+        .await;
+
         (
             StatusCode::OK,
             Json(json!({"message": "Build retry dispatched immediately to worker"})),
-        )
-            .into_response()
-    } else {
-        (
-            StatusCode::BAD_GATEWAY,
-            Json(json!({"message": "Failed to dispatch build retry to worker"})),
         )
             .into_response()
     }
@@ -947,18 +786,25 @@ async fn activate_worker(
         changes: build_info.changes.clone(),
         cl_link: build_info.event_payload.cl_link.clone(),
     };
-    if let Some(worker) = scheduler.workers.get_mut(&build_info.worker_id)
-        && worker.sender.send(msg).is_ok()
-    {
-        scheduler.active_builds.insert(
-            build_info.event_payload.build_event_id.to_string(),
-            build_info.clone(),
-        );
-        return OrionBuildResult {
-            build_id: build_info.event_payload.build_event_id.to_string(),
-            status: "dispatched".to_string(),
-            message: format!("Build dispatched to worker {}", build_info.worker_id),
+    let key = build_info.event_payload.build_event_id.to_string();
+    if let Some(mut worker) = scheduler.workers.get_mut(&build_info.worker_id) {
+        scheduler
+            .active_builds
+            .insert(key.clone(), build_info.clone());
+        worker.status = WorkerStatus::Busy {
+            build_id: key.clone(),
+            phase: None,
         };
+        if worker.sender.send(msg).is_err() {
+            scheduler.active_builds.remove(&key);
+            worker.status = WorkerStatus::Idle;
+        } else {
+            return OrionBuildResult {
+                build_id: key,
+                status: "dispatched".to_string(),
+                message: format!("Build dispatched to worker {}", build_info.worker_id),
+            };
+        }
     }
     scheduler.release_worker(&build_info.worker_id).await;
     OrionBuildResult {
@@ -989,7 +835,7 @@ async fn handle_immediate_task_dispatch_v2(
 
     let target_id = Uuid::now_v7();
     let target_path =
-        match BuildTarget::insert_default_target(target_id, task_id, &state.conn).await {
+        match BuildTargetsRepo::insert_default_target(target_id, task_id, &state.conn).await {
             Ok(default_path) => default_path,
             Err(_) => {
                 state.scheduler.release_worker(&chosen_id).await;
@@ -1018,13 +864,8 @@ async fn handle_immediate_task_dispatch_v2(
         started_at: chrono::Utc::now(),
     };
 
-    if let Err(e) = callisto::build_events::Model::insert_build(
-        build_event_id,
-        task_id,
-        repo.to_string(),
-        &state.conn,
-    )
-    .await
+    if let Err(e) =
+        BuildEventsRepo::insert_build(&state.conn, build_event_id, task_id, repo.to_string()).await
     {
         state.scheduler.release_worker(&build_info.worker_id).await;
         return OrionBuildResult {
@@ -1039,116 +880,11 @@ async fn handle_immediate_task_dispatch_v2(
     activate_worker(&build_info, &state.scheduler).await
 }
 
-async fn handle_immediate_task_dispatch(
-    state: &AppState,
-    task_id: Uuid,
-    repo: &str,
-    cl_link: &str,
-    changes: Vec<Status<ProjectRelativePath>>,
-) -> OrionBuildResult {
-    let idle_workers = state.scheduler.get_idle_workers();
-    if idle_workers.is_empty() {
-        return OrionBuildResult {
-            build_id: "".to_string(),
-            status: "error".to_string(),
-            message: "No available workers at the moment".to_string(),
-        };
-    }
-    let chosen_id = {
-        let mut rng = rand::rng();
-        idle_workers[rng.random_range(0..idle_workers.len())].clone()
-    };
-    let build_id = Uuid::now_v7();
-    let target_model = match state.scheduler.ensure_target(task_id, "").await {
-        Ok(target) => target,
-        Err(_) => {
-            return OrionBuildResult {
-                build_id: "".to_string(),
-                status: "error".to_string(),
-                message: "Failed to prepare target ".to_string(),
-            };
-        }
-    };
-    let start_at = chrono::Utc::now();
-    let _ = TargetRepository::update_state(
-        &state.conn,
-        target_model.id,
-        TargetState::Building,
-        Some(
-            start_at
-                .with_timezone(&chrono::FixedOffset::east_opt(0).unwrap_or_else(|| unreachable!())),
-        ),
-        None,
-        None,
-    )
-    .await;
-
-    let build_info = BuildInfo {
-        event_payload: BuildEventPayload::new(
-            build_id,
-            task_id,
-            cl_link.to_string(),
-            repo.to_string(),
-            0,
-        ),
-        changes: changes.clone(),
-        target_id: target_model.id,
-        target_path: target_model.target_path.clone(),
-        worker_id: chosen_id.clone(),
-        auto_retry_judger: AutoRetryJudger::new(),
-        started_at: start_at,
-    };
-    if BuildRepository::insert_build(
-        build_id,
-        task_id,
-        target_model.id,
-        repo.to_string(),
-        &state.conn,
-    )
-    .await
-    .is_err()
-    {
-        return OrionBuildResult {
-            build_id: "".to_string(),
-            status: "error".to_string(),
-            message: "Failed to insert builds into database".to_string(),
-        };
-    }
-    let msg = WSMessage::TaskBuild {
-        build_id: build_id.to_string(),
-        repo: repo.to_string(),
-        changes,
-        cl_link: cl_link.to_string(),
-    };
-    if let Some(mut worker) = state.scheduler.workers.get_mut(&chosen_id)
-        && worker.sender.send(msg).is_ok()
-    {
-        worker.status = WorkerStatus::Busy {
-            build_id: build_id.to_string(),
-            phase: None,
-        };
-        state
-            .scheduler
-            .active_builds
-            .insert(build_id.to_string(), build_info);
-        OrionBuildResult {
-            build_id: build_id.to_string(),
-            status: "dispatched".to_string(),
-            message: format!("Build dispatched to worker {}", chosen_id),
-        }
-    } else {
-        OrionBuildResult {
-            build_id: "".to_string(),
-            status: "error".to_string(),
-            message: "Failed to dispatch task to worker".to_string(),
-        }
-    }
-}
-
 pub async fn task_handler_v2(state: &AppState, req: TaskBuildRequest) -> Response {
     let task_id = Uuid::now_v7();
     if let Err(err) =
-        OrionTask::insert_task(task_id, &req.cl_link, &req.repo, &req.changes, &state.conn).await
+        OrionTasksRepo::insert_task(task_id, &req.cl_link, &req.repo, &req.changes, &state.conn)
+            .await
     {
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -1190,69 +926,8 @@ pub async fn task_handler_v2(state: &AppState, req: TaskBuildRequest) -> Respons
 }
 
 pub async fn task_handler_v1(state: &AppState, req: TaskBuildRequest) -> Response {
-    let task_id = Uuid::now_v7();
-    let task_name = format!("CL-{}-{}", req.cl_link, task_id);
-    if let Err(err) = TaskRepository::insert_task(
-        task_id,
-        req.cl_id,
-        Some(task_name),
-        None,
-        chrono::Utc::now().into(),
-        &state.conn,
-    )
-    .await
-    {
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"message": format!("Failed to insert task into database: {}", err)})),
-        )
-            .into_response();
-    }
-    let mut results = Vec::new();
-    if state.scheduler.has_idle_workers() {
-        results.push(
-            handle_immediate_task_dispatch(
-                state,
-                task_id,
-                &req.repo,
-                &req.cl_link,
-                req.changes.clone(),
-            )
-            .await,
-        );
-    } else {
-        match state
-            .scheduler
-            .enqueue_task(
-                task_id,
-                &req.cl_link,
-                req.repo.clone(),
-                req.changes.clone(),
-                None,
-                0,
-            )
-            .await
-        {
-            Ok(build_id) => results.push(OrionBuildResult {
-                build_id: build_id.to_string(),
-                status: "queued".to_string(),
-                message: "Task queued for processing when workers become available".to_string(),
-            }),
-            Err(e) => results.push(OrionBuildResult {
-                build_id: "".to_string(),
-                status: "error".to_string(),
-                message: format!("Unable to queue task: {}", e),
-            }),
-        }
-    }
-    (
-        StatusCode::OK,
-        Json(OrionServerResponse {
-            task_id: task_id.to_string(),
-            results,
-        }),
-    )
-        .into_response()
+    // Backward compatible entry point: delegate to v2 (new schema).
+    task_handler_v2(state, req).await
 }
 
 pub async fn task_build_list(state: &AppState, id: &str) -> Response {
@@ -1266,17 +941,27 @@ pub async fn task_build_list(state: &AppState, id: &str) -> Response {
                 .into_response();
         }
     };
-    match TaskRepository::get_builds_by_task_id(task_id, &state.conn).await {
-        Some(build_ids) => {
-            let build_ids_str: Vec<String> =
-                build_ids.into_iter().map(|uuid| uuid.to_string()).collect();
+
+    match BuildEventsRepo::list_by_task_id(&state.conn, task_id).await {
+        Ok(events) if !events.is_empty() => {
+            let mut events = events;
+            events.sort_by(|a, b| b.start_at.cmp(&a.start_at));
+            let build_ids_str: Vec<String> = events.into_iter().map(|e| e.id.to_string()).collect();
             (StatusCode::OK, Json(build_ids_str)).into_response()
         }
-        None => (
+        Ok(_) => (
             StatusCode::NOT_FOUND,
             Json(json!({"message": "Task not found"})),
         )
             .into_response(),
+        Err(e) => {
+            tracing::error!("Failed to fetch build events for task {}: {}", task_id, e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"message": "Database error"})),
+            )
+                .into_response()
+        }
     }
 }
 

@@ -1,27 +1,19 @@
-use callisto::{sea_orm_active_enums::OrionTargetStatusEnum, target_build_status};
+use callisto::target_build_status;
 use chrono::Utc;
 use sea_orm::{
-    ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
-    sea_query::OnConflict,
+    ActiveValue::Set, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter as _,
+    QuerySelect as _, sea_query::OnConflict,
 };
 use uuid::Uuid;
 
-pub struct NewTargetStatusInput {
-    pub id: Uuid,
-    pub task_id: Uuid,
-    pub target_package: String,
-    pub target_name: String,
-    pub target_configuration: String,
-    pub category: String,
-    pub identifier: String,
-    pub action: String,
-    pub status: OrionTargetStatusEnum,
-}
+use crate::model::internal::target_build_status::NewTargetStatusInput;
 
-pub struct TargetBuildStatusService;
+pub struct TargetBuildStatusRepo;
 
-impl TargetBuildStatusService {
-    pub fn new_active_model(input: NewTargetStatusInput) -> target_build_status::ActiveModel {
+impl TargetBuildStatusRepo {
+    pub(crate) fn new_active_model(
+        input: NewTargetStatusInput,
+    ) -> target_build_status::ActiveModel {
         let now = Utc::now().into();
         target_build_status::ActiveModel {
             id: Set(input.id),
@@ -39,9 +31,9 @@ impl TargetBuildStatusService {
     }
 
     pub async fn upsert_batch(
-        conn: &DatabaseConnection,
+        conn: &impl ConnectionTrait,
         models: Vec<target_build_status::ActiveModel>,
-    ) -> Result<(), sea_orm::DbErr> {
+    ) -> Result<(), DbErr> {
         if models.is_empty() {
             return Ok(());
         }
@@ -70,9 +62,9 @@ impl TargetBuildStatusService {
     }
 
     pub async fn fetch_by_task_id(
-        conn: &DatabaseConnection,
+        conn: &impl ConnectionTrait,
         task_id: Uuid,
-    ) -> Result<Vec<target_build_status::Model>, sea_orm::DbErr> {
+    ) -> Result<Vec<target_build_status::Model>, DbErr> {
         target_build_status::Entity::find()
             .filter(target_build_status::Column::TaskId.eq(task_id))
             .all(conn)
@@ -80,12 +72,17 @@ impl TargetBuildStatusService {
     }
 
     pub async fn find_by_id(
-        conn: &DatabaseConnection,
+        conn: &impl ConnectionTrait,
         id: Uuid,
-    ) -> Result<Option<target_build_status::Model>, sea_orm::DbErr> {
-        target_build_status::Entity::find()
-            .filter(target_build_status::Column::Id.eq(id))
-            .one(conn)
-            .await
+    ) -> Result<Option<target_build_status::Model>, DbErr> {
+        target_build_status::Entity::find_by_id(id).one(conn).await
+    }
+
+    pub async fn ping(conn: &impl ConnectionTrait) -> Result<(), DbErr> {
+        let _ = target_build_status::Entity::find()
+            .limit(1)
+            .all(conn)
+            .await?;
+        Ok(())
     }
 }

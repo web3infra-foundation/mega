@@ -5,9 +5,38 @@ use sea_orm::DatabaseConnection;
 use tokio::sync::watch;
 
 use crate::{
-    log::log_service::LogService, scheduler::TaskScheduler,
-    service::target_status_cache_service::TargetStatusCache,
+    log::log_service::LogService, repository::target_build_status_repo::TargetBuildStatusRepo,
+    scheduler::TaskScheduler, service::target_status_cache_service::TargetStatusCache,
 };
+
+async fn target_status_cache_flush_loop(
+    cache: TargetStatusCache,
+    conn: DatabaseConnection,
+    mut shutdown: watch::Receiver<bool>,
+) {
+    let mut ticker = tokio::time::interval(std::time::Duration::from_millis(500));
+    loop {
+        tokio::select! {
+            _ = ticker.tick() => {
+                let models = cache.flush_all().await;
+                if models.is_empty() {
+                    continue;
+                }
+                if let Err(e) = TargetBuildStatusRepo::upsert_batch(&conn, models).await {
+                    tracing::error!("Auto flush failed: {:?}", e);
+                }
+            }
+            _ = shutdown.changed() => {
+                tracing::info!("TargetStatusCache auto flush shutting down");
+                let models = cache.flush_all().await;
+                if !models.is_empty() {
+                    let _ = TargetBuildStatusRepo::upsert_batch(&conn, models).await;
+                }
+                break;
+            }
+        }
+    }
+}
 
 /// Shared application state containing worker connections, database, and active builds.
 #[derive(Clone)]
@@ -45,7 +74,7 @@ impl AppState {
         let cache = self.target_status_cache.clone();
         let shutdown_rx = self.shutdown_tx.subscribe();
         tokio::spawn(async move {
-            cache.auto_flush_loop(conn, shutdown_rx).await;
+            target_status_cache_flush_loop(cache, conn, shutdown_rx).await;
         });
     }
 

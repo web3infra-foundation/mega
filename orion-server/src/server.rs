@@ -11,7 +11,7 @@ use common::{
 };
 use http::{HeaderValue, Method};
 use io_orbit::factory::ObjectStorageFactory;
-use sea_orm::{ActiveValue::Set, ColumnTrait, Database, EntityTrait, QueryFilter};
+use sea_orm::Database;
 use tower::ServiceBuilder;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use utoipa::OpenApi;
@@ -22,12 +22,15 @@ use crate::{
     api_doc::ApiDoc,
     app_state::AppState,
     buck2::set_mono_base_url,
-    entity::builds,
     log::{
         log_service::LogService,
         store::{LogStore, io_orbit_store::IoOrbitLogStore, local_log_store, noop_log_store},
     },
-    repository::targets::TargetRepository,
+    model::target_state::TargetState,
+    repository::{
+        build_events_repo::BuildEventsRepo, build_targets_repo::BuildTargetsRepo,
+        target_state_histories_repo::TargetStateHistoriesRepo,
+    },
 };
 
 pub async fn init_log_service(config: Config) -> Result<LogService, MegaError> {
@@ -283,41 +286,82 @@ async fn start_health_check_task(state: AppState) {
                         }
                     };
 
-                    if let Ok(Some(build_model)) = builds::Entity::find_by_id(build_uuid)
-                        .one(&state.conn)
-                        .await
+                    let end_at = Utc::now().with_timezone(&utc_offset);
+                    if let Err(e) =
+                        BuildEventsRepo::mark_interrupted(build_uuid, end_at, &state.conn).await
                     {
-                        let update_res = builds::Entity::update_many()
-                            .set(builds::ActiveModel {
-                                end_at: Set(Some(Utc::now().with_timezone(&utc_offset))),
-                                exit_code: Set(None),
-                                ..Default::default()
-                            })
-                            .filter(builds::Column::Id.eq(build_uuid))
-                            .exec(&state.conn)
-                            .await;
+                        tracing::error!(
+                            "Failed to mark build event {} interrupted: {}",
+                            build_id,
+                            e
+                        );
+                    }
 
-                        if let Err(e) = update_res {
+                    // Keep target-level state consistent with interrupted build state.
+                    let task_id = match BuildEventsRepo::find_by_id(&state.conn, build_uuid).await {
+                        Ok(Some(build_event)) => build_event.task_id,
+                        Ok(None) => {
+                            tracing::warn!(
+                                "Build event {} not found when syncing interrupted target state",
+                                build_id
+                            );
+                            continue;
+                        }
+                        Err(e) => {
                             tracing::error!(
-                                "Failed to update orphaned task {} in DB: {}",
+                                "Failed to fetch build event {} when syncing target state: {}",
                                 build_id,
                                 e
                             );
+                            continue;
                         }
+                    };
 
-                        if let Err(e) = TargetRepository::update_state(
+                    let targets = match BuildTargetsRepo::list_by_task_id(&state.conn, task_id)
+                        .await
+                    {
+                        Ok(targets) => targets,
+                        Err(e) => {
+                            tracing::error!(
+                                "Failed to list targets for task {} when handling dead worker {}: {}",
+                                task_id,
+                                worker_id,
+                                e
+                            );
+                            continue;
+                        }
+                    };
+
+                    for target in targets {
+                        if let Err(e) = BuildTargetsRepo::update_latest_state(
                             &state.conn,
-                            build_model.target_id,
-                            crate::entity::targets::TargetState::Interrupted,
-                            None,
-                            Some(Utc::now().with_timezone(&utc_offset)),
-                            None,
+                            target.id,
+                            TargetState::Interrupted,
                         )
                         .await
                         {
                             tracing::error!(
-                                "Failed to update target {} to Interrupted: {}",
-                                build_model.target_id,
+                                "Failed to update target {} to Interrupted for build {}: {}",
+                                target.id,
+                                build_id,
+                                e
+                            );
+                            continue;
+                        }
+
+                        if let Err(e) = TargetStateHistoriesRepo::upsert_state(
+                            &state.conn,
+                            target.id,
+                            build_uuid,
+                            TargetState::Interrupted.to_string(),
+                            end_at,
+                        )
+                        .await
+                        {
+                            tracing::error!(
+                                "Failed to upsert interrupted history for target {} build {}: {}",
+                                target.id,
+                                build_id,
                                 e
                             );
                         }
