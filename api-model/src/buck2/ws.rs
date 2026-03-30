@@ -14,8 +14,10 @@ pub enum WSMessage {
     // Server -> Worker messages
     TaskBuild {
         build_id: String,
+        /// The Buck2 project path within the monorepo (for example `/jupiter/callisto`).
         repo: String,
         cl_link: String,
+        /// The list of changed files, expressed relative to the monorepo root.
         changes: Vec<Status<ProjectRelativePath>>,
     },
 

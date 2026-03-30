@@ -16,13 +16,17 @@ use crate::buck2::{status::Status, types::ProjectRelativePath};
 /// Parameters required to build a task.
 #[derive(Debug, Deserialize, Serialize, ToSchema)]
 pub struct TaskBuildRequest {
-    /// The repository base path
+    /// The Buck2 project path within the monorepo (for example `/jupiter/callisto`).
     pub repo: String,
     /// The change list link (URL)
     pub cl_link: String,
     //TODO: for old database only, delete after updated
     pub cl_id: i64,
-    /// The list of file diff changes
+    /// The list of changed files, expressed relative to the monorepo root.
+    ///
+    /// Example values:
+    /// - `jupiter/callisto/src/access_token.rs`
+    /// - `common/lib.rs`
     pub changes: Vec<Status<ProjectRelativePath>>,
     /// Buck2 target path (e.g. //app:server). Optional for backward compatibility.
     #[serde(default, alias = "targets_path")]
@@ -41,6 +45,7 @@ pub struct RetryBuildRequest {
     pub build_id: String,
     pub cl_link: String,
     pub cl_id: i64,
+    /// The list of changed files, expressed relative to the monorepo root.
     pub changes: Vec<Status<ProjectRelativePath>>,
     pub targets: Option<Vec<String>>,
 }

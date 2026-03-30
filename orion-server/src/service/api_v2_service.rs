@@ -1,4 +1,4 @@
-use std::{convert::Infallible, pin::Pin, time::Duration};
+use std::{collections::HashSet, convert::Infallible, pin::Pin, time::Duration};
 
 use api_model::{
     buck2::{
@@ -46,6 +46,29 @@ use crate::{
 type MessageErrorResponse = (StatusCode, Json<MessageResponse>);
 type JsonValueErrorResponse = (StatusCode, Json<Value>);
 type LogSseStream = Pin<Box<dyn Stream<Item = Result<Event, Infallible>> + Send>>;
+
+/// Normalize incoming task changes to the repo-root-relative contract.
+///
+/// The protocol no longer asks workers to guess whether a path was expressed
+/// relative to the selected sub-project. We only perform lossless cleanup here:
+/// trim accidental leading slashes and drop exact duplicates.
+fn normalize_repo_root_changes(
+    changes: Vec<Status<ProjectRelativePath>>,
+) -> Vec<Status<ProjectRelativePath>> {
+    // Avoid reserving memory directly from request-controlled input length.
+    let mut normalized = Vec::new();
+    let mut seen = HashSet::new();
+
+    for change in changes {
+        let normalized_change =
+            change.into_map(|path| ProjectRelativePath::new(path.as_str().trim_start_matches('/')));
+        if seen.insert(normalized_change.clone()) {
+            normalized.push(normalized_change);
+        }
+    }
+
+    normalized
+}
 
 pub async fn task_output(state: &AppState, id: &str) -> Result<Sse<LogSseStream>, StatusCode> {
     if !state.scheduler.active_builds.contains_key(id) {
@@ -584,6 +607,10 @@ pub async fn build_retry(
     state: &AppState,
     req: api_model::buck2::api::RetryBuildRequest,
 ) -> Response {
+    let req = api_model::buck2::api::RetryBuildRequest {
+        changes: normalize_repo_root_changes(req.changes),
+        ..req
+    };
     let old_build_id = match req.build_id.parse::<uuid::Uuid>() {
         Ok(uuid) => uuid,
         Err(_) => {
@@ -881,6 +908,10 @@ async fn handle_immediate_task_dispatch_v2(
 }
 
 pub async fn task_handler_v2(state: &AppState, req: TaskBuildRequest) -> Response {
+    let req = TaskBuildRequest {
+        changes: normalize_repo_root_changes(req.changes),
+        ..req
+    };
     let task_id = Uuid::now_v7();
     if let Err(err) =
         OrionTasksRepo::insert_task(task_id, &req.cl_link, &req.repo, &req.changes, &state.conn)
@@ -1019,4 +1050,45 @@ pub async fn get_orion_client_status_by_id(
         )
     })?;
     Ok(Json(OrionClientStatus::from_worker_status(&worker)))
+}
+
+#[cfg(test)]
+mod tests {
+    use api_model::buck2::{status::Status, types::ProjectRelativePath};
+
+    use super::normalize_repo_root_changes;
+
+    #[test]
+    fn test_normalize_repo_root_changes_trims_leading_slashes_and_deduplicates() {
+        let normalized = normalize_repo_root_changes(vec![
+            Status::Modified(ProjectRelativePath::new("/jupiter/callisto/src/main.rs")),
+            Status::Modified(ProjectRelativePath::new("jupiter/callisto/src/main.rs")),
+            Status::Removed(ProjectRelativePath::new("//common/lib.rs")),
+            Status::Removed(ProjectRelativePath::new("common/lib.rs")),
+        ]);
+
+        assert_eq!(
+            normalized,
+            vec![
+                Status::Modified(ProjectRelativePath::new("jupiter/callisto/src/main.rs")),
+                Status::Removed(ProjectRelativePath::new("common/lib.rs")),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_normalize_repo_root_changes_keeps_distinct_status_entries() {
+        let normalized = normalize_repo_root_changes(vec![
+            Status::Added(ProjectRelativePath::new("/common/lib.rs")),
+            Status::Removed(ProjectRelativePath::new("common/lib.rs")),
+        ]);
+
+        assert_eq!(
+            normalized,
+            vec![
+                Status::Added(ProjectRelativePath::new("common/lib.rs")),
+                Status::Removed(ProjectRelativePath::new("common/lib.rs")),
+            ]
+        );
+    }
 }
