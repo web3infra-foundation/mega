@@ -293,6 +293,7 @@ fn get_repo_targets(file_name: &str, repo_path: &Path) -> anyhow::Result<Targets
 async fn get_build_targets(
     old_repo_mount_point: &str,
     mount_point: &str,
+    repo_prefix: &str,
     mega_changes: Vec<Status<ProjectRelativePath>>,
 ) -> anyhow::Result<Vec<TargetLabel>> {
     tracing::info!("Get cells at {:?}", mount_point);
@@ -316,7 +317,8 @@ async fn get_build_targets(
     )?;
 
     let base = get_repo_targets("base.jsonl", &old_repo)?;
-    let changes = Changes::new(&cells, mega_changes)?;
+    let normalized_changes = normalize_changes_for_repo_prefix(repo_prefix, mega_changes);
+    let changes = Changes::new(&cells, normalized_changes)?;
     tracing::debug!("Changes {changes:?}");
     let diff = get_repo_targets("diff.jsonl", &mount_path)?;
 
@@ -331,6 +333,30 @@ async fn get_build_targets(
         .flatten()
         .map(|(target, _)| target.label())
         .collect())
+}
+
+fn normalize_changes_for_repo_prefix(
+    repo_prefix: &str,
+    mega_changes: Vec<Status<ProjectRelativePath>>,
+) -> Vec<Status<ProjectRelativePath>> {
+    let normalized_prefix = repo_prefix.trim_matches('/');
+    if normalized_prefix.is_empty() {
+        return mega_changes;
+    }
+
+    mega_changes
+        .into_iter()
+        .map(|status| status.into_map(|path| normalize_change_path(normalized_prefix, path)))
+        .collect()
+}
+
+fn normalize_change_path(repo_prefix: &str, path: ProjectRelativePath) -> ProjectRelativePath {
+    let raw_path = path.as_str().trim_start_matches('/');
+    if raw_path == repo_prefix || raw_path.starts_with(&format!("{repo_prefix}/")) {
+        return ProjectRelativePath::new(raw_path);
+    }
+
+    ProjectRelativePath::new(&format!("{repo_prefix}/{raw_path}"))
 }
 
 #[derive(Debug)]
@@ -540,6 +566,10 @@ pub async fn build(
     // e.g., repo="/project/git-internal/git-internal" → repo_prefix="project/git-internal/git-internal"
     let repo_prefix = repo.strip_prefix('/').unwrap_or(&repo);
 
+    // Buck2 still resolves cells and target inputs relative to the monorepo root
+    // even when commands run from a sub-project directory, so normalize incoming
+    // change paths against `repo_prefix` before target discovery.
+
     const MAX_TARGETS_ATTEMPTS: usize = 2;
     let mut mount_point = None;
     let mut old_repo_mount_point_saved = None;
@@ -578,6 +608,7 @@ pub async fn build(
         match get_build_targets(
             old_project_root.to_str().unwrap_or(&old_repo_mount_point),
             new_project_root.to_str().unwrap_or(&repo_mount_point),
+            repo_prefix,
             changes.clone(),
         )
         .await
@@ -822,6 +853,7 @@ mod tests {
         let targets = get_build_targets(
             subproject_root.to_str().expect("subproject root path"),
             subproject_root.to_str().expect("subproject root path"),
+            subproject_relative,
             vec![Status::Modified(ProjectRelativePath::new(
                 "src/access_token.rs",
             ))],
