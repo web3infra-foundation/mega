@@ -11,6 +11,11 @@ pub enum TaskPhase {
     RunningBuild,
 }
 
+/// Slash-separated relative path used in Buck2 payloads.
+///
+/// The exact base directory is defined by the surrounding API. For task/build
+/// requests, see the field-level docs to determine whether the path is relative
+/// to the monorepo root or some other project root.
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Display, Deserialize, Serialize, ToSchema)]
 pub struct ProjectRelativePath(String);
 

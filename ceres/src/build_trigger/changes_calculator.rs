@@ -41,6 +41,8 @@ impl ChangesCalculator {
         &self,
         cl_diff_files: Vec<ClDiffFile>,
     ) -> Result<Vec<Status<ProjectRelativePath>>, MegaError> {
+        // Orion task requests carry change paths relative to the monorepo root,
+        // so we preserve repository-relative diff paths here.
         let to_project_relative = |path: &PathBuf| -> Result<ProjectRelativePath, MegaError> {
             let rel = path
                 .to_string_lossy()
