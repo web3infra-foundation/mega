@@ -1132,4 +1132,42 @@ mod tests {
             "expected shared dependency change to rebuild root//orion/tests/fixtures/change_detector_mixed/app:app, got {targets:?}"
         );
     }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_get_build_targets_handles_mixed_subproject_and_repo_relative_changes() {
+        let subproject_relative = "orion/tests/fixtures/change_detector_mixed/app";
+        let subproject_root = subproject_root(subproject_relative);
+        assert!(
+            path_exists(&subproject_root.join("README.md")),
+            "expected fixture file to exist at {:?}",
+            subproject_root.join("README.md")
+        );
+
+        let _cleanup = JsonlCleanupGuard::new([
+            subproject_root.join("base.jsonl"),
+            subproject_root.join("diff.jsonl"),
+        ]);
+
+        let targets = get_build_targets(
+            subproject_root.to_str().expect("subproject root path"),
+            subproject_root.to_str().expect("subproject root path"),
+            subproject_relative,
+            vec![
+                Status::Modified(ProjectRelativePath::new("README.md")),
+                Status::Modified(ProjectRelativePath::new(
+                    "orion/tests/fixtures/change_detector_mixed/shared/src/lib.rs",
+                )),
+            ],
+        )
+        .await
+        .expect("target discovery should complete");
+
+        assert!(
+            targets.contains(&TargetLabel::new(
+                "root//orion/tests/fixtures/change_detector_mixed/app:app"
+            )),
+            "expected mixed change list to rebuild root//orion/tests/fixtures/change_detector_mixed/app:app, got {targets:?}"
+        );
+    }
 }
