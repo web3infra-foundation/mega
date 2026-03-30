@@ -55,7 +55,8 @@ type LogSseStream = Pin<Box<dyn Stream<Item = Result<Event, Infallible>> + Send>
 fn normalize_repo_root_changes(
     changes: Vec<Status<ProjectRelativePath>>,
 ) -> Vec<Status<ProjectRelativePath>> {
-    let mut normalized = Vec::with_capacity(changes.len());
+    // Avoid reserving memory directly from request-controlled input length.
+    let mut normalized = Vec::new();
     let mut seen = HashSet::new();
 
     for change in changes {
