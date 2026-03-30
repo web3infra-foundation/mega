@@ -1,0 +1,8 @@
+rust_library (
+    name = "shared",
+    srcs = ["src/lib.rs"],
+    crate_root = "src/lib.rs",
+    visibility = [
+        "PUBLIC",
+    ],
+)

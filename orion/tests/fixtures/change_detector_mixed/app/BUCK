@@ -1,0 +1,11 @@
+rust_library (
+    name = "app",
+    srcs = ["src/lib.rs"],
+    crate_root = "src/lib.rs",
+    deps = [
+        "//orion/tests/fixtures/change_detector_mixed/shared:shared",
+    ],
+    visibility = [
+        "PUBLIC",
+    ],
+)
