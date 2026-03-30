@@ -1050,3 +1050,44 @@ pub async fn get_orion_client_status_by_id(
     })?;
     Ok(Json(OrionClientStatus::from_worker_status(&worker)))
 }
+
+#[cfg(test)]
+mod tests {
+    use api_model::buck2::{status::Status, types::ProjectRelativePath};
+
+    use super::normalize_repo_root_changes;
+
+    #[test]
+    fn test_normalize_repo_root_changes_trims_leading_slashes_and_deduplicates() {
+        let normalized = normalize_repo_root_changes(vec![
+            Status::Modified(ProjectRelativePath::new("/jupiter/callisto/src/main.rs")),
+            Status::Modified(ProjectRelativePath::new("jupiter/callisto/src/main.rs")),
+            Status::Removed(ProjectRelativePath::new("//common/lib.rs")),
+            Status::Removed(ProjectRelativePath::new("common/lib.rs")),
+        ]);
+
+        assert_eq!(
+            normalized,
+            vec![
+                Status::Modified(ProjectRelativePath::new("jupiter/callisto/src/main.rs")),
+                Status::Removed(ProjectRelativePath::new("common/lib.rs")),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_normalize_repo_root_changes_keeps_distinct_status_entries() {
+        let normalized = normalize_repo_root_changes(vec![
+            Status::Added(ProjectRelativePath::new("/common/lib.rs")),
+            Status::Removed(ProjectRelativePath::new("common/lib.rs")),
+        ]);
+
+        assert_eq!(
+            normalized,
+            vec![
+                Status::Added(ProjectRelativePath::new("common/lib.rs")),
+                Status::Removed(ProjectRelativePath::new("common/lib.rs")),
+            ]
+        );
+    }
+}
