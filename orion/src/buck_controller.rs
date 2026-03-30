@@ -540,9 +540,6 @@ pub async fn build(
     // e.g., repo="/project/git-internal/git-internal" → repo_prefix="project/git-internal/git-internal"
     let repo_prefix = repo.strip_prefix('/').unwrap_or(&repo);
 
-    // Changes are already relative to the sub-project (buck2 project root).
-    // Do NOT prefix them with repo_prefix — buck2 runs from the sub-project dir.
-
     const MAX_TARGETS_ATTEMPTS: usize = 2;
     let mut mount_point = None;
     let mut old_repo_mount_point_saved = None;
@@ -756,4 +753,85 @@ pub async fn build(
     );
 
     build_result
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        fs,
+        path::{Path, PathBuf},
+    };
+
+    use api_model::buck2::{status::Status, types::ProjectRelativePath};
+    use serial_test::serial;
+    use td_util_buck::types::TargetLabel;
+
+    use super::get_build_targets;
+
+    struct JsonlCleanupGuard {
+        paths: Vec<PathBuf>,
+    }
+
+    impl JsonlCleanupGuard {
+        fn new(paths: impl IntoIterator<Item = PathBuf>) -> Self {
+            Self {
+                paths: paths.into_iter().collect(),
+            }
+        }
+    }
+
+    impl Drop for JsonlCleanupGuard {
+        fn drop(&mut self) {
+            for path in &self.paths {
+                let _ = fs::remove_file(path);
+            }
+        }
+    }
+
+    fn workspace_root() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("workspace root")
+            .to_path_buf()
+    }
+
+    fn subproject_root(relative: &str) -> PathBuf {
+        workspace_root().join(relative)
+    }
+
+    fn path_exists(path: &Path) -> bool {
+        path.exists()
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_get_build_targets_detects_real_subproject_source_change() {
+        let subproject_relative = "jupiter/callisto";
+        let subproject_root = subproject_root(subproject_relative);
+        assert!(
+            path_exists(&subproject_root.join("BUCK")),
+            "expected test fixture project to exist at {:?}",
+            subproject_root
+        );
+
+        let _cleanup = JsonlCleanupGuard::new([
+            subproject_root.join("base.jsonl"),
+            subproject_root.join("diff.jsonl"),
+        ]);
+
+        let targets = get_build_targets(
+            subproject_root.to_str().expect("subproject root path"),
+            subproject_root.to_str().expect("subproject root path"),
+            vec![Status::Modified(ProjectRelativePath::new(
+                "src/access_token.rs",
+            ))],
+        )
+        .await
+        .expect("target discovery should complete");
+
+        assert!(
+            targets.contains(&TargetLabel::new("root//jupiter/callisto:callisto")),
+            "expected source change to rebuild root//jupiter/callisto:callisto, got {targets:?}"
+        );
+    }
 }
