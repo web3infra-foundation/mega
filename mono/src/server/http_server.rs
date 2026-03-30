@@ -15,7 +15,10 @@ use ceres::{
     api_service::{cache::GitObjectCache, state::ProtocolApiState},
     protocol::{ServiceType, SmartProtocol, TransportProtocol},
 };
-use common::errors::ProtocolError;
+use common::{
+    email::{Mailer, NoopMailer, SmtpMailer},
+    errors::ProtocolError,
+};
 use context::AppContext;
 use http::{HeaderValue, Method};
 use saturn::entitystore::EntityStore;
@@ -29,6 +32,7 @@ use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_swagger_ui::SwaggerUi;
 
+use super::super::notification::EmailDispatcher;
 use crate::{
     api::{
         MonoApiServiceState,
@@ -115,6 +119,30 @@ fn spawn_cleanup_task(ctx: AppContext, token: CancellationToken) -> Option<JoinH
     }))
 }
 
+/// Spawns a background task to deliver pending email jobs
+fn spawn_email_dispatcher_task(ctx: AppContext, token: CancellationToken) -> JoinHandle<()> {
+    // Build a mailer (Default to NoopMailer if config missing or invalid)
+    let cfg = ctx.storage.config();
+    let mailer: Arc<dyn Mailer> = if let Some(mail_cfg) = &cfg.mail {
+        match SmtpMailer::new(mail_cfg) {
+            Ok(m) => Arc::new(m),
+            Err(e) => {
+                tracing::warn!("Failed to initialize SMTP mailer, falling back to noop: {e:?}");
+                Arc::new(NoopMailer)
+            }
+        }
+    } else {
+        Arc::new(NoopMailer)
+    };
+
+    let stg = ctx.storage.notification_storage();
+    let dispatcher = EmailDispatcher::new(stg, mailer);
+
+    tokio::spawn(async move {
+        dispatcher.run(token).await;
+    })
+}
+
 /// Returns a future that completes when the cancellation token is triggered.
 async fn shutdown_signal(token: CancellationToken) {
     token.cancelled().await;
@@ -127,6 +155,7 @@ pub async fn start_http(ctx: AppContext, options: CommonHttpOptions) {
 
     let shutdown_token = CancellationToken::new();
     let cleanup_handle = spawn_cleanup_task(ctx.clone(), shutdown_token.clone());
+    let dispatcher_handle = spawn_email_dispatcher_task(ctx.clone(), shutdown_token.clone());
     let server_token = shutdown_token.clone();
 
     let app = app(ctx, host.clone(), port).await;
@@ -164,7 +193,7 @@ pub async fn start_http(ctx: AppContext, options: CommonHttpOptions) {
     tracing::info!("Broadcasting shutdown signal to all tasks...");
     shutdown_token.cancel();
 
-    let (cleanup_result, server_result) = tokio::join!(
+    let (cleanup_result, dispatcher_result, server_result) = tokio::join!(
         async {
             if let Some(handle) = cleanup_handle {
                 match tokio::time::timeout(std::time::Duration::from_secs(30), handle).await {
@@ -193,6 +222,25 @@ pub async fn start_http(ctx: AppContext, options: CommonHttpOptions) {
             }
         },
         async {
+            match tokio::time::timeout(std::time::Duration::from_secs(30), dispatcher_handle).await
+            {
+                Ok(Ok(_)) => {
+                    tracing::info!("Email dispatcher task stopped successfully");
+                    Ok(())
+                }
+                Ok(Err(e)) => {
+                    tracing::error!("Email dispatcher task panicked: {}", e);
+                    Err(())
+                }
+                Err(_) => {
+                    tracing::error!(
+                        "Email dispatcher did not stop within 30s timeout. The task will be detached."
+                    );
+                    Err(())
+                }
+            }
+        },
+        async {
             match server_handle.as_mut().await {
                 Ok(_) => {
                     tracing::info!("HTTP server stopped gracefully");
@@ -206,8 +254,8 @@ pub async fn start_http(ctx: AppContext, options: CommonHttpOptions) {
         }
     );
 
-    match (cleanup_result, server_result) {
-        (Ok(_), Ok(_)) => {
+    match (cleanup_result, dispatcher_result, server_result) {
+        (Ok(_), Ok(_), Ok(_)) => {
             tracing::info!("Graceful shutdown completed successfully");
         }
         _ => {

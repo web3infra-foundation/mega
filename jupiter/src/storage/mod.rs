@@ -19,6 +19,8 @@ pub mod issue_storage;
 pub mod lfs_db_storage;
 pub mod merge_queue_storage;
 pub mod mono_storage;
+pub mod notification_storage;
+pub use notification_storage::NotificationStorage;
 pub mod note_storage;
 pub mod stg_common;
 pub mod user_storage;
@@ -93,11 +95,13 @@ pub struct AppService {
     pub bots_storage: BotsStorage,
     pub webhook_storage: WebhookStorage,
     pub audit_storage: AuditStorage,
+    pub notification_storage: NotificationStorage,
 }
 
 impl AppService {
     fn mock() -> Arc<Self> {
         let mock = BaseStorage::mock();
+        let notification_storage = NotificationStorage::new(mock.connection.clone());
         // For tests and in-memory workflows we don't need a real persistent
         // object storage. Use a filesystem-backed storage rooted in the system
         // temp directory to provide a lightweight implementation.
@@ -122,6 +126,7 @@ impl AppService {
             code_review_comment_storage: CodeReviewCommentStorage { base: mock.clone() },
             code_review_thread_storage: CodeReviewThreadStorage { base: mock.clone() },
             build_trigger_storage: BuildTriggerStorage { base: mock.clone() },
+            notification_storage,
             bots_storage: BotsStorage { base: mock.clone() },
             webhook_storage: WebhookStorage { base: mock.clone() },
             audit_storage: AuditStorage { base: mock.clone() },
@@ -150,6 +155,7 @@ impl Storage {
     pub async fn new(config: Arc<Config>) -> Result<Self, MegaError> {
         let connection = Arc::new(database_connection(&config.database).await);
         let base = BaseStorage::new(connection.clone());
+        let notification_storage = NotificationStorage::new(connection.clone());
 
         let mono_storage = MonoStorage { base: base.clone() };
         let git_db_storage = GitDbStorage { base: base.clone() };
@@ -250,6 +256,7 @@ impl Storage {
             bots_storage,
             webhook_storage: webhook_storage.clone(),
             audit_storage,
+            notification_storage,
         };
         let merge_queue_service = MergeQueueService::new(base.clone());
         let buck_service = BuckService::new(
@@ -444,6 +451,10 @@ impl Storage {
 
     pub fn bots_storage(&self) -> BotsStorage {
         self.app_service.bots_storage.clone()
+    }
+
+    pub fn notification_storage(&self) -> NotificationStorage {
+        self.app_service.notification_storage.clone()
     }
 
     pub fn mock() -> Self {

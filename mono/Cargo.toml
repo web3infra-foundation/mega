@@ -80,3 +80,4 @@ mimalloc = { workspace = true }
 
 [dev-dependencies]
 qlean = { workspace = true }
+tempfile = "3"

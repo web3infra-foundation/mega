@@ -1,0 +1,360 @@
+use sea_orm_migration::prelude::*;
+
+#[derive(DeriveMigrationName)]
+pub struct Migration;
+
+#[async_trait::async_trait]
+impl MigrationTrait for Migration {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        // Notification event types
+        manager
+            .create_table(
+                Table::create()
+                    .table(NotificationEventTypes::Table)
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(NotificationEventTypes::Code)
+                            .string_len(128)
+                            .not_null()
+                            .primary_key(),
+                    )
+                    .col(
+                        ColumnDef::new(NotificationEventTypes::Category)
+                            .string_len(32)
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(NotificationEventTypes::Description)
+                            .text()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(NotificationEventTypes::SystemRequired)
+                            .boolean()
+                            .not_null()
+                            .default(false),
+                    )
+                    .col(
+                        ColumnDef::new(NotificationEventTypes::DefaultEnabled)
+                            .boolean()
+                            .not_null()
+                            .default(true),
+                    )
+                    .col(
+                        ColumnDef::new(NotificationEventTypes::CreatedAt)
+                            .date_time()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(NotificationEventTypes::UpdatedAt)
+                            .date_time()
+                            .not_null(),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_index(
+                Index::create()
+                    .name("idx_notification_event_types_category")
+                    .table(NotificationEventTypes::Table)
+                    .col(NotificationEventTypes::Category)
+                    .to_owned(),
+            )
+            .await?;
+
+        // User notification settings - one row per user, with global preferences
+        manager
+            .create_table(
+                Table::create()
+                    .table(UserNotificationSettings::Table)
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(UserNotificationSettings::Username)
+                            .string_len(64)
+                            .not_null()
+                            .primary_key(),
+                    )
+                    .col(
+                        ColumnDef::new(UserNotificationSettings::Email)
+                            .string_len(254)
+                            .not_null()
+                            .default(""),
+                    )
+                    .col(
+                        ColumnDef::new(UserNotificationSettings::Enabled)
+                            .boolean()
+                            .not_null()
+                            .default(true),
+                    )
+                    .col(
+                        ColumnDef::new(UserNotificationSettings::DeliveryMode)
+                            .string_len(16)
+                            .not_null()
+                            .default("realtime"),
+                    )
+                    .col(
+                        ColumnDef::new(UserNotificationSettings::CreatedAt)
+                            .date_time()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(UserNotificationSettings::UpdatedAt)
+                            .date_time()
+                            .not_null(),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
+        // User notification preferences - per-user overrides for specific event types
+        manager
+            .create_table(
+                Table::create()
+                    .table(UserNotificationPreferences::Table)
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(UserNotificationPreferences::Username)
+                            .string_len(64)
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(UserNotificationPreferences::EventTypeCode)
+                            .string_len(128)
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(UserNotificationPreferences::Enabled)
+                            .boolean()
+                            .not_null()
+                            .default(true),
+                    )
+                    .col(
+                        ColumnDef::new(UserNotificationPreferences::CreatedAt)
+                            .date_time()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(UserNotificationPreferences::UpdatedAt)
+                            .date_time()
+                            .not_null(),
+                    )
+                    .primary_key(
+                        Index::create()
+                            .col(UserNotificationPreferences::Username)
+                            .col(UserNotificationPreferences::EventTypeCode),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_user_notification_preferences_user")
+                            .from(
+                                UserNotificationPreferences::Table,
+                                UserNotificationPreferences::Username,
+                            )
+                            .to(
+                                UserNotificationSettings::Table,
+                                UserNotificationSettings::Username,
+                            )
+                            .on_delete(ForeignKeyAction::Cascade)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_user_notification_preferences_event_type")
+                            .from(
+                                UserNotificationPreferences::Table,
+                                UserNotificationPreferences::EventTypeCode,
+                            )
+                            .to(NotificationEventTypes::Table, NotificationEventTypes::Code)
+                            .on_delete(ForeignKeyAction::Restrict)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_index(
+                Index::create()
+                    .name("idx_user_notification_preferences_username")
+                    .table(UserNotificationPreferences::Table)
+                    .col(UserNotificationPreferences::Username)
+                    .to_owned(),
+            )
+            .await?;
+
+        // Email jobs - queue for sending notification emails asynchronously
+        manager
+            .create_table(
+                Table::create()
+                    .table(EmailJobs::Table)
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(EmailJobs::Id)
+                            .big_integer()
+                            .not_null()
+                            .auto_increment()
+                            .primary_key(),
+                    )
+                    .col(
+                        ColumnDef::new(EmailJobs::Username)
+                            .string_len(64)
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(EmailJobs::ToEmail)
+                            .string_len(254)
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(EmailJobs::EventTypeCode)
+                            .string_len(128)
+                            .not_null(),
+                    )
+                    .col(ColumnDef::new(EmailJobs::Subject).text().not_null())
+                    .col(ColumnDef::new(EmailJobs::BodyHtml).text().not_null())
+                    .col(ColumnDef::new(EmailJobs::BodyText).text().null())
+                    .col(
+                        ColumnDef::new(EmailJobs::Status)
+                            .string_len(16)
+                            .not_null()
+                            .default("pending"),
+                    )
+                    .col(ColumnDef::new(EmailJobs::ErrorMessage).text().null())
+                    .col(
+                        ColumnDef::new(EmailJobs::RetryCount)
+                            .integer()
+                            .not_null()
+                            .default(0),
+                    )
+                    .col(ColumnDef::new(EmailJobs::NextRetryAt).date_time().null())
+                    .col(ColumnDef::new(EmailJobs::SentAt).date_time().null())
+                    .col(ColumnDef::new(EmailJobs::CreatedAt).date_time().not_null())
+                    .col(ColumnDef::new(EmailJobs::UpdatedAt).date_time().not_null())
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_email_jobs_event_type")
+                            .from(EmailJobs::Table, EmailJobs::EventTypeCode)
+                            .to(NotificationEventTypes::Table, NotificationEventTypes::Code)
+                            .on_delete(ForeignKeyAction::Restrict)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_index(
+                Index::create()
+                    .name("idx_email_jobs_status_next_retry_at")
+                    .table(EmailJobs::Table)
+                    .col(EmailJobs::Status)
+                    .col(EmailJobs::NextRetryAt)
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_index(
+                Index::create()
+                    .name("idx_email_jobs_username")
+                    .table(EmailJobs::Table)
+                    .col(EmailJobs::Username)
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_index(
+                Index::create()
+                    .name("idx_email_jobs_event_type")
+                    .table(EmailJobs::Table)
+                    .col(EmailJobs::EventTypeCode)
+                    .to_owned(),
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .drop_table(Table::drop().table(EmailJobs::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(
+                Table::drop()
+                    .table(UserNotificationPreferences::Table)
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .drop_table(
+                Table::drop()
+                    .table(UserNotificationSettings::Table)
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .drop_table(
+                Table::drop()
+                    .table(NotificationEventTypes::Table)
+                    .to_owned(),
+            )
+            .await?;
+        Ok(())
+    }
+}
+
+#[derive(DeriveIden)]
+enum NotificationEventTypes {
+    Table,
+    Code,
+    Category,
+    Description,
+    SystemRequired,
+    DefaultEnabled,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(DeriveIden)]
+enum UserNotificationSettings {
+    Table,
+    Username,
+    Email,
+    Enabled,
+    DeliveryMode,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(DeriveIden)]
+enum UserNotificationPreferences {
+    Table,
+    Username,
+    EventTypeCode,
+    Enabled,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(DeriveIden)]
+enum EmailJobs {
+    Table,
+    Id,
+    Username,
+    ToEmail,
+    EventTypeCode,
+    Subject,
+    BodyHtml,
+    BodyText,
+    Status,
+    ErrorMessage,
+    RetryCount,
+    NextRetryAt,
+    SentAt,
+    CreatedAt,
+    UpdatedAt,
+}

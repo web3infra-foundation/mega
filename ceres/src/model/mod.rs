@@ -13,6 +13,7 @@ pub mod group;
 pub mod issue;
 pub mod label;
 pub mod merge_queue;
+pub mod notification;
 pub mod tag;
 pub mod third_party;
 pub mod user;
