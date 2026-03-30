@@ -28,7 +28,7 @@ impl ProjectRelativePath {
     }
 
     /// ```
-    /// use api-models::types::ProjectRelativePath;
+    /// use api_model::buck2::types::ProjectRelativePath;
     /// assert_eq!(
     ///     ProjectRelativePath::new("foo/bar.bzl").extension(),
     ///     Some("bzl")
