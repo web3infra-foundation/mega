@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     error::Error,
     io::BufReader,
     path::{Path, PathBuf},
@@ -20,7 +20,7 @@ use td_util_buck::{
     run::{Buck2, targets_arguments},
     target_status::{BuildState, EVENT_LOG_FILE, Event, LogicalActionId, TargetBuildStatusUpdate},
     targets::Targets,
-    types::TargetLabel,
+    types::{CellPath, TargetLabel},
 };
 use tokio::{
     io::AsyncBufReadExt,
@@ -293,6 +293,7 @@ fn get_repo_targets(file_name: &str, repo_path: &Path) -> anyhow::Result<Targets
 async fn get_build_targets(
     old_repo_mount_point: &str,
     mount_point: &str,
+    repo_prefix: &str,
     mega_changes: Vec<Status<ProjectRelativePath>>,
 ) -> anyhow::Result<Vec<TargetLabel>> {
     tracing::info!("Get cells at {:?}", mount_point);
@@ -316,9 +317,20 @@ async fn get_build_targets(
     )?;
 
     let base = get_repo_targets("base.jsonl", &old_repo)?;
-    let changes = Changes::new(&cells, mega_changes)?;
-    tracing::debug!("Changes {changes:?}");
     let diff = get_repo_targets("diff.jsonl", &mount_path)?;
+    let known_paths = collect_known_change_paths(&base, &diff);
+    let old_repo_root = repo_root_for_project_root(&old_repo, repo_prefix);
+    let new_repo_root = repo_root_for_project_root(&mount_path, repo_prefix);
+    let normalized_changes = normalize_changes_for_repo_prefix(
+        &cells,
+        repo_prefix,
+        &old_repo_root,
+        &new_repo_root,
+        &known_paths,
+        mega_changes,
+    );
+    let changes = Changes::new(&cells, normalized_changes)?;
+    tracing::debug!("Changes {changes:?}");
 
     tracing::debug!("Base targets number: {}", base.len_targets_upperbound());
     tracing::debug!("Diff targets number: {}", diff.len_targets_upperbound());
@@ -331,6 +343,162 @@ async fn get_build_targets(
         .flatten()
         .map(|(target, _)| target.label())
         .collect())
+}
+
+fn collect_known_change_paths(base: &Targets, diff: &Targets) -> HashSet<CellPath> {
+    let mut known_paths = HashSet::new();
+
+    for targets in [base, diff] {
+        for target in targets.targets() {
+            known_paths.extend(target.inputs.iter().cloned());
+        }
+        for import in targets.imports() {
+            known_paths.insert(import.file.clone());
+            known_paths.extend(import.imports.iter().cloned());
+        }
+    }
+
+    known_paths
+}
+
+fn repo_root_for_project_root(project_root: &Path, repo_prefix: &str) -> PathBuf {
+    let mut repo_root = project_root.to_path_buf();
+    for _ in repo_prefix
+        .trim_matches('/')
+        .split('/')
+        .filter(|segment| !segment.is_empty())
+    {
+        repo_root = repo_root
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or(repo_root);
+    }
+    repo_root
+}
+
+fn normalize_changes_for_repo_prefix(
+    cells: &CellInfo,
+    repo_prefix: &str,
+    old_repo_root: &Path,
+    new_repo_root: &Path,
+    known_paths: &HashSet<CellPath>,
+    mega_changes: Vec<Status<ProjectRelativePath>>,
+) -> Vec<Status<ProjectRelativePath>> {
+    let normalized_prefix = repo_prefix.trim_matches('/');
+    let mut normalized_changes = Vec::new();
+    let mut seen = HashSet::new();
+
+    for status in mega_changes {
+        let candidates = normalize_change_path_candidates(
+            cells,
+            normalized_prefix,
+            old_repo_root,
+            new_repo_root,
+            known_paths,
+            status.get(),
+        );
+        for candidate in candidates {
+            let normalized_status = status_with_path(&status, candidate);
+            if seen.insert(normalized_status.clone()) {
+                normalized_changes.push(normalized_status);
+            }
+        }
+    }
+
+    normalized_changes
+}
+
+fn normalize_change_path_candidates(
+    cells: &CellInfo,
+    repo_prefix: &str,
+    old_repo_root: &Path,
+    new_repo_root: &Path,
+    known_paths: &HashSet<CellPath>,
+    path: &ProjectRelativePath,
+) -> Vec<ProjectRelativePath> {
+    let raw_path = path.as_str().trim_start_matches('/');
+    if repo_prefix.is_empty()
+        || raw_path == repo_prefix
+        || raw_path.starts_with(&format!("{repo_prefix}/"))
+    {
+        return vec![ProjectRelativePath::new(raw_path)];
+    }
+
+    let prefixed_path = format!("{repo_prefix}/{raw_path}");
+    let raw_matches = path_matches_repo(cells, known_paths, old_repo_root, new_repo_root, raw_path);
+    let prefixed_matches = path_matches_repo(
+        cells,
+        known_paths,
+        old_repo_root,
+        new_repo_root,
+        &prefixed_path,
+    );
+
+    if raw_matches && prefixed_matches {
+        tracing::warn!(
+            raw_path,
+            prefixed_path,
+            repo_prefix,
+            "Change path matches both repo-relative and subproject-relative candidates; keeping both"
+        );
+    }
+
+    select_change_path_candidates(raw_path, &prefixed_path, raw_matches, prefixed_matches)
+}
+
+fn path_matches_repo(
+    cells: &CellInfo,
+    known_paths: &HashSet<CellPath>,
+    old_repo_root: &Path,
+    new_repo_root: &Path,
+    relative_path: &str,
+) -> bool {
+    path_exists_in_repo(old_repo_root, relative_path)
+        || path_exists_in_repo(new_repo_root, relative_path)
+        || path_matches_known_targets(cells, known_paths, relative_path)
+}
+
+fn path_exists_in_repo(repo_root: &Path, relative_path: &str) -> bool {
+    repo_root.join(relative_path).exists()
+}
+
+fn path_matches_known_targets(
+    cells: &CellInfo,
+    known_paths: &HashSet<CellPath>,
+    relative_path: &str,
+) -> bool {
+    cells
+        .unresolve(&ProjectRelativePath::new(relative_path))
+        .ok()
+        .is_some_and(|cell_path| known_paths.contains(&cell_path))
+}
+
+fn select_change_path_candidates(
+    raw_path: &str,
+    prefixed_path: &str,
+    raw_matches: bool,
+    prefixed_matches: bool,
+) -> Vec<ProjectRelativePath> {
+    match (raw_matches, prefixed_matches) {
+        (false, true) => vec![ProjectRelativePath::new(prefixed_path)],
+        (true, false) => vec![ProjectRelativePath::new(raw_path)],
+        (true, true) => vec![
+            ProjectRelativePath::new(raw_path),
+            ProjectRelativePath::new(prefixed_path),
+        ],
+        (false, false) => vec![ProjectRelativePath::new(raw_path)],
+    }
+}
+
+fn status_with_path(
+    status: &Status<ProjectRelativePath>,
+    path: ProjectRelativePath,
+) -> Status<ProjectRelativePath> {
+    match status {
+        Status::Modified(_) => Status::Modified(path),
+        Status::Added(_) => Status::Added(path),
+        Status::Removed(_) => Status::Removed(path),
+    }
 }
 
 #[derive(Debug)]
@@ -540,8 +708,9 @@ pub async fn build(
     // e.g., repo="/project/git-internal/git-internal" → repo_prefix="project/git-internal/git-internal"
     let repo_prefix = repo.strip_prefix('/').unwrap_or(&repo);
 
-    // Changes are already relative to the sub-project (buck2 project root).
-    // Do NOT prefix them with repo_prefix — buck2 runs from the sub-project dir.
+    // Buck2 still resolves cells and target inputs relative to the monorepo root
+    // even when commands run from a sub-project directory, so normalize incoming
+    // change paths against `repo_prefix` before target discovery.
 
     const MAX_TARGETS_ATTEMPTS: usize = 2;
     let mut mount_point = None;
@@ -581,6 +750,7 @@ pub async fn build(
         match get_build_targets(
             old_project_root.to_str().unwrap_or(&old_repo_mount_point),
             new_project_root.to_str().unwrap_or(&repo_mount_point),
+            repo_prefix,
             changes.clone(),
         )
         .await
@@ -756,4 +926,248 @@ pub async fn build(
     );
 
     build_result
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        collections::HashSet,
+        fs,
+        path::{Path, PathBuf},
+    };
+
+    use api_model::buck2::{status::Status, types::ProjectRelativePath};
+    use serial_test::serial;
+    use td_util_buck::{cells::CellInfo, types::TargetLabel};
+
+    use super::{
+        get_build_targets, normalize_change_path_candidates, select_change_path_candidates,
+    };
+
+    struct JsonlCleanupGuard {
+        paths: Vec<PathBuf>,
+    }
+
+    impl JsonlCleanupGuard {
+        fn new(paths: impl IntoIterator<Item = PathBuf>) -> Self {
+            Self {
+                paths: paths.into_iter().collect(),
+            }
+        }
+    }
+
+    impl Drop for JsonlCleanupGuard {
+        fn drop(&mut self) {
+            for path in &self.paths {
+                let _ = fs::remove_file(path);
+            }
+        }
+    }
+
+    fn workspace_root() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("workspace root")
+            .to_path_buf()
+    }
+
+    fn subproject_root(relative: &str) -> PathBuf {
+        workspace_root().join(relative)
+    }
+
+    fn path_exists(path: &Path) -> bool {
+        path.exists()
+    }
+
+    #[test]
+    fn test_select_change_path_candidates_prefixes_subproject_relative_paths() {
+        let normalized = select_change_path_candidates(
+            "src/access_token.rs",
+            "jupiter/callisto/src/access_token.rs",
+            false,
+            true,
+        );
+
+        assert_eq!(
+            normalized,
+            vec![ProjectRelativePath::new(
+                "jupiter/callisto/src/access_token.rs"
+            )]
+        );
+    }
+
+    #[test]
+    fn test_normalize_change_path_candidates_keeps_repo_relative_paths_idempotent() {
+        let normalized = normalize_change_path_candidates(
+            &CellInfo::testing(),
+            "jupiter/callisto",
+            &workspace_root(),
+            &workspace_root(),
+            &HashSet::new(),
+            &ProjectRelativePath::new("jupiter/callisto/src/access_token.rs"),
+        );
+
+        assert_eq!(
+            normalized,
+            vec![ProjectRelativePath::new(
+                "jupiter/callisto/src/access_token.rs"
+            )]
+        );
+    }
+
+    #[test]
+    fn test_select_change_path_candidates_keeps_unrelated_repo_relative_paths_unchanged() {
+        let normalized = select_change_path_candidates(
+            "common/src/lib.rs",
+            "jupiter/callisto/common/src/lib.rs",
+            true,
+            false,
+        );
+
+        assert_eq!(
+            normalized,
+            vec![ProjectRelativePath::new("common/src/lib.rs")]
+        );
+    }
+
+    #[test]
+    fn test_normalize_change_path_candidates_keeps_existing_repo_relative_paths() {
+        let normalized = normalize_change_path_candidates(
+            &CellInfo::testing(),
+            "jupiter/callisto",
+            &workspace_root(),
+            &workspace_root(),
+            &HashSet::new(),
+            &ProjectRelativePath::new("common/src/lib.rs"),
+        );
+
+        assert_eq!(
+            normalized,
+            vec![ProjectRelativePath::new("common/src/lib.rs")]
+        );
+    }
+
+    #[test]
+    fn test_select_change_path_candidates_keeps_ambiguous_paths_as_both_candidates() {
+        let normalized = select_change_path_candidates(
+            "src/access_token.rs",
+            "jupiter/callisto/src/access_token.rs",
+            true,
+            true,
+        );
+
+        assert_eq!(
+            normalized,
+            vec![
+                ProjectRelativePath::new("src/access_token.rs"),
+                ProjectRelativePath::new("jupiter/callisto/src/access_token.rs"),
+            ]
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_get_build_targets_detects_real_subproject_source_change() {
+        let subproject_relative = "jupiter/callisto";
+        let subproject_root = subproject_root(subproject_relative);
+        assert!(
+            path_exists(&subproject_root.join("BUCK")),
+            "expected test fixture project to exist at {:?}",
+            subproject_root
+        );
+
+        let _cleanup = JsonlCleanupGuard::new([
+            subproject_root.join("base.jsonl"),
+            subproject_root.join("diff.jsonl"),
+        ]);
+
+        let targets = get_build_targets(
+            subproject_root.to_str().expect("subproject root path"),
+            subproject_root.to_str().expect("subproject root path"),
+            subproject_relative,
+            vec![Status::Modified(ProjectRelativePath::new(
+                "src/access_token.rs",
+            ))],
+        )
+        .await
+        .expect("target discovery should complete");
+
+        assert!(
+            targets.contains(&TargetLabel::new("root//jupiter/callisto:callisto")),
+            "expected source change to rebuild root//jupiter/callisto:callisto, got {targets:?}"
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_get_build_targets_keeps_repo_relative_shared_dependency_changes() {
+        let subproject_relative = "orion/tests/fixtures/change_detector_mixed/app";
+        let subproject_root = subproject_root(subproject_relative);
+        assert!(
+            path_exists(&subproject_root.join("BUCK")),
+            "expected fixture project to exist at {:?}",
+            subproject_root
+        );
+
+        let _cleanup = JsonlCleanupGuard::new([
+            subproject_root.join("base.jsonl"),
+            subproject_root.join("diff.jsonl"),
+        ]);
+
+        let targets = get_build_targets(
+            subproject_root.to_str().expect("subproject root path"),
+            subproject_root.to_str().expect("subproject root path"),
+            subproject_relative,
+            vec![Status::Modified(ProjectRelativePath::new(
+                "orion/tests/fixtures/change_detector_mixed/shared/src/lib.rs",
+            ))],
+        )
+        .await
+        .expect("target discovery should complete");
+
+        assert!(
+            targets.contains(&TargetLabel::new(
+                "root//orion/tests/fixtures/change_detector_mixed/app:app"
+            )),
+            "expected shared dependency change to rebuild root//orion/tests/fixtures/change_detector_mixed/app:app, got {targets:?}"
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_get_build_targets_handles_mixed_subproject_and_repo_relative_changes() {
+        let subproject_relative = "orion/tests/fixtures/change_detector_mixed/app";
+        let subproject_root = subproject_root(subproject_relative);
+        assert!(
+            path_exists(&subproject_root.join("README.md")),
+            "expected fixture file to exist at {:?}",
+            subproject_root.join("README.md")
+        );
+
+        let _cleanup = JsonlCleanupGuard::new([
+            subproject_root.join("base.jsonl"),
+            subproject_root.join("diff.jsonl"),
+        ]);
+
+        let targets = get_build_targets(
+            subproject_root.to_str().expect("subproject root path"),
+            subproject_root.to_str().expect("subproject root path"),
+            subproject_relative,
+            vec![
+                Status::Modified(ProjectRelativePath::new("README.md")),
+                Status::Modified(ProjectRelativePath::new(
+                    "orion/tests/fixtures/change_detector_mixed/shared/src/lib.rs",
+                )),
+            ],
+        )
+        .await
+        .expect("target discovery should complete");
+
+        assert!(
+            targets.contains(&TargetLabel::new(
+                "root//orion/tests/fixtures/change_detector_mixed/app:app"
+            )),
+            "expected mixed change list to rebuild root//orion/tests/fixtures/change_detector_mixed/app:app, got {targets:?}"
+        );
+    }
 }

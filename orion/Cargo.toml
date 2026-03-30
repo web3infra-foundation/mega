@@ -32,3 +32,6 @@ utoipa.workspace = true
 common = { path = "../common" }
 scorpiofs = "0.2.1"
 tokio-util = { workspace = true }
+
+[dev-dependencies]
+serial_test = { workspace = true }
