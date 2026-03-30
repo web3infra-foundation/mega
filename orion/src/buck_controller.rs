@@ -797,7 +797,7 @@ mod tests {
     use serial_test::serial;
     use td_util_buck::types::TargetLabel;
 
-    use super::get_build_targets;
+    use super::{get_build_targets, normalize_changes_for_repo_prefix};
 
     struct JsonlCleanupGuard {
         paths: Vec<PathBuf>,
@@ -832,6 +832,57 @@ mod tests {
 
     fn path_exists(path: &Path) -> bool {
         path.exists()
+    }
+
+    #[test]
+    fn test_normalize_changes_for_repo_prefix_prefixes_subproject_relative_paths() {
+        let normalized = normalize_changes_for_repo_prefix(
+            "jupiter/callisto",
+            vec![Status::Modified(ProjectRelativePath::new(
+                "src/access_token.rs",
+            ))],
+        );
+
+        assert_eq!(
+            normalized,
+            vec![Status::Modified(ProjectRelativePath::new(
+                "jupiter/callisto/src/access_token.rs"
+            ))]
+        );
+    }
+
+    #[test]
+    fn test_normalize_changes_for_repo_prefix_keeps_repo_relative_paths_idempotent() {
+        let normalized = normalize_changes_for_repo_prefix(
+            "jupiter/callisto",
+            vec![Status::Modified(ProjectRelativePath::new(
+                "jupiter/callisto/src/access_token.rs",
+            ))],
+        );
+
+        assert_eq!(
+            normalized,
+            vec![Status::Modified(ProjectRelativePath::new(
+                "jupiter/callisto/src/access_token.rs"
+            ))]
+        );
+    }
+
+    #[test]
+    fn test_normalize_changes_for_repo_prefix_keeps_monorepo_root_paths_unchanged() {
+        let normalized = normalize_changes_for_repo_prefix(
+            "",
+            vec![Status::Modified(ProjectRelativePath::new(
+                "src/access_token.rs",
+            ))],
+        );
+
+        assert_eq!(
+            normalized,
+            vec![Status::Modified(ProjectRelativePath::new(
+                "src/access_token.rs"
+            ))]
+        );
     }
 
     #[tokio::test]
