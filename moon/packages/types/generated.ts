@@ -7308,10 +7308,6 @@ export type GetTargetsLogsData = TargetLogLinesResponse
 
 export type GetTargetsLogsError = LogErrorResponse
 
-export type PostTaskData = any
-
-export type GetTaskBuildListByIdData = string[]
-
 export type GetTaskHistoryOutputParams = {
   /** Task ID whose log to read */
   task_id: string
@@ -7362,6 +7358,8 @@ export type GetTargetStatusByTargetIdV2Data = any
 export type GetTargetsByTaskIdV2Data = BuildTargetDTO[]
 
 export type GetTargetsByTaskIdV2Error = MessageResponse
+
+export type PostTaskV2Data = any
 
 export type PostTaskRetryByIdV2Data = MessageResponse
 
@@ -7696,31 +7694,6 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
       request: (data: RetryBuildRequest, params: RequestParams = {}) =>
         this.request<PostRetryBuildData>({
           path: `/retry-build`,
-          method: 'POST',
-          body: data,
-          type: ContentType.Json,
-          ...params
-        })
-    }
-  }
-
-  /**
-   * No description
-   *
-   * @tags Task
-   * @name PostTask
-   * @summary Creates build tasks and returns the task ID and status (immediate or queued)
-   * @request POST:/task
-   */
-  postTask = () => {
-    const base = 'POST:/task' as const
-
-    return {
-      baseKey: dataTaggedQueryKey<PostTaskData>([base]),
-      requestKey: () => dataTaggedQueryKey<PostTaskData>([base]),
-      request: (data: TaskBuildRequest, params: RequestParams = {}) =>
-        this.request<PostTaskData>({
-          path: `/task`,
           method: 'POST',
           body: data,
           type: ContentType.Json,
@@ -19080,28 +19053,6 @@ It's for local testing purposes.
     },
 
     /**
-     * No description
-     *
-     * @tags Task
-     * @name GetTaskBuildListById
-     * @request GET:/task-build-list/{id}
-     */
-    getTaskBuildListById: () => {
-      const base = 'GET:/task-build-list/{id}' as const
-
-      return {
-        baseKey: dataTaggedQueryKey<GetTaskBuildListByIdData>([base]),
-        requestKey: (id: string) => dataTaggedQueryKey<GetTaskBuildListByIdData>([base, id]),
-        request: (id: string, params: RequestParams = {}) =>
-          this.request<GetTaskBuildListByIdData>({
-            path: `/task-build-list/${id}`,
-            method: 'GET',
-            ...params
-          })
-      }
-    },
-
-    /**
  * No description
  *
  * @tags Task
@@ -19340,6 +19291,54 @@ Returns simple health status based on database connectivity
       }
     }
   }
+  task = {
+    /**
+     * No description
+     *
+     * @tags Task
+     * @name PostTaskV2
+     * @summary Handling task creation and returns the task ID with status (immediate or queued)
+     * @request POST:/v2/task
+     */
+    postTaskV2: () => {
+      const base = 'POST:/v2/task' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostTaskV2Data>([base]),
+        requestKey: () => dataTaggedQueryKey<PostTaskV2Data>([base]),
+        request: (data: TaskBuildRequest, params: RequestParams = {}) =>
+          this.request<PostTaskV2Data>({
+            path: `/v2/task`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Task
+     * @name GetTaskByClV2
+     * @request GET:/v2/task/{cl}
+     */
+    getTaskByClV2: () => {
+      const base = 'GET:/v2/task/{cl}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetTaskByClV2Data>([base]),
+        requestKey: (cl: string) => dataTaggedQueryKey<GetTaskByClV2Data>([base, cl]),
+        request: (cl: string, params: RequestParams = {}) =>
+          this.request<GetTaskByClV2Data>({
+            path: `/v2/task/${cl}`,
+            method: 'GET',
+            ...params
+          })
+      }
+    }
+  }
   taskRetry = {
     /**
      * No description
@@ -19358,29 +19357,6 @@ Returns simple health status based on database connectivity
           this.request<PostTaskRetryByIdV2Data>({
             path: `/v2/task-retry/${id}`,
             method: 'POST',
-            ...params
-          })
-      }
-    }
-  }
-  task = {
-    /**
-     * No description
-     *
-     * @tags Task
-     * @name GetTaskByClV2
-     * @request GET:/v2/task/{cl}
-     */
-    getTaskByClV2: () => {
-      const base = 'GET:/v2/task/{cl}' as const
-
-      return {
-        baseKey: dataTaggedQueryKey<GetTaskByClV2Data>([base]),
-        requestKey: (cl: string) => dataTaggedQueryKey<GetTaskByClV2Data>([base, cl]),
-        request: (cl: string, params: RequestParams = {}) =>
-          this.request<GetTaskByClV2Data>({
-            path: `/v2/task/${cl}`,
-            method: 'GET',
             ...params
           })
       }

@@ -19,10 +19,16 @@ pub struct Model {
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
-    #[sea_orm(has_many = "super::user_notification_preferences::Entity")]
-    UserNotificationPreferences,
     #[sea_orm(has_many = "super::email_jobs::Entity")]
     EmailJobs,
+    #[sea_orm(has_many = "super::user_notification_preferences::Entity")]
+    UserNotificationPreferences,
+}
+
+impl Related<super::email_jobs::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::EmailJobs.def()
+    }
 }
 
 impl Related<super::user_notification_preferences::Entity> for Entity {
@@ -31,9 +37,16 @@ impl Related<super::user_notification_preferences::Entity> for Entity {
     }
 }
 
-impl Related<super::email_jobs::Entity> for Entity {
+impl Related<super::user_notification_settings::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::EmailJobs.def()
+        super::user_notification_preferences::Relation::UserNotificationSettings.def()
+    }
+    fn via() -> Option<RelationDef> {
+        Some(
+            super::user_notification_preferences::Relation::NotificationEventTypes
+                .def()
+                .rev(),
+        )
     }
 }
 

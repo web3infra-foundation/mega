@@ -12,9 +12,8 @@ use axum::{
 use ceres::model::buck::*;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::{
-    api::{MonoApiServiceState, error::ApiError, oauth::model::LoginUser},
-    server::http_server::BUCK_TAG,
+use crate::api::{
+    MonoApiServiceState, api_doc::BUCK_TAG, error::ApiError, oauth::model::LoginUser,
 };
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {

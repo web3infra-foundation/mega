@@ -10,7 +10,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use crate::{
     api_service::state::ProtocolApiState,
     protocol::{
-        Capability, ServiceType, SideBind, SmartProtocol, TransportProtocol, ZERO_ID,
+        Capability, ServiceType, SideBind, SmartSession, TransportProtocol, ZERO_ID,
         import_refs::RefCommand,
     },
 };
@@ -35,7 +35,7 @@ const COMMON_CAP_LIST: &str = "side-band-64k ofs-delta agent=mega/0.1.0";
 // All other capabilities are only recognized by the upload-pack (fetch from server) process.
 const UPLOAD_CAP_LIST: &str = "multi_ack_detailed no-done include-tag ";
 
-impl SmartProtocol {
+impl SmartSession {
     /// # Retrieves the information about Git references (refs) for the specified service type.
     ///
     /// The function returns a `BytesMut` object containing the Git reference information.
@@ -61,9 +61,8 @@ impl SmartProtocol {
     ///
     /// Finally, the constructed packet line stream is returned.
     pub async fn git_info_refs(&self, state: &ProtocolApiState) -> Result<BytesMut, ProtocolError> {
-        let repo_handler = self.repo_handler(state).await?;
-
-        let service_type = self.service_type.unwrap();
+        let repo_handler = self.repo_handler_with_commands(state, Vec::new()).await?;
+        let service_type = self.service_type;
 
         // The stream MUST include capability declarations behind a NUL on the first ref.
         let (head_hash, git_refs) = repo_handler.refs_with_head_hash().await;
@@ -93,7 +92,7 @@ impl SmartProtocol {
         state: &ProtocolApiState,
         upload_request: &mut Bytes,
     ) -> Result<(ReceiverStream<Vec<u8>>, BytesMut), ProtocolError> {
-        let repo_handler = self.repo_handler(state).await?;
+        let repo_handler = self.repo_handler_with_commands(state, Vec::new()).await?;
 
         let mut want: HashSet<String> = HashSet::new();
         let mut have: HashSet<String> = HashSet::new();
@@ -195,30 +194,36 @@ impl SmartProtocol {
         Ok((pack_data, protocol_buf))
     }
 
-    pub fn parse_receive_pack_commands(&mut self, mut protocol_bytes: Bytes) {
+    pub fn parse_receive_pack_commands(&mut self, mut protocol_bytes: Bytes) -> Vec<RefCommand> {
+        let mut commands: Vec<RefCommand> = Vec::new();
         while !protocol_bytes.is_empty() {
             let (bytes_take, mut pkt_line) = read_pkt_line(&mut protocol_bytes);
             if bytes_take != 0 {
-                let command = self.parse_ref_command(&mut pkt_line);
+                let command = Self::parse_ref_command(&mut pkt_line);
                 self.parse_capabilities(core::str::from_utf8(&pkt_line).unwrap());
                 tracing::debug!(
                     "parse ref_command: {:?}, with caps:{:?}",
                     command,
                     self.capabilities
                 );
-                self.command_list.push(command);
+                commands.push(command);
             }
         }
+        commands
     }
 
     pub async fn git_receive_pack_stream(
         &mut self,
         state: &ProtocolApiState,
+        commands: Vec<RefCommand>,
         data_stream: Pin<Box<dyn Stream<Item = Result<Bytes, axum::Error>> + Send>>,
     ) -> Result<Bytes, ProtocolError> {
         // After receiving the pack data from the sender, the receiver sends a report
         let mut report_status = BytesMut::new();
-        let repo_handler = self.repo_handler(state).await?;
+        let mut commands = commands;
+        let repo_handler = self
+            .repo_handler_with_commands(state, commands.clone())
+            .await?;
         //1. unpack progress
         let receiver = repo_handler
             .unpack_stream(&state.storage.config().pack, data_stream)
@@ -237,7 +242,7 @@ impl SmartProtocol {
         let mut unpack_failed = false;
 
         //2. update each refs and build report
-        for command in &mut self.command_list {
+        for command in commands.iter_mut() {
             if command.ref_type == RefTypeEnum::Tag {
                 // just update if refs type is tag
                 if let Err(e) = repo_handler.update_refs(command).await {
@@ -271,7 +276,7 @@ impl SmartProtocol {
             repo_handler.post_receive_pack().await?;
 
             // 4. Process commit bindings for successful ref updates
-            self.process_commit_bindings(state).await;
+            self.process_commit_bindings(state, &commands).await;
         }
 
         report_status.put(&PKT_LINE_END_MARKER[..]);
@@ -332,13 +337,13 @@ impl SmartProtocol {
         for cap in cap_vec {
             let res = cap.trim().parse::<Capability>();
             if let Ok(cap) = res {
-                self.capabilities.push(cap);
+                self.capabilities.insert(cap);
             }
         }
     }
 
     // the first line contains the capabilities
-    pub fn parse_ref_command(&self, pkt_line: &mut Bytes) -> RefCommand {
+    pub fn parse_ref_command(pkt_line: &mut Bytes) -> RefCommand {
         RefCommand::new(
             read_until_white_space(pkt_line),
             read_until_white_space(pkt_line),
@@ -347,8 +352,8 @@ impl SmartProtocol {
     }
 
     /// Process commit bindings for successfully pushed commits
-    async fn process_commit_bindings(&self, state: &ProtocolApiState) {
-        for command in &self.command_list {
+    async fn process_commit_bindings(&self, state: &ProtocolApiState, commands: &[RefCommand]) {
+        for command in commands {
             // Only process successful branch updates (not tags or failed commands)
             if command.ref_type == RefTypeEnum::Branch
                 && command.status == "ok"
@@ -371,7 +376,7 @@ impl SmartProtocol {
 
         // If there is an authenticated user, bind to their username; otherwise anonymous
         let (matched_username, is_anonymous) =
-            if let Some(authenticated_user) = &self.authenticated_user {
+            if let Some(authenticated_user) = &self.auth.authenticated_user {
                 (Some(authenticated_user.username.clone()), false)
             } else {
                 (None, true)
@@ -395,6 +400,8 @@ impl SmartProtocol {
         Ok(())
     }
 }
+
+// SmartProtocol struct removed; remaining codec helpers live on SmartSession.
 
 fn read_until_white_space(bytes: &mut Bytes) -> String {
     let mut buf = Vec::new();
@@ -473,7 +480,7 @@ pub mod test {
     use tokio::{task, time::sleep};
 
     use crate::protocol::{
-        Capability, SmartProtocol,
+        Capability, ServiceType, SmartSession, TransportProtocol,
         import_refs::{CommandType, RefCommand},
         smart::{add_pkt_line_string, read_pkt_line, read_until_white_space},
     };
@@ -488,7 +495,11 @@ pub mod test {
 
     #[test]
     pub fn test_build_smart_reply() {
-        let mock = SmartProtocol::mock();
+        let mock = SmartSession::new(
+            std::path::PathBuf::new(),
+            ServiceType::UploadPack,
+            TransportProtocol::Http,
+        );
         let ref_list = vec![String::from(
             "7bdc783132575d5b3e78400ace9971970ff43a18 refs/heads/master\0report-status report-status-v2 thin-pack side-band side-band-64k ofs-delta shallow deepen-since deepen-not deepen-relative multi_ack_detailed no-done object-format=sha1\n",
         )];
@@ -530,9 +541,8 @@ pub mod test {
 
     #[test]
     pub fn test_parse_ref_update() {
-        let mock = SmartProtocol::mock();
         let mut bytes = Bytes::from("0000000000000000000000000000000000000000 27dd8d4cf39f3868c6eee38b601bc9e9939304f5 refs/heads/main\0".as_bytes());
-        let result = mock.parse_ref_command(&mut bytes);
+        let result = SmartSession::parse_ref_command(&mut bytes);
 
         let command = RefCommand {
             ref_name: String::from("refs/heads/main"),
@@ -549,11 +559,15 @@ pub mod test {
 
     #[test]
     pub fn test_parse_capabilities() {
-        let mut mock = SmartProtocol::mock();
+        let mut mock = SmartSession::new(
+            std::path::PathBuf::new(),
+            ServiceType::UploadPack,
+            TransportProtocol::Http,
+        );
         mock.parse_capabilities("report-status-v2 side-band-64k object-format=sha10000");
         assert_eq!(
             mock.capabilities,
-            vec![Capability::ReportStatusv2, Capability::SideBand64k]
+            std::collections::HashSet::from([Capability::ReportStatusv2, Capability::SideBand64k])
         );
     }
 

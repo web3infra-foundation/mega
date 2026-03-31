@@ -15,10 +15,7 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::{
-    api::{MonoApiServiceState, error::ApiError},
-    server::http_server::WEBHOOK_TAG,
-};
+use crate::api::{MonoApiServiceState, api_doc::WEBHOOK_TAG, error::ApiError};
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new()

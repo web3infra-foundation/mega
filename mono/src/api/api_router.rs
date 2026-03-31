@@ -10,19 +10,17 @@ use ceres::{api_service::ApiHandler, model::git::TreeQuery};
 use common::errors::MegaError;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::{
-    api::{
-        MonoApiServiceState,
-        error::ApiError,
-        notes::note_router,
-        router::{
-            admin_router, bot_router, buck_router, build_trigger_router, cl_router,
-            code_review_router, commit_router, conv_router, dynamic_sidebar_router, gpg_router,
-            group_router, issue_router, label_router, merge_queue_router, permission_router,
-            preview_router, repo_router, reviewer_router, tag_router, user_router, webhook_router,
-        },
+use crate::api::{
+    MonoApiServiceState,
+    api_doc::SYSTEM_COMMON,
+    error::ApiError,
+    notes::note_router,
+    router::{
+        admin_router, bot_router, buck_router, build_trigger_router, cl_router, code_review_router,
+        commit_router, conv_router, dynamic_sidebar_router, gpg_router, group_router, issue_router,
+        label_router, merge_queue_router, permission_router, preview_router, repo_router,
+        reviewer_router, tag_router, user_router, webhook_router,
     },
-    server::http_server::SYSTEM_COMMON,
 };
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {

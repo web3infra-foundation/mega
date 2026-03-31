@@ -11,12 +11,9 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::{
-    api::{
-        MonoApiServiceState, api_common::group_permission::ensure_admin, error::ApiError,
-        oauth::model::LoginUser,
-    },
-    server::http_server::BOT_TAG,
+use crate::api::{
+    MonoApiServiceState, api_common::group_permission::ensure_admin, api_doc::BOT_TAG,
+    error::ApiError, oauth::model::LoginUser,
 };
 
 /// Maximum allowed expires_in in seconds (10 years).

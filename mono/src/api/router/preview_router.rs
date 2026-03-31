@@ -16,10 +16,7 @@ use ceres::model::{
 };
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::{
-    api::{MonoApiServiceState, error::ApiError},
-    server::http_server::CODE_PREVIEW,
-};
+use crate::api::{MonoApiServiceState, api_doc::CODE_PREVIEW, error::ApiError};
 
 async fn upsert_commit_binding(
     state: &MonoApiServiceState,

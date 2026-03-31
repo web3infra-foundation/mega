@@ -28,6 +28,7 @@ use tower_sessions::MemoryStore;
 
 use crate::api::oauth::api_store::OAuthApiStore;
 pub mod api_common;
+pub mod api_doc;
 pub mod api_router;
 pub mod error;
 pub mod guard;

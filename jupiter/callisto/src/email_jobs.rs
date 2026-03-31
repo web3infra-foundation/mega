@@ -6,21 +6,19 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "email_jobs")]
 pub struct Model {
-    #[sea_orm(primary_key, auto_increment = true)]
+    #[sea_orm(primary_key)]
     pub id: i64,
     pub username: String,
     pub to_email: String,
     pub event_type_code: String,
-
     #[sea_orm(column_type = "Text")]
     pub subject: String,
     #[sea_orm(column_type = "Text")]
     pub body_html: String,
-    #[sea_orm(column_type = "Text")]
+    #[sea_orm(column_type = "Text", nullable)]
     pub body_text: Option<String>,
     pub status: String,
-
-    #[sea_orm(column_type = "Text")]
+    #[sea_orm(column_type = "Text", nullable)]
     pub error_message: Option<String>,
     pub retry_count: i32,
     pub next_retry_at: Option<DateTime>,

@@ -11,10 +11,7 @@ use axum::{
     routing::any,
 };
 use bellatrix::Bellatrix;
-use ceres::{
-    api_service::{cache::GitObjectCache, state::ProtocolApiState},
-    protocol::{ServiceType, SmartProtocol, TransportProtocol},
-};
+use ceres::api_service::{cache::GitObjectCache, state::ProtocolApiState};
 use common::{
     email::{Mailer, NoopMailer, SmtpMailer},
     errors::ProtocolError,
@@ -36,6 +33,7 @@ use super::super::notification::EmailDispatcher;
 use crate::{
     api::{
         MonoApiServiceState,
+        api_doc::ApiDoc,
         api_router::{self},
         guard::cedar_guard::cedar_guard,
         oauth::{
@@ -433,28 +431,17 @@ async fn handle_smart_protocol(
         ));
     }
     if full_path.ends_with("/info/refs") && req.method().eq(&Method::GET) {
-        let pack_protocol = SmartProtocol::new(
-            remove_git_suffix(full_path, "/info/refs"),
-            TransportProtocol::Http,
-        );
+        let repo_path = remove_git_suffix(full_path, "/info/refs");
         let uri = req.uri();
         let query_str = uri.query().unwrap_or("");
         let params: InfoRefsParams = serde_urlencoded::from_str(query_str).unwrap();
-        crate::git_protocol::http::git_info_refs(&state, params, pack_protocol).await
+        crate::git_protocol::http::git_info_refs(&state, params, repo_path).await
     } else if full_path.ends_with("/git-upload-pack") && req.method().eq(&Method::POST) {
-        let mut pack_protocol = SmartProtocol::new(
-            remove_git_suffix(full_path, "/git-upload-pack"),
-            TransportProtocol::Http,
-        );
-        pack_protocol.service_type = Some(ServiceType::UploadPack);
-        crate::git_protocol::http::git_upload_pack(&state, req, pack_protocol).await
+        let repo_path = remove_git_suffix(full_path, "/git-upload-pack");
+        crate::git_protocol::http::git_upload_pack(&state, req, repo_path).await
     } else if full_path.ends_with("/git-receive-pack") && req.method().eq(&Method::POST) {
-        let mut pack_protocol = SmartProtocol::new(
-            remove_git_suffix(full_path, "/git-receive-pack"),
-            TransportProtocol::Http,
-        );
-        pack_protocol.service_type = Some(ServiceType::ReceivePack);
-        crate::git_protocol::http::git_receive_pack(&state, req, pack_protocol).await
+        let repo_path = remove_git_suffix(full_path, "/git-receive-pack");
+        crate::git_protocol::http::git_receive_pack(&state, req, repo_path).await
     } else {
         Ok(Response::builder()
             .status(404)
@@ -462,31 +449,6 @@ async fn handle_smart_protocol(
             .unwrap())
     }
 }
-
-/// Swagger API tag
-pub const SYSTEM_COMMON: &str = "System Common";
-pub const CODE_PREVIEW: &str = "Code Preview";
-pub const TAG_MANAGE: &str = "Tag Management";
-pub const CL_TAG: &str = "Change List";
-pub const GPG_TAG: &str = "Gpg Key";
-pub const ISSUE_TAG: &str = "Issue Management";
-pub const SIDEBAR_TAG: &str = "Sidebar Management";
-pub const LABEL_TAG: &str = "Label Management";
-pub const CONV_TAG: &str = "Conversation and Comment";
-pub const SYNC_NOTES_STATE_TAG: &str = "sync-notes-state";
-pub const USER_TAG: &str = "User Management";
-pub const REPO_TAG: &str = "Repo creation and synchronisation";
-pub const MERGE_QUEUE_TAG: &str = "Merge Queue Management";
-pub const BUCK_TAG: &str = "Buck Upload API";
-pub const LFS_TAG: &str = "Git LFS";
-pub const CODE_REVIEW_TAG: &str = "Code Review";
-pub const BUILD_TRIGGER_TAG: &str = "Build Trigger";
-pub const GROUP_PERMISSION_TAG: &str = "Group Permission Management";
-pub const WEBHOOK_TAG: &str = "Webhook";
-pub const BOT_TAG: &str = "Bot Management";
-#[derive(OpenApi)]
-#[openapi()]
-struct ApiDoc;
 
 #[cfg(test)]
 mod tests {

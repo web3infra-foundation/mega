@@ -5,10 +5,7 @@ use axum::{Json, extract::State};
 use ceres::model::change_list::CloneRepoPayload;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::{
-    api::{MonoApiServiceState, error::ApiError},
-    server::http_server::REPO_TAG,
-};
+use crate::api::{MonoApiServiceState, api_doc::REPO_TAG, error::ApiError};
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new().nest(

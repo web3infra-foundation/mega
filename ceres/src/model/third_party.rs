@@ -60,8 +60,9 @@ impl ThirdPartyRepoTrait for ThirdPartyClient {
             .map_err(|e| MegaError::Other(format!("Unable to parse bytes: {}", e)))?;
 
         let mut cursor = Cursor::new(bytes);
-        let mut cmt: Option<String> = None;
-        let mut r: Option<String> = None;
+        let mut head_symref: Option<String> = None;
+        let mut head_ref_hash: Option<String> = None;
+        let mut candidate_branches: Vec<(String, String)> = Vec::new();
         loop {
             let mut len_buf = [0u8; 4];
             if std::io::Read::read_exact(&mut cursor, &mut len_buf).is_err() {
@@ -79,21 +80,77 @@ impl ThirdPartyRepoTrait for ThirdPartyClient {
             let mut data = vec![0u8; (len - 4) as usize];
             std::io::Read::read_exact(&mut cursor, &mut data)?;
             let line = String::from_utf8_lossy(&data);
+            let line = line.trim_end_matches('\n');
 
-            if line.contains("refs/heads/") || line.contains("refs/tags/") {
-                let parts: Vec<&str> = line.split_whitespace().collect();
-                if parts.len() >= 2 && parts[1] == "refs/heads/main" {
-                    r = Some(parts[1].to_string());
-                    cmt = Some(parts[0].to_string());
-                    break;
+            // Each advertised ref is usually: "<hash> <refname>\0<capabilities...>"
+            // Only the first advertised ref line contains capabilities.
+            let (left, caps) = match line.split_once('\0') {
+                Some((l, c)) => (l, Some(c)),
+                None => (line, None),
+            };
+
+            if let Some(caps) = caps {
+                // Parse default branch from symref, e.g. "symref=HEAD:refs/heads/main"
+                // Capabilities are separated by spaces.
+                for cap in caps.split_whitespace() {
+                    if let Some(v) = cap.strip_prefix("symref=HEAD:") {
+                        head_symref = Some(v.to_string());
+                        break;
+                    }
+                }
+            }
+
+            // Parse "<hash> <refname>" portion (ignore service header lines like "# service=...")
+            let mut it = left.split_whitespace();
+            let hash = it.next();
+            let ref_name = it.next();
+            if let (Some(hash), Some(ref_name)) = (hash, ref_name) {
+                if ref_name == "HEAD" {
+                    head_ref_hash = Some(hash.to_string());
+                    continue;
+                }
+                if ref_name.starts_with("refs/heads/") {
+                    candidate_branches.push((ref_name.to_string(), hash.to_string()));
                 }
             }
         }
 
-        match (r, cmt) {
-            (Some(r), Some(cmt)) => Ok((r, cmt)),
-            _ => Err(MegaError::Other("refs/heads/main not found".to_string())),
+        // 1) Prefer server-advertised default branch via symref=HEAD:refs/heads/<x>
+        if let Some(default_ref) = head_symref
+            && let Some((r, cmt)) = candidate_branches
+                .iter()
+                .find(|(r, _)| r == &default_ref)
+                .cloned()
+        {
+            return Ok((r, cmt));
         }
+
+        // 2) Fallback: common defaults
+        for preferred in ["refs/heads/main", "refs/heads/master"] {
+            if let Some((r, cmt)) = candidate_branches
+                .iter()
+                .find(|(r, _)| r == preferred)
+                .cloned()
+            {
+                return Ok((r, cmt));
+            }
+        }
+
+        // 3) Fallback: if HEAD hash is known, pick any branch pointing at HEAD
+        if let Some(head_hash) = head_ref_hash
+            && let Some((r, cmt)) = candidate_branches
+                .iter()
+                .find(|(_, h)| h == &head_hash)
+                .cloned()
+        {
+            return Ok((r, cmt));
+        }
+
+        // 4) Last resort: first advertised branch
+        candidate_branches
+            .into_iter()
+            .next()
+            .ok_or_else(|| MegaError::Other("No refs/heads/* found".to_string()))
     }
 
     async fn fetch_packs(

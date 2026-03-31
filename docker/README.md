@@ -175,8 +175,8 @@ http://app.gitmono.local
 
 The demo environment includes a built-in test user you can use directly:
 
-- **Username**: `mega` (or as configured by `MEGA_AUTHENTICATION__TEST_USER_NAME`)
-- **Token**: `mega` (or as configured by `MEGA_AUTHENTICATION__TEST_USER_TOKEN`)
+- **Username**: `mega`
+- **Token**: `mega`
 
 ### 3. Trigger an Orion build
 
@@ -339,7 +339,7 @@ Log in with the following credentials:
    docker compose -f docker/demo/docker-compose.demo.yml logs orion_build_client
    ```
 
-3. Verify that the environment variable `ORION_WORKER_SERVER_WS` is configured correctly (default: `ws://orion_server:8004/ws`).
+3. Verify that the backend is pointing at the correct Orion server URL (default: `http://orion_server:8004`) via `MEGA_BUILD__ORION_SERVER`.
 
 ### Database connection failure
 

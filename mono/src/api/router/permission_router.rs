@@ -6,16 +6,14 @@ use axum::{
 use ceres::model::group::UserEffectivePermissionResponse;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::{
-    api::{
-        MonoApiServiceState,
-        api_common::group_permission::{
-            build_user_effective_permission_response, resolve_resource_context,
-        },
-        error::ApiError,
-        oauth::model::LoginUser,
+use crate::api::{
+    MonoApiServiceState,
+    api_common::group_permission::{
+        build_user_effective_permission_response, resolve_resource_context,
     },
-    server::http_server::GROUP_PERMISSION_TAG,
+    api_doc::GROUP_PERMISSION_TAG,
+    error::ApiError,
+    oauth::model::LoginUser,
 };
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {

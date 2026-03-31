@@ -9,12 +9,10 @@ use axum::{
 use ceres::model::tag::{CreateTagRequest, DeleteTagResponse, TagListResponse, TagResponse};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::{
-    api::{
-        MonoApiServiceState,
-        error::{ApiError, map_ceres_error},
-    },
-    server::http_server::TAG_MANAGE,
+use crate::api::{
+    MonoApiServiceState,
+    api_doc::TAG_MANAGE,
+    error::{ApiError, map_ceres_error},
 };
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {

@@ -23,7 +23,7 @@ impl OrionClient {
 
     /// Trigger a build on Orion and return the assigned task ID.
     pub async fn trigger_build(&self, req: TaskBuildRequest) -> anyhow::Result<String> {
-        let url = format!("{}/task", self.base_url);
+        let url = format!("{}/v2/task", self.base_url);
         tracing::info!("Try to trigger build with params:{:?}", req);
         let res = self.client.post(&url).json(&req).send().await?;
         if res.status().is_success() {

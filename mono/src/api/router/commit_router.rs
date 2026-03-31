@@ -12,10 +12,7 @@ use ceres::model::{
 use serde::{Deserialize, Serialize};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::{
-    api::{MonoApiServiceState, error::ApiError},
-    server::http_server::CODE_PREVIEW,
-};
+use crate::api::{MonoApiServiceState, api_doc::CODE_PREVIEW, error::ApiError};
 
 #[derive(Debug, Deserialize, Serialize, utoipa::ToSchema)]
 pub struct UpdateCommitBindingRequest {

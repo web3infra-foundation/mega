@@ -59,7 +59,7 @@ use common::errors::GitLFSError;
 use futures::TryStreamExt;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::{api::MonoApiServiceState, server::http_server::LFS_TAG};
+use crate::api::{MonoApiServiceState, api_doc::LFS_TAG};
 
 const LFS_CONTENT_TYPE: &str = "application/vnd.git-lfs+json";
 const LFS_STREAM_CONTENT_TYPE: &str = "application/octet-stream";
