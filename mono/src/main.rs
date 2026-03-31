@@ -8,7 +8,8 @@ mod commands;
 
 pub mod api;
 pub mod git_protocol;
-pub mod server;
+pub mod notification;
+use mono::server;
 
 #[cfg(not(target_os = "windows"))]
 #[global_allocator]

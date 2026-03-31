@@ -99,6 +99,8 @@ pub struct Config {
     pub orion_server: Option<OrionServerConfig>,
     #[serde(default)]
     pub sidebar: SidebarConfig,
+    #[serde(default)]
+    pub mail: Option<MailConfig>,
 }
 
 impl Config {
@@ -137,6 +139,7 @@ impl Config {
             object_storage: ObjectStorageConfig::default(),
             orion_server: None,
             sidebar: SidebarConfig::default(),
+            mail: None,
         }
     }
 
@@ -264,6 +267,29 @@ impl Default for LogConfig {
             print_std: true,
         }
     }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct MailConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    pub smtp_host: String,
+    #[serde(default = "default_smtp_port")]
+    pub smtp_port: u16,
+    #[serde(default)]
+    pub username: Option<String>,
+    #[serde(default)]
+    pub password: Option<String>,
+    pub from: String,
+    #[serde(default = "default_starttls")]
+    pub starttls: bool,
+}
+
+fn default_smtp_port() -> u16 {
+    587
+}
+fn default_starttls() -> bool {
+    true
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -1068,5 +1094,30 @@ mod test {
             ..Default::default()
         };
         assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_mail_config_deserialize() {
+        use serde::Deserialize;
+        #[derive(Deserialize)]
+        struct Wrapper {
+            mail: MailConfig,
+        }
+
+        let toml = r#"
+            [mail]
+            enabled = true
+            smtp_host = "smtp.example.com"
+            smtp_port = 587
+            from = "no-reply@example.com"
+            starttls = true
+        "#;
+
+        let parsed: Wrapper = toml::from_str(toml).expect("MailConfig should deserialize");
+        assert!(parsed.mail.enabled);
+        assert_eq!(parsed.mail.smtp_host, "smtp.example.com");
+        assert_eq!(parsed.mail.smtp_port, 587);
+        assert_eq!(parsed.mail.from, "no-reply@example.com");
+        assert!(parsed.mail.starttls);
     }
 }

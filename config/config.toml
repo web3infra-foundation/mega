@@ -259,3 +259,12 @@ default_items = [
     { public_id = "rust", label = "Rust", href = "/rust", visible = false, order_index = 11 },
     { public_id = "oc", label = "Orion Client", href = "/oc", visible = true, order_index = 13 },
 ]
+
+[mail]
+enabled = true
+smtp_host = "localhost"
+smtp_port = 2525
+from = "no-reply@mega.local"
+starttls = false
+smtp_tls = false
+tls = false

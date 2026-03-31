@@ -30,3 +30,5 @@ cedar-policy = { workspace = true }
 redis = { workspace = true }
 rkyv = { workspace = true}
 toml = { workspace = true }
+async-trait = { workspace = true }
+lettre = { workspace = true }

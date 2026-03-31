@@ -598,7 +598,51 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_queue_capacity_v2() {
+    fn test_task_queue_fifo() {
+        let config = TaskQueueConfig::default();
+        let mut queue = TaskQueue::new(config);
+
+        let build_event1 = BuildEventPayload::new(
+            Uuid::now_v7(),
+            Uuid::now_v7(),
+            "test_cl_link".to_string(),
+            "/test/repo".to_string(),
+            0,
+        );
+
+        let task1 = PendingBuildEventV2 {
+            event_payload: build_event1.clone(),
+            targets: vec![],
+            changes: vec![],
+            created_at: Instant::now(),
+        };
+
+        let build_event2 = BuildEventPayload::new(
+            Uuid::now_v7(),
+            Uuid::now_v7(),
+            "test_cl_link_2".to_string(),
+            "/test2/repo".to_string(),
+            0,
+        );
+
+        let task2 = PendingBuildEventV2 {
+            event_payload: build_event2.clone(),
+            targets: vec![],
+            changes: vec![],
+            created_at: Instant::now(),
+        };
+
+        assert!(queue.enqueue_v2(task1).is_ok());
+        assert!(queue.enqueue_v2(task2).is_ok());
+
+        // check stats
+        let stats = queue.get_stats();
+        assert_eq!(stats.total_queued, 2);
+    }
+
+    /// Test queue capacity limit
+    #[test]
+    fn test_queue_capacity() {
         let config = TaskQueueConfig {
             max_queue_size: 2,
             max_wait_time: Duration::from_secs(60),

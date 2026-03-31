@@ -17,10 +17,10 @@ use common::errors::ProtocolError;
 use jupiter::{
     service::webhook_service::WebhookService,
     storage::{
-        Storage, cl_storage::ClStorage, conversation_storage::ConversationStorage,
-        dynamic_sidebar_storage::DynamicSidebarStorage, gpg_storage::GpgStorage,
-        issue_storage::IssueStorage, note_storage::NoteStorage, user_storage::UserStorage,
-        webhook_storage::WebhookStorage,
+        NotificationStorage, Storage, cl_storage::ClStorage,
+        conversation_storage::ConversationStorage, dynamic_sidebar_storage::DynamicSidebarStorage,
+        gpg_storage::GpgStorage, issue_storage::IssueStorage, note_storage::NoteStorage,
+        user_storage::UserStorage, webhook_storage::WebhookStorage,
     },
 };
 use saturn::entitystore::EntityStore;
@@ -106,6 +106,10 @@ impl MonoApiServiceState {
 
     fn user_stg(&self) -> UserStorage {
         self.storage.user_storage()
+    }
+
+    fn notification_stg(&self) -> NotificationStorage {
+        self.storage.notification_storage()
     }
 
     fn conv_stg(&self) -> ConversationStorage {
