@@ -956,46 +956,6 @@ pub async fn task_handler_v2(state: &AppState, req: TaskBuildRequest) -> Respons
         .into_response()
 }
 
-pub async fn task_handler_v1(state: &AppState, req: TaskBuildRequest) -> Response {
-    // Backward compatible entry point: delegate to v2 (new schema).
-    task_handler_v2(state, req).await
-}
-
-pub async fn task_build_list(state: &AppState, id: &str) -> Response {
-    let task_id = match id.parse::<uuid::Uuid>() {
-        Ok(uuid) => uuid,
-        Err(_) => {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(json!({"message": "Invalid task ID format"})),
-            )
-                .into_response();
-        }
-    };
-
-    match BuildEventsRepo::list_by_task_id(&state.conn, task_id).await {
-        Ok(events) if !events.is_empty() => {
-            let mut events = events;
-            events.sort_by(|a, b| b.start_at.cmp(&a.start_at));
-            let build_ids_str: Vec<String> = events.into_iter().map(|e| e.id.to_string()).collect();
-            (StatusCode::OK, Json(build_ids_str)).into_response()
-        }
-        Ok(_) => (
-            StatusCode::NOT_FOUND,
-            Json(json!({"message": "Task not found"})),
-        )
-            .into_response(),
-        Err(e) => {
-            tracing::error!("Failed to fetch build events for task {}: {}", task_id, e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({"message": "Database error"})),
-            )
-                .into_response()
-        }
-    }
-}
-
 pub async fn get_orion_clients_info(
     state: &AppState,
     params: PageParams<OrionClientQuery>,

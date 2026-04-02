@@ -607,7 +607,6 @@ mod tests {
             &RenameConfig {
                 similarity_threshold: 50,
                 rename_limit: 1,
-                ..RenameConfig::default()
             },
             &blob_cache,
         )
@@ -647,7 +646,6 @@ mod tests {
             &RenameConfig {
                 similarity_threshold: 50,
                 rename_limit: 1,
-                ..RenameConfig::default()
             },
             &blob_cache,
         )

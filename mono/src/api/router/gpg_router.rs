@@ -4,10 +4,7 @@ use callisto::gpg_key::Model;
 use ceres::model::gpg::{GpgKey, NewGpgRequest, RemoveGpgRequest};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::{
-    api::{MonoApiServiceState, error::ApiError, oauth::model::LoginUser},
-    server::http_server::GPG_TAG,
-};
+use crate::api::{MonoApiServiceState, api_doc::GPG_TAG, error::ApiError, oauth::model::LoginUser};
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new().nest(
         "/gpg",

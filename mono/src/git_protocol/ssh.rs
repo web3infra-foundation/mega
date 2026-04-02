@@ -5,7 +5,7 @@ use ceres::{
     api_service::state::ProtocolApiState,
     lfs::lfs_structs::Link,
     protocol::{
-        ServiceType, SmartProtocol, TransportProtocol,
+        ServiceType, SmartSession, TransportProtocol,
         smart::{self},
     },
 };
@@ -26,7 +26,7 @@ type ClientMap = HashMap<(usize, ChannelId), Channel<Msg>>;
 pub struct SshServer {
     pub clients: Arc<Mutex<ClientMap>>,
     pub id: usize,
-    pub smart_protocol: Option<SmartProtocol>,
+    pub smart_protocol: Option<SmartSession>,
     pub state: ProtocolApiState,
     pub data_combined: BytesMut,
 }
@@ -82,10 +82,11 @@ impl server::Handler for SshServer {
         let command: Vec<_> = data.split(' ').collect();
         let path = command[1];
         let path = path.replace(".git", "").replace('\'', "");
-        let mut smart_protocol = SmartProtocol::new(PathBuf::from(&path), TransportProtocol::Ssh);
+        let service_type = ServiceType::from_str(command[0]).unwrap_or(ServiceType::UploadPack);
+        let smart_protocol =
+            SmartSession::new(PathBuf::from(&path), service_type, TransportProtocol::Ssh);
         match command[0] {
             "git-upload-pack" | "git-receive-pack" => {
-                smart_protocol.service_type = Some(ServiceType::from_str(command[0]).unwrap());
                 // TODO handler ProtocolError
                 let res = smart_protocol.git_info_refs(&self.state).await.unwrap();
                 self.smart_protocol = Some(smart_protocol);
@@ -159,7 +160,7 @@ impl server::Handler for SshServer {
             // String::from_utf8_lossy(data),
             data.len()
         );
-        let service_type = smart_protocol.service_type.unwrap();
+        let service_type = smart_protocol.service_type;
         match service_type {
             ServiceType::UploadPack => {
                 self.handle_upload_pack(channel, data, session).await;
@@ -178,7 +179,7 @@ impl server::Handler for SshServer {
         session: &mut Session,
     ) -> Result<(), Self::Error> {
         if let Some(smart_protocol) = self.smart_protocol.as_mut()
-            && smart_protocol.service_type.unwrap() == ServiceType::ReceivePack
+            && smart_protocol.service_type == ServiceType::ReceivePack
         {
             self.handle_receive_pack(channel, session).await;
         };
@@ -235,12 +236,13 @@ impl SshServer {
             let chunk = chunk.unwrap();
 
             if let Some(pos) = search_subsequence(&chunk, b"PACK") {
-                smart_protocol.parse_receive_pack_commands(Bytes::copy_from_slice(&chunk[..pos]));
+                let commands = smart_protocol
+                    .parse_receive_pack_commands(Bytes::copy_from_slice(&chunk[..pos]));
                 let remaining_bytes = Bytes::copy_from_slice(&chunk[pos..]);
                 let remaining_stream =
                     stream::once(async { Ok(remaining_bytes) }).chain(data_stream);
                 report_status = smart_protocol
-                    .git_receive_pack_stream(&self.state, Box::pin(remaining_stream))
+                    .git_receive_pack_stream(&self.state, commands, Box::pin(remaining_stream))
                     .await
                     .unwrap();
                 break;

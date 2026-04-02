@@ -17,9 +17,8 @@ use common::errors::MegaError;
 use russh::keys::{HashAlg, parse_public_key_base64};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::{
-    api::{MonoApiServiceState, error::ApiError, oauth::model::LoginUser},
-    server::http_server::USER_TAG,
+use crate::api::{
+    MonoApiServiceState, api_doc::USER_TAG, error::ApiError, oauth::model::LoginUser,
 };
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {

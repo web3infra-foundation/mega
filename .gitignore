@@ -43,6 +43,10 @@ monobean/resources/lib
 ## local python version file
 .python-version
 
+# Python bytecode cache
+__pycache__/
+*.py[cod]
+
 # orion server test
 orion-server/test_targets.sh
 orion-server/test-artifacts/

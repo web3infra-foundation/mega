@@ -10,10 +10,7 @@ use ceres::model::merge_queue::{
 use serde_json::{Value, json};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::{
-    api::{MonoApiServiceState, error::ApiError},
-    server::http_server::MERGE_QUEUE_TAG,
-};
+use crate::api::{MonoApiServiceState, api_doc::MERGE_QUEUE_TAG, error::ApiError};
 
 /// Creates the merge queue router with all endpoints
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {

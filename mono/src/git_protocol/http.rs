@@ -8,7 +8,7 @@ use axum::{
 use bytes::{Bytes, BytesMut};
 use ceres::{
     api_service::state::ProtocolApiState,
-    protocol::{PushUserInfo, ServiceType, SmartProtocol, smart},
+    protocol::{PushUserInfo, ServiceType, SmartSession, TransportProtocol, smart},
 };
 use common::errors::ProtocolError;
 use futures::{TryStreamExt, stream};
@@ -30,12 +30,12 @@ use crate::{
 pub async fn git_info_refs(
     state: &ProtocolApiState,
     params: InfoRefsParams,
-    mut pack_protocol: SmartProtocol,
+    repo_path: std::path::PathBuf,
 ) -> Result<Response<Body>, ProtocolError> {
     let service_name = params.service.unwrap();
-    pack_protocol.service_type = Some(service_name.parse::<ServiceType>().unwrap());
-
-    let pkt_line_stream = pack_protocol.git_info_refs(state).await?;
+    let service_type = service_name.parse::<ServiceType>().unwrap();
+    let session = SmartSession::new(repo_path, service_type, TransportProtocol::Http);
+    let pkt_line_stream = session.git_info_refs(state).await?;
 
     let content_type = format!("application/x-{service_name}-advertisement");
     let response = add_default_header(
@@ -62,7 +62,7 @@ fn auth_failed() -> Result<Response<Body>, ProtocolError> {
 /// Uses [`crate::api::oauth::login_user_from_mono_access_token`] (same as [`crate::api::oauth::AccessTokenUser`]).
 async fn git_receive_pack_bearer_auth(
     state: &ProtocolApiState,
-    pack_protocol: &mut SmartProtocol,
+    pack_protocol: &mut SmartSession,
     headers: &http::HeaderMap,
 ) -> Result<bool, ProtocolError> {
     let token = headers
@@ -80,8 +80,8 @@ async fn git_receive_pack_bearer_auth(
     };
 
     let username = user.username;
-    pack_protocol.username = Some(username.clone());
-    pack_protocol.authenticated_user = Some(PushUserInfo { username });
+    pack_protocol.auth.username = Some(username.clone());
+    pack_protocol.auth.authenticated_user = Some(PushUserInfo { username });
     Ok(true)
 }
 
@@ -108,8 +108,10 @@ async fn git_receive_pack_bearer_auth(
 pub async fn git_upload_pack(
     state: &ProtocolApiState,
     req: Request<Body>,
-    mut pack_protocol: SmartProtocol,
+    repo_path: std::path::PathBuf,
 ) -> Result<Response<Body>, ProtocolError> {
+    let mut pack_protocol =
+        SmartSession::new(repo_path, ServiceType::UploadPack, TransportProtocol::Http);
     let upload_request: BytesMut = req
         .into_body()
         .into_data_stream()
@@ -173,8 +175,10 @@ pub async fn git_upload_pack(
 pub async fn git_receive_pack(
     state: &ProtocolApiState,
     req: Request<Body>,
-    mut pack_protocol: SmartProtocol,
+    repo_path: std::path::PathBuf,
 ) -> Result<Response<Body>, ProtocolError> {
+    let mut pack_protocol =
+        SmartSession::new(repo_path, ServiceType::ReceivePack, TransportProtocol::Http);
     if !git_receive_pack_bearer_auth(state, &mut pack_protocol, req.headers()).await? {
         return auth_failed();
     }
@@ -189,12 +193,13 @@ pub async fn git_receive_pack(
         // Process the data up to the "PACK" subsequence.
         if let Some(pos) = search_subsequence(&chunk, b"PACK") {
             chunk_buffer.extend_from_slice(&chunk[0..pos]);
-            pack_protocol.parse_receive_pack_commands(Bytes::copy_from_slice(&chunk_buffer));
+            let commands =
+                pack_protocol.parse_receive_pack_commands(Bytes::copy_from_slice(&chunk_buffer));
             // Create a new stream from the remaining bytes and the rest of the data stream.
             let left_chunk_bytes = Bytes::copy_from_slice(&chunk[pos..]);
             let pack_stream = stream::once(async { Ok(left_chunk_bytes) }).chain(data_stream);
             report_status = pack_protocol
-                .git_receive_pack_stream(state, Box::pin(pack_stream))
+                .git_receive_pack_stream(state, commands, Box::pin(pack_stream))
                 .await?;
             break;
         } else {

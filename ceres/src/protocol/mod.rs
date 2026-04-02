@@ -1,5 +1,5 @@
 use core::fmt;
-use std::{path::PathBuf, str::FromStr, sync::Arc};
+use std::{collections::HashSet, path::PathBuf, str::FromStr, sync::Arc};
 
 use bellatrix::Bellatrix;
 use callisto::sea_orm_active_enums::RefTypeEnum;
@@ -26,15 +26,21 @@ pub struct PushUserInfo {
     pub username: String,
 }
 
-#[derive(Clone)]
-pub struct SmartProtocol {
-    pub transport_protocol: TransportProtocol,
-    pub capabilities: Vec<Capability>,
-    pub path: PathBuf,
-    pub command_list: Vec<RefCommand>,
-    pub service_type: Option<ServiceType>,
+#[derive(Clone, Debug)]
+pub struct AuthContext {
+    /// The actor username associated with the protocol operation (if available).
     pub username: Option<String>,
+    /// The authenticated push user info (if available).
     pub authenticated_user: Option<PushUserInfo>,
+}
+
+#[derive(Clone, Debug)]
+pub struct SmartSession {
+    pub repo_path: PathBuf,
+    pub service_type: ServiceType,
+    pub transport_protocol: TransportProtocol,
+    pub auth: AuthContext,
+    pub capabilities: HashSet<Capability>,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy, Default)]
@@ -43,8 +49,6 @@ pub enum TransportProtocol {
     #[default]
     Http,
     Ssh,
-    Git,
-    P2p,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -75,7 +79,7 @@ impl FromStr for ServiceType {
 }
 
 // TODO: Additional Capabilitys need to be supplemented.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Capability {
     MultiAck,
     MultiAckDetailed,
@@ -128,54 +132,48 @@ impl SideBind {
     }
 }
 pub struct RefUpdateRequest {
-    pub command_list: Vec<RefCommand>,
+    pub commands: Vec<RefCommand>,
 }
 
-impl SmartProtocol {
-    pub fn new(path: PathBuf, transport_protocol: TransportProtocol) -> Self {
-        SmartProtocol {
+impl SmartSession {
+    pub fn new(
+        repo_path: PathBuf,
+        service_type: ServiceType,
+        transport_protocol: TransportProtocol,
+    ) -> Self {
+        SmartSession {
+            repo_path,
+            service_type,
             transport_protocol,
-            capabilities: Vec::new(),
-            path,
-            command_list: Vec::new(),
-            service_type: None,
-            username: None,
-            authenticated_user: None,
+            auth: AuthContext {
+                username: None,
+                authenticated_user: None,
+            },
+            capabilities: HashSet::new(),
         }
     }
 
-    pub fn mock() -> Self {
-        SmartProtocol {
-            transport_protocol: TransportProtocol::default(),
-            capabilities: Vec::new(),
-            path: PathBuf::new(),
-            command_list: Vec::new(),
-            service_type: None,
-            username: None,
-            authenticated_user: None,
-        }
-    }
-
-    pub async fn repo_handler(
+    pub async fn repo_handler_with_commands(
         &self,
         state: &ProtocolApiState,
+        commands: Vec<RefCommand>,
     ) -> Result<Arc<dyn RepoHandler>, ProtocolError> {
         let config = state.storage.config();
         let import_dir = config.monorepo.import_dir.clone();
 
-        if self.path.starts_with(import_dir.clone()) {
+        if self.repo_path.starts_with(import_dir.clone()) {
             let storage = state.storage.git_db_storage();
-            let path_str = self.path.to_str().unwrap();
+            let path_str = self.repo_path.to_str().unwrap();
             let model = storage.find_git_repo_exact_match(path_str).await.unwrap();
             let repo = if let Some(repo) = model {
                 repo.into()
             } else {
-                match self.service_type.unwrap() {
+                match self.service_type {
                     ServiceType::UploadPack => {
                         return Err(ProtocolError::NotFound("Repository not found.".to_owned()));
                     }
                     ServiceType::ReceivePack => {
-                        let repo = Repo::new(self.path.clone(), false);
+                        let repo = Repo::new(self.repo_path.clone(), false);
                         storage.save_git_repo(repo.clone().into()).await.unwrap();
                         repo
                     }
@@ -191,27 +189,23 @@ impl SmartProtocol {
                 git_object_cache: state.git_object_cache.clone(),
                 storage: state.storage.clone(),
                 repo,
-                command_list: self.command_list.clone(),
+                command_list: commands,
                 unpack_redlock,
-            }))
+            }) as Arc<dyn RepoHandler>)
         } else {
             let mut res = MonoRepo {
                 git_object_cache: state.git_object_cache.clone(),
                 storage: state.storage.clone(),
-                path: self.path.clone(),
+                path: self.repo_path.clone(),
                 base_branch: "main".to_string(),
                 from_hash: String::new(),
                 to_hash: String::new(),
                 current_commit: Arc::new(RwLock::new(None)),
                 cl_link: Arc::new(RwLock::new(None)),
                 bellatrix: Arc::new(Bellatrix::new(config.build.clone())),
-                username: self.username.clone(),
+                username: self.auth.username.clone(),
             };
-            if let Some(command) = self
-                .command_list
-                .iter()
-                .find(|x| x.ref_type == RefTypeEnum::Branch)
-            {
+            if let Some(command) = commands.iter().find(|x| x.ref_type == RefTypeEnum::Branch) {
                 res.from_hash = command.old_id.clone();
                 res.to_hash = command.new_id.clone();
                 res.base_branch = command
@@ -220,7 +214,7 @@ impl SmartProtocol {
                     .unwrap_or(command.ref_name.as_str())
                     .to_string();
             }
-            Ok(Arc::new(res))
+            Ok(Arc::new(res) as Arc<dyn RepoHandler>)
         }
     }
 }

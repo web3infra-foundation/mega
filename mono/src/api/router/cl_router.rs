@@ -21,11 +21,11 @@ use crate::{
     api::{
         MonoApiServiceState,
         api_common::{self},
+        api_doc::CL_TAG,
         error::ApiError,
         oauth::model::LoginUser,
     },
     notification::triggers,
-    server::http_server::CL_TAG,
 };
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {

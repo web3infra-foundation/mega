@@ -31,6 +31,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from queue import Empty, Queue
 from typing import Iterable, Optional, Union
+from collections import defaultdict
 
 
 SEMVER_DIR_RE = re.compile(r"^\d+\.\d+\.\d+([\-+._][0-9A-Za-z.\-+_]+)?$")
@@ -204,19 +205,35 @@ def discover_repos(
     """Discover crate version directories under scan_root and return RepoSpec list."""
 
     specs: list[RepoSpec] = []
+    skipped = defaultdict(int)
+
+    total = 0
+
+    specs: list[RepoSpec] = []
     for d in _iter_dirs(scan_root):
         if not _has_buck_file(d):
+            skipped["no_buck"] += 1
             continue
         if _first_existing_ancestor_git_repo(d, scan_root) is not None:
+            skipped["has_git"] += 1
             continue
 
         version = d.name
         crate_name = d.parent.name
         if not include_non_semver and not _looks_like_version_dir(version):
+            skipped["non_semver"] += 1
             continue
 
         rel = _derive_mega_rel_path(scan_root, d)
         specs.append(RepoSpec(repo_dir=d, rel_path=rel, crate_name=crate_name, version=version))
+
+    # ===== Debug summary =====
+    print("\n[discover_repos debug]")
+    print(f"  scanned dirs:   {total}")
+    print(f"  discovered:    {len(specs)}")
+    print("  skipped:")
+    for k, v in sorted(skipped.items()):
+        print(f"    - {k:12}: {v}")
     return sorted(specs, key=lambda s: s.rel_path)
 
 

@@ -53,7 +53,7 @@ use callisto::{
 };
 use common::{
     errors::{BuckError, MegaError},
-    utils::MEGA_BRANCH_NAME,
+    utils::{MEGA_BRANCH_NAME, ZERO_ID},
 };
 use futures::{StreamExt, stream};
 use git_internal::{
@@ -107,7 +107,7 @@ use crate::{
         third_party::{ThirdPartyClient, ThirdPartyRepoTrait},
     },
     pack::{import_repo::ImportRepo, monorepo::MonoRepo},
-    protocol::{SmartProtocol, TransportProtocol},
+    protocol::{ServiceType, SmartSession, TransportProtocol},
 };
 
 #[derive(Clone)]
@@ -3011,7 +3011,33 @@ impl MonoApiService {
         self.save_import_ref(&mega_path, &ref_name, &ref_hash)
             .await?;
 
-        let mut protocol = SmartProtocol::new(mega_path, TransportProtocol::Http);
+        let repo_path_str = mega_path
+            .to_str()
+            .ok_or_else(|| MegaError::Other("Invalid UTF-8 in mega_path".to_string()))?
+            .to_string();
+
+        let mut protocol =
+            SmartSession::new(mega_path, ServiceType::ReceivePack, TransportProtocol::Http);
+
+        // Populate commands so `git_receive_pack_stream` can update import refs.
+        // old_id: current ref hash if exists; otherwise ZERO_ID (create).
+        let storage = self.storage.git_db_storage();
+        let old_id = match storage.find_git_repo_exact_match(&repo_path_str).await? {
+            Some(repo_model) => storage
+                .get_ref(repo_model.id)
+                .await?
+                .into_iter()
+                .find(|r| r.ref_name == ref_name)
+                .map(|r| r.ref_git_id)
+                .unwrap_or_else(|| ZERO_ID.to_string()),
+            None => ZERO_ID.to_string(),
+        };
+
+        let commands = vec![crate::protocol::import_refs::RefCommand::new(
+            old_id,
+            ref_hash.clone(),
+            ref_name.clone(),
+        )];
         let state = ProtocolApiState {
             storage: self.storage.clone(),
             git_object_cache: self.git_object_cache.clone(),
@@ -3019,6 +3045,7 @@ impl MonoApiService {
         let bytes = protocol
             .git_receive_pack_stream(
                 &state,
+                commands,
                 Box::pin(tokio_stream::once(Ok(Bytes::from(pack_data)))),
             )
             .await

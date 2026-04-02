@@ -53,9 +53,7 @@ fn system_routes() -> Router<AppState> {
 
 fn task_routes() -> Router<AppState> {
     Router::new()
-        .route("/task", post(task_handler))
-        .route("/v2/task-handler", get(task_handler_v2))
-        .route("/task-build-list/{id}", get(task_build_list_handler))
+        .route("/v2/task", post(task_handler_v2))
         .route("/task-output/{id}", get(task_output_handler))
         .route("/task-history-output", get(task_history_output_handler))
         .route("/v2/task-retry/{id}", post(task_retry_handler))
@@ -218,45 +216,6 @@ pub async fn task_handler_v2(
     Json(req): Json<TaskBuildRequest>,
 ) -> impl IntoResponse {
     api_v2_service::task_handler_v2(&state, req).await
-}
-
-/// Creates build tasks and returns the task ID and status (immediate or queued)
-#[utoipa::path(
-    post,
-    path = "/task",
-    tag = "Task",
-    request_body = TaskBuildRequest,
-    responses(
-        (status = 200, description = "Task created", body = serde_json::Value),
-        (status = 503, description = "Queue is full", body = serde_json::Value)
-    )
-)]
-pub async fn task_handler(
-    State(state): State<AppState>,
-    Json(req): Json<TaskBuildRequest>,
-) -> impl IntoResponse {
-    api_v2_service::task_handler_v1(&state, req).await
-}
-
-#[utoipa::path(
-    get,
-    path = "/task-build-list/{id}",
-    tag = "Task",
-    params(
-        ("id" = String, Path, description = "Task ID to get build IDs for")
-    ),
-    responses(
-        (status = 200, description = "List of build IDs associated with the task", body = [String]),
-        (status = 400, description = "Invalid task ID format", body = serde_json::Value),
-        (status = 404, description = "Task not found", body = serde_json::Value),
-        (status = 500, description = "Internal server error", body = serde_json::Value)
-    )
-)]
-pub async fn task_build_list_handler(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-) -> impl IntoResponse {
-    api_v2_service::task_build_list(&state, &id).await
 }
 
 /// Handles WebSocket upgrade requests from workers

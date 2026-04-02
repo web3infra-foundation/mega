@@ -13,9 +13,8 @@ use ceres::model::{
 use jupiter::service::issue_service::IssueService;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::{
-    api::{MonoApiServiceState, api_common, error::ApiError, oauth::model::LoginUser},
-    server::http_server::ISSUE_TAG,
+use crate::api::{
+    MonoApiServiceState, api_common, api_doc::ISSUE_TAG, error::ApiError, oauth::model::LoginUser,
 };
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {

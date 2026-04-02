@@ -8,8 +8,7 @@ use crate::api;
 #[openapi(
     paths(
         // Task domain
-        api::task_handler,
-        api::task_build_list_handler,
+        api::task_handler_v2,
         api::task_output_handler,
         api::task_history_output_handler,
         api::task_retry_handler,

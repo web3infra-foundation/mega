@@ -6,9 +6,8 @@ use axum::{
 use ceres::model::conversation::{ContentPayload, ReactionRequest};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::{
-    api::{MonoApiServiceState, error::ApiError, oauth::model::LoginUser},
-    server::http_server::CONV_TAG,
+use crate::api::{
+    MonoApiServiceState, api_doc::CONV_TAG, error::ApiError, oauth::model::LoginUser,
 };
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {

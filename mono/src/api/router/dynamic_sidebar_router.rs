@@ -8,10 +8,7 @@ use ceres::model::dynamic_sidebar::{
 };
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::{
-    api::{MonoApiServiceState, error::ApiError},
-    server::http_server::SIDEBAR_TAG,
-};
+use crate::api::{MonoApiServiceState, api_doc::SIDEBAR_TAG, error::ApiError};
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new().nest(

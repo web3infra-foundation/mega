@@ -27,4 +27,17 @@ impl Related<super::user_notification_preferences::Entity> for Entity {
     }
 }
 
+impl Related<super::notification_event_types::Entity> for Entity {
+    fn to() -> RelationDef {
+        super::user_notification_preferences::Relation::NotificationEventTypes.def()
+    }
+    fn via() -> Option<RelationDef> {
+        Some(
+            super::user_notification_preferences::Relation::UserNotificationSettings
+                .def()
+                .rev(),
+        )
+    }
+}
+
 impl ActiveModelBehavior for ActiveModel {}

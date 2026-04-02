@@ -18,15 +18,6 @@ pub struct Model {
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
     #[sea_orm(
-        belongs_to = "super::user_notification_settings::Entity",
-        from = "Column::Username",
-        to = "super::user_notification_settings::Column::Username",
-        on_update = "Cascade",
-        on_delete = "Cascade"
-    )]
-    UserNotificationSettings,
-
-    #[sea_orm(
         belongs_to = "super::notification_event_types::Entity",
         from = "Column::EventTypeCode",
         to = "super::notification_event_types::Column::Code",
@@ -34,17 +25,25 @@ pub enum Relation {
         on_delete = "Restrict"
     )]
     NotificationEventTypes,
-}
-
-impl Related<super::user_notification_settings::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::UserNotificationSettings.def()
-    }
+    #[sea_orm(
+        belongs_to = "super::user_notification_settings::Entity",
+        from = "Column::Username",
+        to = "super::user_notification_settings::Column::Username",
+        on_update = "Cascade",
+        on_delete = "Cascade"
+    )]
+    UserNotificationSettings,
 }
 
 impl Related<super::notification_event_types::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::NotificationEventTypes.def()
+    }
+}
+
+impl Related<super::user_notification_settings::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::UserNotificationSettings.def()
     }
 }
 

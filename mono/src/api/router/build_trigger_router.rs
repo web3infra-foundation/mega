@@ -11,9 +11,8 @@ use axum::{
 use ceres::build_trigger::{CreateTriggerRequest, ListTriggersParams, TriggerResponse};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::{
-    api::{MonoApiServiceState, error::ApiError, oauth::model::LoginUser},
-    server::http_server::BUILD_TRIGGER_TAG,
+use crate::api::{
+    MonoApiServiceState, api_doc::BUILD_TRIGGER_TAG, error::ApiError, oauth::model::LoginUser,
 };
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {

@@ -35,15 +35,23 @@ impl GitDbStorage {
         ref_name: &str,
         ref_id: &str,
     ) -> Result<(), MegaError> {
-        let repo_id = generate_id();
-        let repo = git_repo::Model {
-            id: repo_id,
-            repo_path: repo_path.to_string(),
-            repo_name: repo_name.to_string(),
-            created_at: chrono::Utc::now().naive_utc(),
-            updated_at: chrono::Utc::now().naive_utc(),
+        // Make import repo creation idempotent:
+        // - If repo_path already exists, reuse its repo_id
+        // - Otherwise, create a new repo row
+        let repo_id = if let Some(existing) = self.find_git_repo_exact_match(repo_path).await? {
+            existing.id
+        } else {
+            let repo_id = generate_id();
+            let repo = git_repo::Model {
+                id: repo_id,
+                repo_path: repo_path.to_string(),
+                repo_name: repo_name.to_string(),
+                created_at: chrono::Utc::now().naive_utc(),
+                updated_at: chrono::Utc::now().naive_utc(),
+            };
+            self.save_git_repo(repo).await?;
+            repo_id
         };
-        self.save_git_repo(repo).await?;
 
         let refs = import_refs::Model {
             id: generate_id(),
@@ -55,7 +63,17 @@ impl GitDbStorage {
             created_at: chrono::Utc::now().naive_utc(),
             updated_at: chrono::Utc::now().naive_utc(),
         };
-        self.save_ref(repo_id, refs).await?;
+        // If ref exists, update it; otherwise insert.
+        let existing_ref = import_refs::Entity::find()
+            .filter(import_refs::Column::RepoId.eq(repo_id))
+            .filter(import_refs::Column::RefName.eq(ref_name))
+            .one(self.get_connection())
+            .await?;
+        if existing_ref.is_some() {
+            self.update_ref(repo_id, ref_name, ref_id).await?;
+        } else {
+            self.save_ref(repo_id, refs).await?;
+        }
         Ok(())
     }
 
@@ -69,7 +87,7 @@ impl GitDbStorage {
         import_refs::Entity::insert(a_model)
             .exec(self.get_connection())
             .await
-            .unwrap();
+            .map_err(|e| MegaError::Other(format!("Failed to insert import_refs: {e}")))?;
         Ok(())
     }
 
@@ -254,7 +272,7 @@ impl GitDbStorage {
         git_repo::Entity::insert(a_model)
             .exec(self.get_connection())
             .await
-            .unwrap();
+            .map_err(|e| MegaError::Other(format!("Failed to insert git_repo: {e}")))?;
         Ok(())
     }
 
