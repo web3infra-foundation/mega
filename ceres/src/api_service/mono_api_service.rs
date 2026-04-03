@@ -3008,9 +3008,6 @@ impl MonoApiService {
             .await
             .map_err(|e| MegaError::Other(format!("{e}")))?;
 
-        self.save_import_ref(&mega_path, &ref_name, &ref_hash)
-            .await?;
-
         let repo_path_str = mega_path
             .to_str()
             .ok_or_else(|| MegaError::Other("Invalid UTF-8 in mega_path".to_string()))?
@@ -3052,30 +3049,6 @@ impl MonoApiService {
             .map_err(|e| MegaError::Other(format!("{e}")))?;
 
         Ok(bytes)
-    }
-
-    async fn save_import_ref(
-        &self,
-        mega_path: &Path,
-        ref_name: &str,
-        ref_id: &str,
-    ) -> Result<(), MegaError> {
-        let path = mega_path
-            .to_str()
-            .ok_or_else(|| MegaError::Other("Invalid UTF-8 in mega_path".to_string()))?;
-
-        let name = mega_path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .ok_or_else(|| {
-                MegaError::Other("Failed to extract file name from mega_path".to_string())
-            })?;
-
-        self.storage
-            .git_db_storage()
-            .create_repo_and_save_ref(path, name, ref_name, ref_id)
-            .await?;
-        Ok(())
     }
 
     async fn traverse_tree(

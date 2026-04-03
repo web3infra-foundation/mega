@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
-use common::email::Mailer;
 use jupiter::storage::NotificationStorage;
 use tokio::time::{Duration, interval};
 use tracing::{info, warn};
+
+use crate::email::Mailer;
 
 pub struct EmailDispatcher {
     stg: NotificationStorage,
@@ -33,7 +34,7 @@ impl EmailDispatcher {
         }
     }
 
-    async fn tick_once(&self) -> Result<(), sea_orm::DbErr> {
+    async fn tick_once(&self) -> Result<(), jupiter::sea_orm::DbErr> {
         let jobs = self.stg.fetch_pending_jobs(50).await?;
         for job in jobs {
             if job.to_email.trim().is_empty() {
@@ -75,12 +76,15 @@ impl EmailDispatcher {
 #[cfg(test)]
 mod tests {
     use callisto::{email_jobs, notification_event_types};
-    use common::email::NoopMailer;
-    use jupiter::{migration::apply_migrations, tests::test_db_connection};
-    use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+    use jupiter::{
+        migration::apply_migrations,
+        sea_orm::{ActiveModelTrait, EntityTrait, Set},
+        tests::test_db_connection,
+    };
     use tempfile::TempDir;
 
     use super::*;
+    use crate::email::NoopMailer;
 
     #[tokio::test]
     async fn test_dispatcher_sends_pending_jobs() {

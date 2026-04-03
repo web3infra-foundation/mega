@@ -17,7 +17,7 @@ use git_internal::{
         tree::{TreeItem, TreeItemMode},
     },
 };
-use redis::AsyncCommands;
+use jupiter::redis::AsyncCommands;
 use serde::{Deserialize, Serialize};
 
 use crate::{

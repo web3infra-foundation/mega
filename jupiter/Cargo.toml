@@ -34,8 +34,15 @@ futures = { workspace = true }
 serde_json = { workspace = true }
 idgenerator = { workspace = true }
 serde = { workspace = true }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread", "io-std", "net"] }
-uuid = { workspace = true }
+tokio = { workspace = true, features = [
+    "macros",
+    "rt-multi-thread",
+    "io-std",
+    "net",
+    "signal",
+    "process",
+] }
+uuid = { workspace = true, features = ["v4"] }
 tempfile = { workspace = true }
 indexmap = { workspace = true }
 url = { workspace = true }
@@ -50,9 +57,9 @@ sha1 = { workspace = true }
 sha2 = { workspace = true }
 hmac = { workspace = true }
 hex = { workspace = true }
-rand = { workspace = true }
+rand = { workspace = true, features = ["thread_rng"] }
 rsa = { workspace = true }
-reqwest = { workspace = true }
+reqwest = { workspace = true, features = ["json", "stream", "blocking"] }
 base64 = { workspace = true }
 ring = "0.17.14"
 

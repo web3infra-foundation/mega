@@ -3,7 +3,7 @@ use std::{
     path::PathBuf,
     str::FromStr,
     sync::{
-        Arc,
+        Arc, Mutex,
         atomic::{AtomicUsize, Ordering},
     },
 };
@@ -11,7 +11,7 @@ use std::{
 use async_recursion::async_recursion;
 use async_trait::async_trait;
 use callisto::sea_orm_active_enums::RefTypeEnum;
-use common::errors::MegaError;
+use common::{errors::MegaError, utils::ZERO_ID};
 use futures::{StreamExt, TryStreamExt};
 use git_internal::{
     errors::GitError,
@@ -44,7 +44,7 @@ use crate::{
 pub struct ImportRepo {
     pub storage: Storage,
     pub repo: Repo,
-    pub command_list: Vec<RefCommand>,
+    pub command_list: Mutex<Vec<RefCommand>>,
     pub unpack_redlock: Arc<RedLock>,
     pub git_object_cache: Arc<GitObjectCache>,
 }
@@ -53,6 +53,13 @@ pub struct ImportRepo {
 impl RepoHandler for ImportRepo {
     fn is_monorepo(&self) -> bool {
         false
+    }
+
+    fn sync_commands_after_unpack(&self, commands: &[RefCommand]) {
+        *self
+            .command_list
+            .lock()
+            .expect("command_list lock poisoned") = commands.to_vec();
     }
 
     async fn refs_with_head_hash(&self) -> (String, Vec<Refs>) {
@@ -67,7 +74,7 @@ impl RepoHandler for ImportRepo {
         self.find_head_hash(refs)
     }
 
-    async fn post_receive_pack(&self) -> Result<(), MegaError> {
+    async fn finalize_receive_pack(&self) -> Result<(), MegaError> {
         let guard = self.unpack_redlock.clone().lock().await?;
         self.traverses_tree_and_update_filepath().await?;
         self.attach_to_monorepo_parent().await?;
@@ -280,23 +287,27 @@ impl RepoHandler for ImportRepo {
     }
 
     async fn update_refs(&self, refs: &RefCommand) -> Result<(), GitError> {
+        if refs.ref_type != RefTypeEnum::Tag {
+            // Branch `import_refs` rows are written in the same DB transaction as monorepo attach.
+            return Ok(());
+        }
         let storage = self.storage.git_db_storage();
         match refs.command_type {
             CommandType::Create => {
                 storage
                     .save_ref(self.repo.repo_id, refs.clone().into())
                     .await
-                    .unwrap();
+                    .map_err(|e| GitError::CustomError(e.to_string()))?;
             }
             CommandType::Delete => storage
                 .remove_ref(self.repo.repo_id, &refs.ref_name)
                 .await
-                .unwrap(),
+                .map_err(|e| GitError::CustomError(e.to_string()))?,
             CommandType::Update => {
                 storage
                     .update_ref(self.repo.repo_id, &refs.ref_name, &refs.new_id)
                     .await
-                    .unwrap();
+                    .map_err(|e| GitError::CustomError(e.to_string()))?;
             }
         }
         Ok(())
@@ -320,8 +331,22 @@ impl RepoHandler for ImportRepo {
     }
 
     async fn traverses_tree_and_update_filepath(&self) -> Result<(), MegaError> {
-        //let (current_head, refs) = self.head_hash().await;
-        let (current_head, _refs) = self.refs_with_head_hash().await;
+        // Prefer the branch tip from this receive-pack (same as `attach_to_monorepo_parent`).
+        // DB `import_refs` is not updated until the attach transaction, so reading HEAD only
+        // from the DB would still see the pre-push tip during finalize.
+        let from_commands = {
+            let cmds = self
+                .command_list
+                .lock()
+                .expect("command_list lock poisoned");
+            cmds.iter()
+                .find(|c| c.ref_type == RefTypeEnum::Branch && c.new_id != ZERO_ID)
+                .map(|c| c.new_id.clone())
+        };
+        let current_head = match from_commands {
+            Some(h) => h,
+            None => self.refs_with_head_hash().await.0,
+        };
         let commit = Commit::from_git_model(
             self.storage
                 .git_db_storage()
@@ -379,9 +404,13 @@ impl ImportRepo {
 
     // attach import repo to monorepo parent tree
     pub(crate) async fn attach_to_monorepo_parent(&self) -> Result<(), MegaError> {
-        // 1. find branch command
-        let commit_id = match self
+        // Snapshot commands without holding the mutex across await (Send + avoids deadlocks).
+        let commands_snapshot: Vec<RefCommand> = self
             .command_list
+            .lock()
+            .expect("command_list lock poisoned")
+            .clone();
+        let commit_id = match commands_snapshot
             .iter()
             .find(|c| c.ref_type == RefTypeEnum::Branch)
         {
@@ -389,43 +418,101 @@ impl ImportRepo {
             None => return Ok(()),
         };
 
-        // 2. search and create tree
         let path = PathBuf::from(self.repo.repo_path.clone());
-
         let mono_api_service: MonoApiService = self.into();
         let storage = self.storage.mono_storage();
-        let save_trees = tree_ops::search_and_create_tree(&mono_api_service, &path).await?;
 
-        // 3. get root ref
-        let root_ref = storage
-            .get_main_ref("/")
-            .await?
-            .ok_or_else(|| MegaError::Other("root ref not found".to_string()))?;
+        // Concurrent attaches need CAS on root mega_refs; retry when head moved.
+        const MAX_ATTACH_ATTEMPTS: u32 = 64;
 
-        // 4. get latest commit
-        let latest_commit: Commit = Commit::from_git_model(
-            self.storage
-                .git_db_storage()
-                .get_commit_by_hash(self.repo.repo_id, &commit_id)
+        for attempt in 0..MAX_ATTACH_ATTEMPTS {
+            let root_ref = storage
+                .get_main_ref("/")
                 .await?
-                .ok_or_else(|| MegaError::Other(format!("commit {} not found", commit_id)))?,
-        );
+                .ok_or_else(|| MegaError::Other("root ref not found".to_string()))?;
+            let expected_commit = root_ref.ref_commit_hash.clone();
+            let expected_tree = root_ref.ref_tree_hash.clone();
+            let root_ref_id = root_ref.id;
 
-        // 5. generate commit
-        let commit_msg = latest_commit.format_message();
-        let new_commit = Commit::from_tree_id(
-            save_trees
-                .back()
-                .ok_or_else(|| MegaError::Other("no tree generated".to_string()))?
-                .id,
-            vec![ObjectHash::from_str(&root_ref.ref_commit_hash).unwrap()],
-            &format!("\n{commit_msg}"),
-        );
+            let save_trees = tree_ops::search_and_create_tree(&mono_api_service, &path).await?;
 
-        storage
-            .attach_to_monorepo_parent_with_txn(root_ref, new_commit, save_trees.into())
-            .await?;
-        Ok(())
+            let latest_commit: Commit = Commit::from_git_model(
+                self.storage
+                    .git_db_storage()
+                    .get_commit_by_hash(self.repo.repo_id, &commit_id)
+                    .await?
+                    .ok_or_else(|| MegaError::Other(format!("commit {} not found", commit_id)))?,
+            );
+
+            let commit_msg = latest_commit.format_message();
+            let new_commit = Commit::from_tree_id(
+                save_trees
+                    .back()
+                    .ok_or_else(|| MegaError::Other("no tree generated".to_string()))?
+                    .id,
+                vec![ObjectHash::from_str(&expected_commit).unwrap()],
+                &format!("\n{commit_msg}"),
+            );
+
+            let txn = self.storage.begin_db_transaction().await?;
+            let git_db = self.storage.git_db_storage();
+            for cmd in &commands_snapshot {
+                if cmd.ref_type != RefTypeEnum::Branch {
+                    continue;
+                }
+                match cmd.command_type {
+                    CommandType::Create => {
+                        git_db
+                            .save_ref_in_txn(self.repo.repo_id, cmd.clone().into(), &txn)
+                            .await?;
+                    }
+                    CommandType::Delete => {
+                        git_db
+                            .remove_ref_in_txn(self.repo.repo_id, &cmd.ref_name, &txn)
+                            .await?;
+                    }
+                    CommandType::Update => {
+                        git_db
+                            .update_ref_in_txn(self.repo.repo_id, &cmd.ref_name, &cmd.new_id, &txn)
+                            .await?;
+                    }
+                }
+            }
+
+            match storage
+                .attach_to_monorepo_parent_in_txn(
+                    &txn,
+                    root_ref_id,
+                    &expected_commit,
+                    &expected_tree,
+                    new_commit,
+                    save_trees.into(),
+                )
+                .await
+            {
+                Ok(()) => {
+                    txn.commit().await.map_err(MegaError::Db)?;
+                    return Ok(());
+                }
+                Err(MegaError::StaleMonorepoRootRef) if attempt + 1 < MAX_ATTACH_ATTEMPTS => {
+                    let _ = txn.rollback().await;
+                    tracing::warn!(
+                        attempt = attempt,
+                        repo_path = %self.repo.repo_path,
+                        "attach_to_monorepo_parent: root ref moved, retrying"
+                    );
+                    tokio::task::yield_now().await;
+                }
+                Err(e) => {
+                    let _ = txn.rollback().await;
+                    return Err(e);
+                }
+            }
+        }
+
+        Err(MegaError::Other(
+            "attach_to_monorepo_parent: exceeded retry limit for concurrent root updates".into(),
+        ))
     }
 }
 

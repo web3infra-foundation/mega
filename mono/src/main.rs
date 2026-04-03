@@ -7,6 +7,7 @@ mod cli;
 mod commands;
 
 pub mod api;
+pub mod email;
 pub mod git_protocol;
 pub mod notification;
 use mono::server;

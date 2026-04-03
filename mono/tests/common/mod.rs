@@ -395,9 +395,9 @@ pub async fn setup_mega_service(vm: &mut qlean::Machine) -> Result<()> {
         r#"base_dir = "/tmp/mega"
 
 [log]
-log_path = "/tmp/mega/logs"
 level = "info"
 print_std = true
+with_ansi = false
 
 [database]
 db_type = "postgres"

@@ -74,8 +74,8 @@ lettre = { version = "0.11.19", default-features = false, features = [
   "rustls-platform-verifier"
 ] }
 #====
-sea-orm = "1.1.19"
-sea-orm-migration = "1.1.19"
+sea-orm = "1.1.20"
+sea-orm-migration = "1.1.20"
 
 #====
 rand = "0.10.0"
@@ -84,10 +84,10 @@ smallvec = "1.15.1"
 bytes = "1.11.1"
 chrono = { version = "0.4.44", features = ["serde"] }
 hex = "0.4.3"
-sha1 = "0.10"
-sha2 = "0.10.9"
+sha1 = "0.11"
+sha2 = "0.11"
 rsa = "0.9.10"
-hmac = "0.12"
+hmac = "0.13"
 
 idgenerator = "2.0.0"
 config = "0.15.22"

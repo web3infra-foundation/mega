@@ -9,7 +9,7 @@ use callisto::{
 };
 use chrono::Utc;
 use common::errors::MegaError;
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use idgenerator::IdInstance;
 use rsa::{
     RsaPrivateKey,

@@ -21,12 +21,17 @@ bellatrix = { workspace = true }
 common = { workspace = true }
 callisto = { workspace = true }
 jupiter = { workspace = true }
+lettre = { workspace = true }
 ceres = { workspace = true }
 vault = { workspace = true }
 saturn = { workspace = true }
 context = { workspace = true }
 git-internal = { workspace = true }
 anyhow = { workspace = true }
+async-trait = { workspace = true }
+bytes = { workspace = true }
+chrono = { workspace = true }
+futures = { workspace = true }
 percent-encoding = "2.3"
 axum = { workspace = true }
 tower = { workspace = true }
@@ -37,9 +42,6 @@ russh = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 serde_urlencoded = { workspace = true }
-chrono = { workspace = true }
-futures = { workspace = true }
-bytes = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 tower-http = { workspace = true, features = [
     "cors",
@@ -47,20 +49,16 @@ tower-http = { workspace = true, features = [
     "decompression-full",
 ] }
 axum-extra = { workspace = true, features = ["typed-header"] }
-tokio = { workspace = true, features = ["net", "macros", "signal"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "net", "signal"] }
 tokio-stream = { workspace = true }
 tokio-util = { workspace = true }
+uuid = { workspace = true }
 async-stream = { workspace = true }
-reqwest = { workspace = true, features = [
-    "json",
-    "stream",
-    "blocking",
-] }
+reqwest = { workspace = true, features = ["json", "stream", "blocking"] }
 regex = { workspace = true }
 ed25519-dalek = { workspace = true, features = ["pkcs8"] }
 ctrlc = { workspace = true }
 tower-sessions = { workspace = true, features = ["memory-store"] }
-async-trait = { workspace = true }
 time = { workspace = true, features = ["serde"] }
 http = { workspace = true }
 cedar-policy = { workspace = true }
@@ -68,8 +66,6 @@ utoipa = { workspace = true, features = ["axum_extras"] }
 utoipa-axum = { workspace = true }
 utoipa-swagger-ui = { workspace = true, features = ["axum"] }
 once_cell = { workspace = true }
-sea-orm = { workspace = true }
-idgenerator = { workspace = true }
 
 
 [target.'cfg(not(windows))'.dependencies]

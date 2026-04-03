@@ -73,6 +73,10 @@ pub enum MegaError {
     #[error("ObjStorage inconsistent: {0}")]
     ObjStorageInconsistent(String),
 
+    /// Monorepo root `mega_refs` row changed before attach finished; caller should re-read head and retry.
+    #[error("Monorepo root ref changed concurrently (attach should retry)")]
+    StaleMonorepoRootRef,
+
     // --- Other ---
     #[error("Other error: {0}")]
     Other(String),

@@ -181,7 +181,7 @@ impl Config {
 /// ```toml
 /// base_dir = "/tmp/.mega"
 /// [log]
-/// log_path = "${base_dir}/logs"
+/// level = "info"
 /// ```
 /// ### Limitations:
 /// - only support `String` type.
@@ -254,19 +254,25 @@ fn traverse_config(key: &str, value: &c::Value, f: &impl Fn(&str, &c::Value)) {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct LogConfig {
-    pub log_path: PathBuf,
     pub level: String,
     pub print_std: bool,
+    /// Whether to enable ANSI colors for stdout logs (has no effect on file logs).
+    #[serde(default = "default_with_ansi")]
+    pub with_ansi: bool,
 }
 
 impl Default for LogConfig {
     fn default() -> Self {
         Self {
-            log_path: mega_cache().join("logs"),
             level: String::from("info"),
             print_std: true,
+            with_ansi: true,
         }
     }
+}
+
+fn default_with_ansi() -> bool {
+    true
 }
 
 #[derive(Deserialize, Debug, Clone)]

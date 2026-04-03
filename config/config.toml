@@ -6,14 +6,14 @@ base_dir = "/tmp/.mono"
 # Filling the following environment variables with values you set
 ## Logging Configuration
 [log]
-# The path which log file is saved
-log_path = "${base_dir}/logs"
-
 # log level, can be "trace", "debug", "info", "warn", "error"
-level = "debug"
+level = "info"
 
 # print std log in console, disable it on production for performance
 print_std = true
+
+# enable ANSI colors for stdout logs (has no effect on file logs)
+with_ansi = true
 
 
 [database]

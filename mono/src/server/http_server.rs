@@ -12,12 +12,9 @@ use axum::{
 };
 use bellatrix::Bellatrix;
 use ceres::api_service::{cache::GitObjectCache, state::ProtocolApiState};
-use common::{
-    email::{Mailer, NoopMailer, SmtpMailer},
-    errors::ProtocolError,
-};
+use common::errors::ProtocolError;
 use context::AppContext;
-use http::{HeaderValue, Method};
+use http::{HeaderName, HeaderValue, Method};
 use saturn::entitystore::EntityStore;
 use time::Duration;
 use tokio::task::JoinHandle;
@@ -42,8 +39,9 @@ use crate::{
         },
         router::lfs_router,
     },
+    email::{Mailer, NoopMailer, SmtpMailer},
     git_protocol::InfoRefsParams,
-    server::CommonHttpOptions,
+    server::{CommonHttpOptions, trace_context},
 };
 
 pub fn remove_git_suffix(full_path: &str, git_suffix: &str) -> PathBuf {
@@ -361,7 +359,10 @@ pub async fn app(ctx: AppContext, host: String, port: u16) -> Router {
                     .allow_headers(vec![
                         http::header::AUTHORIZATION,
                         http::header::CONTENT_TYPE,
+                        HeaderName::from_static("x-request-id"),
+                        HeaderName::from_static("x-trace-id"),
                     ])
+                    .expose_headers(vec![HeaderName::from_static("x-request-id")])
                     .allow_methods([
                         Method::GET,
                         Method::POST,
@@ -372,8 +373,9 @@ pub async fn app(ctx: AppContext, host: String, port: u16) -> Router {
                     .allow_credentials(true),
             ),
         )
-        .layer(TraceLayer::new_for_http())
+        .layer(TraceLayer::new_for_http().make_span_with(trace_context::http_request_span))
         .layer(RequestDecompressionLayer::new())
+        .layer(middleware::from_fn(trace_context::inject_trace_context))
         .with_state(api_state.clone())
         .split_for_parts();
 
