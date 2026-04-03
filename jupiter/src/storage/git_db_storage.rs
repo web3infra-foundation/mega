@@ -129,6 +129,55 @@ impl GitDbStorage {
         Ok(())
     }
 
+    pub async fn save_ref_in_txn(
+        &self,
+        repo_id: i64,
+        mut refs: import_refs::Model,
+        txn: &DatabaseTransaction,
+    ) -> Result<(), MegaError> {
+        refs.repo_id = repo_id;
+        let conn = self.build_connection_with_txn(Some(txn));
+        import_refs::Entity::insert(refs.into_active_model())
+            .exec(&conn)
+            .await
+            .map_err(|e| MegaError::Other(format!("Failed to insert import_refs: {e}")))?;
+        Ok(())
+    }
+
+    pub async fn remove_ref_in_txn(
+        &self,
+        repo_id: i64,
+        ref_name: &str,
+        txn: &DatabaseTransaction,
+    ) -> Result<(), MegaError> {
+        import_refs::Entity::delete_many()
+            .filter(import_refs::Column::RepoId.eq(repo_id))
+            .filter(import_refs::Column::RefName.eq(ref_name))
+            .exec(txn)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn update_ref_in_txn(
+        &self,
+        repo_id: i64,
+        ref_name: &str,
+        new_id: &str,
+        txn: &DatabaseTransaction,
+    ) -> Result<(), MegaError> {
+        let ref_data = import_refs::Entity::find()
+            .filter(import_refs::Column::RepoId.eq(repo_id))
+            .filter(import_refs::Column::RefName.eq(ref_name))
+            .one(txn)
+            .await?
+            .ok_or_else(|| MegaError::Other(format!("import_refs not found: {ref_name}")))?;
+        let mut active: import_refs::ActiveModel = ref_data.into();
+        active.ref_git_id = Set(new_id.to_string());
+        active.updated_at = Set(chrono::Utc::now().naive_utc());
+        active.update(txn).await?;
+        Ok(())
+    }
+
     pub async fn get_default_ref(
         &self,
         repo_id: i64,

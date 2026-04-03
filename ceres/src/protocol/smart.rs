@@ -241,7 +241,8 @@ impl SmartSession {
 
         let mut unpack_failed = false;
 
-        //2. update each refs and build report
+        // 2. Tags: persist immediately. Branches: only unpack / default-branch flags here;
+        //    mono and import both persist branch refs inside `finalize_receive_pack`.
         for command in commands.iter_mut() {
             if command.ref_type == RefTypeEnum::Tag {
                 // just update if refs type is tag
@@ -259,9 +260,6 @@ impl SmartSession {
                             command.default_branch = true;
                             default_exist = true;
                         }
-                        if let Err(e) = repo_handler.update_refs(command).await {
-                            command.failed(e.to_string());
-                        }
                     }
                     Err(ref err) => {
                         command.failed(err.to_string());
@@ -269,14 +267,27 @@ impl SmartSession {
                     }
                 }
             }
-            add_pkt_line_string(&mut report_status, command.get_status());
         }
-        if !unpack_failed {
-            //3. post_receive_pack
-            repo_handler.post_receive_pack().await?;
 
-            // 4. Process commit bindings for successful ref updates
+        // Handler was built with an early `commands.clone()`; merge loop updates (e.g.
+        // `default_branch`) before finalize so import/mono metadata uses the final commands.
+        repo_handler.sync_commands_after_unpack(&commands);
+
+        if !unpack_failed {
+            if let Err(e) = repo_handler.finalize_receive_pack().await {
+                let msg = e.to_string();
+                for c in commands.iter_mut() {
+                    if c.ref_type == RefTypeEnum::Branch && c.status == "ok" {
+                        c.failed(msg.clone());
+                    }
+                }
+                return Err(e.into());
+            }
             self.process_commit_bindings(state, &commands).await;
+        }
+
+        for command in &commands {
+            add_pkt_line_string(&mut report_status, command.get_status());
         }
 
         report_status.put(&PKT_LINE_END_MARKER[..]);

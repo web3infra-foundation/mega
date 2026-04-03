@@ -214,9 +214,9 @@ Currently, the mono bin and mega bin use two different files, each with a differ
 ### Enhance
 - You can use environment variables starting with `MEGA_` to override the configuration in `config.toml`.
   - like `MEGA_BASE_DIR` to override `base_dir`. // with `env::set_var()`
-  - use separator `__` (2 \* `_`) for nested keys, like `MEGA_LOG__LOG_PATH` for `log.log_path`.
+  - use separator `__` (2 \* `_`) for nested keys, like `MEGA_LOG__LEVEL` for `log.level` or `MEGA_LOG__WITH_ANSI` for `log.with_ansi`.
 - Support `${}` syntax to reference other keys in the same file.
-  - like `log_path = "${base_dir}/logs"`, `${base_dir}` will be replaced by the value of `base_dir`
+  - like `db_path = "${base_dir}/mega.db"`, `${base_dir}` will be replaced by the value of `base_dir`
   - or `key = "${xxx.yyy}/zzz"` (prefix `xxx.` can't be omitted)
   - only support `String` type
   - substitute from up to down

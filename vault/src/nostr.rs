@@ -1,4 +1,4 @@
-use secp256k1::{PublicKey, Secp256k1, SecretKey, rand};
+use secp256k1::{PublicKey, Secp256k1, SecretKey, rand::rngs::OsRng};
 use tracing::log;
 
 use crate::integration::vault_core::{VaultCore, VaultCoreInterface};
@@ -16,7 +16,8 @@ const NOSTR_IDENTITY_KEY: &str = "nostr_identity_key";
 /// - A tuple of `(SecretKey, PublicKey)`
 pub fn generate_nostr_id() -> (String, (SecretKey, PublicKey)) {
     let secp = Secp256k1::new();
-    let secret_key = SecretKey::new(&mut rand::thread_rng());
+    let mut rng = OsRng;
+    let secret_key = SecretKey::new(&mut rng);
     let public_key = secret_key.public_key(&secp);
     let nostr = bs58::encode(public_key.serialize()).into_string();
 

@@ -2,6 +2,9 @@ use clap::Args;
 
 pub mod http_server;
 pub mod ssh_server;
+pub mod trace_context;
+
+pub use trace_context::{TraceContext, trace_id};
 
 #[derive(Args, Clone, Debug)]
 pub struct CommonHttpOptions {

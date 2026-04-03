@@ -22,27 +22,26 @@ saturn = { workspace = true }
 anyhow = { workspace = true }
 # TODO: Use 0.16.0 version for GPG Verification, consider to adapt the latest version in the future 
 pgp = { version = "0.16.0" }
-tokio = { workspace = true, features = ["net", "process"] }
-tokio-stream = { workspace = true }
-axum = { workspace = true }
-reqwest = { workspace = true, features = ["json", "stream"] }
-tracing = { workspace = true }
-serde = { workspace = true }
-serde_json = { workspace = true }
+async-trait = { workspace = true }
+bytes = { workspace = true }
 chrono = { workspace = true }
 futures = { workspace = true }
-bytes = { workspace = true }
-async-trait = { workspace = true }
+hex = { workspace = true }
+rand = { workspace = true, features = ["thread_rng"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+sha1 = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true, features = ["v4"] }
+reqwest = { workspace = true, features = ["json", "stream"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "net", "process"] }
+tokio-stream = { workspace = true }
+axum = { workspace = true }
 async-recursion = { workspace = true }
-rand = { workspace = true }
 sysinfo = { workspace = true }
 utoipa = { workspace = true }
 regex = { workspace = true }
 tokio-util = { workspace = true }
-uuid = { workspace = true, features = ["v4"] }
-redis = { workspace = true }
-sha1 = { workspace = true }
-hex = { workspace = true }
 rkyv = { workspace = true }
 
 [dev-dependencies]

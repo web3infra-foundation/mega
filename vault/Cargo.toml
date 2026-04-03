@@ -11,18 +11,19 @@ path = "src/lib.rs"
 jupiter = { workspace = true }
 common = { workspace = true }
 
-tracing = { workspace = true }
-serde_json = { workspace = true }
-openssl = { version = "0.10.75" }
+async-trait = { workspace = true }
 hex = { workspace = true }
-bs58 = { workspace = true }
+pgp = { workspace = true }
+rand = { workspace = true, features = ["thread_rng"] }
 serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+openssl = { version = "0.10.75" }
+bs58 = { workspace = true }
 secp256k1 = { workspace = true, features = ["serde", "rand", "hashes"] }
 tokio = { workspace = true, features = ["full"] }
-pgp = { workspace = true }
 smallvec = { workspace = true }
 libvault-core = { workspace = true }
-async-trait = { workspace = true }
 
 
 [dev-dependencies]

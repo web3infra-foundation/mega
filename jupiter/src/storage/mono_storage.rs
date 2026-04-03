@@ -159,6 +159,17 @@ impl MonoStorage {
         Ok(res)
     }
 
+    pub async fn get_ref_by_name_in_txn(
+        &self,
+        ref_name: &str,
+        txn: &DatabaseTransaction,
+    ) -> Result<Option<mega_refs::Model>, MegaError> {
+        Ok(mega_refs::Entity::find()
+            .filter(mega_refs::Column::RefName.eq(ref_name))
+            .one(txn)
+            .await?)
+    }
+
     pub async fn update_ref(
         &self,
         refs: mega_refs::Model,
@@ -419,22 +430,40 @@ impl MonoStorage {
         Ok(())
     }
 
-    pub async fn attach_to_monorepo_parent_with_txn(
+    /// Attach import-repo snapshot to monorepo root inside an existing transaction.
+    ///
+    /// Root `mega_refs` is updated with a compare-and-swap on `(ref_commit_hash, ref_tree_hash)`:
+    /// if another writer advanced the root first, the update affects zero rows and this returns
+    /// [`MegaError::StaleMonorepoRootRef`] so the caller can roll back and retry.
+    pub async fn attach_to_monorepo_parent_in_txn(
         &self,
-        mut mega_refs: mega_refs::Model,
+        txn: &DatabaseTransaction,
+        root_ref_id: i64,
+        expected_ref_commit_hash: &str,
+        expected_ref_tree_hash: &str,
         commit: Commit,
         trees: Vec<Tree>,
     ) -> Result<(), MegaError> {
-        // update ref & save commit
-        mega_refs.ref_commit_hash = commit.id.to_string();
-        mega_refs.ref_tree_hash = commit.tree_id.to_string();
-        mega_refs.updated_at = chrono::Utc::now().naive_utc();
+        let new_commit_id = commit.id.to_string();
+        let new_tree_id = commit.tree_id.to_string();
+        self.save_mega_trees(trees, commit.id, Some(txn)).await?;
+        self.save_mega_commits(vec![commit], Some(txn)).await?;
 
-        let txn = self.connection.begin().await?;
-        self.save_mega_trees(trees, commit.id, Some(&txn)).await?;
-        self.update_ref(mega_refs, Some(&txn)).await?;
-        self.save_mega_commits(vec![commit], Some(&txn)).await?;
-        txn.commit().await?;
+        let now = chrono::Utc::now().naive_utc();
+        let update_result = mega_refs::Entity::update_many()
+            .col_expr(mega_refs::Column::RefCommitHash, Expr::value(new_commit_id))
+            .col_expr(mega_refs::Column::RefTreeHash, Expr::value(new_tree_id))
+            .col_expr(mega_refs::Column::UpdatedAt, Expr::value(now))
+            .filter(mega_refs::Column::Id.eq(root_ref_id))
+            .filter(mega_refs::Column::RefCommitHash.eq(expected_ref_commit_hash))
+            .filter(mega_refs::Column::RefTreeHash.eq(expected_ref_tree_hash))
+            .exec(txn)
+            .await?;
+
+        if update_result.rows_affected == 0 {
+            return Err(MegaError::StaleMonorepoRootRef);
+        }
+
         Ok(())
     }
 

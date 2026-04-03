@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
-use jupiter::redis::init_connection;
-use redis::aio::ConnectionManager;
+use jupiter::redis::{ConnectionManager, init_connection};
 
 /// This is the main application context for the Mono application.
 /// It holds shared state and configuration for the application.

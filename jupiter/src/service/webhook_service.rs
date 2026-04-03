@@ -9,7 +9,7 @@ use callisto::{
     sea_orm_active_enums::{MergeStatusEnum, WebhookEventTypeEnum},
 };
 use chrono::Utc;
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use idgenerator::IdInstance;
 use reqwest::redirect::Policy;
 use ring::{

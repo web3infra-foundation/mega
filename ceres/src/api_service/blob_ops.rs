@@ -11,7 +11,6 @@ use git_internal::{
     hash::ObjectHash,
     internal::object::{blob::Blob, tree::TreeItemMode},
 };
-use hex;
 use sha1::{Digest, Sha1};
 
 use crate::{

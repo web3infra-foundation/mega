@@ -1,5 +1,10 @@
 use core::fmt;
-use std::{collections::HashSet, path::PathBuf, str::FromStr, sync::Arc};
+use std::{
+    collections::HashSet,
+    path::PathBuf,
+    str::FromStr,
+    sync::{Arc, Mutex},
+};
 
 use bellatrix::Bellatrix;
 use callisto::sea_orm_active_enums::RefTypeEnum;
@@ -189,7 +194,7 @@ impl SmartSession {
                 git_object_cache: state.git_object_cache.clone(),
                 storage: state.storage.clone(),
                 repo,
-                command_list: commands,
+                command_list: Mutex::new(commands),
                 unpack_redlock,
             }) as Arc<dyn RepoHandler>)
         } else {
@@ -204,6 +209,7 @@ impl SmartSession {
                 cl_link: Arc::new(RwLock::new(None)),
                 bellatrix: Arc::new(Bellatrix::new(config.build.clone())),
                 username: self.auth.username.clone(),
+                command_list: Mutex::new(commands.clone()),
             };
             if let Some(command) = commands.iter().find(|x| x.ref_type == RefTypeEnum::Branch) {
                 res.from_hash = command.old_id.clone();

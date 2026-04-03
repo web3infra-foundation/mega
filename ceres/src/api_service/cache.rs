@@ -8,7 +8,7 @@ use git_internal::{
         tree::{ArchivedTree, Tree},
     },
 };
-use redis::{AsyncCommands, aio::ConnectionManager};
+use jupiter::redis::{AsyncCommands, ConnectionManager};
 use rkyv::rancor::Error;
 
 #[derive(Clone)]

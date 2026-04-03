@@ -3,7 +3,7 @@ use std::{
     path::{Component, PathBuf},
     str::FromStr,
     sync::{
-        Arc,
+        Arc, Mutex,
         atomic::{AtomicUsize, Ordering},
     },
     vec,
@@ -14,8 +14,9 @@ use async_recursion::async_recursion;
 use async_trait::async_trait;
 use bellatrix::Bellatrix;
 use callisto::{
-    entity_ext::generate_link, mega_cl, mega_code_review_anchor, mega_commit, mega_refs,
-    sea_orm_active_enums::PositionStatusEnum,
+    entity_ext::generate_link,
+    mega_cl, mega_code_review_anchor, mega_commit, mega_refs,
+    sea_orm_active_enums::{PositionStatusEnum, RefTypeEnum},
 };
 use common::{
     errors::MegaError,
@@ -34,7 +35,7 @@ use git_internal::{
     },
 };
 use io_orbit::object_storage::MultiObjectByteStream;
-use jupiter::{storage::Storage, utils::converter::FromMegaModel};
+use jupiter::{sea_orm::DatabaseTransaction, storage::Storage, utils::converter::FromMegaModel};
 use tokio::sync::{RwLock, mpsc};
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -59,12 +60,21 @@ pub struct MonoRepo {
     pub cl_link: Arc<RwLock<Option<String>>>,
     pub bellatrix: Arc<Bellatrix>,
     pub username: Option<String>,
+    /// Ref commands for this push (same role as on [`ImportRepo`](crate::pack::import_repo::ImportRepo)).
+    pub command_list: Mutex<Vec<RefCommand>>,
 }
 
 #[async_trait]
 impl RepoHandler for MonoRepo {
     fn is_monorepo(&self) -> bool {
         true
+    }
+
+    fn sync_commands_after_unpack(&self, commands: &[RefCommand]) {
+        *self
+            .command_list
+            .lock()
+            .expect("command_list lock poisoned") = commands.to_vec();
     }
 
     async fn refs_with_head_hash(&self) -> (String, Vec<Refs>) {
@@ -151,32 +161,9 @@ impl RepoHandler for MonoRepo {
         self.find_head_hash(refs)
     }
 
-    async fn post_receive_pack(&self) -> Result<(), MegaError> {
-        let username = self.username();
-        let mono_api_service = self.into();
-        let editor = OnpushCodeEdit::from(
-            self.path.to_str().unwrap(),
-            &self.base_branch,
-            &self.from_hash,
-            &mono_api_service,
-        );
-        let cl = editor
-            .update_or_create_cl(&self.storage, &self.from_hash, &self.to_hash, &username)
-            .await?;
-        self.traverses_tree_and_update_filepath().await?;
-        if self.bellatrix.enable_build() {
-            let _ = editor
-                .trigger_build_and_check(
-                    self.storage.clone(),
-                    self.git_object_cache.clone(),
-                    self.bellatrix.clone(),
-                    &cl,
-                    &username,
-                )
-                .await?;
-        }
-        self.reanchor_code_review_threads(&cl).await?;
-        Ok(())
+    async fn finalize_receive_pack(&self) -> Result<(), MegaError> {
+        self.persist_mono_branch_cl_mega_refs_transaction().await?;
+        self.run_mono_post_push_pipeline().await
     }
 
     async fn save_entry(
@@ -394,28 +381,9 @@ impl RepoHandler for MonoRepo {
     }
 
     async fn update_refs(&self, refs: &RefCommand) -> Result<(), GitError> {
-        let storage = self.storage.mono_storage();
-        let current_commit = self.current_commit.read().await;
-        let cl_link = self.fetch_or_new_cl_link().await?;
-        let ref_name = utils::cl_ref_name(&cl_link);
-
-        if let Some(c) = &*current_commit {
-            if let Some(mut cl_ref) = storage.get_ref_by_name(&ref_name).await? {
-                cl_ref.ref_commit_hash = refs.new_id.clone();
-                cl_ref.ref_tree_hash = c.tree_id.to_string();
-                storage.update_ref(cl_ref, None).await?;
-            } else {
-                let refs = mega_refs::Model::new(
-                    &self.path,
-                    ref_name,
-                    refs.new_id.clone(),
-                    c.tree_id.to_string(),
-                    true,
-                );
-                storage.save_refs(refs, None).await?;
-            }
-        }
-        Ok(())
+        self.apply_cl_mega_ref_for_push_command(refs, None)
+            .await
+            .map_err(GitError::from)
     }
 
     async fn check_commit_exist(&self, hash: &str) -> bool {
@@ -491,6 +459,87 @@ impl RepoHandler for MonoRepo {
 }
 
 impl MonoRepo {
+    /// All branch commands update CL `mega_refs` in **one** DB transaction (same idea as import’s single-txn metadata commit).
+    async fn persist_mono_branch_cl_mega_refs_transaction(&self) -> Result<(), MegaError> {
+        let cmds = self
+            .command_list
+            .lock()
+            .expect("command_list lock poisoned")
+            .clone();
+        let txn = self.storage.begin_db_transaction().await?;
+        for cmd in &cmds {
+            if cmd.ref_type == RefTypeEnum::Branch {
+                self.apply_cl_mega_ref_for_push_command(cmd, Some(&txn))
+                    .await?;
+            }
+        }
+        txn.commit().await.map_err(MegaError::Db)
+    }
+
+    async fn apply_cl_mega_ref_for_push_command(
+        &self,
+        cmd: &RefCommand,
+        txn: Option<&DatabaseTransaction>,
+    ) -> Result<(), MegaError> {
+        let storage = self.storage.mono_storage();
+        let current_commit = self.current_commit.read().await;
+        let cl_link = self.fetch_or_new_cl_link().await?;
+        let ref_name = utils::cl_ref_name(&cl_link);
+
+        let Some(c) = &*current_commit else {
+            return Ok(());
+        };
+
+        let existing = match txn {
+            Some(t) => storage.get_ref_by_name_in_txn(&ref_name, t).await?,
+            None => storage.get_ref_by_name(&ref_name).await?,
+        };
+
+        if let Some(mut cl_ref) = existing {
+            cl_ref.ref_commit_hash = cmd.new_id.clone();
+            cl_ref.ref_tree_hash = c.tree_id.to_string();
+            storage.update_ref(cl_ref, txn).await?;
+        } else {
+            let new_ref = mega_refs::Model::new(
+                &self.path,
+                ref_name,
+                cmd.new_id.clone(),
+                c.tree_id.to_string(),
+                true,
+            );
+            storage.save_refs(new_ref, txn).await?;
+        }
+        Ok(())
+    }
+
+    /// CL / conversations / build / code-review hooks after branch `mega_refs` are committed.
+    async fn run_mono_post_push_pipeline(&self) -> Result<(), MegaError> {
+        let username = self.username();
+        let mono_api_service = self.into();
+        let editor = OnpushCodeEdit::from(
+            self.path.to_str().unwrap(),
+            &self.base_branch,
+            &self.from_hash,
+            &mono_api_service,
+        );
+        let cl = editor
+            .update_or_create_cl(&self.storage, &self.from_hash, &self.to_hash, &username)
+            .await?;
+        self.traverses_tree_and_update_filepath().await?;
+        if self.bellatrix.enable_build() {
+            editor
+                .trigger_build_and_check(
+                    self.storage.clone(),
+                    self.git_object_cache.clone(),
+                    self.bellatrix.clone(),
+                    &cl,
+                    &username,
+                )
+                .await?;
+        }
+        self.reanchor_code_review_threads(&cl).await
+    }
+
     #[async_recursion]
     async fn traverses_and_update_filepath(
         &self,

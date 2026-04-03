@@ -41,6 +41,11 @@ pub mod monorepo;
 pub trait RepoHandler: Send + Sync + 'static {
     fn is_monorepo(&self) -> bool;
 
+    /// Replace the handler's ref-command snapshot after unpack and the protocol status loop
+    /// (`default_branch`, `status`, etc.). The handler is built from an early `commands.clone()`,
+    /// so without this, metadata updated in `git_receive_pack_stream` would be stale at finalize.
+    fn sync_commands_after_unpack(&self, _commands: &[RefCommand]) {}
+
     async fn refs_with_head_hash(&self) -> (String, Vec<Refs>);
 
     async fn receiver_handler(
@@ -118,7 +123,13 @@ pub trait RepoHandler: Send + Sync + 'static {
         Ok(())
     }
 
-    async fn post_receive_pack(&self) -> Result<(), MegaError>;
+    /// After unpack succeeds: persist branch metadata, run repo-specific side effects, then the
+    /// protocol layer appends ref report lines. Tags are already persisted earlier.
+    ///
+    /// - **Import**: one DB transaction for `import_refs` + monorepo attach (under unpack lock).
+    /// - **Mono**: one DB transaction for all branch CL `mega_refs` updates; CL / conversations /
+    ///   build hooks run afterward (not in that transaction).
+    async fn finalize_receive_pack(&self) -> Result<(), MegaError>;
 
     async fn save_entry(
         &self,

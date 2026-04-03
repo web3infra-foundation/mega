@@ -2,11 +2,13 @@ use std::collections::HashSet;
 
 use callisto::notification_event_types;
 use common::errors::MegaError;
-use jupiter::storage::{
-    cl_reviewer_storage::ClReviewerStorage, cl_storage::ClStorage,
-    notification_storage::NotificationStorage,
+use jupiter::{
+    sea_orm::{ActiveModelTrait, Set},
+    storage::{
+        cl_reviewer_storage::ClReviewerStorage, cl_storage::ClStorage,
+        notification_storage::NotificationStorage,
+    },
 };
-use sea_orm::{ActiveModelTrait, Set};
 pub const EVENT_CL_COMMENT_CREATED: &str = "cl.comment.created";
 
 /// Ensure the core event types exist in DB
@@ -126,10 +128,10 @@ mod tests {
     use callisto::{email_jobs, mega_cl, mega_cl_reviewer};
     use jupiter::{
         migration::apply_migrations,
+        sea_orm::{ColumnTrait, EntityTrait, QueryFilter},
         storage::base_storage::{BaseStorage, StorageConnector},
         tests::test_db_connection,
     };
-    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
     use tempfile::TempDir;
 
     use super::*;

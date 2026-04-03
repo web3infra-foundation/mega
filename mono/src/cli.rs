@@ -7,10 +7,10 @@ use common::{
     config::{
         Config, LogConfig,
         loader::{ConfigInput, ConfigLoader},
+        mega_cache,
     },
     errors::{MegaError, MegaResult},
 };
-use tracing_subscriber::fmt::writer::MakeWriterExt;
 
 use crate::commands::{builtin, builtin_exec};
 
@@ -82,18 +82,22 @@ fn init_log(config: &LogConfig) {
         _ => tracing::Level::INFO,
     };
 
-    let file_appender = tracing_appender::rolling::hourly(config.log_path.clone(), "mono-logs");
+    // File logs always use the standard Mega cache directory (not configurable).
+    let file_appender = tracing_appender::rolling::hourly(mega_cache().join("logs"), "mono-logs");
 
     if config.print_std {
-        let stdout = std::io::stdout;
+        // Local development: log only to stdout, ANSI controlled by config.
         tracing_subscriber::fmt()
-            .with_writer(stdout.and(file_appender))
+            .with_writer(std::io::stdout)
             .with_max_level(log_level)
+            .with_ansi(config.with_ansi)
             .init();
     } else {
+        // Production / non-stdout: log only to file, without ANSI so GCP/AWS can parse cleanly.
         tracing_subscriber::fmt()
             .with_writer(file_appender)
             .with_max_level(log_level)
+            .with_ansi(config.with_ansi)
             .init();
     }
 }

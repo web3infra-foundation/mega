@@ -309,6 +309,16 @@ impl Storage {
         self.app_service.mono_storage.clone()
     }
 
+    /// Begin a database transaction on the shared app connection (monorepo + import metadata).
+    pub async fn begin_db_transaction(&self) -> Result<sea_orm::DatabaseTransaction, MegaError> {
+        use sea_orm::TransactionTrait;
+        self.mono_storage()
+            .get_connection()
+            .begin()
+            .await
+            .map_err(MegaError::Db)
+    }
+
     /// Best-effort classification/logging helper for object storage "not found" errors
     /// when dealing with Git blobs.
     ///

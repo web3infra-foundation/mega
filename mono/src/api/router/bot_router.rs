@@ -6,7 +6,7 @@ use axum::{
 };
 use ceres::model::bots::{BotRes, ChangeInstallationStatus, InstallBotReq, InstallationTargetType};
 use chrono::{DateTime, Duration, Utc};
-use sea_orm::prelude::DateTimeWithTimeZone;
+use jupiter::sea_orm::prelude::DateTimeWithTimeZone;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use utoipa_axum::{router::OpenApiRouter, routes};

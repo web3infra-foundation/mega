@@ -5,12 +5,12 @@ use axum::{
 };
 use callisto::sea_orm_active_enums::WebhookEventTypeEnum;
 use chrono::Utc;
-use idgenerator::IdInstance;
 use jupiter::{
+    idgenerator::IdInstance,
+    sea_orm::ActiveEnum,
     service::webhook_service::{encrypt_webhook_secret, validate_webhook_target_url},
     storage::webhook_storage::WebhookWithEventTypes,
 };
-use sea_orm::ActiveEnum;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use utoipa_axum::{router::OpenApiRouter, routes};

@@ -1,11 +1,10 @@
 use async_trait::async_trait;
+use common::{config::MailConfig, errors::MegaError};
 use lettre::{
     AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
     message::{MultiPart, SinglePart, header::ContentType},
     transport::smtp::authentication::Credentials,
 };
-
-use crate::{config::MailConfig, errors::MegaError};
 
 #[async_trait]
 pub trait Mailer: Send + Sync {
@@ -136,8 +135,9 @@ impl Mailer for SmtpMailer {
 
 #[cfg(test)]
 mod tests {
+    use common::config::MailConfig;
+
     use super::*;
-    use crate::config::MailConfig;
 
     #[test]
     fn test_smtp_mailer_disabled_is_noop() {
@@ -152,8 +152,6 @@ mod tests {
         };
 
         let mailer = SmtpMailer::new(&cfg).expect("create mailer");
-        // build_message should still validate addresses; send_html should noop
-        // (we don't run async send here; noop just returns Ok in send_html path)
         assert!(!mailer.enabled);
     }
 
@@ -192,8 +190,7 @@ mod tests {
         let mailer = SmtpMailer::new(&cfg).unwrap();
         let err = mailer
             .build_message("not-an-email", "Subj", "<p>Hi</p>", None)
-            .err()
-            .expect("should fail");
+            .expect_err("should fail");
         let _ = format!("{err:?}");
     }
 }
