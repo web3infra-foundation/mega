@@ -275,6 +275,10 @@ impl MonoServiceLogic {
         candidates
     }
 
+    pub fn subtree_ref_path(path: &Path) -> Result<String, MegaError> {
+        Self::normalize_repo_path(&path.display().to_string())
+    }
+
     pub fn update_tree_hash(
         tree: Arc<Tree>,
         name: &str,
@@ -486,7 +490,8 @@ impl ApiHandler for MonoApiService {
         let parent_path = file_path
             .parent()
             .ok_or_else(|| GitError::CustomError("Invalid file path".to_string()))?;
-        let repo_path = self.resolve_repo_root(parent_path).await?;
+        let repo_path = MonoServiceLogic::subtree_ref_path(parent_path)
+            .map_err(|e| GitError::CustomError(e.to_string()))?;
 
         let parent_tree = tree_ops::search_tree_by_path(self, parent_path, None)
             .await?
@@ -613,7 +618,8 @@ impl ApiHandler for MonoApiService {
             mut save_trees,
         } = self.prepare_create_entry_update(&entry_info).await?;
 
-        let repo_path_str = { self.resolve_repo_root(&repo_path).await? };
+        let repo_path_str = MonoServiceLogic::subtree_ref_path(&repo_path)
+            .map_err(|e| GitError::CustomError(e.to_string()))?;
 
         let src_commit =
             edit_utils::get_repo_main_latest_commit(&self.storage, &repo_path_str).await?;
@@ -1025,26 +1031,6 @@ impl ApiHandler for MonoApiService {
 }
 
 impl MonoApiService {
-    async fn resolve_repo_root(&self, path: &Path) -> Result<String, GitError> {
-        let mono_storage = self.storage.mono_storage();
-
-        for candidate in MonoServiceLogic::repo_root_candidates(path) {
-            let has_main_ref = mono_storage
-                .get_main_ref(&candidate)
-                .await
-                .map_err(|e| GitError::CustomError(e.to_string()))?
-                .is_some();
-            if has_main_ref {
-                return Ok(candidate);
-            }
-        }
-
-        Err(GitError::CustomError(format!(
-            "No repository root found for path {}",
-            path.display()
-        )))
-    }
-
     async fn prepare_create_entry_update(
         &self,
         entry_info: &CreateEntryInfo,
@@ -3866,6 +3852,22 @@ mod test {
                 "/project".to_string(),
                 "/".to_string(),
             ]
+        );
+    }
+
+    #[test]
+    fn test_subtree_ref_path_keeps_parent_directory_for_file_edits() {
+        assert_eq!(
+            MonoServiceLogic::subtree_ref_path(Path::new("/project/buck2_test/src")).unwrap(),
+            "/project/buck2_test/src".to_string()
+        );
+    }
+
+    #[test]
+    fn test_subtree_ref_path_normalizes_relative_create_paths() {
+        assert_eq!(
+            MonoServiceLogic::subtree_ref_path(Path::new("project/buck2_test/src")).unwrap(),
+            "/project/buck2_test/src".to_string()
         );
     }
 

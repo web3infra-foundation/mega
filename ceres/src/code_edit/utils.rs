@@ -1,6 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
-    path::{Component, PathBuf},
+    path::{Component, Path, PathBuf},
     vec,
 };
 
@@ -13,7 +13,7 @@ use git_internal::{
 use jupiter::{storage::Storage, utils::converter::FromMegaModel};
 
 use crate::{
-    api_service::{ApiHandler, commit_ops},
+    api_service::{ApiHandler, commit_ops, mono_api_service::MonoServiceLogic},
     model::change_list::ClDiffFile,
 };
 
@@ -66,6 +66,50 @@ pub async fn get_repo_main_latest_commit(
             .await?
             .expect("can't fetch commit by hash"),
     ))
+}
+
+#[cfg(test)]
+fn path_has_repo_prefix(path: &str, repo_path: &str) -> bool {
+    path == repo_path || path.starts_with(&format!("{repo_path}/"))
+}
+
+#[cfg(test)]
+pub(crate) fn resolve_repo_root_from_repo_paths(
+    path: &str,
+    repo_paths: &[String],
+) -> Result<Option<String>, MegaError> {
+    let normalized_path = MonoServiceLogic::normalize_repo_path(path)?;
+    let resolved = repo_paths
+        .iter()
+        .filter_map(|repo_path| {
+            let normalized_repo = MonoServiceLogic::normalize_repo_path(repo_path).ok()?;
+            path_has_repo_prefix(&normalized_path, &normalized_repo).then_some(normalized_repo)
+        })
+        .max_by_key(|repo_path| repo_path.len());
+    Ok(resolved)
+}
+
+pub async fn resolve_build_repo_root(storage: &Storage, path: &str) -> Result<String, MegaError> {
+    let normalized_path = MonoServiceLogic::normalize_repo_path(path)?;
+    if let Some(repo) = storage
+        .git_db_storage()
+        .find_git_repo_like_path(&normalized_path)
+        .await?
+        .map(|repo| repo.repo_path)
+    {
+        return Ok(repo);
+    }
+
+    let mono_storage = storage.mono_storage();
+    for candidate in MonoServiceLogic::repo_root_candidates(Path::new(&normalized_path)) {
+        if mono_storage.get_main_ref(&candidate).await?.is_some() {
+            return Ok(candidate);
+        }
+    }
+
+    Err(MegaError::Other(format!(
+        "No repository root found for path {normalized_path}"
+    )))
 }
 
 /// Get list of files changed between from_hash and to_hash commits.
@@ -365,4 +409,44 @@ pub async fn create_repo_commit(storage: &Storage, repo_path: &str) -> Result<St
         }
     }
     Ok(head_hash)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_repo_root_from_repo_paths;
+
+    #[test]
+    fn test_resolve_repo_root_from_repo_paths_prefers_longest_registered_prefix() {
+        let repo_paths = vec![
+            "/project".to_string(),
+            "/project/buck2_test".to_string(),
+            "/project/buck2_test_extra".to_string(),
+        ];
+
+        assert_eq!(
+            resolve_repo_root_from_repo_paths("/project/buck2_test/src", &repo_paths).unwrap(),
+            Some("/project/buck2_test".to_string())
+        );
+    }
+
+    #[test]
+    fn test_resolve_repo_root_from_repo_paths_requires_path_boundary() {
+        let repo_paths = vec!["/project/buck2_test".to_string()];
+
+        assert_eq!(
+            resolve_repo_root_from_repo_paths("/project/buck2_test_extra/src", &repo_paths)
+                .unwrap(),
+            None
+        );
+    }
+
+    #[test]
+    fn test_resolve_repo_root_from_repo_paths_normalizes_inputs() {
+        let repo_paths = vec!["project/buck2_test".to_string()];
+
+        assert_eq!(
+            resolve_repo_root_from_repo_paths("project/buck2_test/src", &repo_paths).unwrap(),
+            Some("/project/buck2_test".to_string())
+        );
+    }
 }
