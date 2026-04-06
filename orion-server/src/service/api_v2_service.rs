@@ -619,10 +619,6 @@ pub async fn build_retry(
     state: &AppState,
     req: api_model::buck2::api::RetryBuildRequest,
 ) -> Response {
-    let req = api_model::buck2::api::RetryBuildRequest {
-        changes: normalize_repo_root_changes("", req.changes),
-        ..req
-    };
     let old_build_id = match req.build_id.parse::<uuid::Uuid>() {
         Ok(uuid) => uuid,
         Err(_) => {
@@ -681,6 +677,8 @@ pub async fn build_retry(
     let retry_count = old_event.retry_count + 1;
     let repo = task.repo_name.clone();
     let cl_link = task.cl.clone();
+    // Retry requests do not carry repo, so normalize against the persisted task repo.
+    let changes = normalize_repo_root_changes(&repo, req.changes);
 
     let build_target =
         match BuildTargetsRepo::ensure_any_target_for_task(&state.conn, task.id).await {
@@ -705,7 +703,7 @@ pub async fn build_retry(
                 task.id,
                 &cl_link,
                 repo,
-                req.changes,
+                changes,
                 retry_count,
             )
             .await
@@ -752,7 +750,7 @@ pub async fn build_retry(
             event_payload: event_payload.clone(),
             target_id: build_target.id,
             target_path: build_target.path.clone(),
-            changes: req.changes.clone(),
+            changes: changes.clone(),
             worker_id: chosen_id.clone(),
             auto_retry_judger: AutoRetryJudger::new(),
             started_at,
@@ -761,7 +759,7 @@ pub async fn build_retry(
         let msg = api_model::buck2::ws::WSMessage::TaskBuild {
             build_id: new_build_id.to_string(),
             repo: repo.clone(),
-            changes: req.changes,
+            changes,
             cl_link,
         };
 
