@@ -8,7 +8,10 @@ use callisto::{mega_cl, mega_refs};
 use common::{self, errors::MegaError, utils::ZERO_ID};
 use git_internal::{
     hash::ObjectHash,
-    internal::object::{commit::Commit, tree::Tree},
+    internal::object::{
+        commit::Commit,
+        tree::{Tree, TreeItemMode},
+    },
 };
 use jupiter::{storage::Storage, utils::converter::FromMegaModel};
 
@@ -68,6 +71,20 @@ pub async fn get_repo_main_latest_commit(
     ))
 }
 
+fn has_buck_root_markers(tree: &Tree) -> bool {
+    let names: HashSet<_> = tree
+        .tree_items
+        .iter()
+        .map(|item| item.name.as_str())
+        .collect();
+    let has_toolchains_dir = tree
+        .tree_items
+        .iter()
+        .any(|item| item.mode == TreeItemMode::Tree && item.name == "toolchains");
+    let has_buck_markers = names.contains(".buckroot") && names.contains(".buckconfig");
+    has_toolchains_dir || has_buck_markers
+}
+
 #[cfg(test)]
 fn path_has_repo_prefix(path: &str, repo_path: &str) -> bool {
     path == repo_path || path.starts_with(&format!("{repo_path}/"))
@@ -91,18 +108,29 @@ pub(crate) fn resolve_repo_root_from_repo_paths(
 
 pub async fn resolve_build_repo_root(storage: &Storage, path: &str) -> Result<String, MegaError> {
     let normalized_path = MonoServiceLogic::normalize_repo_path(path)?;
-    if let Some(repo) = storage
-        .git_db_storage()
-        .find_git_repo_like_path(&normalized_path)
-        .await?
-        .map(|repo| repo.repo_path)
-    {
-        return Ok(repo);
+    let candidates = MonoServiceLogic::repo_root_candidates(Path::new(&normalized_path));
+
+    for candidate in &candidates {
+        if storage
+            .git_db_storage()
+            .find_git_repo_exact_match(candidate)
+            .await?
+            .is_some()
+        {
+            return Ok(candidate.clone());
+        }
     }
 
     let mono_storage = storage.mono_storage();
-    for candidate in MonoServiceLogic::repo_root_candidates(Path::new(&normalized_path)) {
-        if mono_storage.get_main_ref(&candidate).await?.is_some() {
+    for candidate in candidates {
+        let Some(refs) = mono_storage.get_main_ref(&candidate).await? else {
+            continue;
+        };
+        let Some(tree_model) = mono_storage.get_tree_by_hash(&refs.ref_tree_hash).await? else {
+            continue;
+        };
+        let tree = Tree::from_mega_model(tree_model);
+        if has_buck_root_markers(&tree) {
             return Ok(candidate);
         }
     }
@@ -413,7 +441,14 @@ pub async fn create_repo_commit(storage: &Storage, repo_path: &str) -> Result<St
 
 #[cfg(test)]
 mod tests {
-    use super::resolve_repo_root_from_repo_paths;
+    use std::str::FromStr;
+
+    use git_internal::{
+        hash::ObjectHash,
+        internal::object::tree::{Tree, TreeItem, TreeItemMode},
+    };
+
+    use super::{has_buck_root_markers, resolve_repo_root_from_repo_paths};
 
     #[test]
     fn test_resolve_repo_root_from_repo_paths_prefers_longest_registered_prefix() {
@@ -448,5 +483,44 @@ mod tests {
             resolve_repo_root_from_repo_paths("project/buck2_test/src", &repo_paths).unwrap(),
             Some("/project/buck2_test".to_string())
         );
+    }
+
+    #[test]
+    fn test_has_buck_root_markers_accepts_toolchains_or_buck_markers() {
+        let buckroot = TreeItem {
+            mode: TreeItemMode::Blob,
+            id: ObjectHash::from_str("1111111111111111111111111111111111111111").unwrap(),
+            name: ".buckroot".to_string(),
+        };
+        let buckconfig = TreeItem {
+            mode: TreeItemMode::Blob,
+            id: ObjectHash::from_str("2222222222222222222222222222222222222222").unwrap(),
+            name: ".buckconfig".to_string(),
+        };
+        let src_dir = TreeItem {
+            mode: TreeItemMode::Tree,
+            id: ObjectHash::from_str("3333333333333333333333333333333333333333").unwrap(),
+            name: "src".to_string(),
+        };
+        let toolchains_dir = TreeItem {
+            mode: TreeItemMode::Tree,
+            id: ObjectHash::from_str("4444444444444444444444444444444444444444").unwrap(),
+            name: "toolchains".to_string(),
+        };
+
+        let root_tree =
+            Tree::from_tree_items(vec![buckroot.clone(), buckconfig.clone(), src_dir.clone()])
+                .unwrap();
+        assert!(has_buck_root_markers(&root_tree));
+
+        let root_with_toolchains =
+            Tree::from_tree_items(vec![src_dir.clone(), toolchains_dir]).unwrap();
+        assert!(has_buck_root_markers(&root_with_toolchains));
+
+        let subtree = Tree::from_tree_items(vec![src_dir]).unwrap();
+        assert!(!has_buck_root_markers(&subtree));
+
+        let partial = Tree::from_tree_items(vec![buckroot]).unwrap();
+        assert!(!has_buck_root_markers(&partial));
     }
 }
