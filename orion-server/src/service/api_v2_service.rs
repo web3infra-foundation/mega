@@ -47,12 +47,10 @@ type MessageErrorResponse = (StatusCode, Json<MessageResponse>);
 type JsonValueErrorResponse = (StatusCode, Json<Value>);
 type LogSseStream = Pin<Box<dyn Stream<Item = Result<Event, Infallible>> + Send>>;
 
-/// Normalize incoming task changes to the monorepo-root-relative contract.
+/// Normalize incoming task changes to the Orion worker contract.
 ///
-/// Callers have historically sent both repo-root-relative and monorepo-root-
-/// relative paths. Workers match Buck inputs against monorepo-root-relative
-/// paths, so we canonicalize to that shape here while remaining backwards
-/// compatible with repo-local callers.
+/// Files inside the requested repo root should be repo-relative, while shared
+/// files outside that root must remain monorepo-relative.
 fn normalize_repo_root_changes(
     repo: &str,
     changes: Vec<Status<ProjectRelativePath>>,
@@ -65,15 +63,14 @@ fn normalize_repo_root_changes(
     for change in changes {
         let normalized_change = change.into_map(|path| {
             let raw = path.as_str().trim_start_matches('/');
-            let canonical = if repo_prefix.is_empty()
-                || raw == repo_prefix
-                || raw.starts_with(&format!("{repo_prefix}/"))
-            {
+            let canonical = if repo_prefix.is_empty() {
                 raw.to_string()
-            } else if raw.is_empty() {
-                repo_prefix.to_string()
+            } else if raw == repo_prefix {
+                String::new()
+            } else if let Some(stripped) = raw.strip_prefix(&format!("{repo_prefix}/")) {
+                stripped.to_string()
             } else {
-                format!("{repo_prefix}/{raw}")
+                raw.to_string()
             };
             ProjectRelativePath::new(&canonical)
         });
@@ -1074,21 +1071,38 @@ mod tests {
     }
 
     #[test]
-    fn test_normalize_repo_root_changes_prefixes_repo_relative_paths() {
+    fn test_normalize_repo_root_changes_strips_repo_prefix_for_local_paths() {
         let normalized = normalize_repo_root_changes(
             "/project/buck2_test",
             vec![
                 Status::Modified(ProjectRelativePath::new("src/main.rs")),
                 Status::Modified(ProjectRelativePath::new("/src/main.rs")),
                 Status::Modified(ProjectRelativePath::new("project/buck2_test/src/main.rs")),
+                Status::Added(ProjectRelativePath::new(
+                    "/project/buck2_test/src/generated.rs",
+                )),
             ],
         );
 
         assert_eq!(
             normalized,
-            vec![Status::Modified(ProjectRelativePath::new(
-                "project/buck2_test/src/main.rs"
-            ))]
+            vec![
+                Status::Modified(ProjectRelativePath::new("src/main.rs")),
+                Status::Added(ProjectRelativePath::new("src/generated.rs")),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_normalize_repo_root_changes_keeps_external_shared_paths() {
+        let normalized = normalize_repo_root_changes(
+            "/project/buck2_test",
+            vec![Status::Modified(ProjectRelativePath::new("common/lib.rs"))],
+        );
+
+        assert_eq!(
+            normalized,
+            vec![Status::Modified(ProjectRelativePath::new("common/lib.rs"))]
         );
     }
 }
