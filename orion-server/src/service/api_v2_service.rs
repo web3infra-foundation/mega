@@ -47,21 +47,33 @@ type MessageErrorResponse = (StatusCode, Json<MessageResponse>);
 type JsonValueErrorResponse = (StatusCode, Json<Value>);
 type LogSseStream = Pin<Box<dyn Stream<Item = Result<Event, Infallible>> + Send>>;
 
-/// Normalize incoming task changes to the repo-root-relative contract.
+/// Normalize incoming task changes to the Orion worker contract.
 ///
-/// The protocol no longer asks workers to guess whether a path was expressed
-/// relative to the selected sub-project. We only perform lossless cleanup here:
-/// trim accidental leading slashes and drop exact duplicates.
+/// Files inside the requested repo root should be repo-relative, while shared
+/// files outside that root must remain monorepo-relative.
 fn normalize_repo_root_changes(
+    repo: &str,
     changes: Vec<Status<ProjectRelativePath>>,
 ) -> Vec<Status<ProjectRelativePath>> {
     // Avoid reserving memory directly from request-controlled input length.
     let mut normalized = Vec::new();
     let mut seen = HashSet::new();
+    let repo_prefix = repo.trim_matches('/');
 
     for change in changes {
-        let normalized_change =
-            change.into_map(|path| ProjectRelativePath::new(path.as_str().trim_start_matches('/')));
+        let normalized_change = change.into_map(|path| {
+            let raw = path.as_str().trim_start_matches('/');
+            let canonical = if repo_prefix.is_empty() {
+                raw.to_string()
+            } else if raw == repo_prefix {
+                String::new()
+            } else if let Some(stripped) = raw.strip_prefix(&format!("{repo_prefix}/")) {
+                stripped.to_string()
+            } else {
+                raw.to_string()
+            };
+            ProjectRelativePath::new(&canonical)
+        });
         if seen.insert(normalized_change.clone()) {
             normalized.push(normalized_change);
         }
@@ -607,10 +619,6 @@ pub async fn build_retry(
     state: &AppState,
     req: api_model::buck2::api::RetryBuildRequest,
 ) -> Response {
-    let req = api_model::buck2::api::RetryBuildRequest {
-        changes: normalize_repo_root_changes(req.changes),
-        ..req
-    };
     let old_build_id = match req.build_id.parse::<uuid::Uuid>() {
         Ok(uuid) => uuid,
         Err(_) => {
@@ -669,6 +677,8 @@ pub async fn build_retry(
     let retry_count = old_event.retry_count + 1;
     let repo = task.repo_name.clone();
     let cl_link = task.cl.clone();
+    // Retry requests do not carry repo, so normalize against the persisted task repo.
+    let changes = normalize_repo_root_changes(&repo, req.changes);
 
     let build_target =
         match BuildTargetsRepo::ensure_any_target_for_task(&state.conn, task.id).await {
@@ -693,7 +703,7 @@ pub async fn build_retry(
                 task.id,
                 &cl_link,
                 repo,
-                req.changes,
+                changes,
                 retry_count,
             )
             .await
@@ -740,7 +750,7 @@ pub async fn build_retry(
             event_payload: event_payload.clone(),
             target_id: build_target.id,
             target_path: build_target.path.clone(),
-            changes: req.changes.clone(),
+            changes: changes.clone(),
             worker_id: chosen_id.clone(),
             auto_retry_judger: AutoRetryJudger::new(),
             started_at,
@@ -749,7 +759,7 @@ pub async fn build_retry(
         let msg = api_model::buck2::ws::WSMessage::TaskBuild {
             build_id: new_build_id.to_string(),
             repo: repo.clone(),
-            changes: req.changes,
+            changes,
             cl_link,
         };
 
@@ -909,7 +919,7 @@ async fn handle_immediate_task_dispatch_v2(
 
 pub async fn task_handler_v2(state: &AppState, req: TaskBuildRequest) -> Response {
     let req = TaskBuildRequest {
-        changes: normalize_repo_root_changes(req.changes),
+        changes: normalize_repo_root_changes(&req.repo, req.changes),
         ..req
     };
     let task_id = Uuid::now_v7();
@@ -1020,12 +1030,15 @@ mod tests {
 
     #[test]
     fn test_normalize_repo_root_changes_trims_leading_slashes_and_deduplicates() {
-        let normalized = normalize_repo_root_changes(vec![
-            Status::Modified(ProjectRelativePath::new("/jupiter/callisto/src/main.rs")),
-            Status::Modified(ProjectRelativePath::new("jupiter/callisto/src/main.rs")),
-            Status::Removed(ProjectRelativePath::new("//common/lib.rs")),
-            Status::Removed(ProjectRelativePath::new("common/lib.rs")),
-        ]);
+        let normalized = normalize_repo_root_changes(
+            "/",
+            vec![
+                Status::Modified(ProjectRelativePath::new("/jupiter/callisto/src/main.rs")),
+                Status::Modified(ProjectRelativePath::new("jupiter/callisto/src/main.rs")),
+                Status::Removed(ProjectRelativePath::new("//common/lib.rs")),
+                Status::Removed(ProjectRelativePath::new("common/lib.rs")),
+            ],
+        );
 
         assert_eq!(
             normalized,
@@ -1038,10 +1051,13 @@ mod tests {
 
     #[test]
     fn test_normalize_repo_root_changes_keeps_distinct_status_entries() {
-        let normalized = normalize_repo_root_changes(vec![
-            Status::Added(ProjectRelativePath::new("/common/lib.rs")),
-            Status::Removed(ProjectRelativePath::new("common/lib.rs")),
-        ]);
+        let normalized = normalize_repo_root_changes(
+            "/",
+            vec![
+                Status::Added(ProjectRelativePath::new("/common/lib.rs")),
+                Status::Removed(ProjectRelativePath::new("common/lib.rs")),
+            ],
+        );
 
         assert_eq!(
             normalized,
@@ -1049,6 +1065,42 @@ mod tests {
                 Status::Added(ProjectRelativePath::new("common/lib.rs")),
                 Status::Removed(ProjectRelativePath::new("common/lib.rs")),
             ]
+        );
+    }
+
+    #[test]
+    fn test_normalize_repo_root_changes_strips_repo_prefix_for_local_paths() {
+        let normalized = normalize_repo_root_changes(
+            "/project/buck2_test",
+            vec![
+                Status::Modified(ProjectRelativePath::new("src/main.rs")),
+                Status::Modified(ProjectRelativePath::new("/src/main.rs")),
+                Status::Modified(ProjectRelativePath::new("project/buck2_test/src/main.rs")),
+                Status::Added(ProjectRelativePath::new(
+                    "/project/buck2_test/src/generated.rs",
+                )),
+            ],
+        );
+
+        assert_eq!(
+            normalized,
+            vec![
+                Status::Modified(ProjectRelativePath::new("src/main.rs")),
+                Status::Added(ProjectRelativePath::new("src/generated.rs")),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_normalize_repo_root_changes_keeps_external_shared_paths() {
+        let normalized = normalize_repo_root_changes(
+            "/project/buck2_test",
+            vec![Status::Modified(ProjectRelativePath::new("common/lib.rs"))],
+        );
+
+        assert_eq!(
+            normalized,
+            vec![Status::Modified(ProjectRelativePath::new("common/lib.rs"))]
         );
     }
 }

@@ -95,12 +95,10 @@ impl BuildEventsRepo {
         exit_code: Option<i32>,
         db_connection: &impl ConnectionTrait,
     ) -> Result<(), DbErr> {
+        let completion = Self::build_completion_update(exit_code, Utc::now().into());
         callisto::build_events::Entity::update_many()
             .filter(callisto::build_events::Column::Id.eq(build_id.parse::<Uuid>().unwrap()))
-            .set(callisto::build_events::ActiveModel {
-                exit_code: Set(exit_code),
-                ..Default::default()
-            })
+            .set(completion)
             .exec(db_connection)
             .await?;
         Ok(())
@@ -121,5 +119,34 @@ impl BuildEventsRepo {
             .exec(db_connection)
             .await?;
         Ok(())
+    }
+
+    fn build_completion_update(
+        exit_code: Option<i32>,
+        end_at: sea_orm::prelude::DateTimeWithTimeZone,
+    ) -> callisto::build_events::ActiveModel {
+        callisto::build_events::ActiveModel {
+            exit_code: Set(exit_code),
+            end_at: Set(Some(end_at)),
+            ..Default::default()
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::Utc;
+    use sea_orm::ActiveValue::{NotSet, Set};
+
+    use super::BuildEventsRepo;
+
+    #[test]
+    fn test_build_completion_update_sets_exit_code_and_end_at() {
+        let end_at = Utc::now().into();
+        let model = BuildEventsRepo::build_completion_update(Some(0), end_at);
+
+        assert!(matches!(&model.exit_code, Set(Some(0))));
+        assert!(matches!(&model.end_at, Set(Some(value)) if *value == end_at));
+        assert!(matches!(&model.retry_count, NotSet));
     }
 }

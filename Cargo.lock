@@ -5013,6 +5013,7 @@ dependencies = [
  "serial_test",
  "td_util",
  "td_util_buck",
+ "tempfile",
  "thiserror 2.0.18",
  "tokio",
  "tokio-tungstenite",

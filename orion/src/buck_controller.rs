@@ -334,6 +334,40 @@ async fn get_build_targets(
         .collect())
 }
 
+fn finish_without_build_if_no_targets(
+    build_id: &str,
+    targets: &[TargetLabel],
+    sender: &UnboundedSender<WSMessage>,
+) -> anyhow::Result<bool> {
+    if !targets.is_empty() {
+        return Ok(false);
+    }
+
+    sender
+        .send(WSMessage::TaskBuildOutput {
+            build_id: build_id.to_string(),
+            output: "No impacted Buck targets detected for the provided changes.".to_string(),
+        })
+        .map_err(|e| anyhow!("Failed to send empty-target build output: {e}"))?;
+    Ok(true)
+}
+
+fn successful_exit_status() -> ExitStatus {
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::ExitStatusExt;
+
+        ExitStatus::from_raw(0)
+    }
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::ExitStatusExt;
+
+        ExitStatus::from_raw(0)
+    }
+}
+
 #[derive(Debug)]
 pub struct BuildStatusTracker {
     pub cancellation: CancellationToken,
@@ -635,6 +669,14 @@ pub async fn build(
         }
     };
 
+    if finish_without_build_if_no_targets(&id, &targets, &sender)? {
+        tracing::info!(
+            "[Task {}] No impacted Buck targets detected; skipping buck2 build.",
+            id
+        );
+        return Ok(successful_exit_status());
+    }
+
     let build_result = async {
         // Run buck2 build from the sub-project directory, not the monorepo root.
         // This ensures buck2 uses the sub-project's .buckconfig and PACKAGE files.
@@ -771,8 +813,10 @@ mod tests {
     use api_model::buck2::{status::Status, types::ProjectRelativePath};
     use serial_test::serial;
     use td_util_buck::types::TargetLabel;
+    use tempfile::TempDir;
+    use tokio::sync::mpsc;
 
-    use super::get_build_targets;
+    use super::{finish_without_build_if_no_targets, get_build_targets};
 
     struct JsonlCleanupGuard {
         paths: Vec<PathBuf>,
@@ -807,6 +851,30 @@ mod tests {
 
     fn path_exists(path: &Path) -> bool {
         path.exists()
+    }
+
+    fn copy_dir_all(src: &Path, dst: &Path) {
+        fs::create_dir_all(dst).expect("create fixture directory");
+        for entry in fs::read_dir(src).expect("read fixture directory") {
+            let entry = entry.expect("read fixture entry");
+            let ty = entry.file_type().expect("read fixture type");
+            let dst_path = dst.join(entry.file_name());
+            if ty.is_dir() {
+                copy_dir_all(&entry.path(), &dst_path);
+            } else {
+                fs::copy(entry.path(), dst_path).expect("copy fixture file");
+            }
+        }
+    }
+
+    fn isolated_buck_scope_fixture() -> (TempDir, PathBuf, PathBuf) {
+        let fixture_root = subproject_root("orion/tests/fixtures/change_detector_buck_scope");
+        let tempdir = TempDir::new().expect("create tempdir");
+        let old_root = tempdir.path().join("old");
+        let new_root = tempdir.path().join("new");
+        copy_dir_all(&fixture_root, &old_root);
+        copy_dir_all(&fixture_root, &new_root);
+        (tempdir, old_root, new_root)
     }
 
     #[tokio::test]
@@ -912,5 +980,114 @@ mod tests {
             )),
             "expected mixed change list to rebuild root//orion/tests/fixtures/change_detector_mixed/app:app, got {targets:?}"
         );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_get_build_targets_detects_modified_tracked_file_in_standalone_repo() {
+        let (_tempdir, old_root, new_root) = isolated_buck_scope_fixture();
+        fs::write(
+            new_root.join("src/main.rs"),
+            "fn main() { println!(\"modified fixture main\"); }\n",
+        )
+        .expect("rewrite main.rs");
+
+        let targets = get_build_targets(
+            old_root.to_str().expect("old fixture path"),
+            new_root.to_str().expect("new fixture path"),
+            vec![Status::Modified(ProjectRelativePath::new("src/main.rs"))],
+        )
+        .await
+        .expect("target discovery should complete");
+
+        assert!(
+            targets.contains(&TargetLabel::new("root//:explicit_main")),
+            "expected tracked main.rs change to rebuild root//:explicit_main, got {targets:?}"
+        );
+        assert!(
+            targets.contains(&TargetLabel::new("root//:globbed_lib")),
+            "expected tracked main.rs change to rebuild root//:globbed_lib, got {targets:?}"
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_get_build_targets_detects_added_file_inside_buck_glob_scope() {
+        let (_tempdir, old_root, new_root) = isolated_buck_scope_fixture();
+        let new_file = new_root.join("src/generated/new_module.rs");
+        fs::create_dir_all(
+            new_file
+                .parent()
+                .expect("new file should have a parent directory"),
+        )
+        .expect("create generated dir");
+        fs::write(new_file, "pub fn generated() -> &'static str { \"ok\" }\n")
+            .expect("write generated rust file");
+
+        let targets = get_build_targets(
+            old_root.to_str().expect("old fixture path"),
+            new_root.to_str().expect("new fixture path"),
+            vec![Status::Added(ProjectRelativePath::new(
+                "src/generated/new_module.rs",
+            ))],
+        )
+        .await
+        .expect("target discovery should complete");
+
+        assert!(
+            targets.contains(&TargetLabel::new("root//:globbed_lib")),
+            "expected added globbed source to rebuild root//:globbed_lib, got {targets:?}"
+        );
+        assert!(
+            !targets.contains(&TargetLabel::new("root//:explicit_main")),
+            "explicit target should not rebuild for unrelated added file, got {targets:?}"
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_get_build_targets_ignores_added_file_outside_buck_scope() {
+        let (_tempdir, old_root, new_root) = isolated_buck_scope_fixture();
+        let new_file = new_root.join("notes/added.txt");
+        fs::create_dir_all(
+            new_file
+                .parent()
+                .expect("new file should have a parent directory"),
+        )
+        .expect("create notes dir");
+        fs::write(new_file, "not referenced by any Buck target\n").expect("write non-buck file");
+
+        let targets = get_build_targets(
+            old_root.to_str().expect("old fixture path"),
+            new_root.to_str().expect("new fixture path"),
+            vec![Status::Added(ProjectRelativePath::new("notes/added.txt"))],
+        )
+        .await
+        .expect("target discovery should complete");
+
+        assert!(
+            targets.is_empty(),
+            "expected no targets for out-of-scope added file, got {targets:?}"
+        );
+    }
+
+    #[test]
+    fn test_finish_without_build_if_no_targets_emits_clear_message() {
+        let (sender, mut receiver) = mpsc::unbounded_channel();
+
+        let skipped = finish_without_build_if_no_targets("build-1", &[], &sender)
+            .expect("empty targets should short-circuit");
+
+        assert!(skipped);
+        match receiver.try_recv().expect("expected a websocket message") {
+            api_model::buck2::ws::WSMessage::TaskBuildOutput { build_id, output } => {
+                assert_eq!(build_id, "build-1");
+                assert_eq!(
+                    output,
+                    "No impacted Buck targets detected for the provided changes."
+                );
+            }
+            other => panic!("unexpected websocket message: {other:?}"),
+        }
     }
 }

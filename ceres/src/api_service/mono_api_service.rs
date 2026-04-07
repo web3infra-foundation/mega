@@ -260,6 +260,25 @@ impl MonoServiceLogic {
         Ok(format!("/{}", s))
     }
 
+    /// Enumerate candidate repo roots from the deepest directory back to `/`.
+    pub fn repo_root_candidates(path: &Path) -> Vec<String> {
+        let mut current = PathBuf::from("/").join(path);
+        let mut candidates = Vec::new();
+
+        loop {
+            candidates.push(Self::clean_path_str(&current.to_string_lossy()));
+            if !current.pop() {
+                break;
+            }
+        }
+
+        candidates
+    }
+
+    pub fn subtree_ref_path(path: &Path) -> Result<String, MegaError> {
+        Self::normalize_repo_path(&path.display().to_string())
+    }
+
     pub fn update_tree_hash(
         tree: Arc<Tree>,
         name: &str,
@@ -471,7 +490,8 @@ impl ApiHandler for MonoApiService {
         let parent_path = file_path
             .parent()
             .ok_or_else(|| GitError::CustomError("Invalid file path".to_string()))?;
-        let repo_path = &parent_path.display().to_string();
+        let repo_path = MonoServiceLogic::subtree_ref_path(parent_path)
+            .map_err(|e| GitError::CustomError(e.to_string()))?;
 
         let parent_tree = tree_ops::search_tree_by_path(self, parent_path, None)
             .await?
@@ -501,7 +521,7 @@ impl ApiHandler for MonoApiService {
                 .ok_or_else(|| GitError::CustomError("Invalid path".into()))?,
             new_blob.id,
         )?;
-        let src_commit = edit_utils::get_repo_main_latest_commit(&self.storage, repo_path).await?;
+        let src_commit = edit_utils::get_repo_main_latest_commit(&self.storage, &repo_path).await?;
         let dst_commit = Commit::from_tree_id(
             new_tree.id,
             vec![
@@ -541,7 +561,7 @@ impl ApiHandler for MonoApiService {
             .map_err(|e| GitError::CustomError(e.to_string()))?;
 
         let editor = OneditCodeEdit::from(
-            repo_path,
+            &repo_path,
             MEGA_BRANCH_NAME
                 .strip_prefix("refs/heads/")
                 .unwrap_or(MEGA_BRANCH_NAME),
@@ -571,7 +591,7 @@ impl ApiHandler for MonoApiService {
         Ok(EditFileResult {
             commit_id: new_commit_id,
             new_oid: new_blob.id.to_string(),
-            path: repo_path.to_string(),
+            path: repo_path,
             cl_link: Some(cl.link),
         })
     }
@@ -598,14 +618,8 @@ impl ApiHandler for MonoApiService {
             mut save_trees,
         } = self.prepare_create_entry_update(&entry_info).await?;
 
-        let repo_path_str = {
-            let path_str = repo_path.to_string_lossy().to_string();
-            if path_str.is_empty() {
-                "/".to_string()
-            } else {
-                path_str
-            }
-        };
+        let repo_path_str = MonoServiceLogic::subtree_ref_path(&repo_path)
+            .map_err(|e| GitError::CustomError(e.to_string()))?;
 
         let src_commit =
             edit_utils::get_repo_main_latest_commit(&self.storage, &repo_path_str).await?;
@@ -3813,6 +3827,48 @@ mod test {
             MonoServiceLogic::normalize_repo_path("D:/project"),
             Err(MegaError::Buck(BuckError::ValidationError(_)))
         ));
+    }
+
+    #[test]
+    fn test_repo_root_candidates_walk_from_leaf_to_root() {
+        assert_eq!(
+            MonoServiceLogic::repo_root_candidates(Path::new("/project/buck2_test/src")),
+            vec![
+                "/project/buck2_test/src".to_string(),
+                "/project/buck2_test".to_string(),
+                "/project".to_string(),
+                "/".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_repo_root_candidates_normalize_relative_paths() {
+        assert_eq!(
+            MonoServiceLogic::repo_root_candidates(Path::new("project/buck2_test/src")),
+            vec![
+                "/project/buck2_test/src".to_string(),
+                "/project/buck2_test".to_string(),
+                "/project".to_string(),
+                "/".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_subtree_ref_path_keeps_parent_directory_for_file_edits() {
+        assert_eq!(
+            MonoServiceLogic::subtree_ref_path(Path::new("/project/buck2_test/src")).unwrap(),
+            "/project/buck2_test/src".to_string()
+        );
+    }
+
+    #[test]
+    fn test_subtree_ref_path_normalizes_relative_create_paths() {
+        assert_eq!(
+            MonoServiceLogic::subtree_ref_path(Path::new("project/buck2_test/src")).unwrap(),
+            "/project/buck2_test/src".to_string()
+        );
     }
 
     #[test]

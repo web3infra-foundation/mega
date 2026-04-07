@@ -7,7 +7,9 @@ use git_internal::errors::GitError;
 use jupiter::storage::{Storage, mono_storage::MonoStorage};
 
 use crate::{
-    api_service::mono_api_service::MonoApiService, build_trigger::TriggerContext, code_edit::model,
+    api_service::{cache::GitObjectCache, mono_api_service::MonoApiService},
+    build_trigger::{BuildTriggerService, TriggerContext},
+    code_edit::{model, utils as edit_utils},
     model::git::EditCLMode,
 };
 
@@ -76,6 +78,43 @@ impl model::TriggerContextBuilder for OneditTrigerBuilder {
             Some(cl.id),
             Some(username.to_string()),
         ))
+    }
+
+    async fn trigger_build(
+        &self,
+        storage: Storage,
+        git_cache: std::sync::Arc<GitObjectCache>,
+        bellatrix: std::sync::Arc<bellatrix::Bellatrix>,
+        cl: &mega_cl::Model,
+        username: &str,
+    ) -> Result<(), MegaError> {
+        let cl_model = cl.clone();
+        let username = username.to_string();
+        tokio::spawn(async move {
+            let repo_path =
+                match edit_utils::resolve_build_repo_root(&storage, &cl_model.path).await {
+                    Ok(repo_path) => repo_path,
+                    Err(e) => {
+                        tracing::error!(
+                            cl_link = %cl_model.link,
+                            cl_path = %cl_model.path,
+                            "Failed to resolve build repo root for web edit: {}",
+                            e
+                        );
+                        return Err(e);
+                    }
+                };
+            let context = TriggerContext::from_git_push(
+                repo_path,
+                cl_model.from_hash.clone(),
+                cl_model.to_hash.clone(),
+                cl_model.link.clone(),
+                Some(cl_model.id),
+                Some(username),
+            );
+            BuildTriggerService::build_by_context(storage, git_cache, bellatrix, context).await
+        });
+        Ok(())
     }
 }
 

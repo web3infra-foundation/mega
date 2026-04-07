@@ -41,6 +41,7 @@ use crate::{
             TriggerResponse,
         },
     },
+    code_edit::utils as edit_utils,
 };
 
 /// Service for orchestrating build trigger operations from various sources.
@@ -126,7 +127,9 @@ impl BuildTriggerService {
             .await?
             .ok_or_else(|| MegaError::Other(format!("[code:404] CL not found: {}", cl_link)))?;
 
-        let context: TriggerContext = cl.into();
+        let repo_path = edit_utils::resolve_build_repo_root(&self.storage, &cl.path).await?;
+        let mut context: TriggerContext = cl.into();
+        context.repo_path = repo_path;
         let id = self.registry.trigger_build(context).await?;
         Ok(Some(id))
     }
@@ -139,7 +142,9 @@ impl BuildTriggerService {
         if !self.is_enabled() {
             return Ok(None);
         }
-        let context: TriggerContext = cl.into();
+        let repo_path = edit_utils::resolve_build_repo_root(&self.storage, &cl.path).await?;
+        let mut context: TriggerContext = cl.into();
+        context.repo_path = repo_path;
         let id = self.registry.trigger_build(context).await?;
         Ok(Some(id))
     }
