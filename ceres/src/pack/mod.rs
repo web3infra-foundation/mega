@@ -5,6 +5,7 @@ use std::{
         Arc,
         atomic::{AtomicUsize, Ordering},
     },
+    time::Instant,
 };
 
 use async_trait::async_trait;
@@ -41,6 +42,20 @@ pub mod monorepo;
 pub trait RepoHandler: Send + Sync + 'static {
     fn is_monorepo(&self) -> bool;
 
+    /// Concurrency limit for `save_entry` batches during receive-pack.
+    /// `0` means unbounded.
+    fn save_entry_concurrency(&self) -> usize {
+        1
+    }
+
+    /// Optional extra timing key-values to be included in the final receive-pack report.
+    /// Implementations may return an empty vec.
+    ///
+    /// Intended for repo-type-specific breakdown (e.g. import attach lock waits).
+    fn receive_pack_extra_timings_ms(&self) -> Vec<(String, u128)> {
+        Vec::new()
+    }
+
     /// Replace the handler's ref-command snapshot after unpack and the protocol status loop
     /// (`default_branch`, `status`, etc.). The handler is built from an early `commands.clone()`,
     /// so without this, metadata updated in `git_receive_pack_stream` would be stale at finalize.
@@ -53,33 +68,72 @@ pub trait RepoHandler: Send + Sync + 'static {
         mut rx: UnboundedReceiver<MetaAttached<Entry, EntryMeta>>,
         _rx_pack_id: UnboundedReceiver<ObjectHash>,
     ) -> Result<(), MegaError> {
+        let t0 = Instant::now();
         let mut entry_list = vec![];
-        let semaphore = Arc::new(Semaphore::new(1)); //这里暂时改动
+        let limit = self.save_entry_concurrency();
+        let semaphore = if limit == 0 {
+            None
+        } else {
+            Some(Arc::new(Semaphore::new(limit)))
+        };
         let mut join_tasks = vec![];
 
         //let temp_pack_id = Uuid::new_v4().to_string();
         let temp_pack_id = String::new();
 
+        let mut total_entries: usize = 0;
+        let mut flush_batches: usize = 0;
         while let Some(mut entry) = rx.recv().await {
             self.check_entry(&entry.inner).await?;
             entry.meta.set_pack_id(temp_pack_id.clone());
             entry_list.push(entry);
+            total_entries += 1;
             if entry_list.len() >= 1000 {
-                let acquired = semaphore.clone().acquire_owned().await.unwrap();
+                flush_batches += 1;
                 let entries = std::mem::take(&mut entry_list);
                 let shared = self.clone();
+                let sem = semaphore.clone();
                 let handle = tokio::spawn(async move {
-                    let _acquired = acquired;
-                    shared.save_entry(entries).await
+                    let _permit = match sem {
+                        Some(s) => Some(s.acquire_owned().await.expect("semaphore closed")),
+                        None => None,
+                    };
+                    let t = Instant::now();
+                    let len = entries.len();
+                    shared.save_entry(entries).await.map(|_| {
+                        tracing::debug!(
+                            service = "git-receive-pack",
+                            batch_entries = len,
+                            elapsed_ms = t.elapsed().as_millis(),
+                            "save_entry batch completed"
+                        );
+                    })
                 });
                 join_tasks.push(handle);
             }
         }
         // process left entries
         if !entry_list.is_empty() {
+            flush_batches += 1;
             let handler = self.clone();
             let entries = std::mem::take(&mut entry_list);
-            let handle = tokio::spawn(async move { handler.save_entry(entries).await });
+            let sem = semaphore.clone();
+            let handle = tokio::spawn(async move {
+                let _permit = match sem {
+                    Some(s) => Some(s.acquire_owned().await.expect("semaphore closed")),
+                    None => None,
+                };
+                let t = Instant::now();
+                let len = entries.len();
+                handler.save_entry(entries).await.map(|_| {
+                    tracing::debug!(
+                        service = "git-receive-pack",
+                        batch_entries = len,
+                        elapsed_ms = t.elapsed().as_millis(),
+                        "save_entry batch completed"
+                    );
+                })
+            });
             join_tasks.push(handle);
         }
 
@@ -120,6 +174,14 @@ pub trait RepoHandler: Send + Sync + 'static {
         //     }
         // }
 
+        tracing::debug!(
+            service = "git-receive-pack",
+            total_entries = total_entries,
+            flush_batches = flush_batches,
+            save_entry_concurrency = limit,
+            elapsed_ms = t0.elapsed().as_millis(),
+            "receiver_handler done"
+        );
         Ok(())
     }
 
