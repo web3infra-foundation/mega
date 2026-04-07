@@ -6,6 +6,7 @@ use std::{
         Arc, Mutex,
         atomic::{AtomicUsize, Ordering},
     },
+    time::Instant,
 };
 
 use async_recursion::async_recursion;
@@ -47,12 +48,26 @@ pub struct ImportRepo {
     pub command_list: Mutex<Vec<RefCommand>>,
     pub unpack_redlock: Arc<RedLock>,
     pub git_object_cache: Arc<GitObjectCache>,
+    pub receive_pack_extra_timings_ms: Mutex<Vec<(String, u128)>>,
 }
 
 #[async_trait]
 impl RepoHandler for ImportRepo {
     fn is_monorepo(&self) -> bool {
         false
+    }
+
+    fn save_entry_concurrency(&self) -> usize {
+        self.storage.config().pack.save_entry_concurrency
+    }
+
+    fn receive_pack_extra_timings_ms(&self) -> Vec<(String, u128)> {
+        std::mem::take(
+            &mut self
+                .receive_pack_extra_timings_ms
+                .lock()
+                .expect("receive_pack_extra_timings_ms lock poisoned"),
+        )
     }
 
     fn sync_commands_after_unpack(&self, commands: &[RefCommand]) {
@@ -75,10 +90,32 @@ impl RepoHandler for ImportRepo {
     }
 
     async fn finalize_receive_pack(&self) -> Result<(), MegaError> {
-        let guard = self.unpack_redlock.clone().lock().await?;
+        let t0 = Instant::now();
+        let t_fp = Instant::now();
         self.traverses_tree_and_update_filepath().await?;
+        self.receive_pack_extra_timings_ms
+            .lock()
+            .expect("receive_pack_extra_timings_ms lock poisoned")
+            .push((
+                "import_filepath_update_ms".to_string(),
+                t_fp.elapsed().as_millis(),
+            ));
+
+        let t_attach = Instant::now();
         self.attach_to_monorepo_parent().await?;
-        guard.unlock().await?;
+        self.receive_pack_extra_timings_ms
+            .lock()
+            .expect("receive_pack_extra_timings_ms lock poisoned")
+            .extend([
+                (
+                    "import_attach_to_monorepo_parent_ms".to_string(),
+                    t_attach.elapsed().as_millis(),
+                ),
+                (
+                    "import_finalize_total_ms".to_string(),
+                    t0.elapsed().as_millis(),
+                ),
+            ]);
         Ok(())
     }
 
@@ -424,8 +461,18 @@ impl ImportRepo {
 
         // Concurrent attaches need CAS on root mega_refs; retry when head moved.
         const MAX_ATTACH_ATTEMPTS: u32 = 64;
+        let mut root_lock_wait_max_ms: u128 = 0;
+        let mut root_lock_wait_sum_ms: u128 = 0;
 
         for attempt in 0..MAX_ATTACH_ATTEMPTS {
+            // Only the root mega_refs update needs cross-repo serialization.
+            // Keep the lock scope as small as possible: just the root ref read + attach transaction.
+            let t_lock = Instant::now();
+            let guard = self.unpack_redlock.clone().lock().await?;
+            let lock_wait_ms = t_lock.elapsed().as_millis();
+            root_lock_wait_max_ms = root_lock_wait_max_ms.max(lock_wait_ms);
+            root_lock_wait_sum_ms += lock_wait_ms;
+
             let root_ref = storage
                 .get_main_ref("/")
                 .await?
@@ -479,6 +526,7 @@ impl ImportRepo {
                 }
             }
 
+            let t_attach_txn = Instant::now();
             match storage
                 .attach_to_monorepo_parent_in_txn(
                     &txn,
@@ -492,10 +540,38 @@ impl ImportRepo {
             {
                 Ok(()) => {
                     txn.commit().await.map_err(MegaError::Db)?;
+                    let t_unlock = Instant::now();
+                    guard.unlock().await?;
+                    self.receive_pack_extra_timings_ms
+                        .lock()
+                        .expect("receive_pack_extra_timings_ms lock poisoned")
+                        .extend([
+                            (
+                                "import_attach_attempts_count".to_string(),
+                                (attempt + 1) as u128,
+                            ),
+                            (
+                                "import_root_lock_wait_sum_ms".to_string(),
+                                root_lock_wait_sum_ms,
+                            ),
+                            (
+                                "import_root_lock_wait_max_ms".to_string(),
+                                root_lock_wait_max_ms,
+                            ),
+                            (
+                                "import_attach_txn_ms".to_string(),
+                                t_attach_txn.elapsed().as_millis(),
+                            ),
+                            (
+                                "import_root_lock_unlock_ms".to_string(),
+                                t_unlock.elapsed().as_millis(),
+                            ),
+                        ]);
                     return Ok(());
                 }
                 Err(MegaError::StaleMonorepoRootRef) if attempt + 1 < MAX_ATTACH_ATTEMPTS => {
                     let _ = txn.rollback().await;
+                    let _ = guard.unlock().await;
                     tracing::warn!(
                         attempt = attempt,
                         repo_path = %self.repo.repo_path,
@@ -505,6 +581,28 @@ impl ImportRepo {
                 }
                 Err(e) => {
                     let _ = txn.rollback().await;
+                    let _ = guard.unlock().await;
+                    self.receive_pack_extra_timings_ms
+                        .lock()
+                        .expect("receive_pack_extra_timings_ms lock poisoned")
+                        .extend([
+                            (
+                                "import_attach_attempts_count".to_string(),
+                                (attempt + 1) as u128,
+                            ),
+                            (
+                                "import_root_lock_wait_sum_ms".to_string(),
+                                root_lock_wait_sum_ms,
+                            ),
+                            (
+                                "import_root_lock_wait_max_ms".to_string(),
+                                root_lock_wait_max_ms,
+                            ),
+                            (
+                                "import_attach_txn_ms".to_string(),
+                                t_attach_txn.elapsed().as_millis(),
+                            ),
+                        ]);
                     return Err(e);
                 }
             }

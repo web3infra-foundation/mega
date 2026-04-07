@@ -99,6 +99,10 @@ clean_cache_after_decode = true
 # The maximum message size in channel buffer while decode
 channel_message_size = 1_000_000
 
+# Max concurrent `save_entry` batches during receive-pack.
+# Set to 0 to disable the limit (unbounded).
+save_entry_concurrency = 1
+
 [lfs]
 #storage type, support values can be "s3", "s3compatible", "gcs" or "local"
 storage_type = "local"
