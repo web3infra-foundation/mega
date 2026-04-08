@@ -85,7 +85,7 @@ jobs:
 
   deploy:
     name: Deploy (${{ matrix.target }})
-    if: ${{ github.repository == 'web3infra-foundation/mega' }}
+    # if: ${{ github.repository == 'web3infra-foundation/mega' }}
     runs-on: ubuntu-latest
     needs: build
     timeout-minutes: 10
@@ -171,14 +171,16 @@ jobs:
           username: ${{ steps.deploy_vars.outputs.user }}
           port: ${{ steps.deploy_vars.outputs.port }}
           key: ${{ steps.deploy_vars.outputs.key }}
+          command_timeout: 5m
           script: |
             set -e
 
             # Stop service to allow binary replacement
-            sudo systemctl stop orion-runner.service || echo "Service not running"
+            timeout 30s sudo systemctl stop orion-runner.service || echo "Service not running or stop timed out"
             sleep 2
 
             # Force cleanup if service is stuck
+            sudo systemctl kill -s SIGKILL orion-runner.service 2>/dev/null || true
             sudo pkill -9 orion || true
 
             # Force unmount FUSE if still mounted
@@ -261,7 +263,7 @@ jobs:
           username: ${{ steps.deploy_vars.outputs.user }}
           port: ${{ steps.deploy_vars.outputs.port }}
           key: ${{ steps.deploy_vars.outputs.key }}
-          command_timeout: 30s
+          command_timeout: 5m
           script: |
             set -e
 
@@ -289,5 +291,6 @@ jobs:
 
             # Reload and start service asynchronously to avoid SSH timeout
             sudo systemctl daemon-reload
+            sudo systemctl reset-failed orion-runner.service || true
             nohup sudo systemctl start orion-runner.service > /tmp/orion-start.log 2>&1 &
             echo "✓ Service start command issued (async)"

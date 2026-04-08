@@ -26,7 +26,15 @@ if [ ! -f "./orion" ]; then
     echo "请确保您在 orion-runner 目录下执行此脚本。"
     exit 1
 fi
-chmod +x ./orion
+# 仅在缺少执行位时 chmod。NFS/EFS（如 root_squash）上对已可执行文件再 chmod 可能 EPERM，
+# 且 run.sh 使用 set -e，会导致服务秒退。
+if [ ! -x "./orion" ]; then
+    if ! chmod +x ./orion; then
+        echo "错误：无法为 orion 添加执行权限（常见于 NFS root_squash 等）。"
+        echo "请在部署或存储端执行: sudo chmod +x $(pwd)/orion"
+        exit 1
+    fi
+fi
 
 # 设置 scorpio 配置路径
 export SCORPIO_CONFIG="${SCORPIO_CONFIG:-$PWD/scorpio.toml}"

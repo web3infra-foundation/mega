@@ -148,6 +148,15 @@ async fn process_message(
                         }
                     }
                 }
+                WSMessage::TaskAck {
+                    build_id,
+                    success,
+                    message,
+                } => {
+                    tracing::info!(
+                        "TaskAck from worker {current_worker_id}: build_id={build_id} success={success} message={message}"
+                    );
+                }
                 WSMessage::TaskBuildOutput { build_id, output } => {
                     if let Some(build_info) = state.scheduler.active_builds.get(&build_id) {
                         let log_event = LogEvent {
