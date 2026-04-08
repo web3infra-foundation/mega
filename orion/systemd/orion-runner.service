@@ -5,8 +5,8 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=orion
-Group=orion
+User=root
+Group=root
 WorkingDirectory=/home/orion/orion-runner
 
 # Optional runtime config. Create this file on the VM to set SERVER_WS,
@@ -26,6 +26,14 @@ ExecStartPre=/home/orion/orion-runner/cleanup.sh
 ExecStart=/home/orion/orion-runner/run.sh
 Restart=always
 RestartSec=2
+
+# When FUSE/kernel I/O gets stuck, `orion` can become unkillable (D-state). Keep
+# stop bounded so deploy/ops doesn't hang indefinitely.
+TimeoutStopSec=20
+KillMode=control-group
+KillSignal=SIGTERM
+SendSIGKILL=yes
+FinalKillSignal=SIGKILL
 
 # Grant capabilities for FUSE mounting and read-search bypass
 AmbientCapabilities=CAP_SYS_ADMIN

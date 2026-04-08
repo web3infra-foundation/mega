@@ -45,7 +45,10 @@ COPY . .
 
 # -- Step 2: build binary into normal target directory
 ENV CARGO_TARGET_DIR=/app/target
-RUN cargo build -p orion-server --release
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/app/target \
+    cargo build -p orion-server --release
 
 # ────── Stage 3: Runtime ──────
 FROM debian:bookworm-slim
