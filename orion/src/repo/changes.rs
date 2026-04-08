@@ -16,9 +16,12 @@ use td_util_buck::{
     types::{CellPath, Package},
 };
 
+type ResolvedChange = Status<(CellPath, ProjectRelativePath)>;
+type UnresolvedChange = (ProjectRelativePath, anyhow::Error);
+
 #[derive(Default, Debug)]
 pub struct Changes {
-    paths: Vec<Status<(CellPath, ProjectRelativePath)>>,
+    paths: Vec<ResolvedChange>,
     cell_paths_set: HashSet<CellPath>,
 }
 
@@ -49,7 +52,7 @@ impl Changes {
         Ok(Self::from_paths(paths))
     }
 
-    fn from_paths(paths: Vec<Status<(CellPath, ProjectRelativePath)>>) -> Self {
+    fn from_paths(paths: Vec<ResolvedChange>) -> Self {
         let cell_paths_set = paths.iter().map(|x| x.get().0.clone()).collect();
         Self {
             paths,
@@ -63,7 +66,10 @@ impl Changes {
             ProjectRelativePath::new(path.path().as_str())
         }
 
-        let paths = changes.map(|x| x.map(|x| (x.clone(), mk_project_path(x))));
+        let paths: Vec<ResolvedChange> = changes
+            .iter()
+            .map(|status| status.map(|cell_path| (cell_path.clone(), mk_project_path(cell_path))))
+            .collect();
         Self::from_paths(paths)
     }
 
@@ -109,10 +115,7 @@ impl Changes {
 fn map_changes_with_resolver(
     changes: Vec<Status<ProjectRelativePath>>,
     mut resolver: impl FnMut(&ProjectRelativePath) -> anyhow::Result<CellPath>,
-) -> (
-    Vec<Status<(CellPath, ProjectRelativePath)>>,
-    Vec<(ProjectRelativePath, anyhow::Error)>,
-) {
+) -> (Vec<ResolvedChange>, Vec<UnresolvedChange>) {
     let mut mapped = Vec::new();
     let mut unresolved = Vec::new();
 
