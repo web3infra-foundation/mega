@@ -79,6 +79,7 @@ jobs:
             orion/runner-config/.env.prod
             orion/runner-config/scorpio.toml
             orion/runner-config/run.sh
+            orion/runner-config/preflight.sh
             orion/runner-config/cleanup.sh
             orion/systemd/orion-runner.service
           retention-days: 7

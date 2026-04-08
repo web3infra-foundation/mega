@@ -136,6 +136,22 @@ pub(crate) trait Director<T: ApiHandler + Clone> {
     }
 }
 
+fn cl_with_latest_to_hash(mut cl: mega_cl::Model, to_hash: &str) -> mega_cl::Model {
+    cl.to_hash = to_hash.to_string();
+    cl
+}
+
+fn fresh_or_fallback_cl(
+    original: mega_cl::Model,
+    fresh: Option<mega_cl::Model>,
+    to_hash: &str,
+) -> mega_cl::Model {
+    match fresh {
+        Some(cl) => cl,
+        None => cl_with_latest_to_hash(original, to_hash),
+    }
+}
+
 pub(crate) struct CodeEditService<FMT, VT, AC, TCB, CK, HD, DR>
 where
     FMT: ConversationMessageFormater,
@@ -329,7 +345,14 @@ impl<
             Some(cl) => {
                 self.update_existing_cl(cl.clone(), storage, &cl.from_hash, to_hash, username)
                     .await?;
-                Ok(cl)
+                let fresh = storage.cl_storage().get_cl(&cl.link).await?;
+                if fresh.is_none() {
+                    tracing::warn!(
+                        cl_link = %cl.link,
+                        "CL was updated but fresh model lookup returned None; fallback to in-memory to_hash update."
+                    );
+                }
+                Ok(fresh_or_fallback_cl(cl, fresh, to_hash))
             }
             None => Ok(self
                 .create_new_cl(storage, path_str, from_hash, to_hash, username)
@@ -379,5 +402,59 @@ impl<
             .await?;
         self.trigger_check(storage, username, cl).await?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use callisto::sea_orm_active_enums::MergeStatusEnum;
+
+    use super::{cl_with_latest_to_hash, fresh_or_fallback_cl};
+
+    fn sample_cl(to_hash: &str) -> callisto::mega_cl::Model {
+        callisto::mega_cl::Model {
+            id: 1,
+            link: "C1234567".to_string(),
+            title: "test".to_string(),
+            merge_date: None,
+            status: MergeStatusEnum::Open,
+            path: "/project/buck2_test".to_string(),
+            from_hash: "1111111111111111111111111111111111111111".to_string(),
+            to_hash: to_hash.to_string(),
+            created_at: chrono::Utc::now().naive_utc(),
+            updated_at: chrono::Utc::now().naive_utc(),
+            username: "tester".to_string(),
+            base_branch: "main".to_string(),
+        }
+    }
+
+    #[test]
+    fn test_fresh_or_fallback_cl_prefers_fresh_model() {
+        let original = sample_cl("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+        let fresh = sample_cl("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+
+        let selected = fresh_or_fallback_cl(original, Some(fresh.clone()), "cccc");
+
+        assert_eq!(selected.to_hash, fresh.to_hash);
+    }
+
+    #[test]
+    fn test_fresh_or_fallback_cl_updates_to_hash_when_fresh_missing() {
+        let original = sample_cl("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+        let selected =
+            fresh_or_fallback_cl(original, None, "cccccccccccccccccccccccccccccccccccccccc");
+
+        assert_eq!(selected.to_hash, "cccccccccccccccccccccccccccccccccccccccc");
+    }
+
+    #[test]
+    fn test_cl_with_latest_to_hash_updates_only_to_hash_field() {
+        let original = sample_cl("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+        let updated =
+            cl_with_latest_to_hash(original.clone(), "dddddddddddddddddddddddddddddddddddddddd");
+
+        assert_eq!(updated.to_hash, "dddddddddddddddddddddddddddddddddddddddd");
+        assert_eq!(updated.link, original.link);
+        assert_eq!(updated.path, original.path);
     }
 }

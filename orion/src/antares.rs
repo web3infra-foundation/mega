@@ -4,13 +4,16 @@
 //! for managing overlay filesystem mounts used during build operations.
 
 use std::{
+    any::Any,
     error::Error,
     io,
+    panic::AssertUnwindSafe,
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
 };
 
+use futures_util::FutureExt;
 use scorpiofs::{AntaresConfig, AntaresManager, AntaresPaths};
 use tokio::sync::OnceCell;
 
@@ -120,11 +123,12 @@ fn resolve_config_path() -> Result<PathBuf, DynError> {
 /// The `AntaresConfig` containing mountpoint and job metadata on success.
 pub async fn mount_job(job_id: &str, cl: Option<&str>) -> Result<AntaresConfig, DynError> {
     tracing::debug!("Mounting Antares job: job_id={}, cl={:?}", job_id, cl);
-    get_manager()
-        .await?
-        .mount_job(job_id, cl)
-        .await
-        .map_err(Into::into)
+    let manager = get_manager().await?;
+    run_with_panic_guard(
+        format!("Antares mount panicked for job_id={job_id}, cl={cl:?}"),
+        manager.mount_job(job_id, cl),
+    )
+    .await
 }
 
 /// Initialize Antares during Orion startup and eagerly trigger Dicfuse import.
@@ -189,7 +193,12 @@ fn is_test_mount_enabled() -> bool {
 }
 
 async fn ensure_test_mount(manager: &AntaresManager) {
-    match manager.mount_job(TEST_BROWSE_JOB_ID, None).await {
+    match run_with_panic_guard(
+        format!("Antares test mount panicked for job_id={TEST_BROWSE_JOB_ID}"),
+        manager.mount_job(TEST_BROWSE_JOB_ID, None),
+    )
+    .await
+    {
         Ok(config) => {
             tracing::info!(
                 "Antares test mount ready: job_id={}, mountpoint={}",
@@ -318,4 +327,56 @@ pub async fn unmount_job(job_id: &str) -> Result<Option<AntaresConfig>, DynError
         .umount_job(job_id)
         .await
         .map_err(Into::into)
+}
+
+async fn run_with_panic_guard<T, E, F>(context: String, future: F) -> Result<T, DynError>
+where
+    F: std::future::Future<Output = Result<T, E>>,
+    E: Into<DynError>,
+{
+    match AssertUnwindSafe(future).catch_unwind().await {
+        Ok(result) => result.map_err(Into::into),
+        Err(payload) => Err(Box::new(io_other(format!(
+            "{context}: {}",
+            panic_payload_to_string(payload.as_ref())
+        )))),
+    }
+}
+
+fn panic_payload_to_string(payload: &(dyn Any + Send)) -> String {
+    if let Some(message) = payload.downcast_ref::<&str>() {
+        return (*message).to_string();
+    }
+    if let Some(message) = payload.downcast_ref::<String>() {
+        return message.clone();
+    }
+    "non-string panic payload".to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io;
+
+    use super::{panic_payload_to_string, run_with_panic_guard};
+
+    #[tokio::test]
+    async fn test_run_with_panic_guard_converts_panic_to_error() {
+        let result: Result<(), Box<dyn std::error::Error + Send + Sync>> =
+            run_with_panic_guard("panic guard".to_string(), async move {
+                panic!("fuse mount failed");
+                #[allow(unreachable_code)]
+                Ok::<(), io::Error>(())
+            })
+            .await;
+
+        let err = result.expect_err("panic should be converted into error");
+        assert!(err.to_string().contains("panic guard"));
+        assert!(err.to_string().contains("fuse mount failed"));
+    }
+
+    #[test]
+    fn test_panic_payload_to_string_handles_common_payloads() {
+        assert_eq!(panic_payload_to_string(&"oops"), "oops");
+        assert_eq!(panic_payload_to_string(&"boom".to_string()), "boom");
+    }
 }

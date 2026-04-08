@@ -22,11 +22,10 @@ pub struct TaskBuildRequest {
     pub cl_link: String,
     //TODO: for old database only, delete after updated
     pub cl_id: i64,
-    /// The list of changed files, expressed relative to the monorepo root.
-    ///
-    /// Example values:
-    /// - `jupiter/callisto/src/access_token.rs`
-    /// - `common/lib.rs`
+    /// The list of changed files in the hybrid path contract:
+    /// - files inside `repo` are repo-relative (for example `src/main.rs`)
+    /// - shared files outside `repo` stay monorepo-relative
+    ///   (for example `common/lib.rs`)
     pub changes: Vec<Status<ProjectRelativePath>>,
     /// Buck2 target path (e.g. //app:server). Optional for backward compatibility.
     #[serde(default, alias = "targets_path")]
@@ -45,7 +44,7 @@ pub struct RetryBuildRequest {
     pub build_id: String,
     pub cl_link: String,
     pub cl_id: i64,
-    /// The list of changed files, expressed relative to the monorepo root.
+    /// The list of changed files in the hybrid path contract used by Orion.
     pub changes: Vec<Status<ProjectRelativePath>>,
     pub targets: Option<Vec<String>>,
 }

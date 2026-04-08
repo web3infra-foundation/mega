@@ -1,5 +1,5 @@
 use std::{
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     sync::Arc,
 };
 
@@ -14,51 +14,117 @@ use crate::{
     model::change_list::ClDiffFile,
 };
 
-fn normalize_change_path_for_repo(repo_path: &str, path: &Path) -> ProjectRelativePath {
+fn is_safe_normalized_path(path: &str) -> bool {
+    path.is_empty()
+        || (!path.contains("//")
+            && Path::new(path)
+                .components()
+                .all(|component| matches!(component, Component::Normal(_))))
+}
+
+fn normalize_change_path_for_repo_with_prefix(
+    repo_prefix: &str,
+    repo_prefix_with_slash: Option<&str>,
+    path: &Path,
+) -> Option<ProjectRelativePath> {
     let raw = path
         .to_string_lossy()
         .replace('\\', "/")
         .trim_start_matches('/')
         .to_string();
-    let repo_prefix = repo_path.trim_matches('/');
 
     let normalized = if repo_prefix.is_empty() {
         raw
     } else if raw == repo_prefix {
         String::new()
-    } else if let Some(stripped) = raw.strip_prefix(&format!("{repo_prefix}/")) {
-        stripped.to_string()
+    } else if let Some(prefix) = repo_prefix_with_slash {
+        if let Some(stripped) = raw.strip_prefix(prefix) {
+            stripped.to_string()
+        } else {
+            raw
+        }
     } else {
         raw
     };
 
-    ProjectRelativePath::new(&normalized)
+    if !is_safe_normalized_path(&normalized) {
+        tracing::warn!(
+            path = %normalized,
+            "Dropping unsafe build change path after normalization."
+        );
+        return None;
+    }
+
+    Some(ProjectRelativePath::new(&normalized))
+}
+
+#[cfg(test)]
+fn normalize_change_path_for_repo(repo_path: &str, path: &Path) -> Option<ProjectRelativePath> {
+    let repo_prefix = repo_path.trim_matches('/');
+    let repo_prefix_with_slash = (!repo_prefix.is_empty()).then(|| format!("{repo_prefix}/"));
+    normalize_change_path_for_repo_with_prefix(repo_prefix, repo_prefix_with_slash.as_deref(), path)
+}
+
+fn push_change_if_valid(
+    changes: &mut Vec<Status<ProjectRelativePath>>,
+    status_builder: impl FnOnce(ProjectRelativePath) -> Status<ProjectRelativePath>,
+    normalized: Option<ProjectRelativePath>,
+) {
+    if let Some(path) = normalized {
+        changes.push(status_builder(path));
+    }
 }
 
 fn build_changes_for_repo(
     repo_path: &str,
     cl_diff_files: Vec<ClDiffFile>,
 ) -> Result<Vec<Status<ProjectRelativePath>>, MegaError> {
-    let to_project_relative = |path: &Path| -> Result<ProjectRelativePath, MegaError> {
-        Ok(normalize_change_path_for_repo(repo_path, path))
+    let repo_prefix = repo_path.trim_matches('/');
+    let repo_prefix_with_slash = (!repo_prefix.is_empty()).then(|| format!("{repo_prefix}/"));
+    let to_project_relative = |path: &Path| {
+        normalize_change_path_for_repo_with_prefix(
+            repo_prefix,
+            repo_prefix_with_slash.as_deref(),
+            path,
+        )
     };
 
     let mut counter_changes = Vec::new();
     for change in cl_diff_files {
         match change {
             ClDiffFile::New(path, _) => {
-                counter_changes.push(Status::Added(to_project_relative(&path)?));
+                push_change_if_valid(
+                    &mut counter_changes,
+                    Status::Added,
+                    to_project_relative(&path),
+                );
             }
             ClDiffFile::Deleted(path, _) => {
-                counter_changes.push(Status::Removed(to_project_relative(&path)?));
+                push_change_if_valid(
+                    &mut counter_changes,
+                    Status::Removed,
+                    to_project_relative(&path),
+                );
             }
             ClDiffFile::Modified(path, _, _) => {
-                counter_changes.push(Status::Modified(to_project_relative(&path)?));
+                push_change_if_valid(
+                    &mut counter_changes,
+                    Status::Modified,
+                    to_project_relative(&path),
+                );
             }
             ClDiffFile::Renamed(old_path, new_path, _, _, _)
             | ClDiffFile::Moved(old_path, new_path, _, _, _) => {
-                counter_changes.push(Status::Removed(to_project_relative(&old_path)?));
-                counter_changes.push(Status::Added(to_project_relative(&new_path)?));
+                push_change_if_valid(
+                    &mut counter_changes,
+                    Status::Removed,
+                    to_project_relative(&old_path),
+                );
+                push_change_if_valid(
+                    &mut counter_changes,
+                    Status::Added,
+                    to_project_relative(&new_path),
+                );
             }
         }
     }
@@ -128,14 +194,14 @@ mod tests {
     fn test_normalize_change_path_for_repo_strips_repo_prefix_for_local_files() {
         assert_eq!(
             normalize_change_path_for_repo("/project/buck2_test", &PathBuf::from("src/main.rs")),
-            ProjectRelativePath::new("src/main.rs")
+            Some(ProjectRelativePath::new("src/main.rs"))
         );
         assert_eq!(
             normalize_change_path_for_repo(
                 "/project/buck2_test",
                 &PathBuf::from("project/buck2_test/src/generated.rs")
             ),
-            ProjectRelativePath::new("src/generated.rs")
+            Some(ProjectRelativePath::new("src/generated.rs"))
         );
     }
 
@@ -143,7 +209,29 @@ mod tests {
     fn test_normalize_change_path_for_repo_keeps_external_shared_paths() {
         assert_eq!(
             normalize_change_path_for_repo("/project/buck2_test", &PathBuf::from("common/lib.rs")),
-            ProjectRelativePath::new("common/lib.rs")
+            Some(ProjectRelativePath::new("common/lib.rs"))
+        );
+    }
+
+    #[test]
+    fn test_normalize_change_path_for_repo_rejects_unsafe_paths() {
+        assert_eq!(
+            normalize_change_path_for_repo("/project/buck2_test", &PathBuf::from("../secret.rs")),
+            None
+        );
+        assert_eq!(
+            normalize_change_path_for_repo(
+                "/project/buck2_test",
+                &PathBuf::from("project/buck2_test/../../secret.rs")
+            ),
+            None
+        );
+        assert_eq!(
+            normalize_change_path_for_repo(
+                "/project/buck2_test",
+                &PathBuf::from("project//buck2_test/src/main.rs")
+            ),
+            None
         );
     }
 
@@ -182,6 +270,30 @@ mod tests {
                 Status::Removed(ProjectRelativePath::new("README.md")),
                 Status::Modified(ProjectRelativePath::new("common/lib.rs")),
             ]
+        );
+    }
+
+    #[test]
+    fn test_build_changes_filters_unsafe_paths() {
+        let changes = build_changes_for_repo(
+            "/project/buck2_test",
+            vec![
+                ClDiffFile::Modified(
+                    PathBuf::from("src/main.rs"),
+                    ObjectHash::from_str("1111111111111111111111111111111111111111").unwrap(),
+                    ObjectHash::from_str("2222222222222222222222222222222222222222").unwrap(),
+                ),
+                ClDiffFile::New(
+                    PathBuf::from("../outside.rs"),
+                    ObjectHash::from_str("3333333333333333333333333333333333333333").unwrap(),
+                ),
+            ],
+        )
+        .unwrap();
+
+        assert_eq!(
+            changes,
+            vec![Status::Modified(ProjectRelativePath::new("src/main.rs"))]
         );
     }
 }

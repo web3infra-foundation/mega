@@ -290,7 +290,9 @@ fn get_repo_targets(file_name: &str, repo_path: &Path) -> anyhow::Result<Targets
 ///
 /// # Note
 /// `mount_point` must be a mounted repository or CL path.
-/// `mega_changes` must contain monorepo-root-relative paths.
+/// `mega_changes` follows the hybrid path contract used end-to-end:
+/// repo-local files are repo-relative, while shared external paths stay
+/// monorepo-relative.
 async fn get_build_targets(
     old_repo_mount_point: &str,
     mount_point: &str,
@@ -332,6 +334,36 @@ async fn get_build_targets(
         .flatten()
         .map(|(target, _)| target.label())
         .collect())
+}
+
+fn validate_project_roots(
+    old_project_root: &Path,
+    new_project_root: &Path,
+) -> anyhow::Result<(String, String)> {
+    validate_project_root_exists("old", old_project_root)?;
+    validate_project_root_exists("new", new_project_root)?;
+
+    Ok((
+        path_to_utf8_string("old", old_project_root)?,
+        path_to_utf8_string("new", new_project_root)?,
+    ))
+}
+
+fn validate_project_root_exists(kind: &str, project_root: &Path) -> anyhow::Result<()> {
+    if project_root.exists() {
+        return Ok(());
+    }
+
+    Err(anyhow!(
+        "Build repo root ({kind}) does not exist under mounted workspace: {}",
+        project_root.display()
+    ))
+}
+
+fn path_to_utf8_string(kind: &str, path: &Path) -> anyhow::Result<String> {
+    path.to_str()
+        .map(|s| s.to_string())
+        .ok_or_else(|| anyhow!("Build repo root ({kind}) contains invalid UTF-8: {path:?}"))
 }
 
 fn finish_without_build_if_no_targets(
@@ -575,10 +607,9 @@ pub async fn build(
     // e.g., repo="/project/git-internal/git-internal" → repo_prefix="project/git-internal/git-internal"
     let repo_prefix = repo.strip_prefix('/').unwrap_or(&repo);
 
-    // Task build changes are standardized as monorepo-root-relative paths at the
-    // protocol boundary, even when the selected build repo is a sub-project.
-    // That lets target discovery pass changes straight into Buck2 without
-    // guessing whether a path was expressed relative to `repo_prefix`.
+    // Task changes follow the hybrid path contract:
+    // - files inside `repo` are repo-relative
+    // - shared files outside `repo` stay monorepo-relative
 
     const MAX_TARGETS_ATTEMPTS: usize = 2;
     let mut mount_point = None;
@@ -615,9 +646,30 @@ pub async fn build(
         let old_project_root = PathBuf::from(&old_repo_mount_point).join(repo_prefix);
         let new_project_root = PathBuf::from(&repo_mount_point).join(repo_prefix);
 
+        let project_roots = validate_project_roots(&old_project_root, &new_project_root);
+        let (old_project_root_str, new_project_root_str) = match project_roots {
+            Ok(roots) => roots,
+            Err(e) => {
+                tracing::warn!(
+                    "[Task {}] Invalid project roots (attempt {}/{}): {}. old_root={}, new_root={}",
+                    id,
+                    attempt,
+                    MAX_TARGETS_ATTEMPTS,
+                    e,
+                    old_project_root.display(),
+                    new_project_root.display(),
+                );
+                last_targets_error = Some(e);
+                if attempt == MAX_TARGETS_ATTEMPTS {
+                    break;
+                }
+                continue;
+            }
+        };
+
         match get_build_targets(
-            old_project_root.to_str().unwrap_or(&old_repo_mount_point),
-            new_project_root.to_str().unwrap_or(&repo_mount_point),
+            &old_project_root_str,
+            &new_project_root_str,
             changes.clone(),
         )
         .await
@@ -816,7 +868,9 @@ mod tests {
     use tempfile::TempDir;
     use tokio::sync::mpsc;
 
-    use super::{finish_without_build_if_no_targets, get_build_targets};
+    use super::{
+        finish_without_build_if_no_targets, get_build_targets, validate_project_root_exists,
+    };
 
     struct JsonlCleanupGuard {
         paths: Vec<PathBuf>,
@@ -1089,5 +1143,18 @@ mod tests {
             }
             other => panic!("unexpected websocket message: {other:?}"),
         }
+    }
+
+    #[test]
+    fn test_validate_project_root_exists_returns_error_for_missing_path() {
+        let tempdir = TempDir::new().expect("create tempdir");
+        let missing = tempdir.path().join("missing/subproject");
+
+        let err = validate_project_root_exists("new", &missing).unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("Build repo root (new) does not exist"),
+            "unexpected error: {err}"
+        );
     }
 }

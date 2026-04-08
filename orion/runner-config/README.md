@@ -10,7 +10,9 @@
 |------|------|
 | `.env.prod` | 生产环境变量（部署时重命名为 `.env`）|
 | `scorpio.toml` | scorpiofs 配置（存储路径、Antares 等）|
+| `preflight.sh` | 启动前检查 `/dev/fuse` 与 `CAP_SYS_ADMIN` |
 | `run.sh` | 启动脚本（systemd ExecStart）|
+| `cleanup.sh` | 启动前清理脚本（systemd ExecStartPre）|
 
 ## CI 部署流程
 
@@ -29,6 +31,8 @@
 /{root,home/orion}/orion-runner/ # 运行目录
   ├── orion             # 二进制
   ├── run.sh            # 启动脚本
+  ├── preflight.sh      # 启动前权限检查
+  ├── cleanup.sh        # 启动前清理
   ├── scorpio.toml      # 配置
   └── .env              # 环境变量
 ```

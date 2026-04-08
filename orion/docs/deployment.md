@@ -51,6 +51,7 @@ All files are owned by the `orion` user.
 ├── orion                       # Main executable
 ├── .env                        # Environment variables
 ├── scorpio.toml                # Scorpio config
+├── preflight.sh                # Pre-start capability/device checks
 ├── run.sh                      # Startup script
 └── cleanup.sh                  # Pre-start cleanup script
 
@@ -160,4 +161,7 @@ sudo umount -lf /workspace/mount
 
 1. **`status=217/USER`**: The `orion` user was not created on the target machine. Run the VM Initialization steps.
 2. **`unexplained error (code 255) at io.c`**: SSH connection rejected by the server. Ensure `MaxStartups 10:30:60` is set in `/etc/ssh/sshd_config` and `sshd` is restarted.
-3. **FUSE Mount Fails**: Ensure `user_allow_other` is enabled in `/etc/fuse.conf`.
+3. **FUSE Mount Fails**:
+   - Ensure `user_allow_other` is enabled in `/etc/fuse.conf`.
+   - Ensure service keeps `AmbientCapabilities=CAP_SYS_ADMIN` and `/dev/fuse` is readable/writable.
+   - `preflight.sh` will now block startup early with explicit errors if capability/device checks fail.

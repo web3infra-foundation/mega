@@ -25,6 +25,7 @@ runs:
         mv "${ARTIFACT_DIR}"/orion/runner-config/.env.prod "${ARTIFACT_DIR}"/.env
         mv "${ARTIFACT_DIR}"/orion/runner-config/scorpio.toml "${ARTIFACT_DIR}"/
         mv "${ARTIFACT_DIR}"/orion/runner-config/run.sh "${ARTIFACT_DIR}"/
+        mv "${ARTIFACT_DIR}"/orion/runner-config/preflight.sh "${ARTIFACT_DIR}"/
         mv "${ARTIFACT_DIR}"/orion/runner-config/cleanup.sh "${ARTIFACT_DIR}"/
 
         # Move systemd service file
@@ -40,6 +41,7 @@ runs:
         # Set executable permissions
         chmod +x "${ARTIFACT_DIR}"/orion
         chmod +x "${ARTIFACT_DIR}"/run.sh
+        chmod +x "${ARTIFACT_DIR}"/preflight.sh
         chmod +x "${ARTIFACT_DIR}"/cleanup.sh
 
         echo "==> Final artifact structure:"

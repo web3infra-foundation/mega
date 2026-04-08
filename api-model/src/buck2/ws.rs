@@ -17,7 +17,9 @@ pub enum WSMessage {
         /// The Buck2 project path within the monorepo (for example `/jupiter/callisto`).
         repo: String,
         cl_link: String,
-        /// The list of changed files, expressed relative to the monorepo root.
+        /// The list of changed files in the hybrid path contract:
+        /// repo-local files are repo-relative, shared files remain
+        /// monorepo-relative.
         changes: Vec<Status<ProjectRelativePath>>,
     },
 
