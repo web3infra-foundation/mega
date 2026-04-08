@@ -16,6 +16,9 @@ EnvironmentFile=-/etc/orion/orion-runner.env
 # Scorpiofs config path (stable default expected by orion/src/antares.rs)
 Environment=SCORPIO_CONFIG=/home/orion/orion-runner/scorpio.toml
 
+# Fail fast when FUSE capability or device access is missing.
+ExecStartPre=/home/orion/orion-runner/preflight.sh
+
 # Cleanup before start: kill old processes and unmount FUSE
 ExecStartPre=/home/orion/orion-runner/cleanup.sh
 
