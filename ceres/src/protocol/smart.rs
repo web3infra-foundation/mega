@@ -1,4 +1,8 @@
-use std::{collections::HashSet, pin::Pin};
+use std::{
+    collections::{BTreeMap, HashSet},
+    pin::Pin,
+    time::Instant,
+};
 
 use anyhow::Result;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
@@ -218,21 +222,35 @@ impl SmartSession {
         commands: Vec<RefCommand>,
         data_stream: Pin<Box<dyn Stream<Item = Result<Bytes, axum::Error>> + Send>>,
     ) -> Result<Bytes, ProtocolError> {
+        let t0 = Instant::now();
+        let mut timings_ms: BTreeMap<String, u128> = BTreeMap::new();
+        let mut metrics: BTreeMap<String, u128> = BTreeMap::new();
         // After receiving the pack data from the sender, the receiver sends a report
         let mut report_status = BytesMut::new();
         let mut commands = commands;
         let repo_handler = self
             .repo_handler_with_commands(state, commands.clone())
             .await?;
+        let is_monorepo = repo_handler.is_monorepo();
         //1. unpack progress
+        let t_unpack = Instant::now();
         let receiver = repo_handler
             .unpack_stream(&state.storage.config().pack, data_stream)
             .await?;
+        timings_ms.insert(
+            "unpack_stream_ms".to_string(),
+            t_unpack.elapsed().as_millis(),
+        );
 
+        let t_receiver = Instant::now();
         let unpack_result = repo_handler
             .clone()
             .receiver_handler(receiver.0, receiver.1)
             .await;
+        timings_ms.insert(
+            "receiver_handler_ms".to_string(),
+            t_receiver.elapsed().as_millis(),
+        );
 
         // write "unpack ok\n to report"
         add_pkt_line_string(&mut report_status, "unpack ok\n".to_owned());
@@ -273,7 +291,10 @@ impl SmartSession {
         // `default_branch`) before finalize so import/mono metadata uses the final commands.
         repo_handler.sync_commands_after_unpack(&commands);
 
+        let mut finalize_ms: Option<u128> = None;
+        let mut bind_ms: Option<u128> = None;
         if !unpack_failed {
+            let t_finalize = Instant::now();
             if let Err(e) = repo_handler.finalize_receive_pack().await {
                 let msg = e.to_string();
                 for c in commands.iter_mut() {
@@ -283,7 +304,11 @@ impl SmartSession {
                 }
                 return Err(e.into());
             }
+            finalize_ms = Some(t_finalize.elapsed().as_millis());
+
+            let t_bind = Instant::now();
             self.process_commit_bindings(state, &commands).await;
+            bind_ms = Some(t_bind.elapsed().as_millis());
         }
 
         for command in &commands {
@@ -294,6 +319,47 @@ impl SmartSession {
         let length = report_status.len();
         let mut buf = self.build_side_band_format(report_status, length);
         buf.put(&PKT_LINE_END_MARKER[..]);
+
+        if let Some(ms) = finalize_ms {
+            timings_ms.insert("finalize_receive_pack_ms".to_string(), ms);
+        }
+        if let Some(ms) = bind_ms {
+            timings_ms.insert("process_commit_bindings_ms".to_string(), ms);
+        }
+        for (k, v) in repo_handler.receive_pack_extra_timings_ms() {
+            if k.ends_with("_count") {
+                metrics.insert(k, v);
+            } else {
+                timings_ms.insert(k, v);
+            }
+        }
+        timings_ms.insert("total_ms".to_string(), t0.elapsed().as_millis());
+
+        let timings_pretty = timings_ms
+            .iter()
+            .map(|(k, v)| format!("  - {k}: {v}ms"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let metrics_pretty = if metrics.is_empty() {
+            "  (none)".to_string()
+        } else {
+            metrics
+                .iter()
+                .map(|(k, v)| format!("  - {k}: {v}"))
+                .collect::<Vec<_>>()
+                .join("\n")
+        };
+
+        tracing::info!(
+            service = "git-receive-pack",
+            repo_path = %self.repo_path.display(),
+            is_monorepo = is_monorepo,
+            command_count = commands.len(),
+            unpack_ok = unpack_result.is_ok(),
+            timings_ms = ?timings_ms,
+            metrics = ?metrics,
+            "\nreceive-pack timing report\n\ntimings_ms:\n{timings_pretty}\nmetrics:\n{metrics_pretty}"
+        );
         Ok(buf.into())
     }
 

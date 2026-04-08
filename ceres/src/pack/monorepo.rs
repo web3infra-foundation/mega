@@ -70,6 +70,10 @@ impl RepoHandler for MonoRepo {
         true
     }
 
+    fn save_entry_concurrency(&self) -> usize {
+        self.storage.config().pack.save_entry_concurrency
+    }
+
     fn sync_commands_after_unpack(&self, commands: &[RefCommand]) {
         *self
             .command_list

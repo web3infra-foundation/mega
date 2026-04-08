@@ -386,6 +386,10 @@ pub struct PackConfig {
     pub pack_decode_cache_path: PathBuf,
     pub clean_cache_after_decode: bool,
     pub channel_message_size: usize,
+    /// Max concurrent `save_entry` batches during receive-pack.
+    /// Set to 0 to disable the limit (unbounded).
+    #[serde(default = "default_save_entry_concurrency")]
+    pub save_entry_concurrency: usize,
 }
 
 impl Default for PackConfig {
@@ -396,8 +400,13 @@ impl Default for PackConfig {
             pack_decode_cache_path: mega_cache().join("pack_decode_cache"),
             clean_cache_after_decode: true,
             channel_message_size: 1_000_000,
+            save_entry_concurrency: default_save_entry_concurrency(),
         }
     }
+}
+
+fn default_save_entry_concurrency() -> usize {
+    1
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

@@ -10,12 +10,14 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import time
 import urllib.request
 from collections import defaultdict
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, as_completed, wait
 from datetime import datetime, timezone
 from pathlib import Path
 import threading
+from collections import deque
 from typing import Dict, Tuple
 
 # ANSI color codes
@@ -25,6 +27,163 @@ RED = '\033[91m'
 RESET = '\033[0m'
 
 VERBOSE = False
+DOWNLOAD_PROGRESS = False
+DOWNLOAD_PROGRESS_INTERVAL_S = 1.0
+
+_print_lock = threading.Lock()
+_status_block_active = False
+_status_block_last_lines: list[str] = []
+_status_block_last_lens: list[int] = []
+
+_download_state_lock = threading.Lock()
+_active_downloads: set[str] = set()
+
+_stage_state_lock = threading.Lock()
+_active_extracts: set[str] = set()
+_active_pushes: set[str] = set()
+_waiting_push: set[str] = set()
+
+STATUS_HEARTBEAT = False
+STATUS_HEARTBEAT_INTERVAL_S = 15.0
+STATUS_STICKY = False
+
+_push_ok_lock = threading.Lock()
+_push_ok_times: deque[float] = deque()
+_push_fail_times: deque[float] = deque()
+_push_ok_total = 0
+_push_fail_total = 0
+_run_start_mono: float | None = None
+
+def _record_push_ok() -> None:
+    now = time.monotonic()
+    with _push_ok_lock:
+        global _push_ok_total
+        _push_ok_total += 1
+        _push_ok_times.append(now)
+        cutoff = now - 60.0
+        while _push_ok_times and _push_ok_times[0] < cutoff:
+            _push_ok_times.popleft()
+
+def _record_push_fail() -> None:
+    now = time.monotonic()
+    with _push_ok_lock:
+        global _push_fail_total
+        _push_fail_total += 1
+        _push_fail_times.append(now)
+        cutoff = now - 60.0
+        while _push_fail_times and _push_fail_times[0] < cutoff:
+            _push_fail_times.popleft()
+
+def _push_ok_last_60s() -> int:
+    now = time.monotonic()
+    cutoff = now - 60.0
+    with _push_ok_lock:
+        while _push_ok_times and _push_ok_times[0] < cutoff:
+            _push_ok_times.popleft()
+        return len(_push_ok_times)
+
+def _push_fail_last_60s() -> int:
+    now = time.monotonic()
+    cutoff = now - 60.0
+    with _push_ok_lock:
+        while _push_fail_times and _push_fail_times[0] < cutoff:
+            _push_fail_times.popleft()
+        return len(_push_fail_times)
+
+def _push_totals() -> tuple[int, int]:
+    with _push_ok_lock:
+        return _push_ok_total, _push_fail_total
+
+def _pushes_per_min_since_start() -> float:
+    if _run_start_mono is None:
+        return 0.0
+    elapsed_s = max(1e-6, time.monotonic() - _run_start_mono)
+    mins = elapsed_s / 60.0
+    ok_total, fail_total = _push_totals()
+    return (ok_total + fail_total) / max(1e-6, mins)
+
+def _clear_status_block_locked() -> None:
+    global _status_block_active, _status_block_last_lens
+    if not _status_block_active:
+        return
+    n = len(_status_block_last_lines) or 1
+    # Move to the first line of the block.
+    if n > 1:
+        sys.stderr.write(f"\x1b[{n-1}F")
+    # Clear each line and move down (except after the last line).
+    for i in range(n):
+        sys.stderr.write("\x1b[2K\r")
+        if i != n - 1:
+            sys.stderr.write("\x1b[1E")
+    # Move back to the first line (where logs should print).
+    if n > 1:
+        sys.stderr.write(f"\x1b[{n-1}F")
+    sys.stderr.flush()
+    _status_block_active = False
+
+def _render_status_block_locked(lines: list[str]) -> None:
+    global _status_block_last_lines, _status_block_last_lens, _status_block_active
+    if not lines:
+        return
+    # Clear previous block, then paint the new one.
+    if _status_block_active:
+        _clear_status_block_locked()
+    _status_block_last_lines = lines
+    _status_block_last_lens = [len(s) for s in lines]
+    # Print without trailing newline so the cursor stays on the block.
+    for i, s in enumerate(lines):
+        sys.stderr.write("\x1b[2K\r" + s)
+        if i != len(lines) - 1:
+            sys.stderr.write("\n")
+    sys.stderr.flush()
+    _status_block_active = True
+
+def _format_status_block() -> list[str]:
+    d, x, w, p = _stage_counts()
+    ok60 = _push_ok_last_60s()
+    fail60 = _push_fail_last_60s()
+    ok_total, fail_total = _push_totals()
+    ppm = _pushes_per_min_since_start()
+    return [
+        f"status: downloading={d} extracting={x} waiting_push={w} pushing={p}",
+        (
+            f"push: ok_60s={ok60} fail_60s={fail60} "
+            f"ok_total={ok_total} fail_total={fail_total} "
+            f"per_min={ppm:.2f}"
+        ),
+    ]
+
+def _with_stage(stage_set: set[str], label: str):
+    class _Ctx:
+        def __enter__(self):
+            with _stage_state_lock:
+                stage_set.add(label)
+            return self
+        def __exit__(self, exc_type, exc, tb):
+            with _stage_state_lock:
+                stage_set.discard(label)
+            return False
+    return _Ctx()
+
+def _stage_counts() -> tuple[int, int, int, int]:
+    with _stage_state_lock, _download_state_lock:
+        return (
+            len(_active_downloads),
+            len(_active_extracts),
+            len(_waiting_push),
+            len(_active_pushes),
+        )
+
+def _heartbeat_thread(stop_evt: threading.Event) -> None:
+    # Periodically emit a compact summary of what the script is doing.
+    # This is meant to answer "where is it stuck?" at a glance.
+    while not stop_evt.wait(max(0.5, float(STATUS_HEARTBEAT_INTERVAL_S))):
+        lines = _format_status_block()
+        if STATUS_STICKY:
+            with _print_lock:
+                _render_status_block_locked(lines)
+        else:
+            info(" | ".join(lines))
 
 def _log(level: str, msg: str) -> None:
     # Standardized, low-noise logging. Use --verbose for command outputs.
@@ -37,10 +196,15 @@ def _log(level: str, msg: str) -> None:
     else:
         c = ""
     prefix = f"[{level}]"
-    if c:
-        print(f"{c}{prefix}{RESET} {msg}")
-    else:
-        print(f"{prefix} {msg}")
+    with _print_lock:
+        if STATUS_STICKY:
+            _clear_status_block_locked()
+        if c:
+            print(f"{c}{prefix}{RESET} {msg}")
+        else:
+            print(f"{prefix} {msg}")
+        if STATUS_STICKY and _status_block_last_lines:
+            _render_status_block_locked(_status_block_last_lines)
 
 def info(msg: str) -> None:
     _log("INFO", msg)
@@ -98,22 +262,145 @@ def mega_third_party_crates_rel_path(crate_name: str, crate_version: str) -> str
         + f"/{crate_version}"
     )
 
-def check_and_download_crate(crates_dir, crate_name, crate_version, dl_base_url):
+def _try_remove_file(path: str) -> None:
+    try:
+        if os.path.exists(path):
+            os.remove(path)
+    except Exception as e:
+        warn(f"Failed to remove file {path}: {e}")
+
+def _crate_file_seems_valid(crate_path: str) -> bool:
+    # Fast integrity check to avoid reusing truncated/invalid downloads.
+    # We intentionally only validate "can we open and list members".
+    try:
+        if not os.path.exists(crate_path):
+            return False
+        if os.path.getsize(crate_path) <= 0:
+            return False
+        with tarfile.open(crate_path, 'r:gz') as tar:
+            members = tar.getmembers()
+            return bool(members)
+    except Exception:
+        return False
+
+def _human_bytes(n: float) -> str:
+    units = ["B", "KiB", "MiB", "GiB", "TiB"]
+    v = float(n)
+    for u in units:
+        if abs(v) < 1024.0 or u == units[-1]:
+            if u == "B":
+                return f"{int(v)} {u}"
+            return f"{v:.1f} {u}"
+        v /= 1024.0
+    return f"{v:.1f} TiB"
+
+def _download_with_progress(url: str, dest_path: str, *, label: str) -> bool:
+    tmp_path = dest_path + ".part"
+    _try_remove_file(tmp_path)
+    start = time.monotonic()
+    last_print = start
+    bytes_done = 0
+    total = None
+
+    with _download_state_lock:
+        _active_downloads.add(label)
+        active_n = len(_active_downloads)
+
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "crates-sync/1.0"})
+        with urllib.request.urlopen(req) as resp:
+            try:
+                cl = resp.headers.get("Content-Length")
+                if cl:
+                    total = int(cl)
+            except Exception:
+                total = None
+
+            with open(tmp_path, "wb") as f:
+                while True:
+                    chunk = resp.read(1024 * 256)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+                    bytes_done += len(chunk)
+
+                    if DOWNLOAD_PROGRESS:
+                        now = time.monotonic()
+                        if now - last_print >= max(0.2, float(DOWNLOAD_PROGRESS_INTERVAL_S)):
+                            elapsed = max(1e-6, now - start)
+                            rate = bytes_done / elapsed
+                            if total:
+                                pct = (bytes_done / total) * 100.0
+                                info(
+                                    f"downloading ({active_n} active) {label}: "
+                                    f"{_human_bytes(bytes_done)}/{_human_bytes(total)} "
+                                    f"({pct:.1f}%) at {_human_bytes(rate)}/s"
+                                )
+                            else:
+                                info(
+                                    f"downloading ({active_n} active) {label}: "
+                                    f"{_human_bytes(bytes_done)} at {_human_bytes(rate)}/s"
+                                )
+                            last_print = now
+
+        os.replace(tmp_path, dest_path)
+        if DOWNLOAD_PROGRESS:
+            elapsed = max(1e-6, time.monotonic() - start)
+            rate = bytes_done / elapsed
+            if total:
+                info(
+                    f"downloaded ({active_n} active) {label}: "
+                    f"{_human_bytes(bytes_done)}/{_human_bytes(total)} "
+                    f"in {elapsed:.1f}s ({_human_bytes(rate)}/s)"
+                )
+            else:
+                info(
+                    f"downloaded ({active_n} active) {label}: "
+                    f"{_human_bytes(bytes_done)} in {elapsed:.1f}s ({_human_bytes(rate)}/s)"
+                )
+        return True
+    except Exception as e:
+        warn(f"{label} download failed: {e}")
+        _try_remove_file(tmp_path)
+        _try_remove_file(dest_path)
+        return False
+    finally:
+        with _download_state_lock:
+            _active_downloads.discard(label)
+
+def check_and_download_crate(crates_dir, crate_name, crate_version, dl_base_url) -> str | None:
     # Construct the filename and path for the crate
     crate_filename = f"{crate_name}-{crate_version}.crate"
     crate_path = os.path.join(crates_dir, crate_name, crate_filename)
+    ensure_directory(os.path.dirname(crate_path))  # Ensure the directory exists
 
-    # Download the crate if it doesn't exist locally
+    download_url = f"{dl_base_url}/{crate_name}/{crate_filename}"
+    label = _fmt_repo(crate_name, crate_version)
+
+    def download_once() -> bool:
+        if VERBOSE:
+            info(f"{label} download {download_url}")
+        return _download_with_progress(download_url, crate_path, label=label)
+
+    # If we have a cached crate, validate it before reusing.
+    if os.path.exists(crate_path) and not _crate_file_seems_valid(crate_path):
+        warn(f"{label} cached .crate appears invalid; deleting and re-downloading")
+        _try_remove_file(crate_path)
+
+    # Download if missing, then validate; if invalid, retry once.
     if not os.path.exists(crate_path):
-        ensure_directory(os.path.dirname(crate_path))  # Ensure the directory exists
-        download_url = f"{dl_base_url}/{crate_name}/{crate_filename}"
-        try:
-            info(f"{_fmt_repo(crate_name, crate_version)} download {download_url}")
-            urllib.request.urlretrieve(download_url, crate_path)  # Download the file
-            if VERBOSE:
-                info(f"Downloaded: {crate_path}")
-        except Exception as e:
-            warn(f"{_fmt_repo(crate_name, crate_version)} download failed: {e}")
+        if not download_once():
+            return None
+        if not _crate_file_seems_valid(crate_path):
+            warn(f"{label} downloaded .crate appears invalid; retrying once")
+            _try_remove_file(crate_path)
+            if not download_once():
+                return None
+            if not _crate_file_seems_valid(crate_path):
+                warn(f"{label} downloaded .crate still invalid after retry")
+                _try_remove_file(crate_path)
+                return None
+
     return crate_path
 
 def run_git_command(repo_path, command, *, check: bool = True, log_on_error: bool = True):
@@ -198,17 +485,36 @@ def ensure_remote_and_push_existing(
 
     ensure_git_remote(repo_path, "mega", remote_url)
 
-    with push_sema:
-        push_args = ['git', 'push', '-u', 'mega', 'main']
-        if force_with_lease:
-            push_args.insert(2, '--force-with-lease')
-        elif force:
-            push_args.insert(2, '--force')
-        push_cmd = maybe_wrap_git_with_bearer(push_args, auth_token)
-        res = run_git_command(repo_path, push_cmd, log_on_error=True)
+    label = _fmt_repo(crate_name, version)
+
+    # Measure time waiting for a push slot, then hold the slot for the whole push.
+    with _with_stage(_waiting_push, label):
+        t_wait0 = time.monotonic()
+        push_sema.acquire()
+        waited = time.monotonic() - t_wait0
+    if waited >= 1.0:
+        info(f"{label} waited {waited:.1f}s for push slot")
+
+    try:
+        with _with_stage(_active_pushes, label):
+            t_push0 = time.monotonic()
+            push_args = ['git', 'push', '-u', 'mega', 'main']
+            if force_with_lease:
+                push_args.insert(2, '--force-with-lease')
+            elif force:
+                push_args.insert(2, '--force')
+            push_cmd = maybe_wrap_git_with_bearer(push_args, auth_token)
+            res = run_git_command(repo_path, push_cmd, log_on_error=True)
+            dt_push = time.monotonic() - t_push0
+        if dt_push >= 5.0:
+            info(f"{label} push finished in {dt_push:.1f}s")
+    finally:
+        push_sema.release()
     if res is None:
         # Keep repo on disk for troubleshooting
+        _record_push_fail()
         return False
+    _record_push_ok()
 
     # On success, remove local repo directory to save disk space.
     try:
@@ -259,6 +565,9 @@ def extract_crate(crate_path, extract_path):
         tar.extractall(path, members, numeric_owner=numeric_owner, filter=filter_member)
 
     try:
+        if not os.path.exists(crate_path):
+            warn(f"Crate file missing {crate_path}. Skipping extraction.")
+            return False
         with tarfile.open(crate_path, 'r:gz') as tar:
             if not tar.getmembers():
                 warn(f"Empty crate file {crate_path}. Skipping extraction.")
@@ -283,6 +592,10 @@ def extract_crate(crate_path, extract_path):
         return True
     except tarfile.ReadError:
         warn(f"Failed to read crate file {crate_path}. Skipping extraction.")
+        return False
+    except Exception as e:
+        # Covers truncated gzip streams, partial downloads, and unexpected tar errors.
+        warn(f"Failed to extract crate file {crate_path}: {e}")
         return False
 
 def process_crate_version(
@@ -310,9 +623,19 @@ def process_crate_version(
     repo_path = os.path.join(git_repos_dir, rel)
     ensure_directory(repo_path)
 
+    label = _fmt_repo(crate_name, version)
     # Extract crate directly to the repo directory
-    if not extract_crate(crate_path, repo_path):
+    with _with_stage(_active_extracts, label):
+        t0 = time.monotonic()
+        ok_extract = extract_crate(crate_path, repo_path)
+        dt_extract = time.monotonic() - t0
+    if dt_extract >= 5.0:
+        info(f"{label} extract finished in {dt_extract:.1f}s")
+
+    if not ok_extract:
         warn(f"{_fmt_repo(crate_name, version)} skipped: extraction failed")
+        # Avoid repeated failures due to a cached truncated/invalid .crate file.
+        _try_remove_file(crate_path)
         return False
 
     # Check for .gitattributes file and remove if it exists
@@ -344,19 +667,35 @@ def process_crate_version(
     ensure_git_remote(repo_path, "mega", remote_url)
 
     # Push to remote
-    with push_sema:
-        push_args = ['git', 'push', '-u', 'mega', 'main']
-        if force_with_lease:
-            push_args.insert(2, '--force-with-lease')
-        elif force:
-            push_args.insert(2, '--force')
-        push_cmd = maybe_wrap_git_with_bearer(push_args, auth_token)
-        push_result = run_git_command(repo_path, push_cmd)
+    with _with_stage(_waiting_push, label):
+        t_wait0 = time.monotonic()
+        push_sema.acquire()
+        waited = time.monotonic() - t_wait0
+    if waited >= 1.0:
+        info(f"{label} waited {waited:.1f}s for push slot")
+
+    try:
+        with _with_stage(_active_pushes, label):
+            t_push0 = time.monotonic()
+            push_args = ['git', 'push', '-u', 'mega', 'main']
+            if force_with_lease:
+                push_args.insert(2, '--force-with-lease')
+            elif force:
+                push_args.insert(2, '--force')
+            push_cmd = maybe_wrap_git_with_bearer(push_args, auth_token)
+            push_result = run_git_command(repo_path, push_cmd)
+            dt_push = time.monotonic() - t_push0
+        if dt_push >= 5.0:
+            info(f"{label} push finished in {dt_push:.1f}s")
+    finally:
+        push_sema.release()
     if push_result is None:
         warn(f"{_fmt_repo(crate_name, version)} push failed")
+        _record_push_fail()
         return False
     else:
         ok(f"{_fmt_repo(crate_name, version)} pushed")
+        _record_push_ok()
         # On success, remove local repo directory and cached crate to save disk space.
         try:
             shutil.rmtree(repo_path)
@@ -563,6 +902,12 @@ def scan_and_process_crates(
 ):
     info("Scanning crates.io index...")
 
+    stop_evt = threading.Event()
+    hb_thread = None
+    if STATUS_HEARTBEAT:
+        hb_thread = threading.Thread(target=_heartbeat_thread, args=(stop_evt,), daemon=True)
+        hb_thread.start()
+
     # Read the config.json to get the dl base URL (needed before any processing)
     config_path = os.path.join(index_path, "config.json")
     try:
@@ -637,6 +982,8 @@ def scan_and_process_crates(
                 return ("skip", crate_name, v)
 
         crate_path = check_and_download_crate(crates_dir, crate_name, v, dl_base_url)
+        if crate_path is None:
+            return ("fail", crate_name, v)
         try:
             ok_done = process_crate_version(
                 0,
@@ -719,6 +1066,8 @@ def main():
     # Record start time for the entire process
     total_start_time = datetime.now()
     info(f"Started at {total_start_time}")
+    global _run_start_mono
+    _run_start_mono = time.monotonic()
 
     p = argparse.ArgumentParser(prog="crates-sync.py")
     p.add_argument("--index", required=True, help="Path to a local crates.io-index checkout.")
@@ -742,6 +1091,49 @@ def main():
     p.add_argument("--signoff", action="store_true", help="Add -s to git commit.")
     p.add_argument("--dry-run", action="store_true", help="Do everything except git add/commit/push.")
     p.add_argument("--verbose", action="store_true", help="Verbose logs (print git stdout/stderr).")
+    p.add_argument(
+        "--download-progress",
+        action="store_true",
+        help="Show download progress/speed (recommended with --verbose).",
+    )
+    p.add_argument(
+        "--download-progress-interval",
+        type=float,
+        default=1.0,
+        help="Seconds between download progress prints (default: 1.0).",
+    )
+    p.add_argument(
+        "--status-heartbeat",
+        dest="status_heartbeat",
+        action="store_true",
+        default=True,
+        help="Periodically print a compact status line (active download/extract/push counts). Default: on.",
+    )
+    p.add_argument(
+        "--no-status-heartbeat",
+        dest="status_heartbeat",
+        action="store_false",
+        help="Disable periodic status heartbeat.",
+    )
+    p.add_argument(
+        "--status-interval",
+        type=float,
+        default=10.0,
+        help="Seconds between status heartbeat prints (default: 10).",
+    )
+    p.add_argument(
+        "--status-sticky",
+        dest="status_sticky",
+        action="store_true",
+        default=True,
+        help="Render status heartbeat as a single updating line (won't scroll). Default: on.",
+    )
+    p.add_argument(
+        "--no-status-sticky",
+        dest="status_sticky",
+        action="store_false",
+        help="Disable sticky status line (status will print as normal log lines).",
+    )
     p.add_argument("--jobs", type=int, default=1, help="Concurrent workers for download/extract/commit (default: 1).")
     p.add_argument(
         "--repush-existing",
@@ -778,6 +1170,14 @@ def main():
 
     global VERBOSE
     VERBOSE = bool(args.verbose)
+    global DOWNLOAD_PROGRESS, DOWNLOAD_PROGRESS_INTERVAL_S
+    DOWNLOAD_PROGRESS = bool(args.download_progress) or VERBOSE
+    DOWNLOAD_PROGRESS_INTERVAL_S = float(args.download_progress_interval or 1.0)
+    global STATUS_HEARTBEAT, STATUS_HEARTBEAT_INTERVAL_S
+    STATUS_HEARTBEAT = bool(args.status_heartbeat)
+    STATUS_HEARTBEAT_INTERVAL_S = float(args.status_interval or 15.0)
+    global STATUS_STICKY
+    STATUS_STICKY = bool(args.status_sticky)
 
     if args.force and args.force_with_lease:
         warn("Error: --force and --force-with-lease are mutually exclusive.")

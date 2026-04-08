@@ -187,7 +187,9 @@ impl SmartSession {
 
             let unpack_redlock = Arc::new(RedLock::new(
                 state.git_object_cache.connection.clone(),
-                "git:receive-pack:lock",
+                // Serialize monorepo root mega_refs update across concurrent import attaches.
+                // Filepath updates and per-repo work should not be blocked by this lock.
+                "git:receive-pack:lock:monorepo-root".to_string(),
                 30_000, // 30s TTL
             ));
             Ok(Arc::new(ImportRepo {
@@ -196,6 +198,7 @@ impl SmartSession {
                 repo,
                 command_list: Mutex::new(commands),
                 unpack_redlock,
+                receive_pack_extra_timings_ms: Mutex::new(Vec::new()),
             }) as Arc<dyn RepoHandler>)
         } else {
             let mut res = MonoRepo {

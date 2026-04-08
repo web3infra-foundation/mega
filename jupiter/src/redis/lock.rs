@@ -1,6 +1,9 @@
-use std::sync::{
-    Arc,
-    atomic::{AtomicBool, Ordering},
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::Instant,
 };
 
 use common::errors::MegaError;
@@ -49,15 +52,23 @@ impl RedLock {
 
     /// Lock with retry
     pub async fn lock(self: Arc<Self>) -> Result<RedLockGuard, MegaError> {
+        let t0 = Instant::now();
         while !self.try_lock().await? {
             sleep(Duration::from_millis(200)).await;
         }
 
         self.spawn_auto_renew();
 
+        tracing::info!(
+            lock_key = %self.key,
+            ttl_ms = self.ttl_ms,
+            waited_ms = t0.elapsed().as_millis(),
+            "redlock acquired"
+        );
         Ok(RedLockGuard {
             mutex: self,
             released: AtomicBool::new(false),
+            acquired_at: t0,
         })
     }
 
@@ -116,6 +127,7 @@ pub struct RedLockGuard {
     mutex: Arc<RedLock>,
     /// Tracks whether the lock has been explicitly released to prevent double-unlock
     released: AtomicBool,
+    acquired_at: Instant,
 }
 
 impl RedLockGuard {
@@ -124,6 +136,11 @@ impl RedLockGuard {
         if self.released.swap(true, Ordering::SeqCst) {
             return Ok(());
         }
+        tracing::info!(
+            lock_key = %self.mutex.key,
+            held_ms = self.acquired_at.elapsed().as_millis(),
+            "redlock unlocking"
+        );
         self.mutex.unlock().await?;
         Ok(())
     }
@@ -133,10 +150,16 @@ impl Drop for RedLockGuard {
     fn drop(&mut self) {
         // Cannot await in Drop, so spawn an async task
         let mutex = self.mutex.clone();
+        let acquired_at = self.acquired_at;
 
         // Only unlock if it hasn't been released already (atomically set the flag)
         if !self.released.swap(true, Ordering::SeqCst) {
             tokio::spawn(async move {
+                tracing::info!(
+                    lock_key = %mutex.key,
+                    held_ms = acquired_at.elapsed().as_millis(),
+                    "redlock dropping guard; unlocking"
+                );
                 let _ = mutex.unlock().await;
             });
         }
