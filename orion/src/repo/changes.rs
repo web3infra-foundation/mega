@@ -28,8 +28,25 @@ impl Changes {
         cells: &CellInfo,
         changes: Vec<Status<ProjectRelativePath>>,
     ) -> anyhow::Result<Self> {
-        let paths =
-            changes.into_try_map(|x| x.into_try_map(|x| anyhow::Ok((cells.unresolve(&x)?, x))))?;
+        let (paths, unresolved_paths) =
+            map_changes_with_resolver(changes, |path| cells.unresolve(path));
+
+        if !unresolved_paths.is_empty() {
+            for (path, err) in unresolved_paths.iter().take(10) {
+                tracing::warn!(
+                    path = %path,
+                    error = %err,
+                    "Skipping change path that could not be mapped to a Buck cell."
+                );
+            }
+            if unresolved_paths.len() > 10 {
+                tracing::warn!(
+                    unresolved_count = unresolved_paths.len(),
+                    "Skipped additional unmapped change paths (showing first 10)."
+                );
+            }
+        }
+
         Ok(Self::from_paths(paths))
     }
 
@@ -89,6 +106,30 @@ impl Changes {
         self.filter_by_cell_path(|x| f(x.extension()))
     }
 }
+
+fn map_changes_with_resolver(
+    changes: Vec<Status<ProjectRelativePath>>,
+    mut resolver: impl FnMut(&ProjectRelativePath) -> anyhow::Result<CellPath>,
+) -> (
+    Vec<Status<(CellPath, ProjectRelativePath)>>,
+    Vec<(ProjectRelativePath, anyhow::Error)>,
+) {
+    let mut mapped = Vec::new();
+    let mut unresolved = Vec::new();
+
+    for change in changes {
+        let project_path = change.get().clone();
+        match resolver(&project_path) {
+            Ok(cell_path) => {
+                mapped.push(change.into_map(|path| (cell_path, path)));
+            }
+            Err(err) => unresolved.push((project_path, err)),
+        }
+    }
+
+    (mapped, unresolved)
+}
+
 #[cfg(test)]
 mod tests {
     use api_model::buck2::types::ProjectRelativePath;
@@ -155,5 +196,30 @@ mod tests {
         assert_eq!(filtered_changes.paths.len(), 1);
         assert!(filtered_changes.contains_cell_path(&cell_path1));
         assert!(!filtered_changes.contains_cell_path(&cell_path2));
+    }
+
+    #[test]
+    fn test_map_changes_with_resolver_filters_unresolved_paths() {
+        let changes = vec![
+            Status::Modified(ProjectRelativePath::new("src/main.rs")),
+            Status::Added(ProjectRelativePath::new("external/shared.rs")),
+        ];
+
+        let (mapped, unresolved) = map_changes_with_resolver(changes, |path| {
+            if path.as_str().starts_with("external/") {
+                Err(anyhow::anyhow!("outside current cell"))
+            } else {
+                Ok(CellPath::new(&format!("root//{}", path.as_str())))
+            }
+        });
+
+        assert_eq!(mapped.len(), 1);
+        assert_eq!(mapped[0].get().0, CellPath::new("root//src/main.rs"));
+        assert_eq!(mapped[0].get().1, ProjectRelativePath::new("src/main.rs"));
+        assert_eq!(unresolved.len(), 1);
+        assert_eq!(
+            unresolved[0].0,
+            ProjectRelativePath::new("external/shared.rs")
+        );
     }
 }

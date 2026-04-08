@@ -1,4 +1,10 @@
-use std::{collections::HashSet, convert::Infallible, pin::Pin, time::Duration};
+use std::{
+    collections::HashSet,
+    convert::Infallible,
+    path::{Component, Path},
+    pin::Pin,
+    time::Duration,
+};
 
 use api_model::{
     buck2::{
@@ -59,27 +65,71 @@ fn normalize_repo_root_changes(
     let mut normalized = Vec::new();
     let mut seen = HashSet::new();
     let repo_prefix = repo.trim_matches('/');
+    let repo_prefix_with_slash = (!repo_prefix.is_empty()).then(|| format!("{repo_prefix}/"));
 
     for change in changes {
-        let normalized_change = change.into_map(|path| {
-            let raw = path.as_str().trim_start_matches('/');
-            let canonical = if repo_prefix.is_empty() {
-                raw.to_string()
-            } else if raw == repo_prefix {
-                String::new()
-            } else if let Some(stripped) = raw.strip_prefix(&format!("{repo_prefix}/")) {
-                stripped.to_string()
-            } else {
-                raw.to_string()
-            };
-            ProjectRelativePath::new(&canonical)
-        });
-        if seen.insert(normalized_change.clone()) {
+        let normalized_change = match change {
+            Status::Modified(path) => {
+                normalize_change_path(path, repo_prefix, repo_prefix_with_slash.as_deref())
+                    .map(Status::Modified)
+            }
+            Status::Added(path) => {
+                normalize_change_path(path, repo_prefix, repo_prefix_with_slash.as_deref())
+                    .map(Status::Added)
+            }
+            Status::Removed(path) => {
+                normalize_change_path(path, repo_prefix, repo_prefix_with_slash.as_deref())
+                    .map(Status::Removed)
+            }
+        };
+
+        if let Some(normalized_change) = normalized_change
+            && seen.insert(normalized_change.clone())
+        {
             normalized.push(normalized_change);
         }
     }
 
     normalized
+}
+
+fn normalize_change_path(
+    path: ProjectRelativePath,
+    repo_prefix: &str,
+    repo_prefix_with_slash: Option<&str>,
+) -> Option<ProjectRelativePath> {
+    let raw = path.as_str().trim_start_matches('/');
+    let canonical = if repo_prefix.is_empty() {
+        raw.to_string()
+    } else if raw == repo_prefix {
+        String::new()
+    } else if let Some(prefix) = repo_prefix_with_slash {
+        if let Some(stripped) = raw.strip_prefix(prefix) {
+            stripped.to_string()
+        } else {
+            raw.to_string()
+        }
+    } else {
+        raw.to_string()
+    };
+
+    if !is_safe_normalized_path(&canonical) {
+        tracing::warn!(
+            path = %canonical,
+            "Dropping unsafe task change path after normalization."
+        );
+        return None;
+    }
+
+    Some(ProjectRelativePath::new(&canonical))
+}
+
+fn is_safe_normalized_path(path: &str) -> bool {
+    path.is_empty()
+        || (!path.contains("//")
+            && Path::new(path)
+                .components()
+                .all(|component| matches!(component, Component::Normal(_))))
 }
 
 pub async fn task_output(state: &AppState, id: &str) -> Result<Sse<LogSseStream>, StatusCode> {
@@ -1101,6 +1151,23 @@ mod tests {
         assert_eq!(
             normalized,
             vec![Status::Modified(ProjectRelativePath::new("common/lib.rs"))]
+        );
+    }
+
+    #[test]
+    fn test_normalize_repo_root_changes_filters_unsafe_paths() {
+        let normalized = normalize_repo_root_changes(
+            "/project/buck2_test",
+            vec![
+                Status::Modified(ProjectRelativePath::new("src/main.rs")),
+                Status::Added(ProjectRelativePath::new("../escape.rs")),
+                Status::Removed(ProjectRelativePath::new("project//buck2_test/src/main.rs")),
+            ],
+        );
+
+        assert_eq!(
+            normalized,
+            vec![Status::Modified(ProjectRelativePath::new("src/main.rs"))]
         );
     }
 }
