@@ -566,6 +566,19 @@ pub async fn build(
 ) -> Result<ExitStatus, Box<dyn Error + Send + Sync>> {
     tracing::info!("[Task {}] Building in repo {}", id, repo);
 
+    // Until `buck2 build` starts, the worker only had Busy with phase=None. The UI then
+    // looks like the client is not reporting progress during FUSE mount + target discovery.
+    if let Err(e) = sender.send(WSMessage::TaskPhaseUpdate {
+        build_id: id.clone(),
+        phase: TaskPhase::DownloadingSource,
+    }) {
+        tracing::warn!(
+            "[Task {}] Failed to send DownloadingSource phase (server may not show prep progress): {}",
+            id,
+            e
+        );
+    }
+
     let task_id = id.trim();
     // Handle empty cl string as None to mount the base repo without a CL layer.
     let cl_trimmed = cl.trim();
@@ -615,6 +628,16 @@ pub async fn build(
         let old_project_root = PathBuf::from(&old_repo_mount_point).join(repo_prefix);
         let new_project_root = PathBuf::from(&repo_mount_point).join(repo_prefix);
 
+        tracing::info!(
+            "[Task {}] Discovering build targets (attempt {}/{}). old_root={}, new_root={}, changes={}",
+            id,
+            attempt,
+            MAX_TARGETS_ATTEMPTS,
+            old_project_root.display(),
+            new_project_root.display(),
+            changes.len()
+        );
+
         match get_build_targets(
             old_project_root.to_str().unwrap_or(&old_repo_mount_point),
             new_project_root.to_str().unwrap_or(&repo_mount_point),
@@ -625,6 +648,11 @@ pub async fn build(
             Ok(found_targets) => {
                 mount_point = Some(repo_mount_point);
                 old_repo_mount_point_saved = Some(old_repo_mount_point.clone());
+                tracing::info!(
+                    "[Task {}] Target discovery succeeded: {} targets",
+                    id,
+                    found_targets.len()
+                );
                 targets = found_targets;
                 break;
             }
@@ -681,6 +709,12 @@ pub async fn build(
         // Run buck2 build from the sub-project directory, not the monorepo root.
         // This ensures buck2 uses the sub-project's .buckconfig and PACKAGE files.
         let project_root = PathBuf::from(&mount_point).join(repo_prefix);
+        tracing::info!(
+            "[Task {}] Starting buck2 build. project_root={}, targets={}",
+            id,
+            project_root.display(),
+            targets.len()
+        );
         let mut cmd = Command::new("buck2");
         // --event-log and --build-report are used to collect build execution status
         // at target level (e.g. pending / running / succeeded / failed).
@@ -704,7 +738,15 @@ pub async fn build(
 
         tracing::debug!("[Task {}] Executing command: {:?}", id, cmd);
 
-        let mut child = cmd.spawn()?;
+        let mut child = cmd.spawn().map_err(|e| {
+            tracing::error!(
+                "[Task {}] Failed to spawn buck2 (cwd={}): {}",
+                id,
+                project_root.display(),
+                e
+            );
+            e
+        })?;
 
         if let Err(e) = sender.send(WSMessage::TaskPhaseUpdate {
             build_id: id.clone(),
@@ -713,7 +755,13 @@ pub async fn build(
             tracing::error!("Failed to send RunningBuild phase update: {}", e);
         }
 
-        let target_build_track = start_build_status_tracker(&project_root, sender.clone(), cl_trimmed, task_id);
+        tracing::info!(
+            "[Task {}] Starting buck2 event-log tracker: file={}",
+            id,
+            project_root.join(EVENT_LOG_FILE).display()
+        );
+        let target_build_track =
+            start_build_status_tracker(&project_root, sender.clone(), cl_trimmed, task_id);
 
         let stdout = child.stdout.take().unwrap();
         let stderr = child.stderr.take().unwrap();

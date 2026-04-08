@@ -85,7 +85,7 @@ jobs:
 
   deploy:
     name: Deploy (${{ matrix.target }})
-    # if: ${{ github.repository == 'web3infra-foundation/mega' }}
+    if: ${{ github.repository == 'web3infra-foundation/mega' }}
     runs-on: ubuntu-latest
     needs: build
     timeout-minutes: 10
@@ -186,6 +186,12 @@ jobs:
             # Force unmount FUSE if still mounted
             fusermount -uz /workspace/mount 2>/dev/null || true
             sudo umount -lf /workspace/mount 2>/dev/null || true
+            # Also unmount Antares per-task mounts (can keep /dev/fuse busy and block stop)
+            for p in /data/scorpio/antares/mnt/*; do
+              mountpoint -q "$p" 2>/dev/null || continue
+              sudo umount -lf "$p" 2>/dev/null || true
+              fusermount -uz "$p" 2>/dev/null || true
+            done
 
       - name: Upload binaries and configs via rsync
         env:
@@ -268,12 +274,15 @@ jobs:
             set -e
 
             # Create runtime directories
-            sudo mkdir -p /data/scorpio/{store,antares/{upper,cl,mnt}}
-            sudo mkdir -p /workspace/mount
-            sudo chown -R orion:orion /data/scorpio /workspace/mount
+            # Avoid recursive chown on every deploy (can be slow/hang on some storage).
+            sudo install -d -o orion -g orion /data/scorpio
+            sudo install -d -o orion -g orion /data/scorpio/store
+            sudo install -d -o orion -g orion /data/scorpio/antares/upper
+            sudo install -d -o orion -g orion /data/scorpio/antares/cl
+            sudo install -d -o orion -g orion /data/scorpio/antares/mnt
+            sudo install -d -o orion -g orion /workspace/mount
 
             # Set permissions
-            sudo chown -R orion:orion /home/orion/orion-runner
             sudo chmod +x /home/orion/orion-runner/orion
             sudo chmod +x /home/orion/orion-runner/run.sh
             sudo chmod +x /home/orion/orion-runner/cleanup.sh

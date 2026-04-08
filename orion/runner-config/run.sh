@@ -45,6 +45,27 @@ if [ ! -f "${SCORPIO_CONFIG}" ]; then
 fi
 
 # ==============================================================================
+#  Scorpiofs 本地存储锁检查（避免 sled DB 被其它残留进程占用导致 panic 退出 status=101）
+# ==============================================================================
+if command -v flock >/dev/null 2>&1; then
+    # 注意：这些目录来自 runner-config/scorpio.toml 的 store_path（生产是 /data/scorpio/store）
+    STORE_ROOT="/data/scorpio/store"
+    for sub in path.db content.db meta.db; do
+        db_file="${STORE_ROOT}/${sub}/db"
+        # 如果文件不存在，sled 会在初始化时创建；这里先创建空文件用于 flock 探测。
+        mkdir -p "$(dirname "${db_file}")" 2>/dev/null || true
+        : > "${db_file}" 2>/dev/null || true
+        if ! flock -n "${db_file}" -c "true" 2>/dev/null; then
+            ts="$(date +%s)"
+            echo "警告：检测到 sled DB 锁被占用：${db_file}"
+            echo "  - 尝试将 ${STORE_ROOT}/${sub} 迁移为备份目录以恢复启动..."
+            mv "${STORE_ROOT}/${sub}" "${STORE_ROOT}/${sub}.bak.${ts}" 2>/dev/null || true
+            mkdir -p "${STORE_ROOT}/${sub}" 2>/dev/null || true
+        fi
+    done
+fi
+
+# ==============================================================================
 #  启动 Orion
 # ==============================================================================
 

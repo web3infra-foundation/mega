@@ -11,6 +11,18 @@
 set +e  # 允许命令失败，不中断脚本
 
 SCORPIO_TOML="${SCORPIO_CONFIG:-/home/orion/orion-runner/scorpio.toml}"
+ANTARes_MNT_ROOT=""
+
+run_bg() {
+    # Run a command in background without blocking cleanup.
+    # This is important when FUSE/kernel I/O gets stuck: umount/fusermount may hang in D-state.
+    # usage: run_bg <cmd...>
+    if command -v nohup >/dev/null 2>&1; then
+        nohup "$@" >/dev/null 2>&1 &
+    else
+        "$@" >/dev/null 2>&1 &
+    fi
+}
 
 if [ ! -f "./config.toml" ]; then
     echo "==> [清理] 未发现 ./config.toml，正在创建..."
@@ -46,16 +58,36 @@ MOUNT_DIR="$(read_scorpio_path "workspace" "${SCORPIO_TOML}")"
 MOUNT_DIR="${MOUNT_DIR:-/workspace/mount}"
 
 echo "  - 正在卸载 ${MOUNT_DIR}..."
-fusermount -uz "${MOUNT_DIR}" 2>/dev/null || true
-umount -lf "${MOUNT_DIR}" 2>/dev/null || true
+run_bg fusermount -uz "${MOUNT_DIR}" || true
+run_bg umount -lf "${MOUNT_DIR}" || true
+
+# 卸载 Antares 产生的每次任务挂载（/data/scorpio/antares/mnt/<uuid>...）
+ANTARes_MNT_ROOT="$(read_scorpio_path "antares_mount_root" "${SCORPIO_TOML}")"
+ANTARes_MNT_ROOT="${ANTARes_MNT_ROOT:-/data/scorpio/antares/mnt}"
+if [ -d "${ANTARes_MNT_ROOT}" ]; then
+    echo "  - 正在卸载 Antares mounts under ${ANTARes_MNT_ROOT}..."
+    # Avoid calling `mountpoint` for each path (can hang on bad FUSE). Parse kernel mount table.
+    while read -r mp; do
+        [ -z "${mp}" ] && continue
+        case "${mp}" in
+            "${ANTARes_MNT_ROOT}"/*)
+                echo "    * umount ${mp}"
+                run_bg umount -lf "${mp}" || true
+                run_bg fusermount -uz "${mp}" || true
+                ;;
+        esac
+    done < <(awk '{print $2}' /proc/mounts 2>/dev/null | sort -r)
+fi
 
 # 清理并重建挂载目录
-if ! mountpoint -q "${MOUNT_DIR}" 2>/dev/null; then
+# NOTE: mountpoint check can hang under pathological FUSE; just ensure directory exists.
+if [ ! -d "${MOUNT_DIR}" ]; then
     rm -rf "${MOUNT_DIR}" 2>/dev/null || true
     mkdir -p "${MOUNT_DIR}" 2>/dev/null || true
     echo "  - 挂载点已清理"
 else
-    echo "  - ${MOUNT_DIR} 仍是挂载点，跳过删除"
+    mkdir -p "${MOUNT_DIR}" 2>/dev/null || true
+    echo "  - 挂载点目录已就绪"
 fi
 
 echo "==> [清理] 完成"
