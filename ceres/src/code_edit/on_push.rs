@@ -2,10 +2,15 @@ use callisto::{mega_cl, mega_refs};
 use common::errors::MegaError;
 
 use crate::{
+    api_service::cache::GitObjectCache,
     api_service::mono_api_service::MonoApiService,
-    build_trigger::TriggerContext,
+    build_trigger::{BuildTriggerService, TriggerContext},
     code_edit::model::{self, CLRefUpdateVisitor},
+    code_edit::utils as edit_utils,
 };
+use bellatrix::Bellatrix;
+use jupiter::storage::Storage;
+use std::sync::Arc;
 
 pub struct OnpushFormator;
 impl model::ConversationMessageFormater for OnpushFormator {}
@@ -46,6 +51,46 @@ impl model::TriggerContextBuilder for OnpushTrigerBuilder {
             Some(cl.id),
             Some(username.to_string()),
         ))
+    }
+
+    async fn trigger_build(
+        &self,
+        storage: Storage,
+        git_cache: Arc<GitObjectCache>,
+        bellatrix: Arc<Bellatrix>,
+        cl: &mega_cl::Model,
+        username: &str,
+    ) -> Result<(), MegaError> {
+        let cl_model = cl.clone();
+        let username = username.to_string();
+
+        tokio::spawn(async move {
+            let repo_path =
+                match edit_utils::resolve_build_repo_root(&storage, &cl_model.path).await {
+                    Ok(repo_path) => repo_path,
+                    Err(e) => {
+                        tracing::error!(
+                            cl_link = %cl_model.link,
+                            cl_path = %cl_model.path,
+                            "Failed to resolve build repo root for git push: {}",
+                            e
+                        );
+                        return Err(e);
+                    }
+                };
+
+            let context = TriggerContext::from_git_push(
+                repo_path,
+                cl_model.from_hash.clone(),
+                cl_model.to_hash.clone(),
+                cl_model.link.clone(),
+                Some(cl_model.id),
+                Some(username),
+            );
+            BuildTriggerService::build_by_context(storage, git_cache, bellatrix, context).await
+        });
+
+        Ok(())
     }
 }
 
