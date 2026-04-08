@@ -1,16 +1,18 @@
+use std::sync::Arc;
+
+use bellatrix::Bellatrix;
 use callisto::{mega_cl, mega_refs};
 use common::errors::MegaError;
+use jupiter::storage::Storage;
 
 use crate::{
-    api_service::cache::GitObjectCache,
-    api_service::mono_api_service::MonoApiService,
+    api_service::{cache::GitObjectCache, mono_api_service::MonoApiService},
     build_trigger::{BuildTriggerService, TriggerContext},
-    code_edit::model::{self, CLRefUpdateVisitor},
-    code_edit::utils as edit_utils,
+    code_edit::{
+        model::{self, CLRefUpdateVisitor},
+        utils as edit_utils,
+    },
 };
-use bellatrix::Bellatrix;
-use jupiter::storage::Storage;
-use std::sync::Arc;
 
 pub struct OnpushFormator;
 impl model::ConversationMessageFormater for OnpushFormator {}

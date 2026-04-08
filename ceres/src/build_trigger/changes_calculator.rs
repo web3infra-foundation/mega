@@ -58,6 +58,7 @@ fn normalize_change_path_for_repo_with_prefix(
     Some(ProjectRelativePath::new(&normalized))
 }
 
+#[cfg(test)]
 fn normalize_change_path_for_repo(repo_path: &str, path: &Path) -> Option<ProjectRelativePath> {
     let repo_prefix = repo_path.trim_matches('/');
     let repo_prefix_with_slash = (!repo_prefix.is_empty()).then(|| format!("{repo_prefix}/"));
