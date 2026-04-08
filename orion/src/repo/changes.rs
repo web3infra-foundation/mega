@@ -11,7 +11,6 @@
 use std::collections::HashSet;
 
 use api_model::buck2::{status::Status, types::ProjectRelativePath};
-use td_util::prelude::*;
 use td_util_buck::{
     cells::CellInfo,
     types::{CellPath, Package},
