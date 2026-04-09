@@ -309,9 +309,14 @@ impl MonoServiceLogic {
 
         loop {
             let clean_path = MonoServiceLogic::clean_path_str(&path_str);
+            let ref_path = if clean_path == "/" || clean_path.starts_with('/') {
+                clean_path
+            } else {
+                format!("/{clean_path}")
+            };
 
             ref_updates.push(RefUpdate {
-                path: clean_path,
+                path: ref_path,
                 tree_id: updated_tree_hash,
             });
 
@@ -4018,6 +4023,30 @@ mod test {
         let paths: Vec<&str> = result.ref_updates.iter().map(|r| r.path.as_str()).collect();
         assert!(paths.contains(&"/test/path"));
         assert!(paths.contains(&"/test"));
+    }
+
+    #[test]
+    fn test_build_result_by_chain_normalizes_relative_paths_for_ref_updates() {
+        let old_hash = ObjectHash::from_str("1111111111111111111111111111111111111111").unwrap();
+        let updated_child_hash =
+            ObjectHash::from_str("2222222222222222222222222222222222222222").unwrap();
+        let item = TreeItem::new(TreeItemMode::Tree, old_hash, "src".to_string());
+        let tree = Tree::from_tree_items(vec![item]).expect("tree should build");
+        let update_chain = vec![Arc::new(tree)];
+
+        let result = MonoServiceLogic::build_result_by_chain(
+            PathBuf::from("project/buck2_test/src"),
+            update_chain,
+            updated_child_hash,
+        )
+        .expect("build_result_by_chain should succeed");
+
+        let paths: Vec<&str> = result.ref_updates.iter().map(|r| r.path.as_str()).collect();
+        assert!(paths.contains(&"/project/buck2_test/src"));
+        assert!(paths.contains(&"/project/buck2_test"));
+
+        let selected = MonoApiService::ref_update_tree_id_for_path(&result, "/project/buck2_test");
+        assert!(selected.is_some());
     }
 
     #[tokio::test]
