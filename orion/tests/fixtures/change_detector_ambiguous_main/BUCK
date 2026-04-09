@@ -1,0 +1,21 @@
+rust_binary(
+    name = "explicit_src_main",
+    srcs = [
+        "src/main.rs",
+    ],
+    crate_root = "src/main.rs",
+    edition = "2024",
+)
+
+rust_library(
+    name = "ambiguous_globbed_lib",
+    srcs = glob([
+        "src/**/*.rs",
+        "examples/**/*.rs",
+    ]),
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    visibility = [
+        "PUBLIC",
+    ],
+)

@@ -137,6 +137,7 @@ impl BuildEventsRepo {
 mod tests {
     use chrono::Utc;
     use sea_orm::ActiveValue::{NotSet, Set};
+    use uuid::Uuid;
 
     use super::BuildEventsRepo;
 
@@ -148,5 +149,21 @@ mod tests {
         assert!(matches!(&model.exit_code, Set(Some(0))));
         assert!(matches!(&model.end_at, Set(Some(value)) if *value == end_at));
         assert!(matches!(&model.retry_count, NotSet));
+    }
+
+    #[test]
+    fn test_create_build_model_uses_repo_leaf_for_log_output_key() {
+        let build_id = Uuid::now_v7();
+        let task_id = Uuid::now_v7();
+        let model = BuildEventsRepo::create_build_model(
+            build_id,
+            task_id,
+            "/project/buck2_test/".to_string(),
+        );
+
+        assert!(matches!(&model.id, Set(id) if *id == build_id));
+        assert!(matches!(&model.task_id, Set(id) if *id == task_id));
+        assert!(matches!(&model.log_output_file, Set(path)
+            if path == &format!("{}/{}/{}.log", task_id, "buck2_test", build_id)));
     }
 }

@@ -58,6 +58,57 @@ fn normalize_change_path_for_repo_with_prefix(
     Some(ProjectRelativePath::new(&normalized))
 }
 
+fn detect_single_level_prefixed_candidate(repo_root: &Path, normalized: &str) -> Option<String> {
+    if normalized.is_empty() || normalized.contains('/') {
+        return None;
+    }
+    if !repo_root.exists() || repo_root.join(normalized).exists() {
+        return None;
+    }
+
+    let mut candidate: Option<String> = None;
+    let entries = std::fs::read_dir(repo_root).ok()?;
+    for entry in entries.flatten() {
+        if !entry.file_type().ok()?.is_dir() {
+            continue;
+        }
+        let dir_name = entry.file_name();
+        let dir_name = dir_name.to_str()?;
+        let prefixed = format!("{dir_name}/{normalized}");
+        if !repo_root.join(&prefixed).exists() {
+            continue;
+        }
+
+        if candidate.is_some() {
+            return None;
+        }
+        candidate = Some(prefixed);
+    }
+
+    candidate
+}
+
+fn monitor_possible_repo_prefix_mismatch(repo_path: &str, raw: &Path, normalized: &str) {
+    let repo_root = Path::new(repo_path);
+    if !repo_root.exists() || normalized.is_empty() || repo_root.join(normalized).exists() {
+        return;
+    }
+
+    let Some(prefixed_candidate) = detect_single_level_prefixed_candidate(repo_root, normalized)
+    else {
+        return;
+    };
+
+    tracing::warn!(
+        monitor_event = "build_change_path_prefix_mismatch",
+        repo_path = %repo_path,
+        raw_path = %raw.display(),
+        normalized_path = %normalized,
+        suggested_path = %prefixed_candidate,
+        "Detected possible change-path prefix drift after normalization."
+    );
+}
+
 #[cfg(test)]
 fn normalize_change_path_for_repo(repo_path: &str, path: &Path) -> Option<ProjectRelativePath> {
     let repo_prefix = repo_path.trim_matches('/');
@@ -82,11 +133,15 @@ fn build_changes_for_repo(
     let repo_prefix = repo_path.trim_matches('/');
     let repo_prefix_with_slash = (!repo_prefix.is_empty()).then(|| format!("{repo_prefix}/"));
     let to_project_relative = |path: &Path| {
-        normalize_change_path_for_repo_with_prefix(
+        let normalized = normalize_change_path_for_repo_with_prefix(
             repo_prefix,
             repo_prefix_with_slash.as_deref(),
             path,
-        )
+        );
+        if let Some(normalized_path) = &normalized {
+            monitor_possible_repo_prefix_mismatch(repo_path, path, normalized_path.as_str());
+        }
+        normalized
     };
 
     let mut counter_changes = Vec::new();
@@ -184,9 +239,10 @@ impl ChangesCalculator {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
+    use std::{fs, str::FromStr};
 
     use git_internal::hash::ObjectHash;
+    use tempfile::TempDir;
 
     use super::*;
 
@@ -294,6 +350,48 @@ mod tests {
         assert_eq!(
             changes,
             vec![Status::Modified(ProjectRelativePath::new("src/main.rs"))]
+        );
+    }
+
+    #[test]
+    fn test_detect_single_level_prefixed_candidate_returns_unique_match() {
+        let tempdir = TempDir::new().expect("create tempdir");
+        let repo_root = tempdir.path();
+        fs::create_dir_all(repo_root.join("src")).expect("create src dir");
+        fs::write(repo_root.join("src/main.rs"), "fn main() {}\n").expect("write source file");
+
+        assert_eq!(
+            detect_single_level_prefixed_candidate(repo_root, "main.rs"),
+            Some("src/main.rs".to_string())
+        );
+    }
+
+    #[test]
+    fn test_detect_single_level_prefixed_candidate_rejects_ambiguous_matches() {
+        let tempdir = TempDir::new().expect("create tempdir");
+        let repo_root = tempdir.path();
+        fs::create_dir_all(repo_root.join("src")).expect("create src dir");
+        fs::create_dir_all(repo_root.join("examples")).expect("create examples dir");
+        fs::write(repo_root.join("src/main.rs"), "fn src() {}\n").expect("write src file");
+        fs::write(repo_root.join("examples/main.rs"), "fn ex() {}\n").expect("write examples file");
+
+        assert_eq!(
+            detect_single_level_prefixed_candidate(repo_root, "main.rs"),
+            None
+        );
+    }
+
+    #[test]
+    fn test_detect_single_level_prefixed_candidate_returns_none_when_direct_path_exists() {
+        let tempdir = TempDir::new().expect("create tempdir");
+        let repo_root = tempdir.path();
+        fs::create_dir_all(repo_root.join("src")).expect("create src dir");
+        fs::write(repo_root.join("main.rs"), "fn root() {}\n").expect("write root file");
+        fs::write(repo_root.join("src/main.rs"), "fn nested() {}\n").expect("write nested file");
+
+        assert_eq!(
+            detect_single_level_prefixed_candidate(repo_root, "main.rs"),
+            None
         );
     }
 }

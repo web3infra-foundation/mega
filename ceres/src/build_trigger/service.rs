@@ -52,6 +52,16 @@ pub struct BuildTriggerService {
 }
 
 impl BuildTriggerService {
+    async fn context_from_cl(
+        storage: &Storage,
+        cl: callisto::mega_cl::Model,
+    ) -> Result<TriggerContext, MegaError> {
+        let repo_path = edit_utils::resolve_build_repo_root(storage, &cl.path).await?;
+        let mut context: TriggerContext = cl.into();
+        context.repo_path = repo_path;
+        Ok(context)
+    }
+
     pub fn new(
         storage: Storage,
         git_object_cache: Arc<GitObjectCache>,
@@ -126,10 +136,7 @@ impl BuildTriggerService {
             .get_cl(cl_link)
             .await?
             .ok_or_else(|| MegaError::Other(format!("[code:404] CL not found: {}", cl_link)))?;
-
-        let repo_path = edit_utils::resolve_build_repo_root(&self.storage, &cl.path).await?;
-        let mut context: TriggerContext = cl.into();
-        context.repo_path = repo_path;
+        let context = Self::context_from_cl(&self.storage, cl).await?;
         let id = self.registry.trigger_build(context).await?;
         Ok(Some(id))
     }
@@ -142,9 +149,7 @@ impl BuildTriggerService {
         if !self.is_enabled() {
             return Ok(None);
         }
-        let repo_path = edit_utils::resolve_build_repo_root(&self.storage, &cl.path).await?;
-        let mut context: TriggerContext = cl.into();
-        context.repo_path = repo_path;
+        let context = Self::context_from_cl(&self.storage, cl).await?;
         let id = self.registry.trigger_build(context).await?;
         Ok(Some(id))
     }
@@ -275,5 +280,76 @@ impl BuildTriggerService {
         let record = TriggerRecord::from_db_model(model);
         TriggerResponse::from_trigger_record(&record)
             .map_err(|e| MegaError::Other(format!("Failed to parse trigger: {}", e)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use tempfile::tempdir;
+
+    use super::*;
+    use crate::build_trigger::model::BuildTriggerType;
+
+    #[tokio::test]
+    async fn test_context_from_cl_resolves_repo_root_from_registered_repo_path() {
+        let temp_dir = tempdir().expect("create temp dir");
+        let storage = jupiter::tests::test_storage(temp_dir.path()).await;
+        storage
+            .git_db_storage()
+            .create_repo_and_save_ref(
+                "/project/buck2_test",
+                "buck2_test",
+                "refs/heads/main",
+                "main",
+            )
+            .await
+            .expect("register repo path");
+
+        let cl = storage
+            .cl_storage()
+            .new_cl_model(
+                "/project/buck2_test/src",
+                "HVKM7CXI",
+                "web edit",
+                "main",
+                &"1".repeat(40),
+                &"2".repeat(40),
+                "jackie",
+            )
+            .await
+            .expect("insert cl");
+
+        let context = BuildTriggerService::context_from_cl(&storage, cl)
+            .await
+            .expect("resolve cl context");
+
+        assert_eq!(context.repo_path, "/project/buck2_test");
+        assert_eq!(context.cl_link.as_deref(), Some("HVKM7CXI"));
+        assert_eq!(context.trigger_type, BuildTriggerType::WebEdit);
+    }
+
+    #[tokio::test]
+    async fn test_context_from_cl_returns_error_when_repo_root_unresolvable() {
+        let temp_dir = tempdir().expect("create temp dir");
+        let storage = jupiter::tests::test_storage(temp_dir.path()).await;
+        let cl = storage
+            .cl_storage()
+            .new_cl_model(
+                "/unknown/repo/src",
+                "UNKNOWNCL",
+                "web edit",
+                "main",
+                &"1".repeat(40),
+                &"2".repeat(40),
+                "jackie",
+            )
+            .await
+            .expect("insert cl");
+
+        let err = BuildTriggerService::context_from_cl(&storage, cl)
+            .await
+            .expect_err("repo root should be missing");
+
+        assert!(err.to_string().contains("No repository root found"));
     }
 }

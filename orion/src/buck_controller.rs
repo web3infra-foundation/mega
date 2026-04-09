@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     error::Error,
     io::BufReader,
     path::{Path, PathBuf},
@@ -286,6 +286,79 @@ fn get_repo_targets(file_name: &str, repo_path: &Path) -> anyhow::Result<Targets
     ))
 }
 
+fn collect_impacted_targets(base: &Targets, diff: &Targets, changes: &Changes) -> Vec<TargetLabel> {
+    let immediate = diff::immediate_target_changes(base, diff, changes, false);
+    let recursive = diff::recursive_target_changes(diff, changes, &immediate, None, |_| true);
+    recursive
+        .into_iter()
+        .flatten()
+        .map(|(target, _)| target.label())
+        .collect()
+}
+
+fn has_path_component_suffix(candidate: &str, suffix: &str) -> bool {
+    candidate == suffix
+        || candidate
+            .strip_suffix(suffix)
+            .is_some_and(|prefix| prefix.ends_with('/'))
+}
+
+fn remap_repo_local_change_paths(
+    project_root: &Path,
+    diff: &Targets,
+    changes: &[Status<ProjectRelativePath>],
+) -> (Vec<Status<ProjectRelativePath>>, usize) {
+    let mut remapped_count = 0usize;
+    let mut normalized_changes = Vec::with_capacity(changes.len());
+
+    for change in changes {
+        let original = change.get().as_str();
+        if original.is_empty() || project_root.join(original).exists() {
+            normalized_changes.push(change.clone());
+            continue;
+        }
+
+        let mut candidates: HashSet<String> = HashSet::new();
+        for target in diff.targets() {
+            for input in target.inputs.iter() {
+                let candidate_path = input.path();
+                let candidate = candidate_path.as_str();
+                if !has_path_component_suffix(candidate, original) {
+                    continue;
+                }
+                if project_root.join(candidate).exists() {
+                    candidates.insert(candidate.to_owned());
+                    if candidates.len() > 1 {
+                        break;
+                    }
+                }
+            }
+            if candidates.len() > 1 {
+                break;
+            }
+        }
+
+        if candidates.len() == 1 {
+            let remapped = candidates.into_iter().next().expect("single candidate");
+            tracing::info!(
+                original_path = %original,
+                remapped_path = %remapped,
+                "Remapping unresolved repo-local change path to a unique Buck input path."
+            );
+            remapped_count += 1;
+            normalized_changes.push(
+                change
+                    .clone()
+                    .into_map(|_| ProjectRelativePath::new(&remapped)),
+            );
+        } else {
+            normalized_changes.push(change.clone());
+        }
+    }
+
+    (normalized_changes, remapped_count)
+}
+
 /// Run buck2-change-detector to get targets to build.
 ///
 /// # Note
@@ -320,20 +393,34 @@ async fn get_build_targets(
 
     let base = get_repo_targets("base.jsonl", &old_repo)?;
     let diff = get_repo_targets("diff.jsonl", &mount_path)?;
-    let changes = Changes::new(&cells, mega_changes)?;
+    let changes = Changes::new(&cells, mega_changes.clone())?;
     tracing::debug!("Changes {changes:?}");
 
     tracing::debug!("Base targets number: {}", base.len_targets_upperbound());
     tracing::debug!("Diff targets number: {}", diff.len_targets_upperbound());
 
-    let immediate = diff::immediate_target_changes(&base, &diff, &changes, false);
-    let recursive = diff::recursive_target_changes(&diff, &changes, &immediate, None, |_| true);
+    let targets = collect_impacted_targets(&base, &diff, &changes);
+    if !targets.is_empty() {
+        return Ok(targets);
+    }
 
-    Ok(recursive
-        .into_iter()
-        .flatten()
-        .map(|(target, _)| target.label())
-        .collect())
+    let (remapped_changes, remapped_count) =
+        remap_repo_local_change_paths(&mount_path, &diff, &mega_changes);
+    if remapped_count == 0 {
+        return Ok(targets);
+    }
+
+    let remapped = Changes::new(&cells, remapped_changes)?;
+    let remapped_targets = collect_impacted_targets(&base, &diff, &remapped);
+    if !remapped_targets.is_empty() {
+        tracing::info!(
+            remapped_count,
+            recovered_target_count = remapped_targets.len(),
+            "Recovered impacted Buck targets after remapping repo-local change paths."
+        );
+    }
+
+    Ok(remapped_targets)
 }
 
 fn validate_project_roots(
@@ -907,7 +994,8 @@ mod tests {
     use tokio::sync::mpsc;
 
     use super::{
-        finish_without_build_if_no_targets, get_build_targets, validate_project_root_exists,
+        finish_without_build_if_no_targets, get_build_targets, get_repo_targets,
+        remap_repo_local_change_paths, validate_project_root_exists,
     };
 
     struct JsonlCleanupGuard {
@@ -959,14 +1047,22 @@ mod tests {
         }
     }
 
-    fn isolated_buck_scope_fixture() -> (TempDir, PathBuf, PathBuf) {
-        let fixture_root = subproject_root("orion/tests/fixtures/change_detector_buck_scope");
+    fn isolated_fixture(relative: &str) -> (TempDir, PathBuf, PathBuf) {
+        let fixture_root = subproject_root(relative);
         let tempdir = TempDir::new().expect("create tempdir");
         let old_root = tempdir.path().join("old");
         let new_root = tempdir.path().join("new");
         copy_dir_all(&fixture_root, &old_root);
         copy_dir_all(&fixture_root, &new_root);
         (tempdir, old_root, new_root)
+    }
+
+    fn isolated_buck_scope_fixture() -> (TempDir, PathBuf, PathBuf) {
+        isolated_fixture("orion/tests/fixtures/change_detector_buck_scope")
+    }
+
+    fn isolated_ambiguous_main_fixture() -> (TempDir, PathBuf, PathBuf) {
+        isolated_fixture("orion/tests/fixtures/change_detector_ambiguous_main")
     }
 
     #[tokio::test]
@@ -1104,6 +1200,34 @@ mod tests {
 
     #[tokio::test]
     #[serial]
+    async fn test_get_build_targets_remaps_truncated_repo_local_path() {
+        let (_tempdir, old_root, new_root) = isolated_buck_scope_fixture();
+        fs::write(
+            new_root.join("src/main.rs"),
+            "fn main() { println!(\"remapped fixture main\"); }\n",
+        )
+        .expect("rewrite main.rs");
+
+        let targets = get_build_targets(
+            old_root.to_str().expect("old fixture path"),
+            new_root.to_str().expect("new fixture path"),
+            vec![Status::Modified(ProjectRelativePath::new("main.rs"))],
+        )
+        .await
+        .expect("target discovery should complete");
+
+        assert!(
+            targets.contains(&TargetLabel::new("root//:explicit_main")),
+            "expected remapped main.rs change to rebuild root//:explicit_main, got {targets:?}"
+        );
+        assert!(
+            targets.contains(&TargetLabel::new("root//:globbed_lib")),
+            "expected remapped main.rs change to rebuild root//:globbed_lib, got {targets:?}"
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
     async fn test_get_build_targets_detects_added_file_inside_buck_glob_scope() {
         let (_tempdir, old_root, new_root) = isolated_buck_scope_fixture();
         let new_file = new_root.join("src/generated/new_module.rs");
@@ -1160,6 +1284,95 @@ mod tests {
         assert!(
             targets.is_empty(),
             "expected no targets for out-of-scope added file, got {targets:?}"
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_get_build_targets_filters_unsafe_paths_and_keeps_valid_change() {
+        let (_tempdir, old_root, new_root) = isolated_buck_scope_fixture();
+        fs::write(
+            new_root.join("src/main.rs"),
+            "fn main() { println!(\"unsafe-filter fixture main\"); }\n",
+        )
+        .expect("rewrite main.rs");
+
+        let targets = get_build_targets(
+            old_root.to_str().expect("old fixture path"),
+            new_root.to_str().expect("new fixture path"),
+            vec![
+                Status::Modified(ProjectRelativePath::new("../secret.rs")),
+                Status::Modified(ProjectRelativePath::new("project//buck2_test/src/main.rs")),
+                Status::Modified(ProjectRelativePath::new("src/main.rs")),
+            ],
+        )
+        .await
+        .expect("target discovery should complete");
+
+        assert!(
+            targets.contains(&TargetLabel::new("root//:explicit_main")),
+            "expected valid repo-local change to rebuild root//:explicit_main, got {targets:?}"
+        );
+        assert!(
+            targets.contains(&TargetLabel::new("root//:globbed_lib")),
+            "expected valid repo-local change to rebuild root//:globbed_lib, got {targets:?}"
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_remap_repo_local_change_paths_preserves_removed_and_added_statuses() {
+        let (_tempdir, _old_root, new_root) = isolated_buck_scope_fixture();
+        let jsonl_cleanup =
+            JsonlCleanupGuard::new([new_root.join("diff.jsonl"), new_root.join("base.jsonl")]);
+        let diff = get_repo_targets("diff.jsonl", &new_root).expect("load diff targets");
+
+        let (remapped, remapped_count) = remap_repo_local_change_paths(
+            &new_root,
+            &diff,
+            &[
+                Status::Removed(ProjectRelativePath::new("main.rs")),
+                Status::Added(ProjectRelativePath::new("lib.rs")),
+            ],
+        );
+
+        drop(jsonl_cleanup);
+        assert_eq!(remapped_count, 2);
+        assert_eq!(
+            remapped,
+            vec![
+                Status::Removed(ProjectRelativePath::new("src/main.rs")),
+                Status::Added(ProjectRelativePath::new("src/lib.rs")),
+            ]
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_get_build_targets_does_not_remap_ambiguous_truncated_path() {
+        let (_tempdir, old_root, new_root) = isolated_ambiguous_main_fixture();
+        fs::write(
+            new_root.join("src/main.rs"),
+            "fn main() { println!(\"ambiguous src main\"); }\n",
+        )
+        .expect("rewrite src/main.rs");
+        fs::write(
+            new_root.join("examples/main.rs"),
+            "pub fn run() { println!(\"ambiguous examples main\"); }\n",
+        )
+        .expect("rewrite examples/main.rs");
+
+        let targets = get_build_targets(
+            old_root.to_str().expect("old fixture path"),
+            new_root.to_str().expect("new fixture path"),
+            vec![Status::Modified(ProjectRelativePath::new("main.rs"))],
+        )
+        .await
+        .expect("target discovery should complete");
+
+        assert!(
+            targets.is_empty(),
+            "expected ambiguous short path to avoid remap and keep target list empty, got {targets:?}"
         );
     }
 

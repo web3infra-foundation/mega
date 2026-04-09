@@ -15,10 +15,23 @@ pub(crate) struct OrionClient {
 
 impl OrionClient {
     pub fn new(base_url: impl Into<String>) -> Self {
-        Self {
-            base_url: base_url.into(),
-            client: reqwest::Client::new(),
-        }
+        let base_url = base_url.into();
+        let use_direct_connection = base_url.starts_with("http://127.0.0.1")
+            || base_url.starts_with("https://127.0.0.1")
+            || base_url.starts_with("http://localhost")
+            || base_url.starts_with("https://localhost")
+            || base_url.starts_with("http://[::1]")
+            || base_url.starts_with("https://[::1]");
+        let client = if use_direct_connection {
+            reqwest::Client::builder()
+                .no_proxy()
+                .build()
+                .unwrap_or_else(|_| reqwest::Client::new())
+        } else {
+            reqwest::Client::new()
+        };
+
+        Self { base_url, client }
     }
 
     /// Trigger a build on Orion and return the assigned task ID.
