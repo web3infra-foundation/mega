@@ -354,6 +354,56 @@ mod tests {
     }
 
     #[test]
+    fn test_build_changes_keeps_added_paths_for_create_entry_variants() {
+        let changes = build_changes_for_repo(
+            "/project/buck2_test",
+            vec![
+                ClDiffFile::New(
+                    PathBuf::from("/project/buck2_test/src/new_file_abs.rs"),
+                    ObjectHash::from_str("7777777777777777777777777777777777777777").unwrap(),
+                ),
+                ClDiffFile::New(
+                    PathBuf::from("project/buck2_test/src/new_file_prefixed.rs"),
+                    ObjectHash::from_str("8888888888888888888888888888888888888888").unwrap(),
+                ),
+                ClDiffFile::New(
+                    PathBuf::from("src/new_file_relative.rs"),
+                    ObjectHash::from_str("9999999999999999999999999999999999999999").unwrap(),
+                ),
+            ],
+        )
+        .unwrap();
+
+        assert_eq!(
+            changes,
+            vec![
+                Status::Added(ProjectRelativePath::new("src/new_file_abs.rs")),
+                Status::Added(ProjectRelativePath::new("src/new_file_prefixed.rs")),
+                Status::Added(ProjectRelativePath::new("src/new_file_relative.rs")),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_build_changes_keeps_added_gitkeep_for_new_directory() {
+        let changes = build_changes_for_repo(
+            "/project/buck2_test",
+            vec![ClDiffFile::New(
+                PathBuf::from("project/buck2_test/src/new_dir/.gitkeep"),
+                ObjectHash::from_str("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap(),
+            )],
+        )
+        .unwrap();
+
+        assert_eq!(
+            changes,
+            vec![Status::Added(ProjectRelativePath::new(
+                "src/new_dir/.gitkeep"
+            ))]
+        );
+    }
+
+    #[test]
     fn test_detect_single_level_prefixed_candidate_returns_unique_match() {
         let tempdir = TempDir::new().expect("create tempdir");
         let repo_root = tempdir.path();

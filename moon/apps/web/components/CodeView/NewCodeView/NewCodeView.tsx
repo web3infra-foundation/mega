@@ -34,6 +34,7 @@ const NewCodeView = ({ currentPath = '', onClose, defaultType = 'file' }: NewCod
     const lastSlashIndex = fullPath.lastIndexOf('/')
 
     const parentPath = lastSlashIndex > 0 ? fullPath.substring(0, lastSlashIndex) : lastSlashIndex === 0 ? '/' : ''
+    const normalizedParentPath = parentPath === '' ? '/' : parentPath.startsWith('/') ? parentPath : `/${parentPath}`
 
     // Use explicit name if provided, otherwise extract from path
     const fileName = name || (lastSlashIndex >= 0 ? fullPath.substring(lastSlashIndex + 1) : fullPath)
@@ -41,7 +42,7 @@ const NewCodeView = ({ currentPath = '', onClose, defaultType = 'file' }: NewCod
     createEntryHook.mutate(
       {
         name: fileName,
-        path: parentPath,
+        path: normalizedParentPath,
         is_directory: fileType === 'folder',
         content: fileType === 'file' ? content : '',
         author_email: currentUser?.email,
