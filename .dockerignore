@@ -37,6 +37,10 @@ ztm_agent_db*
 # buck2 out
 buck-out
 
+# local docker build cache (huge, never needed in image)
+.buildx-cache
+.buildx-cache/**
+
 # Dockderfile
 docker
 

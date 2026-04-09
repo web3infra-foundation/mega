@@ -59,8 +59,8 @@ pub async fn run_client(server_addr: String, worker_id: String) {
 /// Processes an established WebSocket connection.
 ///
 /// Coordinates three concurrent tasks:
-/// - Heartbeat transmission to maintain connection
-/// - Message sending from internal channels  
+/// - Heartbeat on a timer with priority over build output
+/// - Message sending from internal channels
 /// - Message receiving and processing from server
 ///
 /// # Arguments
@@ -77,48 +77,66 @@ async fn handle_connection(
 
     let worker_id_clone = worker_id.clone();
     let hostname_clone = server_addr.clone();
-    let orion_version = env!("CARGO_PKG_VERSION").to_string(); // Get from Cargo.toml
+    let orion_version = env!("CARGO_PKG_VERSION").to_string();
 
-    let internal_tx_clone = internal_tx.clone();
-    let heartbeat_task = tokio::spawn(async move {
+    let send_task = tokio::spawn(async move {
+        // Heartbeats must not sit behind unbounded build output/status batches: the server drops
+        // workers after ~90s without a Heartbeat (see orion-server health check).
+        let mut heartbeat_interval = tokio::time::interval(Duration::from_secs(30));
+
         tracing::info!("Registering with worker ID: {}", worker_id_clone);
-        if internal_tx_clone
-            .send(WSMessage::Register {
-                id: worker_id_clone,
-                hostname: hostname_clone,
-                orion_version,
-            })
-            .is_err()
-        {
-            tracing::error!("Failed to queue register message. Internal channel closed.");
+        let register = WSMessage::Register {
+            id: worker_id_clone,
+            hostname: hostname_clone,
+            orion_version,
+        };
+        let register_str = match serde_json::to_string(&register) {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::error!("Failed to serialize Register: {}", e);
+                return;
+            }
+        };
+        let mut ws_sender = ws_sender;
+        if let Err(e) = ws_sender.send(Message::Text(register_str.into())).await {
+            tracing::error!(
+                "Failed to send Register to server: {}. Terminating send task.",
+                e
+            );
             return;
         }
-        let heartbeat_interval = Duration::from_secs(30);
-        loop {
-            tokio::time::sleep(heartbeat_interval).await;
-            tracing::debug!("Sending heartbeat...");
-            if internal_tx_clone.send(WSMessage::Heartbeat).is_err() {
-                tracing::warn!("Failed to queue heartbeat message. Internal channel closed.");
-                break;
-            }
-        }
-    });
 
-    let mut ws_sender = ws_sender;
-    let send_task = tokio::spawn(async move {
-        while let Some(msg) = internal_rx.recv().await {
-            match serde_json::to_string(&msg) {
-                Ok(msg_str) => {
-                    if let Err(e) = ws_sender.send(Message::Text(msg_str.into())).await {
-                        tracing::error!(
-                            "Failed to send message to server: {}. Terminating send task.",
-                            e
-                        );
-                        break;
+        loop {
+            tokio::select! {
+                biased;
+                _ = heartbeat_interval.tick() => {
+                    tracing::info!("Sending heartbeat...");
+                    match serde_json::to_string(&WSMessage::Heartbeat) {
+                        Ok(payload) => {
+                            if let Err(e) = ws_sender.send(Message::Text(payload.into())).await {
+                                tracing::warn!("Failed to send heartbeat on WebSocket: {}", e);
+                                break;
+                            }
+                        }
+                        Err(e) => {
+                            tracing::error!("Failed to serialize Heartbeat: {}", e);
+                        }
                     }
                 }
-                Err(e) => {
-                    tracing::error!("Failed to serialize WSMessage: {}", e);
+                maybe_msg = internal_rx.recv() => {
+                    let Some(msg) = maybe_msg else { break; };
+                    match serde_json::to_string(&msg) {
+                        Ok(msg_str) => {
+                            if let Err(e) = ws_sender.send(Message::Text(msg_str.into())).await {
+                                tracing::error!(
+                                    "Failed to send message to server: {}. Terminating send task.",
+                                    e
+                                );
+                                break;
+                            }
+                        }
+                        Err(e) => tracing::error!("Failed to serialize WSMessage: {}", e),
+                    }
                 }
             }
         }
@@ -138,7 +156,6 @@ async fn handle_connection(
 
     // Wait for any task to complete
     tokio::select! {
-        _ = heartbeat_task => tracing::info!("Heartbeat task finished."),
         _ = send_task => tracing::info!("Send task finished."),
         _ = recv_task => tracing::info!("Receive task finished."),
     }

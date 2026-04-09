@@ -1,3 +1,4 @@
+use std::io::IsTerminal;
 /// Orion Build Server
 /// A distributed build system that manages build tasks and worker nodes
 use std::path::PathBuf;
@@ -23,27 +24,33 @@ fn init_tracing_from_config() {
         cli_path: None,
         env_path: std::env::var_os("MEGA_CONFIG").map(PathBuf::from),
     };
-    let level = match ConfigLoader::new(input).load() {
+    let (level, with_ansi) = match ConfigLoader::new(input).load() {
         Ok(loaded) => match loaded.path.to_str() {
             Some(p) => match Config::new(p) {
-                Ok(cfg) => tracing_level_from_config(&cfg.log.level),
+                Ok(cfg) => (
+                    tracing_level_from_config(&cfg.log.level),
+                    cfg.log.with_ansi && std::io::stdout().is_terminal(),
+                ),
                 Err(e) => {
                     eprintln!("Failed to parse config for log level: {e}; using info");
-                    tracing::Level::INFO
+                    (tracing::Level::INFO, std::io::stdout().is_terminal())
                 }
             },
             None => {
                 eprintln!("Config path is not valid UTF-8; using info");
-                tracing::Level::INFO
+                (tracing::Level::INFO, std::io::stdout().is_terminal())
             }
         },
         Err(e) => {
             eprintln!("Failed to locate config for log level: {e}; using info");
-            tracing::Level::INFO
+            (tracing::Level::INFO, std::io::stdout().is_terminal())
         }
     };
 
-    tracing_subscriber::fmt().with_max_level(level).init();
+    tracing_subscriber::fmt()
+        .with_max_level(level)
+        .with_ansi(with_ansi)
+        .init();
 }
 
 #[tokio::main]

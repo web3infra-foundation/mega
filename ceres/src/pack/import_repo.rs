@@ -459,14 +459,29 @@ impl ImportRepo {
         let mono_api_service: MonoApiService = self.into();
         let storage = self.storage.mono_storage();
 
+        // Import tip commit + message do not depend on monorepo root; load once so retries
+        // under the root lock do not repeat git_db reads.
+        let latest_commit: Commit = Commit::from_git_model(
+            self.storage
+                .git_db_storage()
+                .get_commit_by_hash(self.repo.repo_id, &commit_id)
+                .await?
+                .ok_or_else(|| MegaError::Other(format!("commit {commit_id} not found")))?,
+        );
+        let commit_msg = latest_commit.format_message();
+
         // Concurrent attaches need CAS on root mega_refs; retry when head moved.
+        // Redis lock reduces retry storms; DB still enforces correctness via StaleMonorepoRootRef.
+        //
+        // `search_and_create_tree` walks the live root tree via the API (`get_root_tree`); it must
+        // run against the same root snapshot as `get_main_ref` for this attempt, so it stays
+        // inside the locked section. Further reduction would require threading an explicit root
+        // tree/commit into `tree_ops` so tree building can run without holding the global lock.
         const MAX_ATTACH_ATTEMPTS: u32 = 64;
         let mut root_lock_wait_max_ms: u128 = 0;
         let mut root_lock_wait_sum_ms: u128 = 0;
 
         for attempt in 0..MAX_ATTACH_ATTEMPTS {
-            // Only the root mega_refs update needs cross-repo serialization.
-            // Keep the lock scope as small as possible: just the root ref read + attach transaction.
             let t_lock = Instant::now();
             let guard = self.unpack_redlock.clone().lock().await?;
             let lock_wait_ms = t_lock.elapsed().as_millis();
@@ -483,15 +498,6 @@ impl ImportRepo {
 
             let save_trees = tree_ops::search_and_create_tree(&mono_api_service, &path).await?;
 
-            let latest_commit: Commit = Commit::from_git_model(
-                self.storage
-                    .git_db_storage()
-                    .get_commit_by_hash(self.repo.repo_id, &commit_id)
-                    .await?
-                    .ok_or_else(|| MegaError::Other(format!("commit {} not found", commit_id)))?,
-            );
-
-            let commit_msg = latest_commit.format_message();
             let new_commit = Commit::from_tree_id(
                 save_trees
                     .back()
