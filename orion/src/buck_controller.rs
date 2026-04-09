@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     error::Error,
     io::BufReader,
     path::{Path, PathBuf},
@@ -286,6 +286,79 @@ fn get_repo_targets(file_name: &str, repo_path: &Path) -> anyhow::Result<Targets
     ))
 }
 
+fn collect_impacted_targets(base: &Targets, diff: &Targets, changes: &Changes) -> Vec<TargetLabel> {
+    let immediate = diff::immediate_target_changes(base, diff, changes, false);
+    let recursive = diff::recursive_target_changes(diff, changes, &immediate, None, |_| true);
+    recursive
+        .into_iter()
+        .flatten()
+        .map(|(target, _)| target.label())
+        .collect()
+}
+
+fn has_path_component_suffix(candidate: &str, suffix: &str) -> bool {
+    candidate == suffix
+        || candidate
+            .strip_suffix(suffix)
+            .is_some_and(|prefix| prefix.ends_with('/'))
+}
+
+fn remap_repo_local_change_paths(
+    project_root: &Path,
+    diff: &Targets,
+    changes: &[Status<ProjectRelativePath>],
+) -> (Vec<Status<ProjectRelativePath>>, usize) {
+    let mut remapped_count = 0usize;
+    let mut normalized_changes = Vec::with_capacity(changes.len());
+
+    for change in changes {
+        let original = change.get().as_str();
+        if original.is_empty() || project_root.join(original).exists() {
+            normalized_changes.push(change.clone());
+            continue;
+        }
+
+        let mut candidates: HashSet<String> = HashSet::new();
+        for target in diff.targets() {
+            for input in target.inputs.iter() {
+                let candidate_path = input.path();
+                let candidate = candidate_path.as_str();
+                if !has_path_component_suffix(candidate, original) {
+                    continue;
+                }
+                if project_root.join(candidate).exists() {
+                    candidates.insert(candidate.to_owned());
+                    if candidates.len() > 1 {
+                        break;
+                    }
+                }
+            }
+            if candidates.len() > 1 {
+                break;
+            }
+        }
+
+        if candidates.len() == 1 {
+            let remapped = candidates.into_iter().next().expect("single candidate");
+            tracing::info!(
+                original_path = %original,
+                remapped_path = %remapped,
+                "Remapping unresolved repo-local change path to a unique Buck input path."
+            );
+            remapped_count += 1;
+            normalized_changes.push(
+                change
+                    .clone()
+                    .into_map(|_| ProjectRelativePath::new(&remapped)),
+            );
+        } else {
+            normalized_changes.push(change.clone());
+        }
+    }
+
+    (normalized_changes, remapped_count)
+}
+
 /// Run buck2-change-detector to get targets to build.
 ///
 /// # Note
@@ -320,20 +393,34 @@ async fn get_build_targets(
 
     let base = get_repo_targets("base.jsonl", &old_repo)?;
     let diff = get_repo_targets("diff.jsonl", &mount_path)?;
-    let changes = Changes::new(&cells, mega_changes)?;
+    let changes = Changes::new(&cells, mega_changes.clone())?;
     tracing::debug!("Changes {changes:?}");
 
     tracing::debug!("Base targets number: {}", base.len_targets_upperbound());
     tracing::debug!("Diff targets number: {}", diff.len_targets_upperbound());
 
-    let immediate = diff::immediate_target_changes(&base, &diff, &changes, false);
-    let recursive = diff::recursive_target_changes(&diff, &changes, &immediate, None, |_| true);
+    let targets = collect_impacted_targets(&base, &diff, &changes);
+    if !targets.is_empty() {
+        return Ok(targets);
+    }
 
-    Ok(recursive
-        .into_iter()
-        .flatten()
-        .map(|(target, _)| target.label())
-        .collect())
+    let (remapped_changes, remapped_count) =
+        remap_repo_local_change_paths(&mount_path, &diff, &mega_changes);
+    if remapped_count == 0 {
+        return Ok(targets);
+    }
+
+    let remapped = Changes::new(&cells, remapped_changes)?;
+    let remapped_targets = collect_impacted_targets(&base, &diff, &remapped);
+    if !remapped_targets.is_empty() {
+        tracing::info!(
+            remapped_count,
+            recovered_target_count = remapped_targets.len(),
+            "Recovered impacted Buck targets after remapping repo-local change paths."
+        );
+    }
+
+    Ok(remapped_targets)
 }
 
 fn validate_project_roots(
@@ -1099,6 +1186,34 @@ mod tests {
         assert!(
             targets.contains(&TargetLabel::new("root//:globbed_lib")),
             "expected tracked main.rs change to rebuild root//:globbed_lib, got {targets:?}"
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_get_build_targets_remaps_truncated_repo_local_path() {
+        let (_tempdir, old_root, new_root) = isolated_buck_scope_fixture();
+        fs::write(
+            new_root.join("src/main.rs"),
+            "fn main() { println!(\"remapped fixture main\"); }\n",
+        )
+        .expect("rewrite main.rs");
+
+        let targets = get_build_targets(
+            old_root.to_str().expect("old fixture path"),
+            new_root.to_str().expect("new fixture path"),
+            vec![Status::Modified(ProjectRelativePath::new("main.rs"))],
+        )
+        .await
+        .expect("target discovery should complete");
+
+        assert!(
+            targets.contains(&TargetLabel::new("root//:explicit_main")),
+            "expected remapped main.rs change to rebuild root//:explicit_main, got {targets:?}"
+        );
+        assert!(
+            targets.contains(&TargetLabel::new("root//:globbed_lib")),
+            "expected remapped main.rs change to rebuild root//:globbed_lib, got {targets:?}"
         );
     }
 
