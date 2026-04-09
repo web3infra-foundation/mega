@@ -3937,6 +3937,48 @@ mod test {
     }
 
     #[test]
+    fn test_save_file_edit_uses_build_repo_root_tree_from_ref_updates() {
+        let build_root_tree =
+            ObjectHash::from_str("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
+        let nested_tree = ObjectHash::from_str("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb").unwrap();
+        let result = TreeUpdateResult {
+            updated_trees: vec![],
+            ref_updates: vec![
+                RefUpdate {
+                    path: "/project/buck2_test/src".to_string(),
+                    tree_id: nested_tree,
+                },
+                RefUpdate {
+                    path: "/project/buck2_test".to_string(),
+                    tree_id: build_root_tree,
+                },
+            ],
+        };
+
+        let selected = MonoApiService::ref_update_tree_id_for_path(&result, "/project/buck2_test");
+        assert_eq!(selected, Some(build_root_tree));
+    }
+
+    #[test]
+    fn test_create_monorepo_entry_uses_normalized_build_repo_root_tree() {
+        let build_root_tree =
+            ObjectHash::from_str("cccccccccccccccccccccccccccccccccccccccc").unwrap();
+        let result = TreeUpdateResult {
+            updated_trees: vec![],
+            ref_updates: vec![RefUpdate {
+                path: "/project/buck2_test".to_string(),
+                tree_id: build_root_tree,
+            }],
+        };
+
+        let selected = MonoApiService::ref_update_tree_id_for_path(
+            &result,
+            "/project/buck2_test/",
+        );
+        assert_eq!(selected, Some(build_root_tree));
+    }
+
+    #[test]
     fn test_update_tree_hash() {
         let item = TreeItem::new(
             TreeItemMode::Blob,
