@@ -994,7 +994,8 @@ mod tests {
     use tokio::sync::mpsc;
 
     use super::{
-        finish_without_build_if_no_targets, get_build_targets, validate_project_root_exists,
+        finish_without_build_if_no_targets, get_build_targets, get_repo_targets,
+        remap_repo_local_change_paths, validate_project_root_exists,
     };
 
     struct JsonlCleanupGuard {
@@ -1046,14 +1047,22 @@ mod tests {
         }
     }
 
-    fn isolated_buck_scope_fixture() -> (TempDir, PathBuf, PathBuf) {
-        let fixture_root = subproject_root("orion/tests/fixtures/change_detector_buck_scope");
+    fn isolated_fixture(relative: &str) -> (TempDir, PathBuf, PathBuf) {
+        let fixture_root = subproject_root(relative);
         let tempdir = TempDir::new().expect("create tempdir");
         let old_root = tempdir.path().join("old");
         let new_root = tempdir.path().join("new");
         copy_dir_all(&fixture_root, &old_root);
         copy_dir_all(&fixture_root, &new_root);
         (tempdir, old_root, new_root)
+    }
+
+    fn isolated_buck_scope_fixture() -> (TempDir, PathBuf, PathBuf) {
+        isolated_fixture("orion/tests/fixtures/change_detector_buck_scope")
+    }
+
+    fn isolated_ambiguous_main_fixture() -> (TempDir, PathBuf, PathBuf) {
+        isolated_fixture("orion/tests/fixtures/change_detector_ambiguous_main")
     }
 
     #[tokio::test]
@@ -1275,6 +1284,95 @@ mod tests {
         assert!(
             targets.is_empty(),
             "expected no targets for out-of-scope added file, got {targets:?}"
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_get_build_targets_filters_unsafe_paths_and_keeps_valid_change() {
+        let (_tempdir, old_root, new_root) = isolated_buck_scope_fixture();
+        fs::write(
+            new_root.join("src/main.rs"),
+            "fn main() { println!(\"unsafe-filter fixture main\"); }\n",
+        )
+        .expect("rewrite main.rs");
+
+        let targets = get_build_targets(
+            old_root.to_str().expect("old fixture path"),
+            new_root.to_str().expect("new fixture path"),
+            vec![
+                Status::Modified(ProjectRelativePath::new("../secret.rs")),
+                Status::Modified(ProjectRelativePath::new("project//buck2_test/src/main.rs")),
+                Status::Modified(ProjectRelativePath::new("src/main.rs")),
+            ],
+        )
+        .await
+        .expect("target discovery should complete");
+
+        assert!(
+            targets.contains(&TargetLabel::new("root//:explicit_main")),
+            "expected valid repo-local change to rebuild root//:explicit_main, got {targets:?}"
+        );
+        assert!(
+            targets.contains(&TargetLabel::new("root//:globbed_lib")),
+            "expected valid repo-local change to rebuild root//:globbed_lib, got {targets:?}"
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_remap_repo_local_change_paths_preserves_removed_and_added_statuses() {
+        let (_tempdir, _old_root, new_root) = isolated_buck_scope_fixture();
+        let jsonl_cleanup =
+            JsonlCleanupGuard::new([new_root.join("diff.jsonl"), new_root.join("base.jsonl")]);
+        let diff = get_repo_targets("diff.jsonl", &new_root).expect("load diff targets");
+
+        let (remapped, remapped_count) = remap_repo_local_change_paths(
+            &new_root,
+            &diff,
+            &[
+                Status::Removed(ProjectRelativePath::new("main.rs")),
+                Status::Added(ProjectRelativePath::new("lib.rs")),
+            ],
+        );
+
+        drop(jsonl_cleanup);
+        assert_eq!(remapped_count, 2);
+        assert_eq!(
+            remapped,
+            vec![
+                Status::Removed(ProjectRelativePath::new("src/main.rs")),
+                Status::Added(ProjectRelativePath::new("src/lib.rs")),
+            ]
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_get_build_targets_does_not_remap_ambiguous_truncated_path() {
+        let (_tempdir, old_root, new_root) = isolated_ambiguous_main_fixture();
+        fs::write(
+            new_root.join("src/main.rs"),
+            "fn main() { println!(\"ambiguous src main\"); }\n",
+        )
+        .expect("rewrite src/main.rs");
+        fs::write(
+            new_root.join("examples/main.rs"),
+            "pub fn run() { println!(\"ambiguous examples main\"); }\n",
+        )
+        .expect("rewrite examples/main.rs");
+
+        let targets = get_build_targets(
+            old_root.to_str().expect("old fixture path"),
+            new_root.to_str().expect("new fixture path"),
+            vec![Status::Modified(ProjectRelativePath::new("main.rs"))],
+        )
+        .await
+        .expect("target discovery should complete");
+
+        assert!(
+            targets.is_empty(),
+            "expected ambiguous short path to avoid remap and keep target list empty, got {targets:?}"
         );
     }
 
