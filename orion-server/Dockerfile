@@ -44,11 +44,15 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 COPY . .
 
 # -- Step 2: build binary into normal target directory
-ENV CARGO_TARGET_DIR=/app/target
+# NOTE: build output must be persisted into the image layer for the runtime stage `COPY`.
+# A buildkit cache mount is not committed into the layer, so we build into a cached dir
+# then copy the final binary into `/app/target/...` (regular filesystem).
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
-    --mount=type=cache,target=/app/target \
-    cargo build -p orion-server --release
+    --mount=type=cache,target=/app/target-cache \
+    CARGO_TARGET_DIR=/app/target-cache cargo build -p orion-server --release && \
+    mkdir -p /app/target/release && \
+    cp /app/target-cache/release/orion-server /app/target/release/orion-server
 
 # ────── Stage 3: Runtime ──────
 FROM debian:bookworm-slim
