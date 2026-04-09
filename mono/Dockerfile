@@ -74,7 +74,16 @@ COPY saturn ./saturn
 COPY vault ./vault
 
 # Build the mono binary (fixed release)
-RUN cargo build --release -p mono
+#
+# NOTE: Build output must be persisted into the image layer for the runtime stage `COPY`.
+# A buildkit cache mount is not committed into the layer, so we build into a cached dir
+# then copy the final binary into `/opt/mega/target/...` (regular filesystem).
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/opt/mega/target-cache \
+    CARGO_TARGET_DIR=/opt/mega/target-cache cargo build --release -p mono && \
+    mkdir -p /opt/mega/target/release && \
+    cp /opt/mega/target-cache/release/mono /opt/mega/target/release/mono
 
 
 # ---------- runtime stage ----------
