@@ -3971,10 +3971,7 @@ mod test {
             }],
         };
 
-        let selected = MonoApiService::ref_update_tree_id_for_path(
-            &result,
-            "/project/buck2_test/",
-        );
+        let selected = MonoApiService::ref_update_tree_id_for_path(&result, "/project/buck2_test/");
         assert_eq!(selected, Some(build_root_tree));
     }
 
