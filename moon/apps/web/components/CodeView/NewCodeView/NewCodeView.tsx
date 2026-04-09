@@ -33,7 +33,12 @@ const NewCodeView = ({ currentPath = '', onClose, defaultType = 'file' }: NewCod
     const fullPath = path
     const lastSlashIndex = fullPath.lastIndexOf('/')
 
-    const parentPath = lastSlashIndex > 0 ? fullPath.substring(0, lastSlashIndex) : lastSlashIndex === 0 ? '/' : ''
+    const parentPath =
+      lastSlashIndex > 0
+        ? fullPath.substring(0, lastSlashIndex)
+        : lastSlashIndex === 0
+          ? '/'
+          : ''
     const normalizedParentPath =
       parentPath === '' ? '/' : parentPath.startsWith('/') ? parentPath : `/${parentPath}`
 
