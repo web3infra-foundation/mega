@@ -96,9 +96,13 @@ impl Changes {
     /// Determines if a file is a package-level file that should trigger package rebuilds.
     ///
     /// Package-level files include:
-    /// - Build system files (BUCK, BUILD, CMakeLists.txt, Makefile)
-    /// - Language manifests (Cargo.toml, package.json, pom.xml, go.mod, etc.)
-    /// - Configuration files (.buckconfig, .bazelrc)
+    /// - Build system files: BUCK, BUCK.v2, BUCK.*, BUILD, BUILD.bazel, CMakeLists.txt, Makefile
+    /// - Rust manifests: Cargo.toml, Cargo.lock
+    /// - JavaScript/Node manifests: package.json, package-lock.json, yarn.lock, pnpm-lock.yaml
+    /// - Python manifests: requirements.txt, setup.py, setup.cfg, pyproject.toml, Pipfile, Pipfile.lock
+    /// - Go manifests: go.mod, go.sum
+    /// - Java/Maven/Gradle manifests: pom.xml, build.gradle, build.gradle.kts, settings.gradle, settings.gradle.kts
+    /// - Configuration files: .buckconfig, .bazelrc, .buckversion
     ///
     /// These files affect the entire package, not just individual targets.
     fn is_package_level_file(filename: &str) -> bool {
@@ -797,6 +801,14 @@ mod tests {
     }
 
     #[test]
+    fn test_is_package_level_file_build_systems() {
+        assert!(Changes::is_package_level_file("CMakeLists.txt"));
+        assert!(Changes::is_package_level_file("Makefile"));
+        assert!(!Changes::is_package_level_file("CMakeLists.txt.bak"));
+        assert!(!Changes::is_package_level_file("Makefile.old"));
+    }
+
+    #[test]
     fn test_is_package_level_file_negative() {
         assert!(!Changes::is_package_level_file("main.rs"));
         assert!(!Changes::is_package_level_file("index.js"));
@@ -885,6 +897,54 @@ mod tests {
         assert!(
             changes.contains_package(&package),
             "requirements.txt changes should trigger package rebuild"
+        );
+    }
+
+    #[test]
+    fn test_contains_package_with_cmake() {
+        let cells = CellInfo::testing();
+        let changes = Changes::new(
+            &cells,
+            vec![Status::Modified(ProjectRelativePath::new("CMakeLists.txt"))],
+        )
+        .unwrap();
+
+        let package = Package::new("root//");
+        assert!(
+            changes.contains_package(&package),
+            "CMakeLists.txt changes should trigger package rebuild"
+        );
+    }
+
+    #[test]
+    fn test_contains_package_with_makefile() {
+        let cells = CellInfo::testing();
+        let changes = Changes::new(
+            &cells,
+            vec![Status::Modified(ProjectRelativePath::new("Makefile"))],
+        )
+        .unwrap();
+
+        let package = Package::new("root//");
+        assert!(
+            changes.contains_package(&package),
+            "Makefile changes should trigger package rebuild"
+        );
+    }
+
+    #[test]
+    fn test_contains_package_with_buckconfig() {
+        let cells = CellInfo::testing();
+        let changes = Changes::new(
+            &cells,
+            vec![Status::Modified(ProjectRelativePath::new(".buckconfig"))],
+        )
+        .unwrap();
+
+        let package = Package::new("root//");
+        assert!(
+            changes.contains_package(&package),
+            ".buckconfig changes should trigger package rebuild"
         );
     }
 }
