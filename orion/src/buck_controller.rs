@@ -289,11 +289,25 @@ fn get_repo_targets(file_name: &str, repo_path: &Path) -> anyhow::Result<Targets
 fn collect_impacted_targets(base: &Targets, diff: &Targets, changes: &Changes) -> Vec<TargetLabel> {
     let immediate = diff::immediate_target_changes(base, diff, changes, false);
     let recursive = diff::recursive_target_changes(diff, changes, &immediate, None, |_| true);
-    recursive
+
+    let targets: Vec<_> = recursive
         .into_iter()
         .flatten()
         .map(|(target, _)| target.label())
-        .collect()
+        .collect();
+
+    if targets.is_empty() {
+        tracing::info!(
+            changes_count = changes.cell_paths().count(),
+            base_targets = base.len_targets_upperbound(),
+            diff_targets = diff.len_targets_upperbound(),
+            "No impacted targets found. Changes may not match any target inputs or packages."
+        );
+    } else {
+        tracing::info!(impacted_targets = targets.len(), "Found impacted targets");
+    }
+
+    targets
 }
 
 fn has_path_component_suffix(candidate: &str, suffix: &str) -> bool {

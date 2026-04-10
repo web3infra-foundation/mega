@@ -283,9 +283,19 @@ pub fn immediate_target_changes<'a>(
     tracing::debug!("Iterating targets");
     let mut res = GraphImpact::default();
     for target in diff.targets() {
+        tracing::debug!(
+            target = %target.label(),
+            "Checking target for changes"
+        );
+
         let old_target = match old.remove(&target.label_key()) {
             Some(x) => x,
             None => {
+                tracing::debug!(
+                    target = %target.label(),
+                    reason = "New",
+                    "Target impacted: newly added target"
+                );
                 res.recursive
                     .push((target, ImpactTraceData::new(target, RootImpactKind::New)));
                 continue;
@@ -360,9 +370,19 @@ pub fn immediate_target_changes<'a>(
         // Until rule-based matching, which is intentionally last because we can't infer true impact
         // just from the parsed graph and must schedule at least analysis.
         if let Some(reason) = change_inputs() {
+            tracing::debug!(
+                target = %target.label(),
+                reason = ?reason,
+                "Target impacted: input files changed"
+            );
             res.recursive
                 .push((target, ImpactTraceData::new(target, reason)));
         } else if let Some(reason) = change_target_ci_labels() {
+            tracing::debug!(
+                target = %target.label(),
+                reason = ?reason,
+                "Target impacted: CI labels changed"
+            );
             res.non_recursive.push((
                 target,
                 ImpactTraceData {
@@ -401,9 +421,21 @@ pub fn immediate_target_changes<'a>(
             .or_else(change_package)
             .or_else(change_rule)
         {
+            tracing::debug!(
+                target = %target.label(),
+                package = %target.package.as_str(),
+                reason = ?reason,
+                "Target impacted: hash/ci_srcs/package/rule changed"
+            );
             res.recursive
                 .push((target, ImpactTraceData::new(target, reason)));
         } else if let Some(reason) = change_package_ci_labels().or_else(change_package_values) {
+            tracing::debug!(
+                target = %target.label(),
+                package = %target.package.as_str(),
+                reason = ?reason,
+                "Target impacted: package CI labels or values changed"
+            );
             res.non_recursive.push((
                 target,
                 ImpactTraceData {

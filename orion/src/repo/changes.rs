@@ -96,6 +96,10 @@ impl Changes {
     pub fn contains_package(&self, package: &Package) -> bool {
         // Check if the package directory itself is in changes
         if self.contains_cell_path(&package.as_cell_path()) {
+            tracing::trace!(
+                package = %package.as_str(),
+                "Package directory found in changes"
+            );
             return true;
         }
 
@@ -119,11 +123,21 @@ impl Changes {
                         || relative == "BUCK.v2"
                         || relative.starts_with("BUCK."))
                 {
+                    tracing::trace!(
+                        package = %package_str,
+                        buck_file = %path_str,
+                        "BUCK file change detected in package"
+                    );
                     return true;
                 }
             }
         }
 
+        tracing::trace!(
+            package = %package_str,
+            changes_count = self.cell_paths().count(),
+            "No BUCK file changes found in package"
+        );
         false
     }
 
