@@ -302,7 +302,10 @@ mod tests {
             .expect("Should successfully resolve BUCK file");
 
         // Verify the BUCK file was successfully resolved (not skipped)
-        assert!(!changes.is_empty(), "BUCK file should be resolved, not skipped");
+        assert!(
+            !changes.is_empty(),
+            "BUCK file should be resolved, not skipped"
+        );
 
         // Verify it's detected as a package change
         let root_package = Package::new("root//");
@@ -324,7 +327,10 @@ mod tests {
             .expect("Should successfully resolve Cargo.toml");
 
         // Verify the file was successfully resolved
-        assert!(!changes.is_empty(), "Cargo.toml should be resolved, not skipped");
+        assert!(
+            !changes.is_empty(),
+            "Cargo.toml should be resolved, not skipped"
+        );
 
         // Verify we can find it in the changes
         let cargo_cell_path = CellPath::new("root//Cargo.toml");
