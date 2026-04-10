@@ -128,9 +128,7 @@ impl Changes {
                 // Ensure it's a filename (no '/') to avoid matching BUCK.gen/subdir/file.rs
                 if !relative.contains('/') {
                     // BUCK files define targets, so changes to them affect the package
-                    if relative == "BUCK"
-                        || relative == "BUCK.v2"
-                        || relative.starts_with("BUCK.")
+                    if relative == "BUCK" || relative == "BUCK.v2" || relative.starts_with("BUCK.")
                     {
                         tracing::trace!(
                             package = %package_str,
