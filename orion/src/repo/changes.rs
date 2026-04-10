@@ -287,6 +287,76 @@ mod tests {
     }
 
     #[test]
+    fn test_real_world_buck_file_change_with_unresolve() {
+        // This test simulates the REAL production flow:
+        // Git change → ProjectRelativePath → unresolve() → CellPath → contains_package()
+        // This is the flow that was FAILING in production (CL 2NY0WW96)
+
+        let cell_info = CellInfo::testing();
+
+        // Simulate git detecting a BUCK file change at project root
+        let project_changes = vec![Status::Modified(ProjectRelativePath::new("BUCK"))];
+
+        // This is the REAL flow that was failing before the fix
+        let changes = Changes::new(&cell_info, project_changes)
+            .expect("Should successfully resolve BUCK file");
+
+        // Verify the BUCK file was successfully resolved (not skipped)
+        assert!(!changes.is_empty(), "BUCK file should be resolved, not skipped");
+
+        // Verify it's detected as a package change
+        let root_package = Package::new("root//");
+        assert!(
+            changes.contains_package(&root_package),
+            "BUCK file change should trigger package change detection"
+        );
+    }
+
+    #[test]
+    fn test_real_world_cargo_toml_change_with_unresolve() {
+        // This test simulates CL 9TNTRBBQ failure case
+        let cell_info = CellInfo::testing();
+
+        // Simulate git detecting a Cargo.toml change at project root
+        let project_changes = vec![Status::Modified(ProjectRelativePath::new("Cargo.toml"))];
+
+        let changes = Changes::new(&cell_info, project_changes)
+            .expect("Should successfully resolve Cargo.toml");
+
+        // Verify the file was successfully resolved
+        assert!(!changes.is_empty(), "Cargo.toml should be resolved, not skipped");
+
+        // Verify we can find it in the changes
+        let cargo_cell_path = CellPath::new("root//Cargo.toml");
+        assert!(
+            changes.contains_cell_path(&cargo_cell_path),
+            "Cargo.toml should be in changes"
+        );
+    }
+
+    #[test]
+    fn test_real_world_subdirectory_file_with_unresolve() {
+        // This test simulates CL OB6W18SK success case (should continue working)
+        let cell_info = CellInfo::testing();
+
+        // Simulate git detecting a source file change
+        let project_changes = vec![Status::Modified(ProjectRelativePath::new("src/main.rs"))];
+
+        let changes = Changes::new(&cell_info, project_changes)
+            .expect("Should successfully resolve src/main.rs");
+
+        // Verify the file was successfully resolved
+        assert!(!changes.is_empty(), "src/main.rs should be resolved");
+
+        // Verify we can find it in the changes
+        let source_cell_path = CellPath::new("root//src/main.rs");
+        assert!(
+            changes.contains_cell_path(&source_cell_path),
+            "src/main.rs should be in changes"
+        );
+    }
+
+    #[test]
     fn test_map_changes_with_resolver_filters_unresolved_paths() {
         let changes = vec![
             Status::Modified(ProjectRelativePath::new("src/main.rs")),
