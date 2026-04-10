@@ -94,7 +94,28 @@ impl Changes {
     }
 
     pub fn contains_package(&self, package: &Package) -> bool {
-        self.contains_cell_path(&package.as_cell_path())
+        // Check if the package directory itself is in changes
+        if self.contains_cell_path(&package.as_cell_path()) {
+            return true;
+        }
+
+        // Check if any BUCK file in this package is in changes
+        // BUCK files define targets, so changes to them affect the package
+        let package_str = package.as_str();
+        for path in self.cell_paths() {
+            let path_str = path.as_str();
+
+            // Check if this path is a BUCK file in the package directory
+            if path_str.starts_with(package_str) {
+                let relative = &path_str[package_str.len()..];
+                // Match BUCK or BUCK.v2 files directly in this package (not subdirectories)
+                if relative == "BUCK" || relative == "BUCK.v2" || relative.starts_with("BUCK.") {
+                    return true;
+                }
+            }
+        }
+
+        false
     }
 
     pub fn filter_by_cell_path(&self, f: impl Fn(&CellPath) -> bool) -> Changes {
@@ -198,6 +219,72 @@ mod tests {
         assert_eq!(filtered_changes.paths.len(), 1);
         assert!(filtered_changes.contains_cell_path(&cell_path1));
         assert!(!filtered_changes.contains_cell_path(&cell_path2));
+    }
+
+    #[test]
+    fn test_contains_package_with_buck_file() {
+        // Test that modifying a BUCK file is detected as a package change
+        let buck_path = CellPath::new("root//BUCK");
+        let project_path = ProjectRelativePath::new("BUCK");
+        let paths = vec![Status::Modified((buck_path, project_path))];
+        let changes = Changes::from_paths(paths);
+
+        let package = Package::new("root//");
+        assert!(
+            changes.contains_package(&package),
+            "BUCK file change should be detected as package change"
+        );
+    }
+
+    #[test]
+    fn test_contains_package_with_buck_v2_file() {
+        // Test that modifying a BUCK.v2 file is detected as a package change
+        let buck_path = CellPath::new("root//BUCK.v2");
+        let project_path = ProjectRelativePath::new("BUCK.v2");
+        let paths = vec![Status::Modified((buck_path, project_path))];
+        let changes = Changes::from_paths(paths);
+
+        let package = Package::new("root//");
+        assert!(
+            changes.contains_package(&package),
+            "BUCK.v2 file change should be detected as package change"
+        );
+    }
+
+    #[test]
+    fn test_contains_package_with_subdirectory_buck_file() {
+        // Test that a BUCK file in a subdirectory doesn't match parent package
+        let buck_path = CellPath::new("root//subdir/BUCK");
+        let project_path = ProjectRelativePath::new("subdir/BUCK");
+        let paths = vec![Status::Modified((buck_path, project_path))];
+        let changes = Changes::from_paths(paths);
+
+        let root_package = Package::new("root//");
+        let subdir_package = Package::new("root//subdir/");
+
+        assert!(
+            !changes.contains_package(&root_package),
+            "Subdirectory BUCK should not match parent package"
+        );
+        assert!(
+            changes.contains_package(&subdir_package),
+            "Subdirectory BUCK should match its own package"
+        );
+    }
+
+    #[test]
+    fn test_contains_package_without_buck_file() {
+        // Test that non-BUCK file changes don't trigger package detection
+        let source_path = CellPath::new("root//src/main.rs");
+        let project_path = ProjectRelativePath::new("src/main.rs");
+        let paths = vec![Status::Modified((source_path, project_path))];
+        let changes = Changes::from_paths(paths);
+
+        let package = Package::new("root//");
+        assert!(
+            !changes.contains_package(&package),
+            "Non-BUCK file change should not be detected as package change"
+        );
     }
 
     #[test]
