@@ -126,17 +126,30 @@ impl Changes {
 
                 // Match BUCK or BUCK.v2 files directly in this package (not subdirectories)
                 // Ensure it's a filename (no '/') to avoid matching BUCK.gen/subdir/file.rs
-                if !relative.contains('/')
-                    && (relative == "BUCK"
+                if !relative.contains('/') {
+                    // BUCK files define targets, so changes to them affect the package
+                    if relative == "BUCK"
                         || relative == "BUCK.v2"
-                        || relative.starts_with("BUCK."))
-                {
-                    tracing::trace!(
-                        package = %package_str,
-                        buck_file = %path_str,
-                        "BUCK file change detected in package"
-                    );
-                    return true;
+                        || relative.starts_with("BUCK.")
+                    {
+                        tracing::trace!(
+                            package = %package_str,
+                            buck_file = %path_str,
+                            "BUCK file change detected in package"
+                        );
+                        return true;
+                    }
+
+                    // Cargo.toml is the Rust package manifest
+                    // Changes to it affect dependencies and build configuration
+                    if relative == "Cargo.toml" {
+                        tracing::trace!(
+                            package = %package_str,
+                            manifest = %path_str,
+                            "Cargo.toml change detected in package"
+                        );
+                        return true;
+                    }
                 }
             }
         }
