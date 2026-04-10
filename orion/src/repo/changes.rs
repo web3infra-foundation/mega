@@ -111,6 +111,14 @@ impl Changes {
 
             // Check if this path is a BUCK file in the package directory
             if let Some(relative) = path_str.strip_prefix(package_str) {
+                // Require a real package boundary for package formats without trailing '/'.
+                // Example: package "root//subdir" must not match "root//subdirBUCK".
+                let has_valid_boundary =
+                    package_str.ends_with('/') || relative.is_empty() || relative.starts_with('/');
+                if !has_valid_boundary {
+                    continue;
+                }
+
                 // Handle both "cell//dir" and "cell//dir/" formats
                 // strip_prefix("cell//dir") on "cell//dir/BUCK" yields "/BUCK"
                 // strip_prefix("cell//dir/") on "cell//dir/BUCK" yields "BUCK"
@@ -324,6 +332,21 @@ mod tests {
         assert!(
             changes.contains_package(&package),
             "Should detect BUCK file in package without trailing slash"
+        );
+    }
+
+    #[test]
+    fn test_contains_package_without_trailing_slash_enforces_boundary() {
+        // Ensure sibling-like path is not treated as inside package.
+        let sibling_like_path = CellPath::new("root//subdirBUCK");
+        let project_path = ProjectRelativePath::new("subdirBUCK");
+        let paths = vec![Status::Modified((sibling_like_path, project_path))];
+        let changes = Changes::from_paths(paths);
+
+        let package = Package::new("root//subdir");
+        assert!(
+            !changes.contains_package(&package),
+            "Sibling path should not match package without trailing slash"
         );
     }
 
