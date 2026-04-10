@@ -418,6 +418,13 @@ mod tests {
             changes.contains_cell_path(&cargo_cell_path),
             "Cargo.toml should be in changes"
         );
+
+        // NEW: Verify it's detected as a package change (this is the missing piece!)
+        let root_package = Package::new("root//");
+        assert!(
+            changes.contains_package(&root_package),
+            "Cargo.toml change should trigger package change detection (CL GIVWFTLA)"
+        );
     }
 
     #[test]
