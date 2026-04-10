@@ -93,6 +93,79 @@ impl Changes {
         self.cell_paths_set.contains(path)
     }
 
+    /// Determines if a file is a package-level file that should trigger package rebuilds.
+    ///
+    /// Package-level files include:
+    /// - Build system files (BUCK, BUILD, CMakeLists.txt, Makefile)
+    /// - Language manifests (Cargo.toml, package.json, pom.xml, go.mod, etc.)
+    /// - Configuration files (.buckconfig, .bazelrc)
+    ///
+    /// These files affect the entire package, not just individual targets.
+    fn is_package_level_file(filename: &str) -> bool {
+        // Build system files
+        if matches!(
+            filename,
+            "BUCK" | "BUCK.v2" | "BUILD" | "BUILD.bazel" | "CMakeLists.txt" | "Makefile"
+        ) {
+            return true;
+        }
+
+        // BUCK variants (BUCK.v2, BUCK.experimental, etc.)
+        if filename.starts_with("BUCK.") {
+            return true;
+        }
+
+        // Rust manifests
+        if matches!(filename, "Cargo.toml" | "Cargo.lock") {
+            return true;
+        }
+
+        // JavaScript/Node manifests
+        if matches!(
+            filename,
+            "package.json" | "package-lock.json" | "yarn.lock" | "pnpm-lock.yaml"
+        ) {
+            return true;
+        }
+
+        // Python manifests
+        if matches!(
+            filename,
+            "requirements.txt"
+                | "setup.py"
+                | "setup.cfg"
+                | "pyproject.toml"
+                | "Pipfile"
+                | "Pipfile.lock"
+        ) {
+            return true;
+        }
+
+        // Go manifests
+        if matches!(filename, "go.mod" | "go.sum") {
+            return true;
+        }
+
+        // Java/Maven/Gradle manifests
+        if matches!(
+            filename,
+            "pom.xml"
+                | "build.gradle"
+                | "build.gradle.kts"
+                | "settings.gradle"
+                | "settings.gradle.kts"
+        ) {
+            return true;
+        }
+
+        // Buck/Bazel configuration
+        if matches!(filename, ".buckconfig" | ".bazelrc" | ".buckversion") {
+            return true;
+        }
+
+        false
+    }
+
     pub fn contains_package(&self, package: &Package) -> bool {
         // Check if the package directory itself is in changes
         if self.contains_cell_path(&package.as_cell_path()) {
@@ -103,13 +176,13 @@ impl Changes {
             return true;
         }
 
-        // Check if any BUCK file in this package is in changes
-        // BUCK files define targets, so changes to them affect the package
+        // Check if any package-level file in this package is in changes
+        // Package-level files (BUCK, Cargo.toml, package.json, etc.) affect the entire package
         let package_str = package.as_str();
         for path in self.cell_paths() {
             let path_str = path.as_str();
 
-            // Check if this path is a BUCK file in the package directory
+            // Check if this path is in the package directory
             if let Some(relative) = path_str.strip_prefix(package_str) {
                 // Require a real package boundary for package formats without trailing '/'.
                 // Example: package "root//subdir" must not match "root//subdirBUCK".
@@ -124,30 +197,16 @@ impl Changes {
                 // strip_prefix("cell//dir/") on "cell//dir/BUCK" yields "BUCK"
                 let relative = relative.strip_prefix('/').unwrap_or(relative);
 
-                // Match BUCK or BUCK.v2 files directly in this package (not subdirectories)
+                // Check if it's a package-level file directly in this package (not subdirectories)
                 // Ensure it's a filename (no '/') to avoid matching BUCK.gen/subdir/file.rs
-                if !relative.contains('/') {
-                    // BUCK files define targets, so changes to them affect the package
-                    if relative == "BUCK" || relative == "BUCK.v2" || relative.starts_with("BUCK.")
-                    {
-                        tracing::trace!(
-                            package = %package_str,
-                            buck_file = %path_str,
-                            "BUCK file change detected in package"
-                        );
-                        return true;
-                    }
-
-                    // Cargo.toml is the Rust package manifest
-                    // Changes to it affect dependencies and build configuration
-                    if relative == "Cargo.toml" {
-                        tracing::trace!(
-                            package = %package_str,
-                            manifest = %path_str,
-                            "Cargo.toml change detected in package"
-                        );
-                        return true;
-                    }
+                if !relative.contains('/') && Self::is_package_level_file(relative) {
+                    tracing::trace!(
+                        package = %package_str,
+                        file = %path_str,
+                        filename = %relative,
+                        "Package-level file change detected"
+                    );
+                    return true;
                 }
             }
         }
@@ -155,7 +214,7 @@ impl Changes {
         tracing::trace!(
             package = %package_str,
             changes_count = self.cell_paths().count(),
-            "No BUCK file changes found in package"
+            "No package-level file changes found"
         );
         false
     }
@@ -669,6 +728,163 @@ mod tests {
         assert!(
             changes.contains_cell_path(&CellPath::new("root//src/main.rs")),
             "src/main.rs should be in changes"
+        );
+    }
+
+    // Tests for is_package_level_file()
+    #[test]
+    fn test_is_package_level_file_buck() {
+        assert!(Changes::is_package_level_file("BUCK"));
+        assert!(Changes::is_package_level_file("BUCK.v2"));
+        assert!(Changes::is_package_level_file("BUCK.experimental"));
+        assert!(Changes::is_package_level_file("BUILD"));
+        assert!(Changes::is_package_level_file("BUILD.bazel"));
+        assert!(!Changes::is_package_level_file("BUCK_backup"));
+        assert!(!Changes::is_package_level_file("my_BUCK"));
+    }
+
+    #[test]
+    fn test_is_package_level_file_rust() {
+        assert!(Changes::is_package_level_file("Cargo.toml"));
+        assert!(Changes::is_package_level_file("Cargo.lock"));
+        assert!(!Changes::is_package_level_file("Cargo.bak"));
+        assert!(!Changes::is_package_level_file("cargo.toml")); // case sensitive
+    }
+
+    #[test]
+    fn test_is_package_level_file_javascript() {
+        assert!(Changes::is_package_level_file("package.json"));
+        assert!(Changes::is_package_level_file("package-lock.json"));
+        assert!(Changes::is_package_level_file("yarn.lock"));
+        assert!(Changes::is_package_level_file("pnpm-lock.yaml"));
+        assert!(!Changes::is_package_level_file("package.json.bak"));
+    }
+
+    #[test]
+    fn test_is_package_level_file_python() {
+        assert!(Changes::is_package_level_file("requirements.txt"));
+        assert!(Changes::is_package_level_file("setup.py"));
+        assert!(Changes::is_package_level_file("setup.cfg"));
+        assert!(Changes::is_package_level_file("pyproject.toml"));
+        assert!(Changes::is_package_level_file("Pipfile"));
+        assert!(Changes::is_package_level_file("Pipfile.lock"));
+        assert!(!Changes::is_package_level_file("requirements.txt.bak"));
+    }
+
+    #[test]
+    fn test_is_package_level_file_go() {
+        assert!(Changes::is_package_level_file("go.mod"));
+        assert!(Changes::is_package_level_file("go.sum"));
+        assert!(!Changes::is_package_level_file("go.mod.bak"));
+    }
+
+    #[test]
+    fn test_is_package_level_file_java() {
+        assert!(Changes::is_package_level_file("pom.xml"));
+        assert!(Changes::is_package_level_file("build.gradle"));
+        assert!(Changes::is_package_level_file("build.gradle.kts"));
+        assert!(Changes::is_package_level_file("settings.gradle"));
+        assert!(Changes::is_package_level_file("settings.gradle.kts"));
+        assert!(!Changes::is_package_level_file("pom.xml.bak"));
+    }
+
+    #[test]
+    fn test_is_package_level_file_config() {
+        assert!(Changes::is_package_level_file(".buckconfig"));
+        assert!(Changes::is_package_level_file(".bazelrc"));
+        assert!(Changes::is_package_level_file(".buckversion"));
+        assert!(!Changes::is_package_level_file(".buckconfig.bak"));
+    }
+
+    #[test]
+    fn test_is_package_level_file_negative() {
+        assert!(!Changes::is_package_level_file("main.rs"));
+        assert!(!Changes::is_package_level_file("index.js"));
+        assert!(!Changes::is_package_level_file("README.md"));
+        assert!(!Changes::is_package_level_file("test.py"));
+        assert!(!Changes::is_package_level_file(""));
+    }
+
+    // Integration tests for new package-level files
+    #[test]
+    fn test_contains_package_with_cargo_lock() {
+        let cells = CellInfo::testing();
+        let changes = Changes::new(
+            &cells,
+            vec![Status::Modified(ProjectRelativePath::new("Cargo.lock"))],
+        )
+        .unwrap();
+
+        let package = Package::new("root//");
+        assert!(
+            changes.contains_package(&package),
+            "Cargo.lock changes should trigger package rebuild"
+        );
+    }
+
+    #[test]
+    fn test_contains_package_with_package_json() {
+        let cells = CellInfo::testing();
+        let changes = Changes::new(
+            &cells,
+            vec![Status::Modified(ProjectRelativePath::new("package.json"))],
+        )
+        .unwrap();
+
+        let package = Package::new("root//");
+        assert!(
+            changes.contains_package(&package),
+            "package.json changes should trigger package rebuild"
+        );
+    }
+
+    #[test]
+    fn test_contains_package_with_go_mod() {
+        let cells = CellInfo::testing();
+        let changes = Changes::new(
+            &cells,
+            vec![Status::Modified(ProjectRelativePath::new("go.mod"))],
+        )
+        .unwrap();
+
+        let package = Package::new("root//");
+        assert!(
+            changes.contains_package(&package),
+            "go.mod changes should trigger package rebuild"
+        );
+    }
+
+    #[test]
+    fn test_contains_package_with_pom_xml() {
+        let cells = CellInfo::testing();
+        let changes = Changes::new(
+            &cells,
+            vec![Status::Modified(ProjectRelativePath::new("pom.xml"))],
+        )
+        .unwrap();
+
+        let package = Package::new("root//");
+        assert!(
+            changes.contains_package(&package),
+            "pom.xml changes should trigger package rebuild"
+        );
+    }
+
+    #[test]
+    fn test_contains_package_with_requirements_txt() {
+        let cells = CellInfo::testing();
+        let changes = Changes::new(
+            &cells,
+            vec![Status::Modified(ProjectRelativePath::new(
+                "requirements.txt",
+            ))],
+        )
+        .unwrap();
+
+        let package = Package::new("root//");
+        assert!(
+            changes.contains_package(&package),
+            "requirements.txt changes should trigger package rebuild"
         );
     }
 }
