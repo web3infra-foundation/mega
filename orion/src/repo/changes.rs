@@ -113,7 +113,12 @@ impl Changes {
                 let relative = relative.strip_prefix('/').unwrap_or(relative);
 
                 // Match BUCK or BUCK.v2 files directly in this package (not subdirectories)
-                if relative == "BUCK" || relative == "BUCK.v2" || relative.starts_with("BUCK.") {
+                // Ensure it's a filename (no '/') to avoid matching BUCK.gen/subdir/file.rs
+                if !relative.contains('/')
+                    && (relative == "BUCK"
+                        || relative == "BUCK.v2"
+                        || relative.starts_with("BUCK."))
+                {
                     return true;
                 }
             }
@@ -300,11 +305,27 @@ mod tests {
         let paths = vec![Status::Modified((buck_path, project_path))];
         let changes = Changes::from_paths(paths);
 
-        // This is the real format used in production (no trailing slash)
-        let subdir_package = Package::new("root//subdir");
+        // Test without trailing slash (real-world format)
+        let package = Package::new("root//subdir");
         assert!(
-            changes.contains_package(&subdir_package),
-            "BUCK file should match package without trailing slash"
+            changes.contains_package(&package),
+            "Should detect BUCK file in package without trailing slash"
+        );
+    }
+
+    #[test]
+    fn test_contains_package_rejects_buck_directory() {
+        // Test that files inside BUCK.gen/ directory are NOT treated as BUCK files
+        // This prevents misclassifying non-build-file changes as package changes
+        let gen_file_path = CellPath::new("root//BUCK.gen/subdir/file.rs");
+        let project_path = ProjectRelativePath::new("BUCK.gen/subdir/file.rs");
+        let paths = vec![Status::Modified((gen_file_path, project_path))];
+        let changes = Changes::from_paths(paths);
+
+        let package = Package::new("root//");
+        assert!(
+            !changes.contains_package(&package),
+            "Files in BUCK.gen/ directory should NOT be treated as package changes"
         );
     }
 
