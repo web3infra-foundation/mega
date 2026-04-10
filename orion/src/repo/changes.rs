@@ -372,7 +372,10 @@ mod tests {
         let changes = Changes::new(&cell_info, project_changes)
             .expect("Should successfully resolve .buckconfig");
 
-        assert!(!changes.is_empty(), ".buckconfig should be resolved, not skipped");
+        assert!(
+            !changes.is_empty(),
+            ".buckconfig should be resolved, not skipped"
+        );
 
         let buckconfig_path = CellPath::new("root//.buckconfig");
         assert!(
@@ -391,7 +394,9 @@ mod tests {
         let cell_info = CellInfo::parse(&serde_json::to_string(&cell_json).unwrap()).unwrap();
 
         // File in toolchains directory should match toolchains cell, not root
-        let project_changes = vec![Status::Modified(ProjectRelativePath::new("toolchains/BUCK"))];
+        let project_changes = vec![Status::Modified(ProjectRelativePath::new(
+            "toolchains/BUCK",
+        ))];
 
         let changes = Changes::new(&cell_info, project_changes)
             .expect("Should successfully resolve toolchains/BUCK");
@@ -452,8 +457,8 @@ mod tests {
 
         let project_changes = vec![Status::Modified(ProjectRelativePath::new("BUCK.v2"))];
 
-        let changes = Changes::new(&cell_info, project_changes)
-            .expect("Should successfully resolve BUCK.v2");
+        let changes =
+            Changes::new(&cell_info, project_changes).expect("Should successfully resolve BUCK.v2");
 
         assert!(!changes.is_empty(), "BUCK.v2 should be resolved");
 
