@@ -211,13 +211,15 @@ impl CellInfo {
         // self.paths is sorted by path length (longest first) for priority matching
         for (cell, prefix) in &self.paths {
             let prefix_str = prefix.as_str();
+            // Normalize: remove trailing slashes from prefix for consistent matching
+            let prefix_normalized = prefix_str.trim_end_matches('/');
 
             // Special handling: empty prefix or "." represents the root cell
             // Semantically, it means "match all paths that don't have a more specific prefix"
-            if prefix_str.is_empty() || prefix_str == "." {
+            if prefix_normalized.is_empty() || prefix_normalized == "." {
                 // Check if there's a more specific prefix that matches this path
                 let has_more_specific_match = self.paths.iter().any(|(_, other_prefix)| {
-                    let other_str = other_prefix.as_str();
+                    let other_str = other_prefix.as_str().trim_end_matches('/');
                     !other_str.is_empty()
                         && other_str != "."
                         && (path_str == other_str
@@ -236,10 +238,10 @@ impl CellInfo {
                 }
             } else {
                 // Non-root cell: use standard prefix matching
-                if path_str == prefix_str {
+                if path_str == prefix_normalized {
                     // Exact match: path is the cell's root directory
                     return Ok(cell.join(&CellRelativePath::new("")));
-                } else if let Some(x) = path_str.strip_prefix(&format!("{}/", prefix_str)) {
+                } else if let Some(x) = path_str.strip_prefix(&format!("{}/", prefix_normalized)) {
                     // Prefix match: path is in a subdirectory of the cell
                     return Ok(cell.join(&CellRelativePath::new(x)));
                 }
@@ -407,6 +409,27 @@ mod tests {
         let result = cells.unresolve(&ProjectRelativePath::new(""));
         assert!(result.is_ok(), "empty path should be resolved to root cell");
         assert_eq!(result.unwrap(), CellPath::new("root//"));
+    }
+
+    #[test]
+    fn test_unresolve_cell_with_trailing_slash() {
+        // Test that cells with trailing slashes in JSON are handled correctly
+        let cell_json = serde_json::json!({
+            "root": ".",
+            "toolchains": "./toolchains/"  // Note: trailing slash
+        });
+        let cell_info = CellInfo::parse(&serde_json::to_string(&cell_json).unwrap()).unwrap();
+
+        // File in toolchains directory should match toolchains cell
+        let result = cell_info.unresolve(&ProjectRelativePath::new("toolchains/BUCK"));
+        assert!(result.is_ok(), "Should resolve toolchains/BUCK");
+
+        let cell_path = result.unwrap();
+        assert_eq!(
+            cell_path.as_str(),
+            "toolchains//BUCK",
+            "Should resolve to toolchains cell, not root"
+        );
     }
 
     #[test]
