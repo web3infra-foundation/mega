@@ -218,15 +218,19 @@ impl CellInfo {
                 // Check if there's a more specific prefix that matches this path
                 let has_more_specific_match = self.paths.iter().any(|(_, other_prefix)| {
                     let other_str = other_prefix.as_str();
-                    !other_str.is_empty() && other_str != "." &&
-                    (path_str == other_str || path_str.starts_with(&format!("{}/", other_str)))
+                    !other_str.is_empty()
+                        && other_str != "."
+                        && (path_str == other_str
+                            || path_str.starts_with(&format!("{}/", other_str)))
                 });
 
                 // If no more specific match exists, this path belongs to the root cell
                 if !has_more_specific_match {
                     tracing::debug!(
                         "Resolved path '{}' to root cell '{}' (prefix: '{}')",
-                        path_str, cell.as_str(), prefix_str
+                        path_str,
+                        cell.as_str(),
+                        prefix_str
                     );
                     return Ok(cell.join(&CellRelativePath::new(path_str)));
                 }
@@ -385,12 +389,18 @@ mod tests {
 
         // Case 3: .buckconfig（配置文件）
         let result = cells.unresolve(&ProjectRelativePath::new(".buckconfig"));
-        assert!(result.is_ok(), ".buckconfig should be resolved to root cell");
+        assert!(
+            result.is_ok(),
+            ".buckconfig should be resolved to root cell"
+        );
         assert_eq!(result.unwrap(), CellPath::new("root//.buckconfig"));
 
         // Case 4: src/main.rs（CL OB6W18SK - 回归测试，应该继续工作）
         let result = cells.unresolve(&ProjectRelativePath::new("src/main.rs"));
-        assert!(result.is_ok(), "src/main.rs should be resolved to root cell");
+        assert!(
+            result.is_ok(),
+            "src/main.rs should be resolved to root cell"
+        );
         assert_eq!(result.unwrap(), CellPath::new("root//src/main.rs"));
 
         // Case 5: 空路径
@@ -403,14 +413,20 @@ mod tests {
     fn test_unresolve_multi_cell_priority() {
         // 模拟多 cell 配置，使用绝对路径格式
         // 在实际场景中，. 会被解析为某个绝对路径，这里用 /repo 模拟
-        let cells = CellInfo::parse(r#"{
+        let cells = CellInfo::parse(
+            r#"{
             "root": "/repo",
             "toolchains": "/repo/toolchains"
-        }"#).unwrap();
+        }"#,
+        )
+        .unwrap();
 
         // Case 1: toolchains 目录下的文件应该匹配 toolchains cell（更具体的匹配）
         let result = cells.unresolve(&ProjectRelativePath::new("toolchains/BUCK"));
-        assert!(result.is_ok(), "toolchains/BUCK should be resolved to toolchains cell");
+        assert!(
+            result.is_ok(),
+            "toolchains/BUCK should be resolved to toolchains cell"
+        );
         assert_eq!(result.unwrap(), CellPath::new("toolchains//BUCK"));
 
         // Case 2: 根目录的 BUCK 应该匹配 root cell
@@ -420,7 +436,10 @@ mod tests {
 
         // Case 3: src 目录下的文件应该匹配 root cell（没有更具体的匹配）
         let result = cells.unresolve(&ProjectRelativePath::new("src/main.rs"));
-        assert!(result.is_ok(), "src/main.rs should be resolved to root cell");
+        assert!(
+            result.is_ok(),
+            "src/main.rs should be resolved to root cell"
+        );
         assert_eq!(result.unwrap(), CellPath::new("root//src/main.rs"));
     }
 }

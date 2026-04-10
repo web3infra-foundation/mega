@@ -106,8 +106,7 @@ impl Changes {
             let path_str = path.as_str();
 
             // Check if this path is a BUCK file in the package directory
-            if path_str.starts_with(package_str) {
-                let relative = &path_str[package_str.len()..];
+            if let Some(relative) = path_str.strip_prefix(package_str) {
                 // Match BUCK or BUCK.v2 files directly in this package (not subdirectories)
                 if relative == "BUCK" || relative == "BUCK.v2" || relative.starts_with("BUCK.") {
                     return true;
@@ -361,7 +360,10 @@ mod tests {
             .iter()
             .filter(|s| matches!(s, Status::Modified(_)))
             .count();
-        let added_count = statuses.iter().filter(|s| matches!(s, Status::Added(_))).count();
+        let added_count = statuses
+            .iter()
+            .filter(|s| matches!(s, Status::Added(_)))
+            .count();
         let removed_count = statuses
             .iter()
             .filter(|s| matches!(s, Status::Removed(_)))
