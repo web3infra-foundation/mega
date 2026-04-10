@@ -107,6 +107,11 @@ impl Changes {
 
             // Check if this path is a BUCK file in the package directory
             if let Some(relative) = path_str.strip_prefix(package_str) {
+                // Handle both "cell//dir" and "cell//dir/" formats
+                // strip_prefix("cell//dir") on "cell//dir/BUCK" yields "/BUCK"
+                // strip_prefix("cell//dir/") on "cell//dir/BUCK" yields "BUCK"
+                let relative = relative.strip_prefix('/').unwrap_or(relative);
+
                 // Match BUCK or BUCK.v2 files directly in this package (not subdirectories)
                 if relative == "BUCK" || relative == "BUCK.v2" || relative.starts_with("BUCK.") {
                     return true;
@@ -283,6 +288,23 @@ mod tests {
         assert!(
             !changes.contains_package(&package),
             "Non-BUCK file change should not be detected as package change"
+        );
+    }
+
+    #[test]
+    fn test_contains_package_without_trailing_slash() {
+        // Test package format without trailing slash (real-world format)
+        // In production, packages are typically "cell//dir" not "cell//dir/"
+        let buck_path = CellPath::new("root//subdir/BUCK");
+        let project_path = ProjectRelativePath::new("subdir/BUCK");
+        let paths = vec![Status::Modified((buck_path, project_path))];
+        let changes = Changes::from_paths(paths);
+
+        // This is the real format used in production (no trailing slash)
+        let subdir_package = Package::new("root//subdir");
+        assert!(
+            changes.contains_package(&subdir_package),
+            "BUCK file should match package without trailing slash"
         );
     }
 
