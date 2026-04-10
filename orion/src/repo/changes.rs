@@ -224,4 +224,80 @@ mod tests {
             ProjectRelativePath::new("external/shared.rs")
         );
     }
+
+    #[test]
+    fn test_changes_with_root_directory_files() {
+        // 模拟实际的 cell 配置
+        let cells = CellInfo::parse(r#"{"root": "."}"#).unwrap();
+
+        let input_changes = vec![
+            Status::Modified(ProjectRelativePath::new("BUCK")),
+            Status::Modified(ProjectRelativePath::new("Cargo.toml")),
+            Status::Modified(ProjectRelativePath::new("src/main.rs")),
+        ];
+
+        let changes = Changes::new(&cells, input_changes).unwrap();
+
+        // 所有路径都应该成功解析
+        assert_eq!(changes.paths.len(), 3, "All paths should be resolved");
+        assert!(
+            changes.contains_cell_path(&CellPath::new("root//BUCK")),
+            "BUCK should be in changes"
+        );
+        assert!(
+            changes.contains_cell_path(&CellPath::new("root//Cargo.toml")),
+            "Cargo.toml should be in changes"
+        );
+        assert!(
+            changes.contains_cell_path(&CellPath::new("root//src/main.rs")),
+            "src/main.rs should be in changes"
+        );
+    }
+
+    #[test]
+    fn test_changes_preserves_status() {
+        let cells = CellInfo::parse(r#"{"root": "."}"#).unwrap();
+
+        let input_changes = vec![
+            Status::Modified(ProjectRelativePath::new("BUCK")),
+            Status::Added(ProjectRelativePath::new("new_file.rs")),
+            Status::Removed(ProjectRelativePath::new("old_file.rs")),
+        ];
+
+        let changes = Changes::new(&cells, input_changes).unwrap();
+
+        // 验证状态被正确保留
+        let statuses: Vec<_> = changes.status_cell_paths().collect();
+
+        // 检查每个状态类型的数量
+        let modified_count = statuses
+            .iter()
+            .filter(|s| matches!(s, Status::Modified(_)))
+            .count();
+        let added_count = statuses.iter().filter(|s| matches!(s, Status::Added(_))).count();
+        let removed_count = statuses
+            .iter()
+            .filter(|s| matches!(s, Status::Removed(_)))
+            .count();
+
+        assert_eq!(modified_count, 1, "Should have 1 modified file");
+        assert_eq!(added_count, 1, "Should have 1 added file");
+        assert_eq!(removed_count, 1, "Should have 1 removed file");
+    }
+
+    #[test]
+    fn test_regression_cl_ob6w18sk() {
+        // 确保 CL OB6W18SK 的场景仍然工作
+        let cells = CellInfo::parse(r#"{"root": "."}"#).unwrap();
+
+        let input_changes = vec![Status::Modified(ProjectRelativePath::new("src/main.rs"))];
+
+        let changes = Changes::new(&cells, input_changes).unwrap();
+
+        assert_eq!(changes.paths.len(), 1, "src/main.rs should be resolved");
+        assert!(
+            changes.contains_cell_path(&CellPath::new("root//src/main.rs")),
+            "src/main.rs should be in changes"
+        );
+    }
 }

@@ -338,4 +338,60 @@ mod tests {
         assert!(!cells.is_ignored(&CellPath::new("root//cell1/bar/baz/file.txt")));
         assert!(!cells.is_ignored(&CellPath::new("cell1//cell1/bar/baz/file.txt")));
     }
+
+    #[test]
+    fn test_unresolve_root_cell_with_dot_prefix() {
+        // 模拟实际的 cell 配置：root = .
+        let cells = CellInfo::parse(r#"{"root": "."}"#).unwrap();
+
+        // Case 1: BUCK 文件（CL 2NY0WW96 - 当前失败）
+        let result = cells.unresolve(&ProjectRelativePath::new("BUCK"));
+        assert!(result.is_ok(), "BUCK should be resolved to root cell");
+        assert_eq!(result.unwrap(), CellPath::new("root//BUCK"));
+
+        // Case 2: Cargo.toml（CL 9TNTRBBQ - 当前失败）
+        let result = cells.unresolve(&ProjectRelativePath::new("Cargo.toml"));
+        assert!(result.is_ok(), "Cargo.toml should be resolved to root cell");
+        assert_eq!(result.unwrap(), CellPath::new("root//Cargo.toml"));
+
+        // Case 3: .buckconfig（配置文件）
+        let result = cells.unresolve(&ProjectRelativePath::new(".buckconfig"));
+        assert!(result.is_ok(), ".buckconfig should be resolved to root cell");
+        assert_eq!(result.unwrap(), CellPath::new("root//.buckconfig"));
+
+        // Case 4: src/main.rs（CL OB6W18SK - 回归测试，应该继续工作）
+        let result = cells.unresolve(&ProjectRelativePath::new("src/main.rs"));
+        assert!(result.is_ok(), "src/main.rs should be resolved to root cell");
+        assert_eq!(result.unwrap(), CellPath::new("root//src/main.rs"));
+
+        // Case 5: 空路径
+        let result = cells.unresolve(&ProjectRelativePath::new(""));
+        assert!(result.is_ok(), "empty path should be resolved to root cell");
+        assert_eq!(result.unwrap(), CellPath::new("root//"));
+    }
+
+    #[test]
+    fn test_unresolve_multi_cell_priority() {
+        // 模拟多 cell 配置，使用绝对路径格式
+        // 在实际场景中，. 会被解析为某个绝对路径，这里用 /repo 模拟
+        let cells = CellInfo::parse(r#"{
+            "root": "/repo",
+            "toolchains": "/repo/toolchains"
+        }"#).unwrap();
+
+        // Case 1: toolchains 目录下的文件应该匹配 toolchains cell（更具体的匹配）
+        let result = cells.unresolve(&ProjectRelativePath::new("toolchains/BUCK"));
+        assert!(result.is_ok(), "toolchains/BUCK should be resolved to toolchains cell");
+        assert_eq!(result.unwrap(), CellPath::new("toolchains//BUCK"));
+
+        // Case 2: 根目录的 BUCK 应该匹配 root cell
+        let result = cells.unresolve(&ProjectRelativePath::new("BUCK"));
+        assert!(result.is_ok(), "BUCK should be resolved to root cell");
+        assert_eq!(result.unwrap(), CellPath::new("root//BUCK"));
+
+        // Case 3: src 目录下的文件应该匹配 root cell（没有更具体的匹配）
+        let result = cells.unresolve(&ProjectRelativePath::new("src/main.rs"));
+        assert!(result.is_ok(), "src/main.rs should be resolved to root cell");
+        assert_eq!(result.unwrap(), CellPath::new("root//src/main.rs"));
+    }
 }
