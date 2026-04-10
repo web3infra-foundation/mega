@@ -363,6 +363,109 @@ mod tests {
     }
 
     #[test]
+    fn test_real_world_buckconfig_change_with_unresolve() {
+        // Test .buckconfig file at root (mentioned in orion.md as a config file)
+        let cell_info = CellInfo::testing();
+
+        let project_changes = vec![Status::Modified(ProjectRelativePath::new(".buckconfig"))];
+
+        let changes = Changes::new(&cell_info, project_changes)
+            .expect("Should successfully resolve .buckconfig");
+
+        assert!(!changes.is_empty(), ".buckconfig should be resolved, not skipped");
+
+        let buckconfig_path = CellPath::new("root//.buckconfig");
+        assert!(
+            changes.contains_cell_path(&buckconfig_path),
+            ".buckconfig should be in changes"
+        );
+    }
+
+    #[test]
+    fn test_real_world_multi_cell_priority() {
+        // Test multi-cell environment where more specific cell should match first
+        let cell_json = serde_json::json!({
+            "root": ".",
+            "toolchains": "./toolchains"
+        });
+        let cell_info = CellInfo::parse(&serde_json::to_string(&cell_json).unwrap()).unwrap();
+
+        // File in toolchains directory should match toolchains cell, not root
+        let project_changes = vec![Status::Modified(ProjectRelativePath::new("toolchains/BUCK"))];
+
+        let changes = Changes::new(&cell_info, project_changes)
+            .expect("Should successfully resolve toolchains/BUCK");
+
+        assert!(!changes.is_empty(), "toolchains/BUCK should be resolved");
+
+        // Should be in toolchains cell, not root cell
+        let toolchains_path = CellPath::new("toolchains//BUCK");
+        assert!(
+            changes.contains_cell_path(&toolchains_path),
+            "Should resolve to toolchains cell"
+        );
+
+        // Should NOT be in root cell
+        let root_path = CellPath::new("root//toolchains/BUCK");
+        assert!(
+            !changes.contains_cell_path(&root_path),
+            "Should NOT resolve to root cell"
+        );
+    }
+
+    #[test]
+    fn test_real_world_mixed_changes_all_resolved() {
+        // Test multiple files changed at once (common in real commits)
+        let cell_info = CellInfo::testing();
+
+        let project_changes = vec![
+            Status::Modified(ProjectRelativePath::new("BUCK")),
+            Status::Modified(ProjectRelativePath::new("Cargo.toml")),
+            Status::Modified(ProjectRelativePath::new("src/main.rs")),
+            Status::Added(ProjectRelativePath::new("src/lib.rs")),
+        ];
+
+        let changes = Changes::new(&cell_info, project_changes)
+            .expect("Should successfully resolve all files");
+
+        // All 4 files should be resolved
+        assert_eq!(changes.paths.len(), 4, "All 4 files should be resolved");
+
+        // Verify each file is present
+        assert!(changes.contains_cell_path(&CellPath::new("root//BUCK")));
+        assert!(changes.contains_cell_path(&CellPath::new("root//Cargo.toml")));
+        assert!(changes.contains_cell_path(&CellPath::new("root//src/main.rs")));
+        assert!(changes.contains_cell_path(&CellPath::new("root//src/lib.rs")));
+
+        // BUCK file should trigger package detection
+        let root_package = Package::new("root//");
+        assert!(
+            changes.contains_package(&root_package),
+            "BUCK file should trigger package detection"
+        );
+    }
+
+    #[test]
+    fn test_real_world_buck_v2_with_unresolve() {
+        // Test BUCK.v2 variant (mentioned in orion.md)
+        let cell_info = CellInfo::testing();
+
+        let project_changes = vec![Status::Modified(ProjectRelativePath::new("BUCK.v2"))];
+
+        let changes = Changes::new(&cell_info, project_changes)
+            .expect("Should successfully resolve BUCK.v2");
+
+        assert!(!changes.is_empty(), "BUCK.v2 should be resolved");
+
+        // Should trigger package detection
+        let root_package = Package::new("root//");
+        assert!(
+            changes.contains_package(&root_package),
+            "BUCK.v2 should trigger package detection"
+        );
+    }
+
+    #[test]
     fn test_map_changes_with_resolver_filters_unresolved_paths() {
         let changes = vec![
             Status::Modified(ProjectRelativePath::new("src/main.rs")),
