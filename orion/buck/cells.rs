@@ -206,13 +206,42 @@ impl CellInfo {
     }
 
     pub fn unresolve(&self, path: &ProjectRelativePath) -> anyhow::Result<CellPath> {
-        // because we know self.paths has the longest match first, we just find the first match
+        let path_str = path.as_str();
+
+        // self.paths is sorted by path length (longest first) for priority matching
         for (cell, prefix) in &self.paths {
-            if let Some(x) = path.as_str().strip_prefix(prefix.as_str()) {
-                let x = x.strip_prefix('/').unwrap_or(x);
-                return Ok(cell.join(&CellRelativePath::new(x)));
+            let prefix_str = prefix.as_str();
+
+            // Special handling: empty prefix or "." represents the root cell
+            // Semantically, it means "match all paths that don't have a more specific prefix"
+            if prefix_str.is_empty() || prefix_str == "." {
+                // Check if there's a more specific prefix that matches this path
+                let has_more_specific_match = self.paths.iter().any(|(_, other_prefix)| {
+                    let other_str = other_prefix.as_str();
+                    !other_str.is_empty() && other_str != "." &&
+                    (path_str == other_str || path_str.starts_with(&format!("{}/", other_str)))
+                });
+
+                // If no more specific match exists, this path belongs to the root cell
+                if !has_more_specific_match {
+                    tracing::debug!(
+                        "Resolved path '{}' to root cell '{}' (prefix: '{}')",
+                        path_str, cell.as_str(), prefix_str
+                    );
+                    return Ok(cell.join(&CellRelativePath::new(path_str)));
+                }
+            } else {
+                // Non-root cell: use standard prefix matching
+                if path_str == prefix_str {
+                    // Exact match: path is the cell's root directory
+                    return Ok(cell.join(&CellRelativePath::new("")));
+                } else if let Some(x) = path_str.strip_prefix(&format!("{}/", prefix_str)) {
+                    // Prefix match: path is in a subdirectory of the cell
+                    return Ok(cell.join(&CellRelativePath::new(x)));
+                }
             }
         }
+
         Err(CellError::UnknownPath(path.clone()).into())
     }
 
