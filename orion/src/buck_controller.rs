@@ -916,6 +916,8 @@ pub async fn build(
             // with the selected platform (e.g., macOS-only crates on Linux builders).
             .arg("--skip-incompatible-targets")
             .arg("--verbose=2")
+            // Disable remote cache to ensure we always build with the latest code changes
+            // and detect syntax errors immediately in incremental builds
             .arg("--no-remote-cache")
             .current_dir(&project_root)
             .stdout(Stdio::piped())
