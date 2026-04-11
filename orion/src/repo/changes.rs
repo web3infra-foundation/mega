@@ -979,3 +979,41 @@ mod tests {
         );
     }
 }
+
+    #[test]
+    fn test_contains_package_toolchains_cell() {
+        // 模拟实际的 buck2_test 配置
+        let cell_json = serde_json::json!({
+            "root": "/Users/jackie/work/project/buck2_test",
+            "toolchains": "/Users/jackie/work/project/buck2_test/toolchains"
+        });
+        let cell_info = CellInfo::parse(&serde_json::to_string(&cell_json).unwrap()).unwrap();
+
+        // 模拟 git 检测到 toolchains/BUCK 变更
+        let project_changes = vec![Status::Modified(ProjectRelativePath::new(
+            "toolchains/BUCK",
+        ))];
+
+        let changes = Changes::new(&cell_info, project_changes)
+            .expect("Should successfully resolve toolchains/BUCK");
+
+        // 验证文件被成功解析
+        assert!(
+            !changes.is_empty(),
+            "toolchains/BUCK should be resolved, not skipped"
+        );
+
+        // 验证解析到了正确的 cell
+        let toolchains_buck = CellPath::new("toolchains//BUCK");
+        assert!(
+            changes.contains_cell_path(&toolchains_buck),
+            "Should contain toolchains//BUCK"
+        );
+
+        // 关键测试：验证 toolchains// package 能被检测到
+        let toolchains_package = Package::new("toolchains//");
+        assert!(
+            changes.contains_package(&toolchains_package),
+            "toolchains/BUCK change should trigger toolchains// package detection"
+        );
+    }

@@ -193,7 +193,6 @@ fn should_retry_buck2_daemon(stderr: &str) -> bool {
 pub fn targets_arguments() -> &'static [&'static str] {
     &[
         "targets",
-        "//...",
         "--target-platforms",
         "prelude//platforms:default",
         "--streaming",

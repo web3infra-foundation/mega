@@ -56,3 +56,6 @@ orion-server/docker-compose.override.yml
 /scripts/dev/.env
 
 .buildx-cache
+
+# Claude Code configuration and cache
+.claude

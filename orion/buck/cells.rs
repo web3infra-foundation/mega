@@ -264,6 +264,15 @@ impl CellInfo {
             Some(data) => data.ignore.is_match(path.path().as_str()),
         }
     }
+
+    /// Returns target patterns for all cells (e.g., ["root//...", "toolchains//...", ...])
+    /// This is used to query targets from all cells, not just the root cell.
+    pub fn get_all_cell_patterns(&self) -> Vec<String> {
+        self.cells
+            .keys()
+            .map(|cell_name| format!("{}//...", cell_name.as_str()))
+            .collect()
+    }
 }
 
 #[cfg(test)]
@@ -466,3 +475,21 @@ mod tests {
         assert_eq!(result.unwrap(), CellPath::new("root//src/main.rs"));
     }
 }
+
+    #[test]
+    fn test_get_all_cell_patterns() {
+        let cell_json = serde_json::json!({
+            "root": "/Users/jackie/work/project/buck2_test",
+            "toolchains": "/Users/jackie/work/project/buck2_test/toolchains",
+            "prelude": "/Users/jackie/work/project/buck2_test/prelude"
+        });
+        let cells = CellInfo::parse(&serde_json::to_string(&cell_json).unwrap()).unwrap();
+
+        let patterns = cells.get_all_cell_patterns();
+        
+        // Should have patterns for all cells
+        assert_eq!(patterns.len(), 3);
+        assert!(patterns.contains(&"root//...".to_string()));
+        assert!(patterns.contains(&"toolchains//...".to_string()));
+        assert!(patterns.contains(&"prelude//...".to_string()));
+    }

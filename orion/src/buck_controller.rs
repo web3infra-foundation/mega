@@ -246,7 +246,11 @@ fn resolve_config_path() -> Option<PathBuf> {
 /// populates the Dicfuse backing store which makes subsequent FUSE reads
 /// fast, and `preheat_shallow()` in `get_build_targets()` handles the
 /// per-mount VFS cache warming.
-fn get_repo_targets(file_name: &str, repo_path: &Path) -> anyhow::Result<Targets> {
+fn get_repo_targets(
+    file_name: &str,
+    repo_path: &Path,
+    cells: Option<&CellInfo>,
+) -> anyhow::Result<Targets> {
     const MAX_ATTEMPTS: usize = 2;
     let jsonl_path = PathBuf::from(repo_path).join(file_name);
 
@@ -255,8 +259,21 @@ fn get_repo_targets(file_name: &str, repo_path: &Path) -> anyhow::Result<Targets
         let mut command = std::process::Command::new("buck2");
         command
             .env("BUCKD_STARTUP_TIMEOUT", "30")
-            .env("BUCKD_STARTUP_INIT_TIMEOUT", "1200")
-            .args(targets_arguments());
+            .env("BUCKD_STARTUP_INIT_TIMEOUT", "1200");
+
+        // Add base targets arguments
+        command.args(targets_arguments());
+
+        // If cells info is provided, query all cells; otherwise just query root cell
+        if let Some(cells_info) = cells {
+            let cell_patterns = cells_info.get_all_cell_patterns();
+            tracing::debug!("Querying targets for cells: {:?}", cell_patterns);
+            command.args(&cell_patterns);
+        } else {
+            // Default: only query root cell
+            command.arg("//...");
+        }
+
         command.current_dir(repo_path);
         let (mut child, stdout) = spawn(command)?;
         let mut writer = file_writer(&jsonl_path)?;
@@ -405,8 +422,8 @@ async fn get_build_targets(
             .map_err(|err| anyhow!("Fail to get config: {}", err))?,
     )?;
 
-    let base = get_repo_targets("base.jsonl", &old_repo)?;
-    let diff = get_repo_targets("diff.jsonl", &mount_path)?;
+    let base = get_repo_targets("base.jsonl", &old_repo, Some(&cells))?;
+    let diff = get_repo_targets("diff.jsonl", &mount_path, Some(&cells))?;
     let changes = Changes::new(&cells, mega_changes.clone())?;
     tracing::debug!("Changes {changes:?}");
 
@@ -1339,7 +1356,7 @@ mod tests {
         let (_tempdir, _old_root, new_root) = isolated_buck_scope_fixture();
         let jsonl_cleanup =
             JsonlCleanupGuard::new([new_root.join("diff.jsonl"), new_root.join("base.jsonl")]);
-        let diff = get_repo_targets("diff.jsonl", &new_root).expect("load diff targets");
+        let diff = get_repo_targets("diff.jsonl", &new_root, None).expect("load diff targets");
 
         let (remapped, remapped_count) = remap_repo_local_change_paths(
             &new_root,
