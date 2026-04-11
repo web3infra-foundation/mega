@@ -32,6 +32,9 @@ docker/**/.env
 # buck2 out
 buck-out
 
+# buck2 isolation directories
+.buck-isolation
+
 # Gtk4 resource files
 **/*.gresource
 monobean/resources/lib
