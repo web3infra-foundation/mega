@@ -268,12 +268,17 @@ impl CellInfo {
     /// Returns target patterns for all cells (e.g., ["root//...", "toolchains//...", ...])
     /// This is used to query targets from all cells, not just the root cell.
     ///
-    /// Note: Excludes the "prelude" cell because it's a special cell that contains
-    /// build rule definitions and may have parsing issues when queried directly.
+    /// Note: Excludes special cells:
+    /// - "prelude": Contains build rule definitions, may have parsing issues
+    /// - "none": Placeholder cell used for cell aliases, doesn't contain actual build targets
     pub fn get_all_cell_patterns(&self) -> Vec<String> {
         self.cells
             .keys()
-            .filter(|cell_name| cell_name.as_str() != "prelude")
+            .filter(|cell_name| {
+                let cell_str = cell_name.as_str();
+                // Exclude known special/placeholder cells
+                cell_str != "prelude" && cell_str != "none"
+            })
             .map(|cell_name| format!("{}//...", cell_name.as_str()))
             .collect()
     }
@@ -491,9 +496,29 @@ fn test_get_all_cell_patterns() {
 
     let patterns = cells.get_all_cell_patterns();
 
-    // Should have patterns for all cells except prelude (which is excluded)
+    // Should have patterns for all cells except prelude (special)
     assert_eq!(patterns.len(), 2);
     assert!(patterns.contains(&"root//...".to_string()));
     assert!(patterns.contains(&"toolchains//...".to_string()));
     assert!(!patterns.contains(&"prelude//...".to_string()));
+}
+
+#[test]
+fn test_get_all_cell_patterns_excludes_none_placeholder() {
+    let cell_json = serde_json::json!({
+        "root": "/Users/jackie/work/project/buck2_test",
+        "toolchains": "/Users/jackie/work/project/buck2_test/toolchains",
+        "prelude": "/Users/jackie/work/project/buck2_test/prelude",
+        "none": "/Users/jackie/work/project/buck2_test/none"
+    });
+    let cells = CellInfo::parse(&serde_json::to_string(&cell_json).unwrap()).unwrap();
+
+    let patterns = cells.get_all_cell_patterns();
+
+    // Should exclude prelude (special) and none (placeholder)
+    assert_eq!(patterns.len(), 2);
+    assert!(patterns.contains(&"root//...".to_string()));
+    assert!(patterns.contains(&"toolchains//...".to_string()));
+    assert!(!patterns.contains(&"prelude//...".to_string()));
+    assert!(!patterns.contains(&"none//...".to_string()));
 }
