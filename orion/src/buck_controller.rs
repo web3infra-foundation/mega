@@ -899,6 +899,28 @@ pub async fn build(
             project_root.display(),
             targets.len()
         );
+
+        // Disable both remote and local cache to ensure syntax errors are detected:
+        // 1. Kill daemon to clear local action cache
+        // 2. Use unique isolation-dir to prevent cache sharing between builds
+        // 3. Use --no-remote-cache to prevent remote cache usage
+        let isolation_dir = format!(".buck-isolation/{}", id);
+        let mut kill_cmd = Command::new("buck2");
+        kill_cmd
+            .arg("kill")
+            .arg("--isolation-dir")
+            .arg(&isolation_dir)
+            .current_dir(&project_root)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+
+        if let Err(e) = kill_cmd.status().await {
+            tracing::debug!("[Task {}] Failed to kill buck2 daemon: {}", id, e);
+        }
+
+        // Wait for daemon to fully stop
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
         let mut cmd = Command::new("buck2");
         // --event-log and --build-report are used to collect build execution status
         // at target level (e.g. pending / running / succeeded / failed).
@@ -919,6 +941,8 @@ pub async fn build(
             // Disable remote cache to ensure we always build with the latest code changes
             // and detect syntax errors immediately in incremental builds
             .arg("--no-remote-cache")
+            .arg("--isolation-dir")
+            .arg(format!(".buck-isolation/{}", id))
             .current_dir(&project_root)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
