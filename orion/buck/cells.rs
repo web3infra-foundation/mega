@@ -483,42 +483,42 @@ mod tests {
         );
         assert_eq!(result.unwrap(), CellPath::new("root//src/main.rs"));
     }
-}
 
-#[test]
-fn test_get_all_cell_patterns() {
-    let cell_json = serde_json::json!({
-        "root": "/Users/jackie/work/project/buck2_test",
-        "toolchains": "/Users/jackie/work/project/buck2_test/toolchains",
-        "prelude": "/Users/jackie/work/project/buck2_test/prelude"
-    });
-    let cells = CellInfo::parse(&serde_json::to_string(&cell_json).unwrap()).unwrap();
+    #[test]
+    fn test_get_all_cell_patterns() {
+        let cell_json = serde_json::json!({
+            "root": "/repo",
+            "toolchains": "/repo/toolchains",
+            "prelude": "/repo/prelude"
+        });
+        let cells = CellInfo::parse(&serde_json::to_string(&cell_json).unwrap()).unwrap();
 
-    let patterns = cells.get_all_cell_patterns();
+        let patterns = cells.get_all_cell_patterns();
 
-    // Should have patterns for all cells except prelude (special)
-    assert_eq!(patterns.len(), 2);
-    assert!(patterns.contains(&"root//...".to_string()));
-    assert!(patterns.contains(&"toolchains//...".to_string()));
-    assert!(!patterns.contains(&"prelude//...".to_string()));
-}
+        // Should have patterns for all cells except prelude (special)
+        assert_eq!(patterns.len(), 2);
+        assert!(patterns.contains(&"root//...".to_string()));
+        assert!(patterns.contains(&"toolchains//...".to_string()));
+        assert!(!patterns.contains(&"prelude//...".to_string()));
+    }
 
-#[test]
-fn test_get_all_cell_patterns_excludes_none_placeholder() {
-    let cell_json = serde_json::json!({
-        "root": "/Users/jackie/work/project/buck2_test",
-        "toolchains": "/Users/jackie/work/project/buck2_test/toolchains",
-        "prelude": "/Users/jackie/work/project/buck2_test/prelude",
-        "none": "/Users/jackie/work/project/buck2_test/none"
-    });
-    let cells = CellInfo::parse(&serde_json::to_string(&cell_json).unwrap()).unwrap();
+    #[test]
+    fn test_get_all_cell_patterns_excludes_none_placeholder() {
+        let cell_json = serde_json::json!({
+            "root": "/repo",
+            "toolchains": "/repo/toolchains",
+            "prelude": "/repo/prelude",
+            "none": "/repo/none"
+        });
+        let cells = CellInfo::parse(&serde_json::to_string(&cell_json).unwrap()).unwrap();
 
-    let patterns = cells.get_all_cell_patterns();
+        let patterns = cells.get_all_cell_patterns();
 
-    // Should exclude prelude (special) and none (placeholder)
-    assert_eq!(patterns.len(), 2);
-    assert!(patterns.contains(&"root//...".to_string()));
-    assert!(patterns.contains(&"toolchains//...".to_string()));
-    assert!(!patterns.contains(&"prelude//...".to_string()));
-    assert!(!patterns.contains(&"none//...".to_string()));
+        // Should exclude prelude (special) and none (placeholder)
+        assert_eq!(patterns.len(), 2);
+        assert!(patterns.contains(&"root//...".to_string()));
+        assert!(patterns.contains(&"toolchains//...".to_string()));
+        assert!(!patterns.contains(&"prelude//...".to_string()));
+        assert!(!patterns.contains(&"none//...".to_string()));
+    }
 }
