@@ -984,8 +984,8 @@ mod tests {
 fn test_contains_package_toolchains_cell() {
     // 模拟实际的 buck2_test 配置
     let cell_json = serde_json::json!({
-        "root": "/Users/jackie/work/project/buck2_test",
-        "toolchains": "/Users/jackie/work/project/buck2_test/toolchains"
+        "root": "/repo",
+        "toolchains": "/repo/toolchains"
     });
     let cell_info = CellInfo::parse(&serde_json::to_string(&cell_json).unwrap()).unwrap();
 

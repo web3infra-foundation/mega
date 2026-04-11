@@ -4,10 +4,10 @@ use td_util_buck::cells::CellInfo;
 fn main() {
     // 模拟实际的 buck2 audit cell --json 输出
     let cells_json = r#"{
-        "root": "/Users/jackie/work/project/buck2_test",
-        "toolchains": "/Users/jackie/work/project/buck2_test/toolchains",
-        "prelude": "/Users/jackie/work/project/buck2_test/prelude",
-        "none": "/Users/jackie/work/project/buck2_test/none"
+        "root": "/repo",
+        "toolchains": "/repo/toolchains",
+        "prelude": "/repo/prelude",
+        "none": "/repo/none"
     }"#;
 
     println!("Parsing cells JSON...");
