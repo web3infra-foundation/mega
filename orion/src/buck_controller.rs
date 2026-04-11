@@ -277,7 +277,7 @@ fn get_repo_targets(
         command.current_dir(repo_path);
         command.stderr(Stdio::piped());
         let (mut child, stdout) = spawn(command)?;
-        let stderr = child.stderr.take().expect("stderr should be piped");
+        let mut stderr = child.stderr.take().expect("stderr should be piped");
 
         // Consume stderr in background thread to prevent pipe deadlock
         let stderr_handle = std::thread::spawn(move || {
