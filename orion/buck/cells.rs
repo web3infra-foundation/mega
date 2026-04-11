@@ -265,19 +265,20 @@ impl CellInfo {
         }
     }
 
-    /// Returns target patterns for all cells (e.g., ["root//...", "toolchains//...", ...])
+    /// Returns target patterns for all cells (e.g., ["root//...", ...])
     /// This is used to query targets from all cells, not just the root cell.
     ///
     /// Note: Excludes special cells:
     /// - "prelude": Contains build rule definitions, may have parsing issues
     /// - "none": Placeholder cell used for cell aliases, doesn't contain actual build targets
+    /// - "toolchains": May not exist in the main project, only used in test fixtures
     pub fn get_all_cell_patterns(&self) -> Vec<String> {
         self.cells
             .keys()
             .filter(|cell_name| {
                 let cell_str = cell_name.as_str();
                 // Exclude known special/placeholder cells
-                cell_str != "prelude" && cell_str != "none"
+                cell_str != "prelude" && cell_str != "none" && cell_str != "toolchains"
             })
             .map(|cell_name| format!("{}//...", cell_name.as_str()))
             .collect()
