@@ -103,6 +103,7 @@ impl Changes {
     /// - Go manifests: go.mod, go.sum
     /// - Java/Maven/Gradle manifests: pom.xml, build.gradle, build.gradle.kts, settings.gradle, settings.gradle.kts
     /// - Configuration files: .buckconfig, .bazelrc, .buckversion
+    /// - Mega project configuration: .mega_cedar.json
     ///
     /// These files affect the entire package, not just individual targets.
     fn is_package_level_file(filename: &str) -> bool {
@@ -164,6 +165,11 @@ impl Changes {
 
         // Buck/Bazel configuration
         if matches!(filename, ".buckconfig" | ".bazelrc" | ".buckversion") {
+            return true;
+        }
+
+        // Mega project configuration
+        if matches!(filename, ".mega_cedar.json") {
             return true;
         }
 
@@ -801,6 +807,13 @@ mod tests {
     }
 
     #[test]
+    fn test_is_package_level_file_mega() {
+        assert!(Changes::is_package_level_file(".mega_cedar.json"));
+        assert!(!Changes::is_package_level_file(".mega_cedar.json.bak"));
+        assert!(!Changes::is_package_level_file("mega_cedar.json"));
+    }
+
+    #[test]
     fn test_is_package_level_file_build_systems() {
         assert!(Changes::is_package_level_file("CMakeLists.txt"));
         assert!(Changes::is_package_level_file("Makefile"));
@@ -879,6 +892,24 @@ mod tests {
         assert!(
             changes.contains_package(&package),
             "pom.xml changes should trigger package rebuild"
+        );
+    }
+
+    #[test]
+    fn test_contains_package_with_mega_cedar_json() {
+        let cells = CellInfo::testing();
+        let changes = Changes::new(
+            &cells,
+            vec![Status::Modified(ProjectRelativePath::new(
+                ".mega_cedar.json",
+            ))],
+        )
+        .unwrap();
+
+        let package = Package::new("root//");
+        assert!(
+            changes.contains_package(&package),
+            ".mega_cedar.json changes should trigger package rebuild"
         );
     }
 
