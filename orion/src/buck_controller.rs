@@ -991,6 +991,8 @@ pub async fn build(
                 result = stdout_reader.next_line() => {
                     match result {
                         Ok(Some(line)) => {
+                            // Log buck2 stdout for debugging
+                            tracing::debug!("[Task {}] buck2 stdout: {}", id, line);
                             if sender.send(WSMessage::TaskBuildOutput { build_id: id.clone(), output: line }).is_err() {
                                 child.kill().await?;
                                 return Err("WebSocket connection lost during build.".into());
@@ -1006,6 +1008,8 @@ pub async fn build(
                 result = stderr_reader.next_line() => {
                     match result {
                         Ok(Some(line)) => {
+                            // Log buck2 stderr for debugging and error tracking
+                            tracing::warn!("[Task {}] buck2 stderr: {}", id, line);
                             if sender.send(WSMessage::TaskBuildOutput { build_id: id.clone(), output: line }).is_err() {
                                 child.kill().await?;
                                 return Err("WebSocket connection lost during build.".into());
@@ -1031,6 +1035,17 @@ pub async fn build(
             Some(s) => s,
             None => child.wait().await?,
         };
+
+        // Log build result for debugging
+        if status.success() {
+            tracing::info!("[Task {}] Buck2 build completed successfully", id);
+        } else {
+            tracing::error!(
+                "[Task {}] Buck2 build failed with exit code: {}",
+                id,
+                status.code().map_or("unknown".to_string(), |c| c.to_string())
+            );
+        }
 
         // Stop the build-status tracker cleanly.
         // Signal the processing loop to exit via cancellation token; it will
