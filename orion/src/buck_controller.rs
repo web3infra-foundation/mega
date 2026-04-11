@@ -275,22 +275,46 @@ fn get_repo_targets(
         }
 
         command.current_dir(repo_path);
+        command.stderr(Stdio::piped());
         let (mut child, stdout) = spawn(command)?;
+        let stderr = child.stderr.take().expect("stderr should be piped");
+
+        // Consume stderr in background thread to prevent pipe deadlock
+        let stderr_handle = std::thread::spawn(move || {
+            let mut buf = Vec::new();
+            std::io::Read::read_to_end(&mut stderr, &mut buf)
+                .map(|_| String::from_utf8_lossy(&buf).to_string())
+                .unwrap_or_else(|_| "<failed to read stderr>".to_string())
+        });
+
         let mut writer = file_writer(&jsonl_path)?;
         std::io::copy(&mut BufReader::new(stdout), &mut writer)
             .map_err(|err| anyhow!("Failed to copy output to stdout: {}", err))?;
         writer
             .flush()
             .map_err(|err| anyhow!("Failed to flush writer: {}", err))?;
+
         let status = child.wait()?;
+        let stderr_output = stderr_handle
+            .join()
+            .unwrap_or_else(|_| "<stderr thread panicked>".to_string());
+
         if status.success() {
+            if !stderr_output.trim().is_empty() {
+                tracing::debug!(
+                    "buck2 targets succeeded for repo {:?}, stderr: {}",
+                    repo_path,
+                    stderr_output.trim()
+                );
+            }
             return Targets::from_file(&jsonl_path);
         }
 
         tracing::warn!(
-            "buck2 targets failed with status {} for repo {:?}",
+            "buck2 targets failed with status {} for repo {:?}. stderr: {}",
             status,
-            repo_path
+            repo_path,
+            stderr_output.trim()
         );
         if attempt < MAX_ATTEMPTS {
             std::thread::sleep(std::time::Duration::from_secs(1));
