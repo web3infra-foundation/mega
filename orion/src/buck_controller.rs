@@ -914,11 +914,17 @@ pub async fn build(
             .stdout(Stdio::null())
             .stderr(Stdio::null());
 
-        if let Err(e) = kill_cmd.status().await {
-            tracing::debug!("[Task {}] Failed to kill buck2 daemon: {}", id, e);
+        match kill_cmd.status().await {
+            Ok(status) if !status.success() => {
+                tracing::debug!("[Task {}] Buck2 daemon was not running (expected)", id);
+            }
+            Err(e) => {
+                tracing::warn!("[Task {}] Failed to kill buck2 daemon: {}", id, e);
+            }
+            _ => {}
         }
 
-        // Wait for daemon to fully stop
+        // Wait for daemon to fully stop before starting a new build
         tokio::time::sleep(Duration::from_millis(500)).await;
 
         let mut cmd = Command::new("buck2");
@@ -942,7 +948,7 @@ pub async fn build(
             // and detect syntax errors immediately in incremental builds
             .arg("--no-remote-cache")
             .arg("--isolation-dir")
-            .arg(format!(".buck-isolation/{}", id))
+            .arg(&isolation_dir)
             .current_dir(&project_root)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
@@ -1049,6 +1055,17 @@ pub async fn build(
         Ok(status)
     }
     .await;
+
+    // Cleanup isolation directory to prevent disk space leak
+    let isolation_dir = format!(".buck-isolation/{}", id);
+    let isolation_path = PathBuf::from(&mount_point)
+        .join(&repo_prefix)
+        .join(&isolation_dir);
+    if isolation_path.exists() {
+        if let Err(e) = tokio::fs::remove_dir_all(&isolation_path).await {
+            tracing::warn!("[Task {}] Failed to cleanup isolation-dir: {}", id, e);
+        }
+    }
 
     tracing::info!(
         "[Task {}] Build completed — mount directories retained for debugging: \
