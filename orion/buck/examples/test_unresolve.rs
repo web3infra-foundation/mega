@@ -9,7 +9,7 @@ fn main() {
         "prelude": "/Users/jackie/work/project/buck2_test/prelude",
         "none": "/Users/jackie/work/project/buck2_test/none"
     }"#;
-    
+
     println!("Parsing cells JSON...");
     let cells = match CellInfo::parse(cells_json) {
         Ok(c) => {
@@ -21,7 +21,7 @@ fn main() {
             return;
         }
     };
-    
+
     // 测试 toolchains/BUCK 的解析
     let path = ProjectRelativePath::new("toolchains/BUCK");
     match cells.unresolve(&path) {
@@ -51,7 +51,7 @@ fn main() {
             println!("✗ Failed to resolve: {} - Error: {}", path2.as_str(), e);
         }
     }
-    
+
     // 测试 toolchains 目录本身
     let path3 = ProjectRelativePath::new("toolchains");
     match cells.unresolve(&path3) {

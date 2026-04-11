@@ -4,7 +4,10 @@ fn main() {
     // 测试 toolchains cell 的 package
     let toolchains_package = Package::new("toolchains//");
     println!("Package: {}", toolchains_package.as_str());
-    println!("As CellPath: {}", toolchains_package.as_cell_path().as_str());
+    println!(
+        "As CellPath: {}",
+        toolchains_package.as_cell_path().as_str()
+    );
 
     // 测试 toolchains/BUCK 的 CellPath
     let buck_path = CellPath::new("toolchains//BUCK");

@@ -476,20 +476,20 @@ mod tests {
     }
 }
 
-    #[test]
-    fn test_get_all_cell_patterns() {
-        let cell_json = serde_json::json!({
-            "root": "/Users/jackie/work/project/buck2_test",
-            "toolchains": "/Users/jackie/work/project/buck2_test/toolchains",
-            "prelude": "/Users/jackie/work/project/buck2_test/prelude"
-        });
-        let cells = CellInfo::parse(&serde_json::to_string(&cell_json).unwrap()).unwrap();
+#[test]
+fn test_get_all_cell_patterns() {
+    let cell_json = serde_json::json!({
+        "root": "/Users/jackie/work/project/buck2_test",
+        "toolchains": "/Users/jackie/work/project/buck2_test/toolchains",
+        "prelude": "/Users/jackie/work/project/buck2_test/prelude"
+    });
+    let cells = CellInfo::parse(&serde_json::to_string(&cell_json).unwrap()).unwrap();
 
-        let patterns = cells.get_all_cell_patterns();
-        
-        // Should have patterns for all cells
-        assert_eq!(patterns.len(), 3);
-        assert!(patterns.contains(&"root//...".to_string()));
-        assert!(patterns.contains(&"toolchains//...".to_string()));
-        assert!(patterns.contains(&"prelude//...".to_string()));
-    }
+    let patterns = cells.get_all_cell_patterns();
+
+    // Should have patterns for all cells
+    assert_eq!(patterns.len(), 3);
+    assert!(patterns.contains(&"root//...".to_string()));
+    assert!(patterns.contains(&"toolchains//...".to_string()));
+    assert!(patterns.contains(&"prelude//...".to_string()));
+}
