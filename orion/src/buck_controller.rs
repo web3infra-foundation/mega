@@ -1466,4 +1466,26 @@ mod tests {
             "unexpected error: {err}"
         );
     }
+
+    #[test]
+    fn test_build_command_includes_no_remote_cache_flag() {
+        // Read the source code file to verify the flag exists
+        let source = include_str!("buck_controller.rs");
+
+        // Verify build function includes --no-remote-cache
+        assert!(
+            source.contains(r#".arg("--no-remote-cache")"#),
+            "buck2 build command must include --no-remote-cache flag. \
+             This flag ensures incremental builds always use the latest code changes \
+             and detect syntax errors immediately."
+        );
+
+        // Verify the comment exists to ensure future maintainers understand why
+        assert!(
+            source.contains(
+                "Disable remote cache to ensure we always build with the latest code changes"
+            ),
+            "The --no-remote-cache flag must have a comment explaining why it's needed"
+        );
+    }
 }
