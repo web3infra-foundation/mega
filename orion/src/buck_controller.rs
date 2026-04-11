@@ -904,7 +904,8 @@ pub async fn build(
         // 1. Kill daemon to clear local action cache
         // 2. Use unique isolation-dir to prevent cache sharing between builds
         // 3. Use --no-remote-cache to prevent remote cache usage
-        let isolation_dir = format!(".buck-isolation/{}", id);
+        // Note: Buck2 requires isolation-dir to be a simple directory name without path separators
+        let isolation_dir = format!("buck-isolation-{}", id);
         let mut kill_cmd = Command::new("buck2");
         kill_cmd
             .arg("kill")
@@ -1072,7 +1073,8 @@ pub async fn build(
     .await;
 
     // Cleanup isolation directory to prevent disk space leak
-    let isolation_dir = format!(".buck-isolation/{}", id);
+    // Buck2 creates the isolation directory in the project root
+    let isolation_dir = format!("buck-isolation-{}", id);
     let isolation_path = PathBuf::from(&mount_point)
         .join(&repo_prefix)
         .join(&isolation_dir);
