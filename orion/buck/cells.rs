@@ -271,16 +271,35 @@ impl CellInfo {
     /// Note: Excludes special cells:
     /// - "prelude": Contains build rule definitions, may have parsing issues
     /// - "none": Placeholder cell used for cell aliases, doesn't contain actual build targets
-    /// - "toolchains": May not exist in the main project, only used in test fixtures
-    pub fn get_all_cell_patterns(&self) -> Vec<String> {
+    ///
+    /// Also excludes cells whose directories don't exist in the project root.
+    /// This prevents errors when querying cells that are defined in .buckconfig
+    /// but don't have corresponding directories (e.g., toolchains in test fixtures).
+    pub fn get_all_cell_patterns(&self, project_root: &Path) -> Vec<String> {
         self.cells
-            .keys()
-            .filter(|cell_name| {
+            .iter()
+            .filter(|(cell_name, cell_data)| {
                 let cell_str = cell_name.as_str();
+
                 // Exclude known special/placeholder cells
-                cell_str != "prelude" && cell_str != "none" && cell_str != "toolchains"
+                if cell_str == "prelude" || cell_str == "none" {
+                    return false;
+                }
+
+                // Check if the cell directory actually exists
+                let cell_path = project_root.join(cell_data.path.as_str());
+                if !cell_path.exists() {
+                    tracing::debug!(
+                        "Excluding cell '{}' from query: directory {:?} does not exist",
+                        cell_str,
+                        cell_path
+                    );
+                    return false;
+                }
+
+                true
             })
-            .map(|cell_name| format!("{}//...", cell_name.as_str()))
+            .map(|(cell_name, _)| format!("{}//...", cell_name.as_str()))
             .collect()
     }
 }
@@ -487,39 +506,91 @@ mod tests {
 
     #[test]
     fn test_get_all_cell_patterns() {
+        use std::fs;
+        use std::env;
+
+        let temp_dir = env::temp_dir().join("buck_cells_test_1");
+        let _ = fs::remove_dir_all(&temp_dir); // Clean up if exists
+        fs::create_dir_all(&temp_dir).unwrap();
+        fs::create_dir_all(temp_dir.join("toolchains")).unwrap();
+        fs::create_dir_all(temp_dir.join("prelude")).unwrap();
+
         let cell_json = serde_json::json!({
-            "root": "/repo",
-            "toolchains": "/repo/toolchains",
-            "prelude": "/repo/prelude"
+            "root": temp_dir.to_str().unwrap(),
+            "toolchains": temp_dir.join("toolchains").to_str().unwrap(),
+            "prelude": temp_dir.join("prelude").to_str().unwrap()
         });
         let cells = CellInfo::parse(&serde_json::to_string(&cell_json).unwrap()).unwrap();
 
-        let patterns = cells.get_all_cell_patterns();
+        let patterns = cells.get_all_cell_patterns(&temp_dir);
 
-        // Should have patterns for all cells except prelude (special)
+        // Should have patterns for root and toolchains (both exist), but not prelude (special)
         assert_eq!(patterns.len(), 2);
         assert!(patterns.contains(&"root//...".to_string()));
         assert!(patterns.contains(&"toolchains//...".to_string()));
         assert!(!patterns.contains(&"prelude//...".to_string()));
+
+        // Clean up
+        let _ = fs::remove_dir_all(&temp_dir);
     }
 
     #[test]
     fn test_get_all_cell_patterns_excludes_none_placeholder() {
+        use std::fs;
+        use std::env;
+
+        let temp_dir = env::temp_dir().join("buck_cells_test_2");
+        let _ = fs::remove_dir_all(&temp_dir); // Clean up if exists
+        fs::create_dir_all(&temp_dir).unwrap();
+        fs::create_dir_all(temp_dir.join("toolchains")).unwrap();
+        fs::create_dir_all(temp_dir.join("prelude")).unwrap();
+        fs::create_dir_all(temp_dir.join("none")).unwrap();
+
         let cell_json = serde_json::json!({
-            "root": "/repo",
-            "toolchains": "/repo/toolchains",
-            "prelude": "/repo/prelude",
-            "none": "/repo/none"
+            "root": temp_dir.to_str().unwrap(),
+            "toolchains": temp_dir.join("toolchains").to_str().unwrap(),
+            "prelude": temp_dir.join("prelude").to_str().unwrap(),
+            "none": temp_dir.join("none").to_str().unwrap()
         });
         let cells = CellInfo::parse(&serde_json::to_string(&cell_json).unwrap()).unwrap();
 
-        let patterns = cells.get_all_cell_patterns();
+        let patterns = cells.get_all_cell_patterns(&temp_dir);
 
-        // Should exclude prelude (special) and none (placeholder)
+        // Should exclude prelude (special) and none (placeholder), even though directories exist
         assert_eq!(patterns.len(), 2);
         assert!(patterns.contains(&"root//...".to_string()));
         assert!(patterns.contains(&"toolchains//...".to_string()));
         assert!(!patterns.contains(&"prelude//...".to_string()));
         assert!(!patterns.contains(&"none//...".to_string()));
+
+        // Clean up
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_get_all_cell_patterns_excludes_nonexistent_dirs() {
+        use std::fs;
+        use std::env;
+
+        let temp_dir = env::temp_dir().join("buck_cells_test_3");
+        let _ = fs::remove_dir_all(&temp_dir); // Clean up if exists
+        fs::create_dir_all(&temp_dir).unwrap();
+        // Only create root, not toolchains
+
+        let cell_json = serde_json::json!({
+            "root": temp_dir.to_str().unwrap(),
+            "toolchains": temp_dir.join("toolchains").to_str().unwrap(),
+        });
+        let cells = CellInfo::parse(&serde_json::to_string(&cell_json).unwrap()).unwrap();
+
+        let patterns = cells.get_all_cell_patterns(&temp_dir);
+
+        // Should only have root, since toolchains directory doesn't exist
+        assert_eq!(patterns.len(), 1);
+        assert!(patterns.contains(&"root//...".to_string()));
+        assert!(!patterns.contains(&"toolchains//...".to_string()));
+
+        // Clean up
+        let _ = fs::remove_dir_all(&temp_dir);
     }
 }

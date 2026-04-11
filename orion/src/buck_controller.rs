@@ -266,7 +266,7 @@ fn get_repo_targets(
 
         // If cells info is provided, query all cells; otherwise just query root cell
         if let Some(cells_info) = cells {
-            let cell_patterns = cells_info.get_all_cell_patterns();
+            let cell_patterns = cells_info.get_all_cell_patterns(repo_path);
             tracing::debug!("Querying targets for cells: {:?}", cell_patterns);
             command.args(&cell_patterns);
         } else {
