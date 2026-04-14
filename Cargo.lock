@@ -1175,7 +1175,7 @@ dependencies = [
  "chrono",
  "common",
  "futures",
- "git-internal 0.7.3",
+ "git-internal 0.7.4",
  "hex",
  "io-orbit",
  "jupiter",
@@ -1398,7 +1398,7 @@ dependencies = [
  "config",
  "directories",
  "envsubst",
- "git-internal 0.7.3",
+ "git-internal 0.7.4",
  "idgenerator",
  "pgp 0.15.0",
  "redis",
@@ -2898,9 +2898,9 @@ dependencies = [
 
 [[package]]
 name = "git-internal"
-version = "0.7.3"
+version = "0.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be61243a9a42c5225be504ce2088a7b5d2df8bd6c0e671a17753d7b3b27ee42a"
+checksum = "1f95b77312537adc761499b8013f45ee6f5f7b342e4f9cba7ee8717f9ea55a86"
 dependencies = [
  "ahash 0.8.12",
  "async-trait",
@@ -2930,8 +2930,8 @@ dependencies = [
  "sea-orm",
  "serde",
  "serde_json",
- "sha1 0.10.6",
- "sha2 0.10.9",
+ "sha1 0.11.0",
+ "sha2 0.11.0",
  "similar",
  "tempfile",
  "thiserror 2.0.18",
@@ -3835,7 +3835,7 @@ dependencies = [
  "chrono",
  "common",
  "futures",
- "git-internal 0.7.3",
+ "git-internal 0.7.4",
  "hex",
  "hmac 0.13.0",
  "idgenerator",
@@ -4523,7 +4523,7 @@ dependencies = [
  "ctrlc",
  "ed25519-dalek",
  "futures",
- "git-internal 0.7.3",
+ "git-internal 0.7.4",
  "http",
  "jemallocator",
  "jupiter",
