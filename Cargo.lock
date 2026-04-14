@@ -1051,7 +1051,7 @@ dependencies = [
  "chrono",
  "hex",
  "idgenerator",
- "rand 0.10.0",
+ "rand 0.10.1",
  "sea-orm",
  "serde",
  "sha2 0.11.0",
@@ -1180,7 +1180,7 @@ dependencies = [
  "io-orbit",
  "jupiter",
  "pgp 0.16.0",
- "rand 0.10.0",
+ "rand 0.10.1",
  "regex",
  "reqwest 0.13.2",
  "rkyv 0.8.15",
@@ -3842,7 +3842,7 @@ dependencies = [
  "indexmap 2.13.1",
  "io-orbit",
  "pgp 0.15.0",
- "rand 0.10.0",
+ "rand 0.10.1",
  "redis",
  "redis-test",
  "reqwest 0.13.2",
@@ -4870,7 +4870,7 @@ dependencies = [
  "parking_lot 0.12.5",
  "percent-encoding",
  "quick-xml",
- "rand 0.10.0",
+ "rand 0.10.1",
  "reqwest 0.12.28",
  "ring",
  "rustls-pki-types",
@@ -5043,7 +5043,7 @@ dependencies = [
  "http",
  "io-orbit",
  "once_cell",
- "rand 0.10.0",
+ "rand 0.10.1",
  "sea-orm",
  "serde",
  "serde_json",
@@ -6071,9 +6071,9 @@ dependencies = [
 
 [[package]]
 name = "rand"
-version = "0.10.0"
+version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc266eb313df6c5c09c1c7b1fbe2510961e5bcd3add930c1e31f7ed9da0feff8"
+checksum = "d2e8e8bcc7961af1fdac401278c6a831614941f6164ee3bf4ce61b7edb162207"
 dependencies = [
  "chacha20 0.10.0",
  "getrandom 0.4.2",
@@ -9173,7 +9173,7 @@ checksum = "5ac8b6f42ead25368cf5b098aeb3dc8a1a2c05a3eee8a9a1a68c640edbfc79d9"
 dependencies = [
  "getrandom 0.4.2",
  "js-sys",
- "rand 0.10.0",
+ "rand 0.10.1",
  "serde_core",
  "wasm-bindgen",
 ]
@@ -9196,7 +9196,7 @@ dependencies = [
  "libvault-core",
  "openssl",
  "pgp 0.15.0",
- "rand 0.10.0",
+ "rand 0.10.1",
  "secp256k1",
  "serde",
  "serde_json",
