@@ -31,8 +31,10 @@ mod imp {
     use reqwest::Client;
     use scorpiofs::{AntaresConfig, AntaresManager, AntaresPaths, antares::fuse::AntaresFuse};
     use serde::Deserialize;
-    use tokio::io::AsyncWriteExt;
-    use tokio::sync::{Mutex, OnceCell};
+    use tokio::{
+        io::AsyncWriteExt,
+        sync::{Mutex, OnceCell},
+    };
     use uuid::Uuid;
 
     static MANAGER: OnceCell<Arc<AntaresManager>> = OnceCell::const_new();

@@ -506,8 +506,7 @@ mod tests {
 
     #[test]
     fn test_get_all_cell_patterns() {
-        use std::env;
-        use std::fs;
+        use std::{env, fs};
 
         let temp_dir = env::temp_dir().join("buck_cells_test_1");
         let _ = fs::remove_dir_all(&temp_dir); // Clean up if exists
@@ -536,8 +535,7 @@ mod tests {
 
     #[test]
     fn test_get_all_cell_patterns_excludes_none_placeholder() {
-        use std::env;
-        use std::fs;
+        use std::{env, fs};
 
         let temp_dir = env::temp_dir().join("buck_cells_test_2");
         let _ = fs::remove_dir_all(&temp_dir); // Clean up if exists
@@ -569,8 +567,7 @@ mod tests {
 
     #[test]
     fn test_get_all_cell_patterns_excludes_nonexistent_dirs() {
-        use std::env;
-        use std::fs;
+        use std::{env, fs};
 
         let temp_dir = env::temp_dir().join("buck_cells_test_3");
         let _ = fs::remove_dir_all(&temp_dir); // Clean up if exists

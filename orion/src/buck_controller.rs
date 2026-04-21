@@ -1135,7 +1135,9 @@ pub async fn build(
     let isolation_path = PathBuf::from(&mount_point)
         .join(repo_prefix)
         .join(&isolation_dir);
-    if isolation_path.exists() && let Err(e) = tokio::fs::remove_dir_all(&isolation_path).await {
+    if isolation_path.exists()
+        && let Err(e) = tokio::fs::remove_dir_all(&isolation_path).await
+    {
         tracing::warn!("[Task {}] Failed to cleanup isolation-dir: {}", id, e);
     }
 
