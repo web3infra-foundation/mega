@@ -102,7 +102,7 @@ impl Changes {
     /// - Python manifests: requirements.txt, setup.py, setup.cfg, pyproject.toml, Pipfile, Pipfile.lock
     /// - Go manifests: go.mod, go.sum
     /// - Java/Maven/Gradle manifests: pom.xml, build.gradle, build.gradle.kts, settings.gradle, settings.gradle.kts
-    /// - Configuration files: .buckconfig, .bazelrc, .buckversion
+    /// - Configuration files: .buckroot, .buckconfig, .bazelrc, .buckversion
     /// - Mega project configuration: .mega_cedar.json
     ///
     /// These files affect the entire package, not just individual targets.
@@ -164,7 +164,7 @@ impl Changes {
         }
 
         // Buck/Bazel configuration
-        if matches!(filename, ".buckconfig" | ".bazelrc" | ".buckversion") {
+        if matches!(filename, ".buckroot" | ".buckconfig" | ".bazelrc" | ".buckversion") {
             return true;
         }
 
@@ -800,6 +800,7 @@ mod tests {
 
     #[test]
     fn test_is_package_level_file_config() {
+        assert!(Changes::is_package_level_file(".buckroot"));
         assert!(Changes::is_package_level_file(".buckconfig"));
         assert!(Changes::is_package_level_file(".bazelrc"));
         assert!(Changes::is_package_level_file(".buckversion"));
@@ -976,6 +977,22 @@ mod tests {
         assert!(
             changes.contains_package(&package),
             ".buckconfig changes should trigger package rebuild"
+        );
+    }
+
+    #[test]
+    fn test_contains_package_with_buckroot() {
+        let cells = CellInfo::testing();
+        let changes = Changes::new(
+            &cells,
+            vec![Status::Modified(ProjectRelativePath::new(".buckroot"))],
+        )
+        .unwrap();
+
+        let package = Package::new("root//");
+        assert!(
+            changes.contains_package(&package),
+            ".buckroot changes should trigger package rebuild"
         );
     }
 }

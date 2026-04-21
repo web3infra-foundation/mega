@@ -1378,6 +1378,30 @@ mod tests {
 
     #[tokio::test]
     #[serial]
+    async fn test_get_build_targets_detects_buckroot_change_as_package_level_impact() {
+        let (_tempdir, old_root, new_root) = isolated_buck_scope_fixture();
+        fs::write(new_root.join(".buckroot"), "# touched by test\n").expect("rewrite .buckroot");
+
+        let targets = get_build_targets(
+            old_root.to_str().expect("old fixture path"),
+            new_root.to_str().expect("new fixture path"),
+            vec![Status::Modified(ProjectRelativePath::new(".buckroot"))],
+        )
+        .await
+        .expect("target discovery should complete");
+
+        assert!(
+            targets.contains(&TargetLabel::new("root//:explicit_main")),
+            "expected .buckroot change to rebuild root//:explicit_main, got {targets:?}"
+        );
+        assert!(
+            targets.contains(&TargetLabel::new("root//:globbed_lib")),
+            "expected .buckroot change to rebuild root//:globbed_lib, got {targets:?}"
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
     async fn test_get_build_targets_ignores_added_file_outside_buck_scope() {
         let (_tempdir, old_root, new_root) = isolated_buck_scope_fixture();
         let new_file = new_root.join("notes/added.txt");
