@@ -482,12 +482,11 @@ pub fn try_tier2_diff_hunk_shift(
                     }
                     orig_pos += 1;
                 }
-                Some('+') => {
+                Some('+') if orig_pos <= anchor_orig_line_position => {
                     // Added lines before anchor increase offset
-                    if orig_pos <= anchor_orig_line_position {
-                        line_offset += 1;
-                    }
+                    line_offset += 1;
                 }
+                Some('+') => {}
                 Some(' ') | None => {
                     // Context line
                     if orig_pos == anchor_orig_line_position {

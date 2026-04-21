@@ -1133,12 +1133,10 @@ pub async fn build(
     // Buck2 creates the isolation directory in the project root
     let isolation_dir = format!("buck-isolation-{}", id);
     let isolation_path = PathBuf::from(&mount_point)
-        .join(&repo_prefix)
+        .join(repo_prefix)
         .join(&isolation_dir);
-    if isolation_path.exists() {
-        if let Err(e) = tokio::fs::remove_dir_all(&isolation_path).await {
-            tracing::warn!("[Task {}] Failed to cleanup isolation-dir: {}", id, e);
-        }
+    if isolation_path.exists() && let Err(e) = tokio::fs::remove_dir_all(&isolation_path).await {
+        tracing::warn!("[Task {}] Failed to cleanup isolation-dir: {}", id, e);
     }
 
     tracing::info!(
