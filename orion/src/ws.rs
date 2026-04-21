@@ -1,8 +1,9 @@
-use std::{ops::ControlFlow, time::Duration};
+use std::{io, ops::ControlFlow, time::Duration};
 
 use api_model::buck2::ws::WSMessage;
 use futures_util::{SinkExt, StreamExt};
 use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
     sync::{
         mpsc,
@@ -10,11 +11,23 @@ use tokio::{
     },
 };
 use tokio_tungstenite::{
-    MaybeTlsStream, WebSocketStream, connect_async, tungstenite::protocol::Message,
+    MaybeTlsStream, WebSocketStream, client_async_tls_with_config,
+    tungstenite::{
+        client::IntoClientRequest,
+        error::{Error as WsError, UrlError},
+        handshake::client::{Request, Response},
+        protocol::Message,
+    },
 };
+use url::Url;
 use uuid::Uuid;
 
 use crate::api::buck_build;
+
+const WS_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+const PROXY_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+const PROXY_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
+const PROXY_RESPONSE_MAX_BYTES: usize = 8 * 1024;
 
 /// Manages persistent WebSocket connection with automatic reconnection.
 ///
@@ -30,7 +43,7 @@ pub async fn run_client(server_addr: String, worker_id: String) {
 
     loop {
         tracing::info!("Attempting to connect to server: {}", server_addr);
-        match connect_async(&server_addr).await {
+        match connect_async_maybe_via_proxy(&server_addr).await {
             Ok((ws_stream, response)) => {
                 tracing::info!(
                     "WebSocket handshake successful. Server response: {:?}",
@@ -54,6 +67,179 @@ pub async fn run_client(server_addr: String, worker_id: String) {
         tokio::time::sleep(reconnect_delay).await;
         reconnect_delay = (reconnect_delay * 2).min(MAX_RECONNECT_DELAY);
     }
+}
+
+async fn connect_async_maybe_via_proxy(
+    server_addr: &str,
+) -> Result<(WebSocketStream<MaybeTlsStream<TcpStream>>, Response), WsError> {
+    if let Some(proxy_url) = proxy_url_for(server_addr) {
+        tracing::info!(
+            "Connecting to WebSocket server via proxy {} -> {}",
+            proxy_url,
+            server_addr
+        );
+        return connect_async_via_proxy(server_addr, &proxy_url).await;
+    }
+
+    tracing::info!("Connecting to WebSocket server directly: {}", server_addr);
+    connect_async_direct(server_addr).await
+}
+
+fn proxy_url_for(server_addr: &str) -> Option<String> {
+    let secure = server_addr.starts_with("wss://");
+    let preferred = if secure { "HTTPS_PROXY" } else { "HTTP_PROXY" };
+    std::env::var(preferred)
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| {
+            std::env::var("ALL_PROXY")
+                .ok()
+                .filter(|value| !value.trim().is_empty())
+        })
+}
+
+fn websocket_request(server_addr: &str) -> Result<(Request, String, u16), WsError> {
+    let request = server_addr.into_client_request()?;
+    let host = request
+        .uri()
+        .host()
+        .ok_or(WsError::Url(UrlError::NoHostName))?
+        .to_string();
+    let port = request
+        .uri()
+        .port_u16()
+        .or_else(|| match request.uri().scheme_str() {
+            Some("wss") => Some(443),
+            Some("ws") => Some(80),
+            _ => None,
+        })
+        .ok_or(WsError::Url(UrlError::UnsupportedUrlScheme))?;
+
+    Ok((request, host, port))
+}
+
+async fn connect_async_direct(
+    server_addr: &str,
+) -> Result<(WebSocketStream<MaybeTlsStream<TcpStream>>, Response), WsError> {
+    let (request, host, port) = websocket_request(server_addr)?;
+    let stream = tokio::time::timeout(
+        WS_CONNECT_TIMEOUT,
+        TcpStream::connect((host.as_str(), port)),
+    )
+    .await
+    .map_err(|_| {
+        WsError::Io(io::Error::new(
+            io::ErrorKind::TimedOut,
+            format!("Timed out connecting directly to {host}:{port}"),
+        ))
+    })?
+    .map_err(WsError::Io)?;
+    client_async_tls_with_config(request, stream, None, None).await
+}
+
+async fn connect_async_via_proxy(
+    server_addr: &str,
+    proxy_url: &str,
+) -> Result<(WebSocketStream<MaybeTlsStream<TcpStream>>, Response), WsError> {
+    let (request, host, port) = websocket_request(server_addr)?;
+    let proxy = Url::parse(proxy_url).map_err(|err| {
+        WsError::Io(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("Invalid proxy URL {proxy_url}: {err}"),
+        ))
+    })?;
+    let proxy_host = proxy.host_str().ok_or_else(|| {
+        WsError::Io(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("Proxy URL has no host: {proxy_url}"),
+        ))
+    })?;
+    let proxy_port = proxy.port_or_known_default().ok_or_else(|| {
+        WsError::Io(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("Proxy URL has no port: {proxy_url}"),
+        ))
+    })?;
+
+    if !proxy.username().is_empty() || proxy.password().is_some() {
+        return Err(WsError::Io(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "Proxy authentication is not yet supported for WebSocket connections",
+        )));
+    }
+
+    let mut stream = tokio::time::timeout(
+        PROXY_CONNECT_TIMEOUT,
+        TcpStream::connect((proxy_host, proxy_port)),
+    )
+    .await
+    .map_err(|_| {
+        WsError::Io(io::Error::new(
+            io::ErrorKind::TimedOut,
+            format!("Timed out connecting to proxy {proxy_host}:{proxy_port}"),
+        ))
+    })?
+    .map_err(WsError::Io)?;
+
+    let authority = format!("{host}:{port}");
+    let connect_request = format!(
+        "CONNECT {authority} HTTP/1.1\r\nHost: {authority}\r\nProxy-Connection: Keep-Alive\r\n\r\n"
+    );
+    tokio::time::timeout(
+        PROXY_HANDSHAKE_TIMEOUT,
+        stream.write_all(connect_request.as_bytes()),
+    )
+    .await
+    .map_err(|_| {
+        WsError::Io(io::Error::new(
+            io::ErrorKind::TimedOut,
+            format!("Timed out sending CONNECT request to proxy for {authority}"),
+        ))
+    })?
+    .map_err(WsError::Io)?;
+
+    let mut response = Vec::new();
+    let mut chunk = [0u8; 1024];
+    loop {
+        if response.windows(4).any(|window| window == b"\r\n\r\n") {
+            break;
+        }
+        if response.len() >= PROXY_RESPONSE_MAX_BYTES {
+            return Err(WsError::Io(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("Proxy CONNECT response exceeded {PROXY_RESPONSE_MAX_BYTES} bytes"),
+            )));
+        }
+
+        let bytes_read = tokio::time::timeout(PROXY_HANDSHAKE_TIMEOUT, stream.read(&mut chunk))
+            .await
+            .map_err(|_| {
+                WsError::Io(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    format!("Timed out waiting for proxy CONNECT response for {authority}"),
+                ))
+            })?
+            .map_err(WsError::Io)?;
+
+        if bytes_read == 0 {
+            return Err(WsError::Io(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                format!("Proxy closed connection before CONNECT completed for {authority}"),
+            )));
+        }
+        response.extend_from_slice(&chunk[..bytes_read]);
+    }
+
+    let response_text = String::from_utf8_lossy(&response);
+    let status_line = response_text.lines().next().unwrap_or_default();
+    if !status_line.contains(" 200 ") {
+        return Err(WsError::Io(io::Error::new(
+            io::ErrorKind::ConnectionRefused,
+            format!("Proxy CONNECT failed for {authority}: {status_line}"),
+        )));
+    }
+
+    client_async_tls_with_config(request, stream, None, None).await
 }
 
 /// Processes an established WebSocket connection.

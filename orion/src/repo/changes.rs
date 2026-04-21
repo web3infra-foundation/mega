@@ -164,7 +164,10 @@ impl Changes {
         }
 
         // Buck/Bazel configuration
-        if matches!(filename, ".buckroot" | ".buckconfig" | ".bazelrc" | ".buckversion") {
+        if matches!(
+            filename,
+            ".buckroot" | ".buckconfig" | ".bazelrc" | ".buckversion"
+        ) {
             return true;
         }
 
