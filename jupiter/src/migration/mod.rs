@@ -96,18 +96,11 @@ mod m20260316_120000_add_bot_tokens_token_hash_index;
 mod m20260324_024559_add_notes;
 mod m20260324_033322_fix_migration;
 mod m20260327_034553_drop_legacy_tasks;
+mod m20260413_033315_create_artifact_tables;
 mod runner;
 pub use runner::apply_migrations;
 
-/// Creates a primary key column definition with big integer type.
-///
-/// # Arguments
-///
-/// * `name` - The name of the column that implements `IntoIden`
-///
-/// # Returns
-///
-/// A `ColumnDef` configured as a primary key big integer column
+/// Primary key `BIGINT` (not DB auto-increment); the application assigns `id` (e.g. `idgenerator::IdInstance::next_id`).
 fn pk_bigint<T: IntoIden>(name: T) -> ColumnDef {
     big_integer(name).primary_key().take()
 }
@@ -187,167 +180,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260324_024559_add_notes::Migration),
             Box::new(m20260324_033322_fix_migration::Migration),
             Box::new(m20260327_034553_drop_legacy_tasks::Migration),
+            Box::new(m20260413_033315_create_artifact_tables::Migration),
         ]
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use callisto::{
-        email_jobs, notification_event_types, user_notification_preferences,
-        user_notification_settings,
-    };
-    use sea_orm::{ActiveModelTrait, ConnectionTrait, DbBackend, Set, Statement};
-
-    use super::*;
-    use crate::tests::test_db_connection;
-
-    #[tokio::test]
-    async fn test_apply_migrations() {
-        let temp_dir = tempfile::TempDir::new().expect("Failed to create temporary directory");
-        let db = test_db_connection(temp_dir.path()).await;
-        // Apply migrations to the mock database
-        let result = apply_migrations(&db, false).await;
-        assert!(
-            result.is_ok(),
-            "Failed to apply migrations: {:?}",
-            result.err()
-        );
-
-        // Verify that the migrations were applied correctly
-        let applied_migrations = Migrator::get_applied_migrations(&db).await.unwrap();
-        assert!(!applied_migrations.is_empty(), "No migrations were applied");
-
-        // Additional assertions can be added here to verify the state of the database
-    }
-
-    #[tokio::test]
-    async fn test_notification_center_schema_and_constraints() {
-        let temp_dir = tempfile::TempDir::new().expect("Failed to create temporary directory");
-        let db = test_db_connection(temp_dir.path()).await;
-
-        apply_migrations(&db, true)
-            .await
-            .expect("migrations should apply");
-
-        db.execute(Statement::from_string(
-            DbBackend::Sqlite,
-            "PRAGMA foreign_keys = ON;",
-        ))
-        .await
-        .expect("enable sqlite foreign_keys");
-
-        // Verify tables exist
-        for table in [
-            "notification_event_types",
-            "user_notification_settings",
-            "user_notification_preferences",
-            "email_jobs",
-        ] {
-            let stmt = Statement::from_string(
-                DbBackend::Sqlite,
-                format!(
-                    "SELECT name FROM sqlite_master WHERE type='table' AND name='{}' LIMIT 1;",
-                    table
-                ),
-            );
-            let row = db.query_one(stmt).await.expect("query sqlite_master");
-            assert!(row.is_some(), "expected table '{table}' to exist");
-        }
-
-        let now = chrono::Utc::now().naive_utc();
-
-        // Insert an event type to satisfy FKs in other tables
-        notification_event_types::ActiveModel {
-            code: Set("cl.comment.created".to_owned()),
-            category: Set("cl".to_owned()),
-            description: Set("New comment on a CL".to_owned()),
-            system_required: Set(false),
-            default_enabled: Set(true),
-            created_at: Set(now),
-            updated_at: Set(now),
-        }
-        .insert(&db)
-        .await
-        .expect("insert event type");
-
-        // Insert user settings referencing the event type
-        user_notification_settings::ActiveModel {
-            username: Set("alice".to_owned()),
-            email: Set("alice@example.com".to_owned()),
-            enabled: Set(true),
-            delivery_mode: Set("realtime".to_owned()),
-            created_at: Set(now),
-            updated_at: Set(now),
-        }
-        .insert(&db)
-        .await
-        .expect("insert user settings");
-
-        // Insert a preference override referencing both user + event type
-        user_notification_preferences::ActiveModel {
-            username: Set("alice".to_owned()),
-            event_type_code: Set("cl.comment.created".to_owned()),
-            enabled: Set(false),
-            created_at: Set(now),
-            updated_at: Set(now),
-        }
-        .insert(&db)
-        .await
-        .expect("insert user preference");
-
-        // FK should reject unknown event type in user_notification_preferences
-        let res = user_notification_preferences::ActiveModel {
-            username: Set("alice".to_owned()),
-            event_type_code: Set("does.not.exist".to_owned()),
-            enabled: Set(true),
-            created_at: Set(now),
-            updated_at: Set(now),
-        }
-        .insert(&db)
-        .await;
-        assert!(res.is_err(), "expected FK violation for unknown event type");
-
-        // Insert an email job referencing event type
-        email_jobs::ActiveModel {
-            id: Default::default(),
-            username: Set("alice".to_owned()),
-            to_email: Set("alice@example.com".to_owned()),
-            event_type_code: Set("cl.comment.created".to_owned()),
-            subject: Set("Test".to_owned()),
-            body_html: Set("<p>Hello</p>".to_owned()),
-            body_text: Set(Some("Hello".to_owned())),
-            status: Set("pending".to_owned()),
-            error_message: Set(None),
-            retry_count: Set(0),
-            next_retry_at: Set(None),
-            sent_at: Set(None),
-            created_at: Set(now),
-            updated_at: Set(now),
-        }
-        .insert(&db)
-        .await
-        .expect("insert email job");
-
-        // FK should reject unknown event type in email_jobs
-        let res = email_jobs::ActiveModel {
-            id: Default::default(),
-            username: Set("alice".to_owned()),
-            to_email: Set("alice@example.com".to_owned()),
-            event_type_code: Set("does.not.exist".to_owned()),
-            subject: Set("Test".to_owned()),
-            body_html: Set("<p>Hello</p>".to_owned()),
-            body_text: Set(None),
-            status: Set("pending".to_owned()),
-            error_message: Set(None),
-            retry_count: Set(0),
-            next_retry_at: Set(None),
-            sent_at: Set(None),
-            created_at: Set(now),
-            updated_at: Set(now),
-        }
-        .insert(&db)
-        .await;
-        assert!(res.is_err(), "expected FK violation for unknown event type");
     }
 }

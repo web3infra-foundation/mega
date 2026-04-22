@@ -15,13 +15,14 @@ set -euo pipefail
 #   - QEMU (usually auto-installed by Docker Desktop)
 #
 # Usage:
-#   ./scripts/demo/build-demo-images-local.sh [IMAGE_NAME] [--push]
+#   ./scripts/demo/build-demo-images-local.sh [IMAGE_NAME] [--push] [--prune-buildkit]
 #
 #   Examples:
 #     ./scripts/demo/build-demo-images-local.sh              # Build all images locally
 #     ./scripts/demo/build-demo-images-local.sh --push       # Build and push all images
 #     ./scripts/demo/build-demo-images-local.sh mono-engine  # Build mono-engine locally
 #     ./scripts/demo/build-demo-images-local.sh mono-engine --push  # Build and push mono-engine
+#     ./scripts/demo/build-demo-images-local.sh --prune-buildkit     # Build and prune buildkit cache after build
 #
 #   If IMAGE_NAME is provided, only that image will be built.
 #   Otherwise, all 4 images will be built.
@@ -39,6 +40,7 @@ REGISTRY_ALIAS="m8q5m4u3"
 REPOSITORY="mega"
 REGISTRY="public.ecr.aws"
 SHOULD_PUSH=false  # Default: only build, don't push
+SHOULD_PRUNE_BUILDKIT=false  # Optional: prune buildkit cache after build
 
 # Auto-detect platform if not explicitly set
 # The script automatically detects your machine architecture and sets the appropriate platform
@@ -220,6 +222,43 @@ setup_buildx() {
     log_info "Buildx setup complete ✓"
 }
 
+rotate_local_cache_dir() {
+    local cache_dir=$1
+    local cache_dir_new="${cache_dir}-new"
+
+    # BuildKit local cache grows monotonically if we keep writing into the same directory.
+    # Rotate to a temporary directory and replace atomically so stale layers are dropped.
+    if [ -d "${cache_dir_new}" ]; then
+        rm -rf "${cache_dir_new}"
+    fi
+    mkdir -p "${cache_dir_new}"
+    echo "${cache_dir_new}"
+}
+
+finalize_local_cache_dir() {
+    local cache_dir=$1
+    local cache_dir_new="${cache_dir}-new"
+
+    if [ -d "${cache_dir_new}" ]; then
+        rm -rf "${cache_dir}"
+        mv "${cache_dir_new}" "${cache_dir}"
+    fi
+}
+
+prune_buildkit_cache() {
+    if [ "${SHOULD_PRUNE_BUILDKIT}" != "true" ]; then
+        return 0
+    fi
+
+    log_info "Pruning BuildKit cache (builder: mega-builder, filter: unused for 24h)..."
+    if ! docker buildx prune --builder mega-builder --force --filter "until=24h" >/dev/null 2>&1; then
+        log_warn "BuildKit cache prune failed. You can retry manually: docker buildx prune --builder mega-builder --force"
+        return 0
+    fi
+
+    log_info "BuildKit cache prune complete ✓"
+}
+
 login_ecr() {
     log_info "Logging in to Amazon ECR Public..."
     
@@ -261,6 +300,7 @@ build_and_push() {
     local image_tag_with_arch="${image_tag}-${arch_suffix}"
     local image_repo="${REGISTRY}/${REGISTRY_ALIAS}/${REPOSITORY}/${image_name}"
     local cache_dir="${REPO_ROOT}/.buildx-cache/${image_name}-${arch_suffix}"
+    local cache_dir_export=""
     
     # Verify paths exist (use absolute paths)
     local full_dockerfile="${REPO_ROOT}/${dockerfile_path}"
@@ -360,8 +400,9 @@ build_and_push() {
 
     # Persist BuildKit cache across builder recreation to speed up local rebuilds.
     mkdir -p "${cache_dir}"
+    cache_dir_export=$(rotate_local_cache_dir "${cache_dir}")
     build_args+=(--cache-from "type=local,src=${cache_dir}")
-    build_args+=(--cache-to "type=local,dest=${cache_dir},mode=max")
+    build_args+=(--cache-to "type=local,dest=${cache_dir_export},mode=max")
 
     # Add cache-to (inline cache is always useful)
     build_args+=(--cache-to type=inline)
@@ -376,6 +417,7 @@ build_and_push() {
         log_error "Failed to build ${image_name}"
         return 1
     fi
+    finalize_local_cache_dir "${cache_dir}"
 
     # Push if requested (ensures single-arch manifest is uploaded)
     if [ "$SHOULD_PUSH" = "true" ]; then
@@ -440,6 +482,8 @@ main() {
     for arg in "$@"; do
         if [ "$arg" = "--push" ]; then
             SHOULD_PUSH=true
+        elif [ "$arg" = "--prune-buildkit" ]; then
+            SHOULD_PRUNE_BUILDKIT=true
         else
             args+=("$arg")
         fi
@@ -460,6 +504,9 @@ main() {
     else
         log_info "Mode: Build only (local)"
     fi
+    if [ "$SHOULD_PRUNE_BUILDKIT" = "true" ]; then
+        log_info "Extra: BuildKit cache prune enabled"
+    fi
     echo ""
     
     check_prerequisites
@@ -475,6 +522,7 @@ main() {
         local image_name="${args[0]}"
         if is_valid_image "$image_name"; then
             if build_and_push "$image_name"; then
+                prune_buildkit_cache
                 log_info "Done!"
                 exit 0
             else
@@ -488,6 +536,7 @@ main() {
         fi
     elif [ ${#args[@]} -eq 0 ]; then
         if build_all; then
+            prune_buildkit_cache
             log_info "Done!"
             exit 0
         else

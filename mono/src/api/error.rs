@@ -166,6 +166,8 @@ where
                 "403" => ApiError::with_status(StatusCode::FORBIDDEN, anyhow_err),
                 "404" => ApiError::not_found(anyhow_err),
                 "409" => ApiError::with_status(StatusCode::CONFLICT, anyhow_err),
+                "413" => ApiError::with_status(StatusCode::PAYLOAD_TOO_LARGE, anyhow_err),
+                "416" => ApiError::with_status(StatusCode::RANGE_NOT_SATISFIABLE, anyhow_err),
                 "500" => ApiError::internal(anyhow_err),
                 _ => ApiError::internal(anyhow_err),
             };

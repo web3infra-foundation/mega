@@ -4,14 +4,15 @@ use std::{
 };
 
 use common::config::Config;
+use io_orbit::factory::MegaObjectStorageWrapper;
 use sea_orm::{ConnectOptions, Database, DatabaseConnection};
 use tracing::log;
 
 use crate::{
     migration::apply_migrations,
     service::{
-        buck_service::BuckService, cl_service::CLService, cla_service::ClaService,
-        code_review_service::CodeReviewService, git_service::GitService,
+        artifact_service::ArtifactService, buck_service::BuckService, cl_service::CLService,
+        cla_service::ClaService, code_review_service::CodeReviewService, git_service::GitService,
         import_service::ImportService, issue_service::IssueService, lfs_service::LfsService,
         merge_queue_service::MergeQueueService, mono_service::MonoService,
         webhook_service::WebhookService,
@@ -105,6 +106,7 @@ pub async fn test_storage(temp_dir: impl AsRef<Path>) -> Storage {
         issue_service: IssueService::mock(),
         cl_service: CLService::mock(),
         merge_queue_service: MergeQueueService::mock(),
+        artifact_service: ArtifactService::new(base.clone(), MegaObjectStorageWrapper::mock()),
         buck_service: BuckService::mock(),
         config: Arc::downgrade(&config),
         git_service: GitService::mock(),

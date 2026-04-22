@@ -44,6 +44,8 @@ pub enum ObjectNamespace {
     Git,
     Lfs,
     Log,
+    /// Artifact protocol objects (`docs/artifacts-protocol.md`), keyed by UUID string.
+    Artifact,
 }
 
 impl ObjectNamespace {
@@ -52,6 +54,7 @@ impl ObjectNamespace {
             ObjectNamespace::Git => "git",
             ObjectNamespace::Lfs => "lfs",
             ObjectNamespace::Log => "log",
+            ObjectNamespace::Artifact => "artifact",
         }
     }
 }
@@ -102,6 +105,11 @@ pub type MultiObjectByteStream<'a> = Pin<
 #[async_trait::async_trait]
 pub trait MegaObjectStorage: Send + Sync {
     // fn as_any(&self) -> &dyn Any;
+
+    /// Whether presigned GET/PUT URLs can be generated (e.g. S3/GCS). Local disk returns `false`.
+    fn supports_presigned_urls(&self) -> bool {
+        false
+    }
 
     /// Upload a single object to the storage backend.
     ///
@@ -309,6 +317,18 @@ mod tests {
         };
 
         assert_eq!(key.default_sharding(), "git/ab/cd/ef/1234567890");
+    }
+
+    #[test]
+    fn test_s3_key_artifact_uuid() {
+        let key = ObjectKey {
+            namespace: ObjectNamespace::Artifact,
+            key: "550e8400-e29b-41d4-a716-446655440000".to_string(),
+        };
+        assert_eq!(
+            key.default_sharding(),
+            "artifact/55/0e/84/00-e29b-41d4-a716-446655440000"
+        );
     }
 
     #[test]

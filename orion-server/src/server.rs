@@ -59,11 +59,7 @@ pub async fn init_log_service(config: Config) -> Result<LogService, MegaError> {
             false,
         ),
         "mix" => {
-            let object_store_wrapper = ObjectStorageFactory::build(
-                config.orion_server.unwrap_or_default().storage_type,
-                &config.object_storage,
-            )
-            .await?;
+            let object_store_wrapper = ObjectStorageFactory::build(&config.object_storage).await?;
             (
                 Arc::new(local_log_store::LocalLogStore::new(&build_log_dir)),
                 Arc::new(IoOrbitLogStore::new(object_store_wrapper)),

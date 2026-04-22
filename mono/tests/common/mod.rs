@@ -413,7 +413,6 @@ sqlx_logging = false
 import_dir = "/tmp/mega/import"
 admin = ["admin"]
 root_dirs = ["third-party", "project", "doc", "release"]
-storage_type = "local"
 
 [build]
 enable_build = true
@@ -427,7 +426,6 @@ clean_cache_after_decode = true
 channel_message_size = 1000000
 
 [lfs]
-storage_type = "local"
 
 [lfs.ssh]
 http_url = "http://localhost:8000"
@@ -436,6 +434,7 @@ http_url = "http://localhost:8000"
 lfs_file_path = "/tmp/mega/lfs"
 
 [object_storage]
+storage_type = "local"
 
 [object_storage.s3]
 region = "us-east-1"

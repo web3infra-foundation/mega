@@ -5,24 +5,12 @@
 
 CONFIG_FILE="/opt/mega/etc/config.toml"
 
-# Get endpoint & credentials from environment variables or use defaults
-ENDPOINT_URL="${OBJECT_STORAGE_S3__ENDPOINT_URL:-http://rustfs:9000}"
-ACCESS_KEY="${S3_ACCESS_KEY_ID:-rustfsadmin}"
-SECRET_KEY="${S3_SECRET_ACCESS_KEY:-rustfsadmin}"
-BUCKET_NAME="${OBJECT_STORAGE_S3__BUCKET:-mega}"
-
-# Wait for RustFS to be ready (with timeout)
-echo "Waiting for RustFS to be ready..."
-for i in {1..30}; do
-    if curl -s -f "${ENDPOINT_URL}/health" > /dev/null 2>&1; then
-        echo "RustFS is ready"
-        break
-    fi
-    if [ $i -eq 30 ]; then
-        echo "Warning: RustFS may not be ready, continuing anyway..."
-    fi
-    sleep 1
-done
+# Get endpoint & credentials from environment variables or use defaults.
+# Prefer current keys (MEGA_OBJECT_STORAGE__S3__*), keep legacy fallback for compatibility.
+ENDPOINT_URL="${MEGA_OBJECT_STORAGE__S3__ENDPOINT_URL:-${OBJECT_STORAGE_S3__ENDPOINT_URL:-http://rustfs:9000}}"
+ACCESS_KEY="${MEGA_OBJECT_STORAGE__S3__ACCESS_KEY_ID:-${S3_ACCESS_KEY_ID:-rustfsadmin}}"
+SECRET_KEY="${MEGA_OBJECT_STORAGE__S3__SECRET_ACCESS_KEY:-${S3_SECRET_ACCESS_KEY:-rustfsadmin}}"
+BUCKET_NAME="${MEGA_OBJECT_STORAGE__S3__BUCKET:-${OBJECT_STORAGE_S3__BUCKET:-mega}}"
 
 # Fix config.toml if it exists
 if [ -f "$CONFIG_FILE" ]; then

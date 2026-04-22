@@ -32,7 +32,7 @@ async-trait = { workspace = true }
 bytes = { workspace = true }
 chrono = { workspace = true }
 futures = { workspace = true }
-percent-encoding = "2.3"
+percent-encoding = { workspace = true }
 axum = { workspace = true }
 tower = { workspace = true }
 tracing = { workspace = true }
@@ -49,7 +49,12 @@ tower-http = { workspace = true, features = [
     "decompression-full",
 ] }
 axum-extra = { workspace = true, features = ["typed-header"] }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread", "net", "signal"] }
+tokio = { workspace = true, features = [
+    "macros",
+    "rt-multi-thread",
+    "net",
+    "signal",
+] }
 tokio-stream = { workspace = true }
 tokio-util = { workspace = true }
 uuid = { workspace = true }
@@ -76,4 +81,4 @@ mimalloc = { workspace = true }
 
 [dev-dependencies]
 qlean = { workspace = true }
-tempfile = "3"
+tempfile = { workspace = true }

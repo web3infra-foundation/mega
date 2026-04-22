@@ -1,3 +1,4 @@
+pub mod artifact_service;
 pub mod buck_service;
 pub mod cl_service;
 pub mod cla_service;
