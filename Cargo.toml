@@ -128,7 +128,7 @@ rustls = "0.23"
 object_store = "0.13.2"
 parse-display = "0.10.0"
 qlean = "0.2.3"
-toml = "0.9.12"
+toml = "1.1.2"
 rkyv = "0.8.15"
 percent-encoding = "2.3"
 
