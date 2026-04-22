@@ -58,7 +58,7 @@ async-stream = "0.3.6"
 async-recursion = "1.1.1"
 futures = "0.3.32"
 futures-util = "0.3.32"
-axum = { version = "0.8.8", features = ["macros", "json"] }
+axum = { version = "0.8.9", features = ["macros", "json"] }
 axum-extra = "0.12.5"
 russh = "0.55.0"
 tower-http = "0.6.8"
