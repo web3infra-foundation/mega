@@ -25,7 +25,7 @@ url = { workspace = true }
 uuid = { workspace = true, features = ["v4"] }
 anyhow = { workspace = true }
 itertools = { workspace = true }
-parse-display = "0.8.2"
+parse-display = "0.10.0"
 audit = { path = "./audit" }
 td_util = { path = "./td_util" }
 td_util_buck = { path = "./buck" }
