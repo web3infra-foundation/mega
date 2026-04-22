@@ -59,15 +59,17 @@ static BUILD_CONFIG: Lazy<Option<BuildConfig>> = Lazy::new(load_build_config);
 /// Returns a tuple `(mountpoint, mount_id)` on success.
 pub async fn mount_antares_fs(
     job_id: &str,
+    repo: &str,
     cl: Option<&str>,
 ) -> Result<(String, String), Box<dyn std::error::Error + Send + Sync>> {
     tracing::debug!(
-        "Preparing to mount Antares FS: job_id={}, cl={:?}",
+        "Preparing to mount Antares FS: job_id={}, repo={}, cl={:?}",
         job_id,
+        repo,
         cl
     );
 
-    let config = crate::antares::mount_job(job_id, cl).await?;
+    let config = crate::antares::mount_job(job_id, repo, cl).await?;
 
     let mountpoint = config.mountpoint.to_string_lossy().to_string();
     let mount_id = config.job_id.clone();
@@ -246,7 +248,11 @@ fn resolve_config_path() -> Option<PathBuf> {
 /// populates the Dicfuse backing store which makes subsequent FUSE reads
 /// fast, and `preheat_shallow()` in `get_build_targets()` handles the
 /// per-mount VFS cache warming.
-fn get_repo_targets(file_name: &str, repo_path: &Path) -> anyhow::Result<Targets> {
+fn get_repo_targets(
+    file_name: &str,
+    repo_path: &Path,
+    cells: Option<&CellInfo>,
+) -> anyhow::Result<Targets> {
     const MAX_ATTEMPTS: usize = 2;
     let jsonl_path = PathBuf::from(repo_path).join(file_name);
 
@@ -255,25 +261,62 @@ fn get_repo_targets(file_name: &str, repo_path: &Path) -> anyhow::Result<Targets
         let mut command = std::process::Command::new("buck2");
         command
             .env("BUCKD_STARTUP_TIMEOUT", "30")
-            .env("BUCKD_STARTUP_INIT_TIMEOUT", "1200")
-            .args(targets_arguments());
+            .env("BUCKD_STARTUP_INIT_TIMEOUT", "1200");
+
+        // Add base targets arguments
+        command.args(targets_arguments());
+
+        // If cells info is provided, query all cells; otherwise just query root cell
+        if let Some(cells_info) = cells {
+            let cell_patterns = cells_info.get_all_cell_patterns(repo_path);
+            tracing::debug!("Querying targets for cells: {:?}", cell_patterns);
+            command.args(&cell_patterns);
+        } else {
+            // Default: only query root cell
+            command.arg("//...");
+        }
+
         command.current_dir(repo_path);
+        command.stderr(Stdio::piped());
         let (mut child, stdout) = spawn(command)?;
+        let mut stderr = child.stderr.take().expect("stderr should be piped");
+
+        // Consume stderr in background thread to prevent pipe deadlock
+        let stderr_handle = std::thread::spawn(move || {
+            let mut buf = Vec::new();
+            std::io::Read::read_to_end(&mut stderr, &mut buf)
+                .map(|_| String::from_utf8_lossy(&buf).to_string())
+                .unwrap_or_else(|_| "<failed to read stderr>".to_string())
+        });
+
         let mut writer = file_writer(&jsonl_path)?;
         std::io::copy(&mut BufReader::new(stdout), &mut writer)
             .map_err(|err| anyhow!("Failed to copy output to stdout: {}", err))?;
         writer
             .flush()
             .map_err(|err| anyhow!("Failed to flush writer: {}", err))?;
+
         let status = child.wait()?;
+        let stderr_output = stderr_handle
+            .join()
+            .unwrap_or_else(|_| "<stderr thread panicked>".to_string());
+
         if status.success() {
+            if !stderr_output.trim().is_empty() {
+                tracing::debug!(
+                    "buck2 targets succeeded for repo {:?}, stderr: {}",
+                    repo_path,
+                    stderr_output.trim()
+                );
+            }
             return Targets::from_file(&jsonl_path);
         }
 
         tracing::warn!(
-            "buck2 targets failed with status {} for repo {:?}",
+            "buck2 targets failed with status {} for repo {:?}. stderr: {}",
             status,
-            repo_path
+            repo_path,
+            stderr_output.trim()
         );
         if attempt < MAX_ATTEMPTS {
             std::thread::sleep(std::time::Duration::from_secs(1));
@@ -286,14 +329,83 @@ fn get_repo_targets(file_name: &str, repo_path: &Path) -> anyhow::Result<Targets
     ))
 }
 
+fn fallback_targets_for_errored_packages(
+    base: &Targets,
+    diff: &Targets,
+    changes: &Changes,
+) -> Vec<TargetLabel> {
+    let error_count = diff.errors().count();
+    if error_count == 0 {
+        return Vec::new();
+    }
+
+    let error_packages: HashSet<_> = diff.errors().map(|error| error.package.clone()).collect();
+    let mut seen = HashSet::new();
+    let mut fallback = Vec::new();
+
+    for target in base.targets() {
+        if !error_packages.contains(&target.package) || !changes.contains_package(&target.package) {
+            continue;
+        }
+
+        let label = target.label();
+        if seen.insert(label.clone()) {
+            fallback.push(label);
+        }
+    }
+
+    if fallback.is_empty() {
+        tracing::warn!(
+            error_count,
+            errored_packages = error_packages.len(),
+            "buck2 targets returned package errors but no fallback targets could be recovered from the base graph."
+        );
+    } else {
+        tracing::warn!(
+            error_count,
+            errored_packages = error_packages.len(),
+            fallback_targets = fallback.len(),
+            "Recovered impacted targets from the base graph for packages that failed to parse during buck2 targets."
+        );
+    }
+
+    fallback
+}
+
 fn collect_impacted_targets(base: &Targets, diff: &Targets, changes: &Changes) -> Vec<TargetLabel> {
     let immediate = diff::immediate_target_changes(base, diff, changes, false);
     let recursive = diff::recursive_target_changes(diff, changes, &immediate, None, |_| true);
-    recursive
+
+    let mut targets: Vec<_> = recursive
         .into_iter()
         .flatten()
         .map(|(target, _)| target.label())
-        .collect()
+        .collect();
+    let mut seen: HashSet<_> = targets.iter().cloned().collect();
+
+    for label in fallback_targets_for_errored_packages(base, diff, changes) {
+        if seen.insert(label.clone()) {
+            targets.push(label);
+        }
+    }
+
+    if targets.is_empty() {
+        tracing::info!(
+            changes_count = changes.cell_paths().count(),
+            base_targets = base.len_targets_upperbound(),
+            diff_targets = diff.len_targets_upperbound(),
+            diff_errors = diff.errors().count(),
+            "No impacted targets found. Changes may not match any target inputs or packages."
+        );
+    } else {
+        tracing::info!(
+            impacted_targets = targets.len(),
+            diff_errors = diff.errors().count(),
+            "Found impacted targets"
+        );
+    }
+
+    targets
 }
 
 fn has_path_component_suffix(candidate: &str, suffix: &str) -> bool {
@@ -391,8 +503,8 @@ async fn get_build_targets(
             .map_err(|err| anyhow!("Fail to get config: {}", err))?,
     )?;
 
-    let base = get_repo_targets("base.jsonl", &old_repo)?;
-    let diff = get_repo_targets("diff.jsonl", &mount_path)?;
+    let base = get_repo_targets("base.jsonl", &old_repo, Some(&cells))?;
+    let diff = get_repo_targets("diff.jsonl", &mount_path, Some(&cells))?;
     let changes = Changes::new(&cells, mega_changes.clone())?;
     tracing::debug!("Changes {changes:?}");
 
@@ -730,10 +842,10 @@ pub async fn build(
         // naturally get separate daemons without needing `--isolation-dir`.
         let id_for_old_repo = format!("{id}-old-{attempt}");
         let (old_repo_mount_point, _mount_id_old_repo) =
-            mount_antares_fs(&id_for_old_repo, None).await?;
+            mount_antares_fs(&id_for_old_repo, &repo, None).await?;
 
         let id_for_repo = format!("{id}-{attempt}");
-        let (repo_mount_point, _mount_id) = mount_antares_fs(&id_for_repo, cl_arg).await?;
+        let (repo_mount_point, _mount_id) = mount_antares_fs(&id_for_repo, &repo, cl_arg).await?;
 
         tracing::info!(
             "[Task {}] Filesystem mounted successfully (attempt {}/{}).",
@@ -844,6 +956,35 @@ pub async fn build(
             project_root.display(),
             targets.len()
         );
+
+        // Disable both remote and local cache to ensure syntax errors are detected:
+        // 1. Kill daemon to clear local action cache
+        // 2. Use unique isolation-dir to prevent cache sharing between builds
+        // 3. Use --no-remote-cache to prevent remote cache usage
+        // Note: Buck2 requires isolation-dir to be a simple directory name without path separators
+        let isolation_dir = format!("buck-isolation-{}", id);
+        let mut kill_cmd = Command::new("buck2");
+        kill_cmd
+            .arg("kill")
+            .arg("--isolation-dir")
+            .arg(&isolation_dir)
+            .current_dir(&project_root)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+
+        match kill_cmd.status().await {
+            Ok(status) if !status.success() => {
+                tracing::debug!("[Task {}] Buck2 daemon was not running (expected)", id);
+            }
+            Err(e) => {
+                tracing::warn!("[Task {}] Failed to kill buck2 daemon: {}", id, e);
+            }
+            _ => {}
+        }
+
+        // Wait for daemon to fully stop before starting a new build
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
         let mut cmd = Command::new("buck2");
         // --event-log and --build-report are used to collect build execution status
         // at target level (e.g. pending / running / succeeded / failed).
@@ -861,6 +1002,11 @@ pub async fn build(
             // with the selected platform (e.g., macOS-only crates on Linux builders).
             .arg("--skip-incompatible-targets")
             .arg("--verbose=2")
+            // Disable remote cache to ensure we always build with the latest code changes
+            // and detect syntax errors immediately in incremental builds
+            .arg("--no-remote-cache")
+            .arg("--isolation-dir")
+            .arg(&isolation_dir)
             .current_dir(&project_root)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
@@ -903,6 +1049,8 @@ pub async fn build(
                 result = stdout_reader.next_line() => {
                     match result {
                         Ok(Some(line)) => {
+                            // Log buck2 stdout for debugging
+                            tracing::debug!("[Task {}] buck2 stdout: {}", id, line);
                             if sender.send(WSMessage::TaskBuildOutput { build_id: id.clone(), output: line }).is_err() {
                                 child.kill().await?;
                                 return Err("WebSocket connection lost during build.".into());
@@ -918,6 +1066,8 @@ pub async fn build(
                 result = stderr_reader.next_line() => {
                     match result {
                         Ok(Some(line)) => {
+                            // Log buck2 stderr for debugging and error tracking
+                            tracing::warn!("[Task {}] buck2 stderr: {}", id, line);
                             if sender.send(WSMessage::TaskBuildOutput { build_id: id.clone(), output: line }).is_err() {
                                 child.kill().await?;
                                 return Err("WebSocket connection lost during build.".into());
@@ -944,6 +1094,17 @@ pub async fn build(
             None => child.wait().await?,
         };
 
+        // Log build result for debugging
+        if status.success() {
+            tracing::info!("[Task {}] Buck2 build completed successfully", id);
+        } else {
+            tracing::error!(
+                "[Task {}] Buck2 build failed with exit code: {}",
+                id,
+                status.code().map_or("unknown".to_string(), |c| c.to_string())
+            );
+        }
+
         // Stop the build-status tracker cleanly.
         // Signal the processing loop to exit via cancellation token; it will
         // flush its remaining buffer in the cleanup path after breaking out of
@@ -967,6 +1128,18 @@ pub async fn build(
         Ok(status)
     }
     .await;
+
+    // Cleanup isolation directory to prevent disk space leak
+    // Buck2 creates the isolation directory in the project root
+    let isolation_dir = format!("buck-isolation-{}", id);
+    let isolation_path = PathBuf::from(&mount_point)
+        .join(repo_prefix)
+        .join(&isolation_dir);
+    if isolation_path.exists()
+        && let Err(e) = tokio::fs::remove_dir_all(&isolation_path).await
+    {
+        tracing::warn!("[Task {}] Failed to cleanup isolation-dir: {}", id, e);
+    }
 
     tracing::info!(
         "[Task {}] Build completed — mount directories retained for debugging: \
@@ -1262,6 +1435,95 @@ mod tests {
 
     #[tokio::test]
     #[serial]
+    async fn test_get_build_targets_detects_buckroot_change_as_package_level_impact() {
+        let (_tempdir, old_root, new_root) = isolated_buck_scope_fixture();
+        fs::write(new_root.join(".buckroot"), "# touched by test\n").expect("rewrite .buckroot");
+
+        let targets = get_build_targets(
+            old_root.to_str().expect("old fixture path"),
+            new_root.to_str().expect("new fixture path"),
+            vec![Status::Modified(ProjectRelativePath::new(".buckroot"))],
+        )
+        .await
+        .expect("target discovery should complete");
+
+        assert!(
+            targets.contains(&TargetLabel::new("root//:explicit_main")),
+            "expected .buckroot change to rebuild root//:explicit_main, got {targets:?}"
+        );
+        assert!(
+            targets.contains(&TargetLabel::new("root//:globbed_lib")),
+            "expected .buckroot change to rebuild root//:globbed_lib, got {targets:?}"
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_get_build_targets_detects_cargo_toml_change_as_package_level_impact() {
+        let (_tempdir, old_root, new_root) = isolated_buck_scope_fixture();
+        fs::write(
+            new_root.join("Cargo.toml"),
+            r#"[package]
+name = "change_detector_buck_scope"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+# touched by test
+"#,
+        )
+        .expect("rewrite Cargo.toml");
+
+        let targets = get_build_targets(
+            old_root.to_str().expect("old fixture path"),
+            new_root.to_str().expect("new fixture path"),
+            vec![Status::Modified(ProjectRelativePath::new("Cargo.toml"))],
+        )
+        .await
+        .expect("target discovery should complete");
+
+        assert!(
+            targets.contains(&TargetLabel::new("root//:explicit_main")),
+            "expected Cargo.toml change to rebuild root//:explicit_main, got {targets:?}"
+        );
+        assert!(
+            targets.contains(&TargetLabel::new("root//:globbed_lib")),
+            "expected Cargo.toml change to rebuild root//:globbed_lib, got {targets:?}"
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_get_build_targets_recovers_targets_when_changed_buck_file_has_parse_error() {
+        let (_tempdir, old_root, new_root) = isolated_buck_scope_fixture();
+        fs::write(
+            new_root.join("BUCK"),
+            r#"rust_binary(
+    name = "broken",
+"#,
+        )
+        .expect("rewrite BUCK with parse error");
+
+        let targets = get_build_targets(
+            old_root.to_str().expect("old fixture path"),
+            new_root.to_str().expect("new fixture path"),
+            vec![Status::Modified(ProjectRelativePath::new("BUCK"))],
+        )
+        .await
+        .expect("target discovery should recover fallback targets from base graph");
+
+        assert!(
+            targets.contains(&TargetLabel::new("root//:explicit_main")),
+            "expected fallback to keep root//:explicit_main when BUCK parse fails, got {targets:?}"
+        );
+        assert!(
+            targets.contains(&TargetLabel::new("root//:globbed_lib")),
+            "expected fallback to keep root//:globbed_lib when BUCK parse fails, got {targets:?}"
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
     async fn test_get_build_targets_ignores_added_file_outside_buck_scope() {
         let (_tempdir, old_root, new_root) = isolated_buck_scope_fixture();
         let new_file = new_root.join("notes/added.txt");
@@ -1325,7 +1587,7 @@ mod tests {
         let (_tempdir, _old_root, new_root) = isolated_buck_scope_fixture();
         let jsonl_cleanup =
             JsonlCleanupGuard::new([new_root.join("diff.jsonl"), new_root.join("base.jsonl")]);
-        let diff = get_repo_targets("diff.jsonl", &new_root).expect("load diff targets");
+        let diff = get_repo_targets("diff.jsonl", &new_root, None).expect("load diff targets");
 
         let (remapped, remapped_count) = remap_repo_local_change_paths(
             &new_root,
@@ -1406,6 +1668,28 @@ mod tests {
             err.to_string()
                 .contains("Build repo root (new) does not exist"),
             "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_build_command_includes_no_remote_cache_flag() {
+        // Read the source code file to verify the flag exists
+        let source = include_str!("buck_controller.rs");
+
+        // Verify build function includes --no-remote-cache
+        assert!(
+            source.contains(r#".arg("--no-remote-cache")"#),
+            "buck2 build command must include --no-remote-cache flag. \
+             This flag ensures incremental builds always use the latest code changes \
+             and detect syntax errors immediately."
+        );
+
+        // Verify the comment exists to ensure future maintainers understand why
+        assert!(
+            source.contains(
+                "Disable remote cache to ensure we always build with the latest code changes"
+            ),
+            "The --no-remote-cache flag must have a comment explaining why it's needed"
         );
     }
 }

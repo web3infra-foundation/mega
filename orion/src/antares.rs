@@ -18,22 +18,50 @@ mod imp {
 
     use std::{
         any::Any,
+        collections::HashMap,
         error::Error,
         io,
         panic::AssertUnwindSafe,
-        path::{Path, PathBuf},
-        sync::Arc,
+        path::{Component, Path, PathBuf},
+        sync::{Arc, LazyLock},
         time::Duration,
     };
 
     use futures_util::FutureExt;
-    use scorpiofs::{AntaresConfig, AntaresManager, AntaresPaths};
-    use tokio::sync::OnceCell;
+    use reqwest::Client;
+    use scorpiofs::{AntaresConfig, AntaresManager, AntaresPaths, antares::fuse::AntaresFuse};
+    use serde::Deserialize;
+    use tokio::{
+        io::AsyncWriteExt,
+        sync::{Mutex, OnceCell},
+    };
+    use uuid::Uuid;
 
     static MANAGER: OnceCell<Arc<AntaresManager>> = OnceCell::const_new();
+    static DIRECT_CL_MOUNTS: LazyLock<Mutex<HashMap<String, DirectClMount>>> =
+        LazyLock::new(|| Mutex::new(HashMap::new()));
     const TEST_BROWSE_JOB_ID: &str = "antares_test";
 
     type DynError = Box<dyn Error + Send + Sync>;
+
+    #[derive(Debug, Deserialize)]
+    struct CommonResult<T> {
+        req_result: bool,
+        data: Option<T>,
+        err_message: String,
+    }
+
+    #[derive(Debug, Clone, Deserialize)]
+    struct ClFileEntry {
+        path: String,
+        sha: String,
+        action: String,
+    }
+
+    struct DirectClMount {
+        config: AntaresConfig,
+        fuse: AntaresFuse,
+    }
 
     /// Get the global AntaresManager instance.
     ///
@@ -135,14 +163,123 @@ Hint: set SCORPIO_CONFIG=/path/to/scorpio.toml or create /etc/scorpio/scorpio.to
     ///
     /// # Returns
     /// The `AntaresConfig` containing mountpoint and job metadata on success.
-    pub async fn mount_job(job_id: &str, cl: Option<&str>) -> Result<AntaresConfig, DynError> {
-        tracing::debug!("Mounting Antares job: job_id={}, cl={:?}", job_id, cl);
+    pub async fn mount_job(
+        job_id: &str,
+        repo: &str,
+        cl: Option<&str>,
+    ) -> Result<AntaresConfig, DynError> {
+        tracing::debug!(
+            "Mounting Antares job: job_id={}, repo={}, cl={:?}",
+            job_id,
+            repo,
+            cl
+        );
+
+        if let Some(cl_link) = cl {
+            return mount_job_with_prepopulated_cl(job_id, repo, cl_link).await;
+        }
+
         let manager = get_manager().await?;
-        run_with_panic_guard(
+        let config = run_with_panic_guard(
             format!("Antares mount panicked for job_id={job_id}, cl={cl:?}"),
-            manager.mount_job(job_id, cl),
+            manager.mount_job(job_id, None),
+        )
+        .await?;
+
+        Ok(config)
+    }
+
+    async fn wait_for_dicfuse_ready(
+        manager: &AntaresManager,
+        job_id: &str,
+    ) -> Result<(), DynError> {
+        const DICFUSE_INIT_TIMEOUT_SECS: u64 = 120;
+        let dicfuse = manager.dicfuse();
+        tracing::info!(
+            job_id = job_id,
+            timeout_secs = DICFUSE_INIT_TIMEOUT_SECS,
+            "Waiting for Dicfuse to become ready before mounting direct CL job."
+        );
+
+        match tokio::time::timeout(
+            Duration::from_secs(DICFUSE_INIT_TIMEOUT_SECS),
+            dicfuse.store.wait_for_ready(),
         )
         .await
+        {
+            Ok(_) => Ok(()),
+            Err(_) => Err(Box::new(io_other(format!(
+                "Dicfuse initialization timed out after {}s for direct CL job {}",
+                DICFUSE_INIT_TIMEOUT_SECS, job_id
+            )))),
+        }
+    }
+
+    async fn mount_job_with_prepopulated_cl(
+        job_id: &str,
+        repo: &str,
+        cl_link: &str,
+    ) -> Result<AntaresConfig, DynError> {
+        let manager = get_manager().await?;
+        let paths = AntaresPaths::from_global_config();
+        let upper_id = Uuid::new_v4().to_string();
+        let cl_id = Uuid::new_v4().to_string();
+        let upper_dir = paths.upper_root.join(&upper_id);
+        let cl_dir = paths.cl_root.join(&cl_id);
+        let mountpoint = paths.mount_root.join(job_id);
+
+        tokio::fs::create_dir_all(&upper_dir).await?;
+        tokio::fs::create_dir_all(&mountpoint).await?;
+        populate_cl_overlay_dir(job_id, repo, cl_link, &cl_dir).await?;
+        wait_for_dicfuse_ready(manager.as_ref(), job_id).await?;
+
+        let dicfuse = manager.dicfuse();
+        let mut fuse = AntaresFuse::new(
+            mountpoint.clone(),
+            dicfuse,
+            upper_dir.clone(),
+            Some(cl_dir.clone()),
+        )
+        .await?;
+        run_with_panic_guard(
+            format!("Direct CL Antares mount panicked for job_id={job_id}, cl={cl_link}"),
+            fuse.mount(),
+        )
+        .await?;
+
+        let config = AntaresConfig {
+            job_id: job_id.to_string(),
+            mountpoint,
+            upper_id,
+            upper_dir,
+            cl_dir: Some(cl_dir),
+            cl_id: Some(cl_id),
+        };
+
+        let previous = DIRECT_CL_MOUNTS.lock().await.insert(
+            job_id.to_string(),
+            DirectClMount {
+                config: config.clone(),
+                fuse,
+            },
+        );
+        if previous.is_some() {
+            tracing::warn!(
+                job_id = job_id,
+                "Replaced an existing direct CL mount entry while mounting a new one."
+            );
+        }
+
+        tracing::info!(
+            job_id = job_id,
+            repo = repo,
+            cl_link = cl_link,
+            mountpoint = %config.mountpoint.display(),
+            cl_dir = %config.cl_dir.as_ref().expect("cl_dir must exist for direct CL mounts").display(),
+            "Mounted direct CL Antares job with pre-populated overlay."
+        );
+
+        Ok(config)
     }
 
     /// Initialize Antares during Orion startup and eagerly trigger Dicfuse import.
@@ -264,6 +401,209 @@ Hint: set SCORPIO_CONFIG=/path/to/scorpio.toml or create /etc/scorpio/scorpio.to
         }
     }
 
+    fn http_client() -> Result<Client, DynError> {
+        Client::builder()
+            .timeout(Duration::from_secs(30))
+            .build()
+            .map_err(|err| {
+                Box::new(io_other(format!(
+                    "Failed to build CL overlay HTTP client: {err}"
+                ))) as DynError
+            })
+    }
+
+    async fn fetch_cl_files(cl_link: &str) -> Result<Vec<ClFileEntry>, DynError> {
+        let base_url = scorpiofs::util::config::base_url();
+        let url = format!("{base_url}/api/v1/cl/{cl_link}/files-list");
+        let client = http_client()?;
+        let response = client.get(&url).send().await.map_err(|err| {
+            Box::new(io_other(format!(
+                "Failed to fetch CL files from {url}: {err}"
+            ))) as DynError
+        })?;
+
+        if !response.status().is_success() {
+            return Err(Box::new(io_other(format!(
+                "Fetching CL files from {url} failed with HTTP {}",
+                response.status()
+            ))));
+        }
+
+        let body: CommonResult<Vec<ClFileEntry>> = response.json().await.map_err(|err| {
+            Box::new(io_other(format!(
+                "Failed to parse CL files response for {cl_link}: {err}"
+            ))) as DynError
+        })?;
+
+        if !body.req_result {
+            return Err(Box::new(io_other(format!(
+                "CL files API returned req_result=false for {cl_link}: {}",
+                body.err_message
+            ))));
+        }
+
+        Ok(body.data.unwrap_or_default())
+    }
+
+    fn resolve_overlay_relative_path(repo: &str, entry_path: &str) -> Result<PathBuf, DynError> {
+        let repo_prefix = repo.trim_matches('/');
+        let trimmed_entry = entry_path.trim().trim_start_matches('/');
+        if trimmed_entry.is_empty() {
+            return Err(Box::new(io_other(
+                "CL file entry path is empty after normalization.",
+            )));
+        }
+
+        let relative = if repo_prefix.is_empty()
+            || trimmed_entry == repo_prefix
+            || trimmed_entry
+                .strip_prefix(repo_prefix)
+                .is_some_and(|suffix| suffix.starts_with('/'))
+        {
+            trimmed_entry.to_string()
+        } else {
+            format!("{repo_prefix}/{trimmed_entry}")
+        };
+
+        let candidate = Path::new(&relative);
+        if candidate
+            .components()
+            .all(|component| matches!(component, Component::Normal(_)))
+        {
+            return Ok(candidate.to_path_buf());
+        }
+
+        Err(Box::new(io_other(format!(
+            "Rejected unsafe CL overlay path: repo={repo}, entry_path={entry_path}, relative={relative}"
+        ))))
+    }
+
+    async fn download_blob_to_path(
+        client: &Client,
+        oid: &str,
+        dest: &Path,
+    ) -> Result<(), DynError> {
+        let base_url = scorpiofs::util::config::base_url();
+        let clean_oid = oid.trim_start_matches("sha1:");
+        let url = format!("{base_url}/api/v1/file/blob/{clean_oid}");
+        let response = client.get(&url).send().await.map_err(|err| {
+            Box::new(io_other(format!(
+                "Failed to download blob {clean_oid}: {err}"
+            ))) as DynError
+        })?;
+
+        if !response.status().is_success() {
+            return Err(Box::new(io_other(format!(
+                "Downloading blob {clean_oid} failed with HTTP {}",
+                response.status()
+            ))));
+        }
+
+        if let Some(parent) = dest.parent() {
+            tokio::fs::create_dir_all(parent).await.map_err(|err| {
+                Box::new(io_other(format!(
+                    "Failed to create CL overlay dir {:?}: {err}",
+                    parent
+                ))) as DynError
+            })?;
+        }
+
+        let bytes = response.bytes().await.map_err(|err| {
+            Box::new(io_other(format!(
+                "Failed to read blob {clean_oid} response body: {err}"
+            ))) as DynError
+        })?;
+        let mut file = tokio::fs::File::create(dest).await.map_err(|err| {
+            Box::new(io_other(format!(
+                "Failed to create CL overlay file {:?}: {err}",
+                dest
+            ))) as DynError
+        })?;
+        file.write_all(&bytes).await.map_err(|err| {
+            Box::new(io_other(format!(
+                "Failed to write CL overlay file {:?}: {err}",
+                dest
+            ))) as DynError
+        })?;
+        Ok(())
+    }
+
+    async fn populate_cl_overlay_dir(
+        job_id: &str,
+        repo: &str,
+        cl_link: &str,
+        cl_dir: &Path,
+    ) -> Result<(), DynError> {
+        if cl_dir.exists() {
+            tokio::fs::remove_dir_all(cl_dir).await.map_err(|err| {
+                Box::new(io_other(format!(
+                    "Failed to clear CL overlay dir {:?}: {err}",
+                    cl_dir
+                ))) as DynError
+            })?;
+        }
+        tokio::fs::create_dir_all(cl_dir).await.map_err(|err| {
+            Box::new(io_other(format!(
+                "Failed to create CL overlay dir {:?}: {err}",
+                cl_dir
+            ))) as DynError
+        })?;
+
+        let files = fetch_cl_files(cl_link).await?;
+        if files.is_empty() {
+            tracing::info!(
+                job_id = job_id,
+                repo = repo,
+                cl_link = cl_link,
+                "CL overlay has no changed files."
+            );
+            return Ok(());
+        }
+
+        let client = http_client()?;
+        let mut applied_paths = Vec::new();
+        for file in files {
+            let overlay_path = resolve_overlay_relative_path(repo, &file.path)?;
+            match file.action.as_str() {
+                "new" | "modified" => {
+                    download_blob_to_path(&client, &file.sha, &cl_dir.join(&overlay_path)).await?;
+                    applied_paths.push(overlay_path.display().to_string());
+                }
+                "deleted" => {
+                    tracing::warn!(
+                        job_id = job_id,
+                        repo = repo,
+                        cl_link = cl_link,
+                        path = %overlay_path.display(),
+                        "Deleted file in CL is not yet materialized as a whiteout in direct Antares mode; continuing."
+                    );
+                }
+                other => {
+                    tracing::warn!(
+                        job_id = job_id,
+                        repo = repo,
+                        cl_link = cl_link,
+                        action = other,
+                        original_path = %file.path,
+                        "Unknown CL action while populating overlay; skipping."
+                    );
+                }
+            }
+        }
+
+        tracing::info!(
+            job_id = job_id,
+            repo = repo,
+            cl_link = cl_link,
+            cl_dir = %cl_dir.display(),
+            applied_file_count = applied_paths.len(),
+            applied_files = ?applied_paths,
+            "Populated CL overlay directory for direct Antares mount."
+        );
+
+        Ok(())
+    }
+
     fn log_tree_recursive(
         root: &Path,
         current: &Path,
@@ -335,6 +675,17 @@ Hint: set SCORPIO_CONFIG=/path/to/scorpio.toml or create /etc/scorpio/scorpio.to
     #[allow(dead_code)]
     pub async fn unmount_job(job_id: &str) -> Result<Option<AntaresConfig>, DynError> {
         tracing::debug!("Unmounting Antares job: job_id={}", job_id);
+
+        let direct_mount = DIRECT_CL_MOUNTS.lock().await.remove(job_id);
+        if let Some(mut direct_mount) = direct_mount {
+            run_with_panic_guard(
+                format!("Direct CL Antares unmount panicked for job_id={job_id}"),
+                direct_mount.fuse.unmount(),
+            )
+            .await?;
+            return Ok(Some(direct_mount.config));
+        }
+
         get_manager()
             .await?
             .umount_job(job_id)
@@ -372,7 +723,7 @@ Hint: set SCORPIO_CONFIG=/path/to/scorpio.toml or create /etc/scorpio/scorpio.to
     mod tests {
         use std::io;
 
-        use super::{panic_payload_to_string, run_with_panic_guard};
+        use super::{panic_payload_to_string, resolve_overlay_relative_path, run_with_panic_guard};
 
         #[tokio::test]
         async fn test_run_with_panic_guard_converts_panic_to_error() {
@@ -394,6 +745,28 @@ Hint: set SCORPIO_CONFIG=/path/to/scorpio.toml or create /etc/scorpio/scorpio.to
             assert_eq!(panic_payload_to_string(&"oops"), "oops");
             assert_eq!(panic_payload_to_string(&"boom".to_string()), "boom");
         }
+
+        #[test]
+        fn test_resolve_overlay_relative_path_prefixes_repo_relative_path() {
+            let path = resolve_overlay_relative_path("/project/buck2_test", "src/main.rs")
+                .expect("path should resolve");
+            assert_eq!(path.to_string_lossy(), "project/buck2_test/src/main.rs");
+        }
+
+        #[test]
+        fn test_resolve_overlay_relative_path_keeps_monorepo_relative_path() {
+            let path = resolve_overlay_relative_path(
+                "/project/buck2_test",
+                "project/buck2_test/toolchains/BUCK",
+            )
+            .expect("path should resolve");
+            assert_eq!(path.to_string_lossy(), "project/buck2_test/toolchains/BUCK");
+        }
+
+        #[test]
+        fn test_resolve_overlay_relative_path_rejects_escape_sequences() {
+            assert!(resolve_overlay_relative_path("/project/buck2_test", "../etc/passwd").is_err());
+        }
     }
 }
 
@@ -412,7 +785,11 @@ mod imp {
     }
 
     /// Mounting Antares requires `scorpiofs` (Linux-only in this repository).
-    pub async fn mount_job(_job_id: &str, _cl: Option<&str>) -> Result<AntaresConfig, DynError> {
+    pub async fn mount_job(
+        _job_id: &str,
+        _repo: &str,
+        _cl: Option<&str>,
+    ) -> Result<AntaresConfig, DynError> {
         Err(Box::new(std::io::Error::other(
             "Antares/scorpiofs is only supported on Linux",
         )))

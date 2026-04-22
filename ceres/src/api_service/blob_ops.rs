@@ -277,7 +277,7 @@ async fn get_files_content_hashes_internal<T: ApiHandler + ?Sized>(
 
     // Batch read blob contents
     let max_concurrent = handler.get_context().get_recommended_batch_concurrency();
-    let mut blob_stream = stream::iter(blob_ids.into_iter())
+    let mut blob_stream = stream::iter(blob_ids)
         .map(|(path, blob_hash)| {
             // Use into_iter to get ownership, no clone needed
             let blob_hash_str = blob_hash.to_string();

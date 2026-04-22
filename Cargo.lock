@@ -5007,6 +5007,7 @@ dependencies = [
  "itertools 0.14.0",
  "once_cell",
  "parse-display 0.8.2",
+ "reqwest 0.13.2",
  "scorpiofs",
  "serde",
  "serde_json",
@@ -5021,6 +5022,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "tungstenite",
+ "url",
  "utoipa",
  "uuid",
 ]

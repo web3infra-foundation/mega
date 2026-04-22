@@ -206,13 +206,48 @@ impl CellInfo {
     }
 
     pub fn unresolve(&self, path: &ProjectRelativePath) -> anyhow::Result<CellPath> {
-        // because we know self.paths has the longest match first, we just find the first match
+        let path_str = path.as_str();
+
+        // self.paths is sorted by path length (longest first) for priority matching
         for (cell, prefix) in &self.paths {
-            if let Some(x) = path.as_str().strip_prefix(prefix.as_str()) {
-                let x = x.strip_prefix('/').unwrap_or(x);
-                return Ok(cell.join(&CellRelativePath::new(x)));
+            let prefix_str = prefix.as_str();
+            // Normalize: remove trailing slashes from prefix for consistent matching
+            let prefix_normalized = prefix_str.trim_end_matches('/');
+
+            // Special handling: empty prefix or "." represents the root cell
+            // Semantically, it means "match all paths that don't have a more specific prefix"
+            if prefix_normalized.is_empty() || prefix_normalized == "." {
+                // Check if there's a more specific prefix that matches this path
+                let has_more_specific_match = self.paths.iter().any(|(_, other_prefix)| {
+                    let other_str = other_prefix.as_str().trim_end_matches('/');
+                    !other_str.is_empty()
+                        && other_str != "."
+                        && (path_str == other_str
+                            || path_str.starts_with(&format!("{}/", other_str)))
+                });
+
+                // If no more specific match exists, this path belongs to the root cell
+                if !has_more_specific_match {
+                    tracing::debug!(
+                        "Resolved path '{}' to root cell '{}' (prefix: '{}')",
+                        path_str,
+                        cell.as_str(),
+                        prefix_str
+                    );
+                    return Ok(cell.join(&CellRelativePath::new(path_str)));
+                }
+            } else {
+                // Non-root cell: use standard prefix matching
+                if path_str == prefix_normalized {
+                    // Exact match: path is the cell's root directory
+                    return Ok(cell.join(&CellRelativePath::new("")));
+                } else if let Some(x) = path_str.strip_prefix(&format!("{}/", prefix_normalized)) {
+                    // Prefix match: path is in a subdirectory of the cell
+                    return Ok(cell.join(&CellRelativePath::new(x)));
+                }
             }
         }
+
         Err(CellError::UnknownPath(path.clone()).into())
     }
 
@@ -228,6 +263,44 @@ impl CellInfo {
             None => false,
             Some(data) => data.ignore.is_match(path.path().as_str()),
         }
+    }
+
+    /// Returns target patterns for all cells (e.g., ["root//...", ...])
+    /// This is used to query targets from all cells, not just the root cell.
+    ///
+    /// Note: Excludes special cells:
+    /// - "prelude": Contains build rule definitions, may have parsing issues
+    /// - "none": Placeholder cell used for cell aliases, doesn't contain actual build targets
+    ///
+    /// Also excludes cells whose directories don't exist in the project root.
+    /// This prevents errors when querying cells that are defined in .buckconfig
+    /// but don't have corresponding directories (e.g., toolchains in test fixtures).
+    pub fn get_all_cell_patterns(&self, project_root: &Path) -> Vec<String> {
+        self.cells
+            .iter()
+            .filter(|(cell_name, cell_data)| {
+                let cell_str = cell_name.as_str();
+
+                // Exclude known special/placeholder cells
+                if cell_str == "prelude" || cell_str == "none" {
+                    return false;
+                }
+
+                // Check if the cell directory actually exists
+                let cell_path = project_root.join(cell_data.path.as_str());
+                if !cell_path.exists() {
+                    tracing::debug!(
+                        "Excluding cell '{}' from query: directory {:?} does not exist",
+                        cell_str,
+                        cell_path
+                    );
+                    return false;
+                }
+
+                true
+            })
+            .map(|(cell_name, _)| format!("{}//...", cell_name.as_str()))
+            .collect()
     }
 }
 
@@ -337,5 +410,184 @@ mod tests {
         assert!(cells.is_ignored(&CellPath::new("cell1//bar/baz/file.txt")));
         assert!(!cells.is_ignored(&CellPath::new("root//cell1/bar/baz/file.txt")));
         assert!(!cells.is_ignored(&CellPath::new("cell1//cell1/bar/baz/file.txt")));
+    }
+
+    #[test]
+    fn test_unresolve_root_cell_with_dot_prefix() {
+        // 模拟实际的 cell 配置：root = .
+        let cells = CellInfo::parse(r#"{"root": "."}"#).unwrap();
+
+        // Case 1: BUCK 文件（CL 2NY0WW96 - 当前失败）
+        let result = cells.unresolve(&ProjectRelativePath::new("BUCK"));
+        assert!(result.is_ok(), "BUCK should be resolved to root cell");
+        assert_eq!(result.unwrap(), CellPath::new("root//BUCK"));
+
+        // Case 2: Cargo.toml（CL 9TNTRBBQ - 当前失败）
+        let result = cells.unresolve(&ProjectRelativePath::new("Cargo.toml"));
+        assert!(result.is_ok(), "Cargo.toml should be resolved to root cell");
+        assert_eq!(result.unwrap(), CellPath::new("root//Cargo.toml"));
+
+        // Case 3: .buckconfig（配置文件）
+        let result = cells.unresolve(&ProjectRelativePath::new(".buckconfig"));
+        assert!(
+            result.is_ok(),
+            ".buckconfig should be resolved to root cell"
+        );
+        assert_eq!(result.unwrap(), CellPath::new("root//.buckconfig"));
+
+        // Case 4: src/main.rs（CL OB6W18SK - 回归测试，应该继续工作）
+        let result = cells.unresolve(&ProjectRelativePath::new("src/main.rs"));
+        assert!(
+            result.is_ok(),
+            "src/main.rs should be resolved to root cell"
+        );
+        assert_eq!(result.unwrap(), CellPath::new("root//src/main.rs"));
+
+        // Case 5: 空路径
+        let result = cells.unresolve(&ProjectRelativePath::new(""));
+        assert!(result.is_ok(), "empty path should be resolved to root cell");
+        assert_eq!(result.unwrap(), CellPath::new("root//"));
+    }
+
+    #[test]
+    fn test_unresolve_cell_with_trailing_slash() {
+        // Test that cells with trailing slashes in JSON are handled correctly
+        let cell_json = serde_json::json!({
+            "root": ".",
+            "toolchains": "./toolchains/"  // Note: trailing slash
+        });
+        let cell_info = CellInfo::parse(&serde_json::to_string(&cell_json).unwrap()).unwrap();
+
+        // File in toolchains directory should match toolchains cell
+        let result = cell_info.unresolve(&ProjectRelativePath::new("toolchains/BUCK"));
+        assert!(result.is_ok(), "Should resolve toolchains/BUCK");
+
+        let cell_path = result.unwrap();
+        assert_eq!(
+            cell_path.as_str(),
+            "toolchains//BUCK",
+            "Should resolve to toolchains cell, not root"
+        );
+    }
+
+    #[test]
+    fn test_unresolve_multi_cell_priority() {
+        // 模拟多 cell 配置，使用绝对路径格式
+        // 在实际场景中，. 会被解析为某个绝对路径，这里用 /repo 模拟
+        let cells = CellInfo::parse(
+            r#"{
+            "root": "/repo",
+            "toolchains": "/repo/toolchains"
+        }"#,
+        )
+        .unwrap();
+
+        // Case 1: toolchains 目录下的文件应该匹配 toolchains cell（更具体的匹配）
+        let result = cells.unresolve(&ProjectRelativePath::new("toolchains/BUCK"));
+        assert!(
+            result.is_ok(),
+            "toolchains/BUCK should be resolved to toolchains cell"
+        );
+        assert_eq!(result.unwrap(), CellPath::new("toolchains//BUCK"));
+
+        // Case 2: 根目录的 BUCK 应该匹配 root cell
+        let result = cells.unresolve(&ProjectRelativePath::new("BUCK"));
+        assert!(result.is_ok(), "BUCK should be resolved to root cell");
+        assert_eq!(result.unwrap(), CellPath::new("root//BUCK"));
+
+        // Case 3: src 目录下的文件应该匹配 root cell（没有更具体的匹配）
+        let result = cells.unresolve(&ProjectRelativePath::new("src/main.rs"));
+        assert!(
+            result.is_ok(),
+            "src/main.rs should be resolved to root cell"
+        );
+        assert_eq!(result.unwrap(), CellPath::new("root//src/main.rs"));
+    }
+
+    #[test]
+    fn test_get_all_cell_patterns() {
+        use std::{env, fs};
+
+        let temp_dir = env::temp_dir().join("buck_cells_test_1");
+        let _ = fs::remove_dir_all(&temp_dir); // Clean up if exists
+        fs::create_dir_all(&temp_dir).unwrap();
+        fs::create_dir_all(temp_dir.join("toolchains")).unwrap();
+        fs::create_dir_all(temp_dir.join("prelude")).unwrap();
+
+        let cell_json = serde_json::json!({
+            "root": temp_dir.to_str().unwrap(),
+            "toolchains": temp_dir.join("toolchains").to_str().unwrap(),
+            "prelude": temp_dir.join("prelude").to_str().unwrap()
+        });
+        let cells = CellInfo::parse(&serde_json::to_string(&cell_json).unwrap()).unwrap();
+
+        let patterns = cells.get_all_cell_patterns(&temp_dir);
+
+        // Should have patterns for root and toolchains (both exist), but not prelude (special)
+        assert_eq!(patterns.len(), 2);
+        assert!(patterns.contains(&"root//...".to_string()));
+        assert!(patterns.contains(&"toolchains//...".to_string()));
+        assert!(!patterns.contains(&"prelude//...".to_string()));
+
+        // Clean up
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_get_all_cell_patterns_excludes_none_placeholder() {
+        use std::{env, fs};
+
+        let temp_dir = env::temp_dir().join("buck_cells_test_2");
+        let _ = fs::remove_dir_all(&temp_dir); // Clean up if exists
+        fs::create_dir_all(&temp_dir).unwrap();
+        fs::create_dir_all(temp_dir.join("toolchains")).unwrap();
+        fs::create_dir_all(temp_dir.join("prelude")).unwrap();
+        fs::create_dir_all(temp_dir.join("none")).unwrap();
+
+        let cell_json = serde_json::json!({
+            "root": temp_dir.to_str().unwrap(),
+            "toolchains": temp_dir.join("toolchains").to_str().unwrap(),
+            "prelude": temp_dir.join("prelude").to_str().unwrap(),
+            "none": temp_dir.join("none").to_str().unwrap()
+        });
+        let cells = CellInfo::parse(&serde_json::to_string(&cell_json).unwrap()).unwrap();
+
+        let patterns = cells.get_all_cell_patterns(&temp_dir);
+
+        // Should exclude prelude (special) and none (placeholder), even though directories exist
+        assert_eq!(patterns.len(), 2);
+        assert!(patterns.contains(&"root//...".to_string()));
+        assert!(patterns.contains(&"toolchains//...".to_string()));
+        assert!(!patterns.contains(&"prelude//...".to_string()));
+        assert!(!patterns.contains(&"none//...".to_string()));
+
+        // Clean up
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_get_all_cell_patterns_excludes_nonexistent_dirs() {
+        use std::{env, fs};
+
+        let temp_dir = env::temp_dir().join("buck_cells_test_3");
+        let _ = fs::remove_dir_all(&temp_dir); // Clean up if exists
+        fs::create_dir_all(&temp_dir).unwrap();
+        // Only create root, not toolchains
+
+        let cell_json = serde_json::json!({
+            "root": temp_dir.to_str().unwrap(),
+            "toolchains": temp_dir.join("toolchains").to_str().unwrap(),
+        });
+        let cells = CellInfo::parse(&serde_json::to_string(&cell_json).unwrap()).unwrap();
+
+        let patterns = cells.get_all_cell_patterns(&temp_dir);
+
+        // Should only have root, since toolchains directory doesn't exist
+        assert_eq!(patterns.len(), 1);
+        assert!(patterns.contains(&"root//...".to_string()));
+        assert!(!patterns.contains(&"toolchains//...".to_string()));
+
+        // Clean up
+        let _ = fs::remove_dir_all(&temp_dir);
     }
 }
