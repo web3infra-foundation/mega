@@ -15,6 +15,7 @@ use ceres::api_service::{cache::GitObjectCache, state::ProtocolApiState};
 use common::errors::ProtocolError;
 use context::AppContext;
 use http::{HeaderName, HeaderValue, Method};
+use jupiter::service::artifact_service::ArtifactService;
 use saturn::entitystore::EntityStore;
 use time::Duration;
 use tokio::task::JoinHandle;
@@ -139,6 +140,60 @@ fn spawn_email_dispatcher_task(ctx: AppContext, token: CancellationToken) -> Joi
     })
 }
 
+/// Background GC for `artifact_objects` with no manifest references (`docs/artifacts-protocol.md` §10.6).
+fn spawn_artifact_gc_task(ctx: AppContext, token: CancellationToken) -> Option<JoinHandle<()>> {
+    let cfg = ctx.storage.config().artifacts_gc.clone();
+    if !cfg.enable {
+        return None;
+    }
+
+    let interval_secs = cfg.interval_secs.max(1);
+    let grace_secs = cfg.grace_secs;
+    let batch_limit = cfg.batch_limit.max(1);
+    let service: ArtifactService = ctx.storage.artifact_service.clone();
+
+    Some(tokio::spawn(async move {
+        let mut ticker = tokio::time::interval(std::time::Duration::from_secs(interval_secs));
+        ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
+        tracing::info!(
+            "artifact_objects GC task started (interval={interval_secs}s, grace={grace_secs}s, batch_limit={batch_limit})"
+        );
+
+        let grace = std::time::Duration::from_secs(grace_secs);
+
+        loop {
+            tokio::select! {
+                _ = ticker.tick() => {
+                    match service
+                        .gc_unreferenced_artifact_objects_once(grace, batch_limit)
+                        .await
+                    {
+                        Ok(s) if s.deleted > 0 || s.candidates > 0 => {
+                            tracing::info!(
+                                candidates = s.candidates,
+                                deleted = s.deleted,
+                                skipped_still_referenced = s.skipped_still_referenced,
+                                storage_delete_errors = s.storage_delete_errors,
+                                db_delete_errors = s.db_delete_errors,
+                                "artifact_objects GC tick"
+                            );
+                        }
+                        Ok(_) => {}
+                        Err(e) => tracing::error!(error = %e, "artifact_objects GC tick failed"),
+                    }
+                }
+                _ = token.cancelled() => {
+                    tracing::info!("artifact_objects GC task received shutdown signal");
+                    break;
+                }
+            }
+        }
+
+        tracing::info!("artifact_objects GC task stopped gracefully");
+    }))
+}
+
 /// Returns a future that completes when the cancellation token is triggered.
 async fn shutdown_signal(token: CancellationToken) {
     token.cancelled().await;
@@ -152,6 +207,7 @@ pub async fn start_http(ctx: AppContext, options: CommonHttpOptions) {
     let shutdown_token = CancellationToken::new();
     let cleanup_handle = spawn_cleanup_task(ctx.clone(), shutdown_token.clone());
     let dispatcher_handle = spawn_email_dispatcher_task(ctx.clone(), shutdown_token.clone());
+    let artifact_gc_handle = spawn_artifact_gc_task(ctx.clone(), shutdown_token.clone());
     let server_token = shutdown_token.clone();
 
     let app = app(ctx, host.clone(), port).await;
@@ -189,7 +245,7 @@ pub async fn start_http(ctx: AppContext, options: CommonHttpOptions) {
     tracing::info!("Broadcasting shutdown signal to all tasks...");
     shutdown_token.cancel();
 
-    let (cleanup_result, dispatcher_result, server_result) = tokio::join!(
+    let (cleanup_result, dispatcher_result, artifact_gc_result, server_result) = tokio::join!(
         async {
             if let Some(handle) = cleanup_handle {
                 match tokio::time::timeout(std::time::Duration::from_secs(30), handle).await {
@@ -237,6 +293,28 @@ pub async fn start_http(ctx: AppContext, options: CommonHttpOptions) {
             }
         },
         async {
+            if let Some(handle) = artifact_gc_handle {
+                match tokio::time::timeout(std::time::Duration::from_secs(30), handle).await {
+                    Ok(Ok(_)) => {
+                        tracing::info!("artifact_objects GC task stopped successfully");
+                        Ok(())
+                    }
+                    Ok(Err(e)) => {
+                        tracing::error!("artifact_objects GC task panicked: {}", e);
+                        Err(())
+                    }
+                    Err(_) => {
+                        tracing::error!(
+                            "artifact_objects GC task did not stop within 30s timeout. The task will be detached."
+                        );
+                        Err(())
+                    }
+                }
+            } else {
+                Ok(())
+            }
+        },
+        async {
             match server_handle.as_mut().await {
                 Ok(_) => {
                     tracing::info!("HTTP server stopped gracefully");
@@ -250,8 +328,13 @@ pub async fn start_http(ctx: AppContext, options: CommonHttpOptions) {
         }
     );
 
-    match (cleanup_result, dispatcher_result, server_result) {
-        (Ok(_), Ok(_), Ok(_)) => {
+    match (
+        cleanup_result,
+        dispatcher_result,
+        artifact_gc_result,
+        server_result,
+    ) {
+        (Ok(_), Ok(_), Ok(_), Ok(_)) => {
             tracing::info!("Graceful shutdown completed successfully");
         }
         _ => {

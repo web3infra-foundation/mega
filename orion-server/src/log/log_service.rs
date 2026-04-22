@@ -186,7 +186,7 @@ impl LogService {
 mod tests {
     use std::sync::Arc;
 
-    use common::config::{LocalConfig, ObjectStorageBackend, ObjectStorageConfig};
+    use common::config::{LocalConfig, ObjectStorageConfig};
     use tempfile::TempDir;
 
     use super::*;
@@ -207,12 +207,10 @@ mod tests {
             ..Default::default()
         };
 
-        let object_store_wrapper = io_orbit::factory::ObjectStorageFactory::build(
-            ObjectStorageBackend::Local,
-            &object_storage_config,
-        )
-        .await
-        .unwrap();
+        let object_store_wrapper =
+            io_orbit::factory::ObjectStorageFactory::build(&object_storage_config)
+                .await
+                .unwrap();
 
         let local_log_store: Arc<dyn LogStore> =
             Arc::new(LocalLogStore::new(local_log_dir.to_string_lossy().as_ref()));

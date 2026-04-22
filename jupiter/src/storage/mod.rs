@@ -1,3 +1,4 @@
+pub mod artifact_storage;
 pub mod audit_storage;
 pub mod base_storage;
 pub mod bots_storage;
@@ -35,8 +36,8 @@ use tokio::sync::Semaphore;
 
 use crate::{
     service::{
-        buck_service::BuckService, cl_service::CLService, cla_service::ClaService,
-        code_review_service::CodeReviewService, git_service::GitService,
+        artifact_service::ArtifactService, buck_service::BuckService, cl_service::CLService,
+        cla_service::ClaService, code_review_service::CodeReviewService, git_service::GitService,
         import_service::ImportService, issue_service::IssueService, lfs_service::LfsService,
         merge_queue_service::MergeQueueService, mono_service::MonoService,
         webhook_service::WebhookService,
@@ -141,6 +142,7 @@ pub struct Storage {
     pub issue_service: IssueService,
     pub cl_service: CLService,
     pub merge_queue_service: MergeQueueService,
+    pub artifact_service: ArtifactService,
     pub buck_service: BuckService,
     pub mono_service: MonoService,
     pub import_service: ImportService,
@@ -168,14 +170,10 @@ impl Storage {
         let issue_storage = IssueStorage { base: base.clone() };
         let vault_storage = VaultStorage { base: base.clone() };
         let conversation_storage = ConversationStorage { base: base.clone() };
-        // Initialize LfsService for LFS using the same storage type as configured
+        let object_store = ObjectStorageFactory::build(&config.object_storage).await?;
         let lfs_service = LfsService {
             lfs_storage: lfs_db_storage.clone(),
-            obj_storage: ObjectStorageFactory::build(
-                config.lfs.storage_type,
-                &config.object_storage,
-            )
-            .await?,
+            obj_storage: object_store.clone(),
         };
 
         let note_storage = NoteStorage { base: base.clone() };
@@ -197,11 +195,7 @@ impl Storage {
         let audit_storage = AuditStorage { base: base.clone() };
 
         let git_service = GitService {
-            obj_storage: ObjectStorageFactory::build(
-                config.monorepo.storage_type,
-                &config.object_storage,
-            )
-            .await?,
+            obj_storage: object_store.clone(),
         };
         let mono_service = MonoService {
             mono_storage: mono_storage.clone(),
@@ -259,6 +253,7 @@ impl Storage {
             notification_storage,
         };
         let merge_queue_service = MergeQueueService::new(base.clone());
+        let artifact_service = ArtifactService::new(base.clone(), object_store.clone());
         let buck_service = BuckService::new(
             base.clone(),
             CLService::new(base.clone()),
@@ -278,6 +273,7 @@ impl Storage {
             issue_service: IssueService::new(base.clone()),
             cl_service: CLService::new(base.clone()),
             merge_queue_service,
+            artifact_service,
             buck_service,
             git_service,
             mono_service,
@@ -482,6 +478,7 @@ impl Storage {
             issue_service: IssueService::mock(),
             cl_service: CLService::mock(),
             merge_queue_service: MergeQueueService::mock(),
+            artifact_service: ArtifactService::mock(),
             buck_service: BuckService::mock(),
             config: Arc::downgrade(&*CONFIG),
             git_service: GitService::mock(),

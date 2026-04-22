@@ -3,6 +3,9 @@
 pub mod prelude;
 
 pub mod access_token;
+pub mod artifact_objects;
+pub mod artifact_set_files;
+pub mod artifact_sets;
 pub mod audit_logs;
 pub mod bot_installations;
 pub mod bot_keys;

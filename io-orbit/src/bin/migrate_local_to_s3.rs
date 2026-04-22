@@ -93,7 +93,7 @@ async fn run() -> Result<(), MegaError> {
     )?;
 
     let object_cfg = config.object_storage.clone();
-    let backend = config.monorepo.storage_type;
+    let backend = object_cfg.storage_type;
 
     // Build Local backend (source)
     let local_root = object_cfg.local.root_dir.clone();
@@ -101,7 +101,7 @@ async fn run() -> Result<(), MegaError> {
         .map_err(|e| MegaError::Other(format!("failed to init LocalFileSystem: {e}")))?;
     let local = Arc::new(local);
 
-    // Build S3 backend (target) according to monorepo.storage_type:
+    // Build S3 backend (target) according to object_storage.storage_type:
     // - S3           -> real AWS S3 (no custom endpoint)
     // - S3Compatible -> S3-compatible service (RustFS/MinIO etc.) using endpoint_url
     let s3_cfg = object_cfg.s3.clone();

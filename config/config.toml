@@ -59,9 +59,6 @@ admin = ["benjamin_747"]
 # Set serveral root dirs in directory init
 root_dirs = ["third-party", "project", "doc", "release", "model", "toolchains"]
 
-# storage type, support values can be "s3", "s3compatible", "gcs" or "local"
-storage_type = "local"
-
 [monorepo.rename]
 # Similarity threshold (0-100) for move/rename detection in diff classification.
 similarity_threshold = 50
@@ -104,8 +101,6 @@ channel_message_size = 1_000_000
 save_entry_concurrency = 1
 
 [lfs]
-#storage type, support values can be "s3", "s3compatible", "gcs" or "local"
-storage_type = "local"
 
 [lfs.ssh]
 # The lfs ssh transport protocol still relies on http to send files
@@ -117,6 +112,9 @@ lfs_file_path = "${base_dir}/lfs"
 
 
 [object_storage]
+# Global backend for Git blobs, LFS, artifacts, and Orion cloud logs (mix mode).
+# Values: "s3", "s3compatible", "gcs", "local"
+storage_type = "local"
 
 [object_storage.s3]
 # AWS region name.
@@ -224,12 +222,16 @@ cleanup_interval = 300
 # Completed sessions older than this will be deleted along with file records
 completed_retention_days = 7
 
+# Repo artifact blob GC (`artifact_objects` with no `artifact_set_files` references; see docs/artifacts-protocol.md §10.6).
+[artifacts_gc]
+enable = false
+interval_secs = 3600
+grace_secs = 86400
+batch_limit = 100
 
 [orion_server]
 # Log storage configuration
 logger_storage_mode = "mix"
-#storage type, support values can be "s3", "s3compatible", "gcs" or "local"
-storage_type = "local"
 
 port = 8004
 

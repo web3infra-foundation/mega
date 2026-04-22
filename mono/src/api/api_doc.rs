@@ -28,6 +28,9 @@ pub const BUILD_TRIGGER_TAG: &str = AUTOMATION_TAG;
 pub const WEBHOOK_TAG: &str = AUTOMATION_TAG;
 pub const BOT_TAG: &str = AUTOMATION_TAG;
 
+/// OpenAPI tag for repo-scoped artifact HTTP APIs (`/api/v1/repos/.../artifacts/...`).
+pub const ARTIFACTS_TAG: &str = "Repo Artifacts";
+
 #[derive(OpenApi)]
 #[openapi()]
 pub struct ApiDoc;

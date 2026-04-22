@@ -101,6 +101,10 @@ pub struct Config {
     pub sidebar: SidebarConfig,
     #[serde(default)]
     pub mail: Option<MailConfig>,
+    /// Background GC for `artifact_objects` rows with no `artifact_set_files` references
+    /// (`docs/artifacts-protocol.md` §10.6).
+    #[serde(default)]
+    pub artifacts_gc: ArtifactGcConfig,
 }
 
 impl Config {
@@ -140,6 +144,7 @@ impl Config {
             orion_server: None,
             sidebar: SidebarConfig::default(),
             mail: None,
+            artifacts_gc: ArtifactGcConfig::default(),
         }
     }
 
@@ -327,7 +332,6 @@ impl Default for DbConfig {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MonoConfig {
-    pub storage_type: ObjectStorageBackend,
     pub import_dir: PathBuf,
     pub admin: Vec<String>,
     pub root_dirs: Vec<String>,
@@ -338,7 +342,6 @@ pub struct MonoConfig {
 impl Default for MonoConfig {
     fn default() -> Self {
         Self {
-            storage_type: ObjectStorageBackend::Local,
             import_dir: PathBuf::from("/third-party"),
             admin: vec!["admin".to_string()],
             root_dirs: vec![
@@ -349,6 +352,44 @@ impl Default for MonoConfig {
                 "release".to_string(),
             ],
             rename: RenameConfig::default(),
+        }
+    }
+}
+
+/// Periodic garbage collection for repo artifact blobs (`artifact_objects`) per
+/// `docs/artifacts-protocol.md` §10.6 (unreferenced `oid` + optional `last_seen_at` grace).
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ArtifactGcConfig {
+    #[serde(default)]
+    pub enable: bool,
+    #[serde(default = "default_artifacts_gc_interval_secs")]
+    pub interval_secs: u64,
+    /// Skip rows whose `last_seen_at` is newer than `now - grace_secs` (reduces races with in-flight commits).
+    #[serde(default = "default_artifacts_gc_grace_secs")]
+    pub grace_secs: u64,
+    #[serde(default = "default_artifacts_gc_batch_limit")]
+    pub batch_limit: u64,
+}
+
+fn default_artifacts_gc_interval_secs() -> u64 {
+    3600
+}
+
+fn default_artifacts_gc_grace_secs() -> u64 {
+    86_400
+}
+
+fn default_artifacts_gc_batch_limit() -> u64 {
+    100
+}
+
+impl Default for ArtifactGcConfig {
+    fn default() -> Self {
+        Self {
+            enable: false,
+            interval_secs: default_artifacts_gc_interval_secs(),
+            grace_secs: default_artifacts_gc_grace_secs(),
+            batch_limit: default_artifacts_gc_batch_limit(),
         }
     }
 }
@@ -534,21 +575,10 @@ impl PackConfig {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct LFSConfig {
-    pub storage_type: ObjectStorageBackend,
     pub local: LFSLocalConfig,
     pub ssh: LFSSshConfig,
-}
-
-impl Default for LFSConfig {
-    fn default() -> Self {
-        Self {
-            storage_type: ObjectStorageBackend::Local,
-            local: LFSLocalConfig::default(),
-            ssh: LFSSshConfig::default(),
-        }
-    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -608,8 +638,11 @@ pub enum ObjectStorageBackend {
     Local,
 }
 
-#[derive(Debug, Serialize, Deserialize, Default, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct ObjectStorageConfig {
+    /// Global backend for Git blobs, Git LFS, artifact protocol objects, and Orion cloud log segments (`mix` mode).
+    #[serde(default)]
+    pub storage_type: ObjectStorageBackend,
     /// S3-compatible storage configuration
     pub s3: S3Config,
 
@@ -708,8 +741,6 @@ pub struct OrionServerConfig {
     #[serde(default = "default_logger_storage_mode")]
     pub logger_storage_mode: String,
 
-    pub storage_type: ObjectStorageBackend,
-
     #[serde(default = "default_build_log_dir")]
     pub build_log_dir: String,
 
@@ -756,7 +787,6 @@ impl Default for OrionServerConfig {
     fn default() -> Self {
         Self {
             logger_storage_mode: default_logger_storage_mode(),
-            storage_type: ObjectStorageBackend::Local,
             build_log_dir: default_build_log_dir(),
             log_stream_buffer: default_log_stream_buffer(),
             db_url: default_db_url(),
