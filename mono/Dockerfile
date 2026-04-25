@@ -3,10 +3,22 @@
 # The recipe will change ONLY when Cargo.toml changes.
 FROM rust:1.94.0-bookworm AS chef
 
+ARG TARGETARCH=amd64
+ARG CARGO_CHEF_VERSION=0.1.73
+
 WORKDIR /opt/mega
 
-# Install cargo-chef, a tool to cache Rust dependencies efficiently
-RUN cargo install cargo-chef --version 0.1.73
+# Prebuilt cargo-chef (avoids compiling it on every cold planner layer).
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && set -eux \
+    && case "$TARGETARCH" in \
+         amd64) chef_arch=x86_64-unknown-linux-musl ;; \
+         arm64) chef_arch=aarch64-unknown-linux-gnu ;; \
+         *) echo "unsupported TARGETARCH=$TARGETARCH" >&2; exit 1 ;; \
+       esac \
+    && curl -fsSL "https://github.com/LukeMathWalker/cargo-chef/releases/download/v${CARGO_CHEF_VERSION}/cargo-chef-${chef_arch}.tar.gz" \
+         | tar xz -C /usr/local/cargo/bin
 
 COPY Cargo.toml ./
 COPY api-model/Cargo.toml api-model/
@@ -43,10 +55,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl-dev \
     ca-certificates \
     clang \
+    mold \
     protobuf-compiler \
     libprotobuf-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# Faster linking (release deps + final mono link).
+ENV RUSTFLAGS="-C link-arg=-fuse-ld=mold"
 
 # Copy the dependency recipe from the planner stage
 COPY --from=chef /opt/mega/recipe.json recipe.json
