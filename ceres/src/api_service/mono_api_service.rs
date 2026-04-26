@@ -116,6 +116,8 @@ pub struct MonoApiService {
     pub git_object_cache: Arc<GitObjectCache>,
 }
 
+const LARGE_CL_RENAME_DETECTION_THRESHOLD: usize = 1000;
+
 impl From<&MonoRepo> for MonoApiService {
     fn from(mono_repo: &MonoRepo) -> Self {
         MonoApiService {
@@ -3027,6 +3029,18 @@ impl MonoApiService {
                 _ => None,
             })
             .collect();
+
+        if base_diff.len() > LARGE_CL_RENAME_DETECTION_THRESHOLD
+            || candidate_hashes.len() > LARGE_CL_RENAME_DETECTION_THRESHOLD
+        {
+            tracing::info!(
+                diff_files = base_diff.len(),
+                candidate_hashes = candidate_hashes.len(),
+                threshold = LARGE_CL_RENAME_DETECTION_THRESHOLD,
+                "Skipping rename detection for large CL diff and returning path-level results."
+            );
+            return Ok(base_diff);
+        }
 
         for hash in candidate_hashes {
             match self.get_raw_blob_by_hash(&hash.to_string()).await {

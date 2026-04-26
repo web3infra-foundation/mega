@@ -401,9 +401,18 @@ Hint: set SCORPIO_CONFIG=/path/to/scorpio.toml or create /etc/scorpio/scorpio.to
         }
     }
 
+    fn cl_files_timeout() -> Duration {
+        std::env::var("ORION_CL_FILES_TIMEOUT_SECS")
+            .ok()
+            .and_then(|raw| raw.parse::<u64>().ok())
+            .filter(|secs| *secs > 0)
+            .map(Duration::from_secs)
+            .unwrap_or_else(|| Duration::from_secs(120))
+    }
+
     fn http_client() -> Result<Client, DynError> {
         Client::builder()
-            .timeout(Duration::from_secs(30))
+            .timeout(cl_files_timeout())
             .build()
             .map_err(|err| {
                 Box::new(io_other(format!(
@@ -810,3 +819,4 @@ mod imp {
 }
 
 pub use imp::*;
+
