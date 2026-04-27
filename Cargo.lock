@@ -618,7 +618,7 @@ dependencies = [
  "anyhow",
  "api-model",
  "common",
- "reqwest 0.13.2",
+ "reqwest 0.13.3",
  "serde",
  "tracing",
 ]
@@ -1183,7 +1183,7 @@ dependencies = [
  "pgp 0.16.0",
  "rand 0.10.1",
  "regex",
- "reqwest 0.13.2",
+ "reqwest 0.13.3",
  "rkyv 0.8.15",
  "saturn",
  "serde",
@@ -3638,7 +3638,7 @@ dependencies = [
  "common",
  "futures",
  "object_store",
- "reqwest 0.13.2",
+ "reqwest 0.13.3",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -3851,7 +3851,7 @@ dependencies = [
  "rand 0.10.1",
  "redis",
  "redis-test",
- "reqwest 0.13.2",
+ "reqwest 0.13.3",
  "ring",
  "rsa",
  "rustls",
@@ -4538,7 +4538,7 @@ dependencies = [
  "percent-encoding",
  "qlean",
  "regex",
- "reqwest 0.13.2",
+ "reqwest 0.13.3",
  "russh",
  "saturn",
  "serde",
@@ -5012,7 +5012,7 @@ dependencies = [
  "itertools 0.14.0",
  "once_cell",
  "parse-display 0.10.0",
- "reqwest 0.13.2",
+ "reqwest 0.13.3",
  "scorpiofs",
  "serde",
  "serde_json",
@@ -5910,7 +5910,7 @@ dependencies = [
  "kvm-ioctls",
  "nanoid",
  "rand 0.9.4",
- "reqwest 0.13.2",
+ "reqwest 0.13.3",
  "russh",
  "russh-sftp",
  "serde",
@@ -6357,9 +6357,9 @@ dependencies = [
 
 [[package]]
 name = "reqwest"
-version = "0.13.2"
+version = "0.13.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab3f43e3283ab1488b624b44b0e988d0acea0b3214e694730a055cb6b2efa801"
+checksum = "62e0021ea2c22aed41653bc7e1419abb2c97e038ff2c33d0e1309e49a97deec0"
 dependencies = [
  "base64",
  "bytes",
@@ -6973,7 +6973,7 @@ dependencies = [
  "log",
  "once_cell",
  "radix_trie 0.3.0",
- "reqwest 0.13.2",
+ "reqwest 0.13.3",
  "rfuse3",
  "ring",
  "serde",
