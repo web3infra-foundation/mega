@@ -45,6 +45,77 @@ static PROJECT_ROOT: Lazy<String> =
 const DEFAULT_PREHEAT_SHALLOW_DEPTH: usize = 3;
 static BUILD_CONFIG: Lazy<Option<BuildConfig>> = Lazy::new(load_build_config);
 
+#[derive(Debug, Clone)]
+struct AntaresMountPair {
+    old_mount_id: String,
+    old_mount_point: String,
+    new_mount_id: String,
+    new_mount_point: String,
+}
+
+fn retain_antares_mounts() -> bool {
+    match std::env::var("ORION_RETAIN_ANTARES_MOUNTS") {
+        Ok(value) => {
+            let normalized = value.trim().to_ascii_lowercase();
+            !(normalized.is_empty()
+                || normalized == "0"
+                || normalized == "false"
+                || normalized == "no"
+                || normalized == "off")
+        }
+        Err(_) => false,
+    }
+}
+
+async fn cleanup_antares_mount(
+    task_id: &str,
+    mount_id: &str,
+    mount_point: Option<&str>,
+    reason: &str,
+) {
+    match unmount_antares_fs(mount_id).await {
+        Ok(true) => tracing::info!(
+            "[Task {}] Cleaned Antares mount (mount_id={}, mountpoint={}, reason={})",
+            task_id,
+            mount_id,
+            mount_point.unwrap_or("<unknown>"),
+            reason,
+        ),
+        Ok(false) => tracing::warn!(
+            "[Task {}] Antares mount cleanup reported no-op (mount_id={}, mountpoint={}, reason={})",
+            task_id,
+            mount_id,
+            mount_point.unwrap_or("<unknown>"),
+            reason,
+        ),
+        Err(err) => tracing::warn!(
+            "[Task {}] Failed to cleanup Antares mount (mount_id={}, mountpoint={}, reason={}): {}",
+            task_id,
+            mount_id,
+            mount_point.unwrap_or("<unknown>"),
+            reason,
+            err,
+        ),
+    }
+}
+
+async fn cleanup_antares_mount_pair(task_id: &str, mounts: &AntaresMountPair, reason: &str) {
+    cleanup_antares_mount(
+        task_id,
+        &mounts.old_mount_id,
+        Some(&mounts.old_mount_point),
+        reason,
+    )
+    .await;
+    cleanup_antares_mount(
+        task_id,
+        &mounts.new_mount_id,
+        Some(&mounts.new_mount_point),
+        reason,
+    )
+    .await;
+}
+
 /// Mount an Antares overlay filesystem for a build job.
 ///
 /// Creates a new Antares overlay mount using scorpiofs. The underlying Dicfuse
@@ -824,8 +895,8 @@ pub async fn build(
     // - shared files outside `repo` stay monorepo-relative
 
     const MAX_TARGETS_ATTEMPTS: usize = 2;
-    let mut mount_point = None;
-    let mut old_repo_mount_point_saved = None;
+    let retain_mounts = retain_antares_mounts();
+    let mut selected_mounts = None;
     let mut targets: Vec<TargetLabel> = Vec::new();
     let mut last_targets_error: Option<anyhow::Error> = None;
 
@@ -842,10 +913,49 @@ pub async fn build(
         // naturally get separate daemons without needing `--isolation-dir`.
         let id_for_old_repo = format!("{id}-old-{attempt}");
         let (old_repo_mount_point, _mount_id_old_repo) =
-            mount_antares_fs(&id_for_old_repo, &repo, None).await?;
+            match mount_antares_fs(&id_for_old_repo, &repo, None).await {
+                Ok(mount) => mount,
+                Err(err) => {
+                    cleanup_antares_mount(
+                        &id,
+                        &id_for_old_repo,
+                        None,
+                        "cleanup after failed old-repo mount",
+                    )
+                    .await;
+                    return Err(err);
+                }
+            };
 
         let id_for_repo = format!("{id}-{attempt}");
-        let (repo_mount_point, _mount_id) = mount_antares_fs(&id_for_repo, &repo, cl_arg).await?;
+        let (repo_mount_point, _mount_id) =
+            match mount_antares_fs(&id_for_repo, &repo, cl_arg).await {
+                Ok(mount) => mount,
+                Err(err) => {
+                    cleanup_antares_mount(
+                        &id,
+                        &id_for_old_repo,
+                        Some(&old_repo_mount_point),
+                        "cleanup old-repo mount after failed new-repo mount",
+                    )
+                    .await;
+                    cleanup_antares_mount(
+                        &id,
+                        &id_for_repo,
+                        None,
+                        "cleanup after failed new-repo mount",
+                    )
+                    .await;
+                    return Err(err);
+                }
+            };
+
+        let attempt_mounts = AntaresMountPair {
+            old_mount_id: id_for_old_repo,
+            old_mount_point: old_repo_mount_point.clone(),
+            new_mount_id: id_for_repo,
+            new_mount_point: repo_mount_point.clone(),
+        };
 
         tracing::info!(
             "[Task {}] Filesystem mounted successfully (attempt {}/{}).",
@@ -872,6 +982,14 @@ pub async fn build(
                     new_project_root.display(),
                 );
                 last_targets_error = Some(e);
+                if !retain_mounts {
+                    cleanup_antares_mount_pair(
+                        &id,
+                        &attempt_mounts,
+                        "cleanup after invalid project roots",
+                    )
+                    .await;
+                }
                 if attempt == MAX_TARGETS_ATTEMPTS {
                     break;
                 }
@@ -887,8 +1005,7 @@ pub async fn build(
         .await
         {
             Ok(found_targets) => {
-                mount_point = Some(repo_mount_point);
-                old_repo_mount_point_saved = Some(old_repo_mount_point.clone());
+                selected_mounts = Some(attempt_mounts);
                 tracing::info!(
                     "[Task {}] Target discovery succeeded: {} targets",
                     id,
@@ -898,15 +1015,31 @@ pub async fn build(
                 break;
             }
             Err(e) => {
-                tracing::warn!(
-                    "[Task {}] Failed to get build targets (attempt {}/{}): {}. Mounts retained for debugging (old={}, new={}).",
-                    id,
-                    attempt,
-                    MAX_TARGETS_ATTEMPTS,
-                    e,
-                    old_repo_mount_point,
-                    repo_mount_point,
-                );
+                if retain_mounts {
+                    tracing::warn!(
+                        "[Task {}] Failed to get build targets (attempt {}/{}): {}. Mounts retained for debugging (old={}, new={}).",
+                        id,
+                        attempt,
+                        MAX_TARGETS_ATTEMPTS,
+                        e,
+                        attempt_mounts.old_mount_point,
+                        attempt_mounts.new_mount_point,
+                    );
+                } else {
+                    tracing::warn!(
+                        "[Task {}] Failed to get build targets (attempt {}/{}): {}. Cleaning stale Antares mounts before retry.",
+                        id,
+                        attempt,
+                        MAX_TARGETS_ATTEMPTS,
+                        e,
+                    );
+                    cleanup_antares_mount_pair(
+                        &id,
+                        &attempt_mounts,
+                        "cleanup after target discovery failure",
+                    )
+                    .await;
+                }
                 last_targets_error = Some(e);
                 if attempt == MAX_TARGETS_ATTEMPTS {
                     break;
@@ -915,7 +1048,7 @@ pub async fn build(
         }
     }
 
-    let mount_point = match mount_point {
+    let mounts = match selected_mounts {
         Some(value) => value,
         None => {
             let err = last_targets_error
@@ -937,12 +1070,23 @@ pub async fn build(
             return Err(err.into());
         }
     };
+    let mount_point = mounts.new_mount_point.clone();
 
     if finish_without_build_if_no_targets(&id, &targets, &sender)? {
         tracing::info!(
             "[Task {}] No impacted Buck targets detected; skipping buck2 build.",
             id
         );
+        if retain_mounts {
+            tracing::info!(
+                "[Task {}] Skipped build and retained Antares mounts for debugging: new_repo mountpoint={}; old_repo mountpoint={}",
+                id,
+                mounts.new_mount_point,
+                mounts.old_mount_point,
+            );
+        } else {
+            cleanup_antares_mount_pair(&id, &mounts, "cleanup after no-op target set").await;
+        }
         return Ok(successful_exit_status());
     }
 
@@ -1141,14 +1285,18 @@ pub async fn build(
         tracing::warn!("[Task {}] Failed to cleanup isolation-dir: {}", id, e);
     }
 
-    tracing::info!(
-        "[Task {}] Build completed — mount directories retained for debugging: \
-         new_repo mountpoint={}; \
-         old_repo mountpoint={}",
-        id,
-        mount_point,
-        old_repo_mount_point_saved.as_deref().unwrap_or("<unknown>"),
-    );
+    if retain_mounts {
+        tracing::info!(
+            "[Task {}] Build completed — mount directories retained for debugging: \
+             new_repo mountpoint={}; \
+             old_repo mountpoint={}",
+            id,
+            mounts.new_mount_point,
+            mounts.old_mount_point,
+        );
+    } else {
+        cleanup_antares_mount_pair(&id, &mounts, "cleanup after build completion").await;
+    }
 
     build_result
 }
@@ -1168,7 +1316,7 @@ mod tests {
 
     use super::{
         finish_without_build_if_no_targets, get_build_targets, get_repo_targets,
-        remap_repo_local_change_paths, validate_project_root_exists,
+        remap_repo_local_change_paths, retain_antares_mounts, validate_project_root_exists,
     };
 
     struct JsonlCleanupGuard {
@@ -1236,6 +1384,44 @@ mod tests {
 
     fn isolated_ambiguous_main_fixture() -> (TempDir, PathBuf, PathBuf) {
         isolated_fixture("orion/tests/fixtures/change_detector_ambiguous_main")
+    }
+
+    fn set_mount_retention_env(value: Option<&str>) {
+        // SAFETY: these tests are marked serial and only mutate process env inside the test.
+        unsafe {
+            match value {
+                Some(value) => std::env::set_var("ORION_RETAIN_ANTARES_MOUNTS", value),
+                None => std::env::remove_var("ORION_RETAIN_ANTARES_MOUNTS"),
+            }
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_retain_antares_mounts_defaults_to_false() {
+        set_mount_retention_env(None);
+        assert!(!retain_antares_mounts());
+    }
+
+    #[test]
+    #[serial]
+    fn test_retain_antares_mounts_accepts_truthy_values() {
+        set_mount_retention_env(Some("true"));
+        assert!(retain_antares_mounts());
+        set_mount_retention_env(None);
+    }
+
+    #[test]
+    #[serial]
+    fn test_retain_antares_mounts_treats_falsey_values_as_disabled() {
+        for value in ["", "0", "false", "no", "off"] {
+            set_mount_retention_env(Some(value));
+            assert!(
+                !retain_antares_mounts(),
+                "expected {value:?} to disable Antares mount retention"
+            );
+        }
+        set_mount_retention_env(None);
     }
 
     #[tokio::test]
