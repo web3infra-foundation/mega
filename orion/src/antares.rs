@@ -299,7 +299,16 @@ Hint: set SCORPIO_CONFIG=/path/to/scorpio.toml or create /etc/scorpio/scorpio.to
             );
         }
 
-        best_effort_detach_mountpoint(mountpoint, false).await;
+        if !best_effort_detach_mountpoint(mountpoint, false).await
+            && !best_effort_detach_mountpoint(mountpoint, true).await
+        {
+            return Err(Box::new(io_other(format!(
+                "Failed to prepare Antares mountpoint {} for job {} because it still appears mounted after detach attempts",
+                mountpoint.display(),
+                job_id
+            ))));
+        }
+
         match remove_mountpoint_path(mountpoint).await {
             Ok(()) => Ok(()),
             Err(first_err) => {
@@ -321,9 +330,9 @@ Hint: set SCORPIO_CONFIG=/path/to/scorpio.toml or create /etc/scorpio/scorpio.to
         }
     }
 
-    async fn best_effort_detach_mountpoint(mountpoint: &Path, lazy: bool) {
+    async fn best_effort_detach_mountpoint(mountpoint: &Path, lazy: bool) -> bool {
         if !mountpoint.exists() {
-            return;
+            return true;
         }
 
         let flag = if lazy { "-uz" } else { "-u" };
@@ -339,19 +348,18 @@ Hint: set SCORPIO_CONFIG=/path/to/scorpio.toml or create /etc/scorpio/scorpio.to
                     lazy = lazy,
                     "Detached stale Antares mountpoint with fusermount."
                 );
+                true
             }
             Ok(output) => {
                 let stderr = String::from_utf8_lossy(&output.stderr);
-                if stderr.contains("not mounted")
-                    || stderr.contains("Invalid argument")
-                    || stderr.contains("not found in /etc/mtab")
-                {
+                if fusermount_output_indicates_safe_detach(&stderr) {
                     tracing::debug!(
                         mountpoint = %mountpoint.display(),
                         lazy = lazy,
                         "fusermount reported mountpoint already detached: {}",
                         stderr.trim()
                     );
+                    true
                 } else {
                     tracing::warn!(
                         mountpoint = %mountpoint.display(),
@@ -360,6 +368,7 @@ Hint: set SCORPIO_CONFIG=/path/to/scorpio.toml or create /etc/scorpio/scorpio.to
                         "fusermount detach reported stderr: {}",
                         stderr.trim()
                     );
+                    false
                 }
             }
             Err(err) => {
@@ -369,8 +378,15 @@ Hint: set SCORPIO_CONFIG=/path/to/scorpio.toml or create /etc/scorpio/scorpio.to
                     "Failed to execute fusermount for stale mountpoint cleanup: {}",
                     err
                 );
+                false
             }
         }
+    }
+
+    fn fusermount_output_indicates_safe_detach(stderr: &str) -> bool {
+        stderr.contains("not mounted")
+            || stderr.contains("Invalid argument")
+            || stderr.contains("not found in /etc/mtab")
     }
 
     async fn remove_mountpoint_path(mountpoint: &Path) -> io::Result<()> {
@@ -909,6 +925,20 @@ Hint: set SCORPIO_CONFIG=/path/to/scorpio.toml or create /etc/scorpio/scorpio.to
             remove_mountpoint_path(&mountpoint)
                 .await
                 .expect("missing mountpoint should be ignored");
+        }
+
+        #[test]
+        fn test_fusermount_output_indicates_safe_detach_matches_known_messages() {
+            assert!(fusermount_output_indicates_safe_detach(
+                "mountpoint not mounted"
+            ));
+            assert!(fusermount_output_indicates_safe_detach("Invalid argument"));
+            assert!(fusermount_output_indicates_safe_detach(
+                "not found in /etc/mtab"
+            ));
+            assert!(!fusermount_output_indicates_safe_detach(
+                "permission denied"
+            ));
         }
     }
 }
