@@ -856,8 +856,8 @@ Hint: set SCORPIO_CONFIG=/path/to/scorpio.toml or create /etc/scorpio/scorpio.to
         use tempfile::tempdir;
 
         use super::{
-            panic_payload_to_string, remove_mountpoint_path, resolve_overlay_relative_path,
-            run_with_panic_guard,
+            fusermount_output_indicates_safe_detach, panic_payload_to_string,
+            remove_mountpoint_path, resolve_overlay_relative_path, run_with_panic_guard,
         };
 
         #[tokio::test]
