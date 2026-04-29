@@ -32,7 +32,9 @@ mod imp {
     use scorpiofs::{AntaresConfig, AntaresManager, AntaresPaths, antares::fuse::AntaresFuse};
     use serde::Deserialize;
     use tokio::{
+        fs,
         io::AsyncWriteExt,
+        process::Command,
         sync::{Mutex, OnceCell},
     };
     use uuid::Uuid;
@@ -179,6 +181,9 @@ Hint: set SCORPIO_CONFIG=/path/to/scorpio.toml or create /etc/scorpio/scorpio.to
             return mount_job_with_prepopulated_cl(job_id, repo, cl_link).await;
         }
 
+        let mountpoint = AntaresPaths::from_global_config().mount_root.join(job_id);
+        prepare_mountpoint_for_retry(job_id, &mountpoint).await?;
+
         let manager = get_manager().await?;
         let config = run_with_panic_guard(
             format!("Antares mount panicked for job_id={job_id}, cl={cl:?}"),
@@ -227,6 +232,8 @@ Hint: set SCORPIO_CONFIG=/path/to/scorpio.toml or create /etc/scorpio/scorpio.to
         let upper_dir = paths.upper_root.join(&upper_id);
         let cl_dir = paths.cl_root.join(&cl_id);
         let mountpoint = paths.mount_root.join(job_id);
+
+        prepare_mountpoint_for_retry(job_id, &mountpoint).await?;
 
         tokio::fs::create_dir_all(&upper_dir).await?;
         tokio::fs::create_dir_all(&mountpoint).await?;
@@ -280,6 +287,120 @@ Hint: set SCORPIO_CONFIG=/path/to/scorpio.toml or create /etc/scorpio/scorpio.to
         );
 
         Ok(config)
+    }
+
+    async fn prepare_mountpoint_for_retry(job_id: &str, mountpoint: &Path) -> Result<(), DynError> {
+        if let Err(err) = unmount_job(job_id).await {
+            tracing::warn!(
+                job_id = job_id,
+                mountpoint = %mountpoint.display(),
+                "Best-effort Antares unmount before remount failed: {}",
+                err
+            );
+        }
+
+        if !best_effort_detach_mountpoint(mountpoint, false).await
+            && !best_effort_detach_mountpoint(mountpoint, true).await
+        {
+            return Err(Box::new(io_other(format!(
+                "Failed to prepare Antares mountpoint {} for job {} because it still appears mounted after detach attempts",
+                mountpoint.display(),
+                job_id
+            ))));
+        }
+
+        match remove_mountpoint_path(mountpoint).await {
+            Ok(()) => Ok(()),
+            Err(first_err) => {
+                tracing::warn!(
+                    job_id = job_id,
+                    mountpoint = %mountpoint.display(),
+                    "Mountpoint cleanup failed after regular unmount, retrying with lazy detach: {}",
+                    first_err
+                );
+                best_effort_detach_mountpoint(mountpoint, true).await;
+                remove_mountpoint_path(mountpoint).await.map_err(|err| {
+                    Box::new(io_other(format!(
+                        "Failed to prepare Antares mountpoint {} for job {} after retry-safe cleanup: {err}",
+                        mountpoint.display(),
+                        job_id
+                    ))) as DynError
+                })
+            }
+        }
+    }
+
+    async fn best_effort_detach_mountpoint(mountpoint: &Path, lazy: bool) -> bool {
+        if !mountpoint.exists() {
+            return true;
+        }
+
+        let flag = if lazy { "-uz" } else { "-u" };
+        match Command::new("fusermount")
+            .arg(flag)
+            .arg(mountpoint)
+            .output()
+            .await
+        {
+            Ok(output) if output.status.success() => {
+                tracing::info!(
+                    mountpoint = %mountpoint.display(),
+                    lazy = lazy,
+                    "Detached stale Antares mountpoint with fusermount."
+                );
+                true
+            }
+            Ok(output) => {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                if fusermount_output_indicates_safe_detach(&stderr) {
+                    tracing::debug!(
+                        mountpoint = %mountpoint.display(),
+                        lazy = lazy,
+                        "fusermount reported mountpoint already detached: {}",
+                        stderr.trim()
+                    );
+                    true
+                } else {
+                    tracing::warn!(
+                        mountpoint = %mountpoint.display(),
+                        lazy = lazy,
+                        status = %output.status,
+                        "fusermount detach reported stderr: {}",
+                        stderr.trim()
+                    );
+                    false
+                }
+            }
+            Err(err) => {
+                tracing::warn!(
+                    mountpoint = %mountpoint.display(),
+                    lazy = lazy,
+                    "Failed to execute fusermount for stale mountpoint cleanup: {}",
+                    err
+                );
+                false
+            }
+        }
+    }
+
+    fn fusermount_output_indicates_safe_detach(stderr: &str) -> bool {
+        stderr.contains("not mounted")
+            || stderr.contains("Invalid argument")
+            || stderr.contains("not found in /etc/mtab")
+    }
+
+    async fn remove_mountpoint_path(mountpoint: &Path) -> io::Result<()> {
+        match fs::symlink_metadata(mountpoint).await {
+            Ok(metadata) => {
+                if metadata.is_dir() {
+                    fs::remove_dir_all(mountpoint).await
+                } else {
+                    fs::remove_file(mountpoint).await
+                }
+            }
+            Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(()),
+            Err(err) => Err(err),
+        }
     }
 
     /// Initialize Antares during Orion startup and eagerly trigger Dicfuse import.
@@ -732,7 +853,12 @@ Hint: set SCORPIO_CONFIG=/path/to/scorpio.toml or create /etc/scorpio/scorpio.to
     mod tests {
         use std::io;
 
-        use super::{panic_payload_to_string, resolve_overlay_relative_path, run_with_panic_guard};
+        use tempfile::tempdir;
+
+        use super::{
+            fusermount_output_indicates_safe_detach, panic_payload_to_string,
+            remove_mountpoint_path, resolve_overlay_relative_path, run_with_panic_guard,
+        };
 
         #[tokio::test]
         async fn test_run_with_panic_guard_converts_panic_to_error() {
@@ -775,6 +901,44 @@ Hint: set SCORPIO_CONFIG=/path/to/scorpio.toml or create /etc/scorpio/scorpio.to
         #[test]
         fn test_resolve_overlay_relative_path_rejects_escape_sequences() {
             assert!(resolve_overlay_relative_path("/project/buck2_test", "../etc/passwd").is_err());
+        }
+
+        #[tokio::test]
+        async fn test_remove_mountpoint_path_removes_directory_tree() {
+            let tempdir = tempdir().expect("tempdir");
+            let mountpoint = tempdir.path().join("mountpoint");
+            std::fs::create_dir_all(mountpoint.join("nested")).expect("nested dir");
+            std::fs::write(mountpoint.join("nested/file.txt"), b"hello").expect("file");
+
+            remove_mountpoint_path(&mountpoint)
+                .await
+                .expect("mountpoint cleanup should succeed");
+
+            assert!(!mountpoint.exists());
+        }
+
+        #[tokio::test]
+        async fn test_remove_mountpoint_path_ignores_missing_path() {
+            let tempdir = tempdir().expect("tempdir");
+            let mountpoint = tempdir.path().join("missing");
+
+            remove_mountpoint_path(&mountpoint)
+                .await
+                .expect("missing mountpoint should be ignored");
+        }
+
+        #[test]
+        fn test_fusermount_output_indicates_safe_detach_matches_known_messages() {
+            assert!(fusermount_output_indicates_safe_detach(
+                "mountpoint not mounted"
+            ));
+            assert!(fusermount_output_indicates_safe_detach("Invalid argument"));
+            assert!(fusermount_output_indicates_safe_detach(
+                "not found in /etc/mtab"
+            ));
+            assert!(!fusermount_output_indicates_safe_detach(
+                "permission denied"
+            ));
         }
     }
 }
