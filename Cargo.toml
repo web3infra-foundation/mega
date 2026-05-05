@@ -62,7 +62,7 @@ futures-util = "0.3.32"
 axum = { version = "0.8.9", features = ["macros", "json"] }
 axum-extra = "0.12.6"
 russh = "0.55.0"
-tower-http = "0.6.8"
+tower-http = "0.6.9"
 tower = "0.5.3"
 tower-sessions = { version = "0.15", features = ["memory-store"] }
 time = { version = "0.3.47", features = ["serde"] }
