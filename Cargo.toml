@@ -102,7 +102,7 @@ secp256k1 = "0.30.0"
 pgp = "0.15.0"
 base64 = "0.22.1"
 
-utoipa = { version = "5.4.0", features = ["chrono"] }
+utoipa = { version = "5.5.0", features = ["chrono"] }
 utoipa-axum = "0.2.0"
 utoipa-swagger-ui = "9.0.2"
 tempfile = "3.27.0"
