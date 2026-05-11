@@ -14,7 +14,7 @@ common = { workspace = true }
 async-trait = { workspace = true }
 hex = { workspace = true }
 pgp = { workspace = true }
-rand = { workspace = true, features = ["thread_rng"] }
+rand = "0.8.6"
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tracing = { workspace = true }

@@ -45,7 +45,7 @@ jobs:
 
       # -----------------------------
       # AWS login (skip buck2hub)
-      - name: Configure AWS Credentials
+      - name: Configure AWS Credentials (ECR Public, us-east-1)
         if: matrix.env_name != 'buck2hub'
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -59,6 +59,21 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
         with:
           registry-type: public
+
+      - name: Configure AWS Credentials (ECR Private, ap-southeast-2)
+        if: matrix.env_name != 'buck2hub'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-southeast-2
+
+      - name: Login to Amazon ECR Private
+        if: matrix.env_name != 'buck2hub'
+        id: login-ecr-private
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          registry-type: private
 
       # -----------------------------
       # GCP login (only buck2hub)
@@ -77,7 +92,8 @@ jobs:
       - name: Build & push ${{ matrix.env_name }} image
         working-directory: moon
         env:
-          REGISTRY: ${{ steps.login-ecr-public.outputs.registry || '' }}
+          ECR_PUBLIC_REGISTRY: ${{ steps.login-ecr-public.outputs.registry || '' }}
+          ECR_PRIVATE_REGISTRY: ${{ steps.login-ecr-private.outputs.registry || '' }}
           PLATFORM: linux/amd64
         run: |
           set -euo pipefail
@@ -86,20 +102,31 @@ jobs:
 
           if [ "${{ matrix.env_name }}" = "buck2hub" ]; then
             IMAGE_BASE="us-central1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}"
+            docker buildx build \
+              --platform "$PLATFORM" \
+              --cache-from type=gha,scope=mega-ui \
+              --cache-to type=gha,mode=max,scope=mega-ui \
+              --provenance=false \
+              --sbom=false \
+              --build-arg APP_ENV=${{ matrix.env_name }} \
+              -f apps/web/Dockerfile \
+              -t "$IMAGE_BASE:$IMAGE_TAG" . \
+              --push
           else
-            IMAGE_BASE="$REGISTRY/${{ env.REGISTRY_ALIAS }}/${{ env.REPOSITORY }}"
+            PUBLIC_IMAGE="$ECR_PUBLIC_REGISTRY/${{ env.REGISTRY_ALIAS }}/${{ env.REPOSITORY }}:$IMAGE_TAG"
+            PRIVATE_IMAGE="$ECR_PRIVATE_REGISTRY/${{ env.REPOSITORY }}:$IMAGE_TAG"
+            docker buildx build \
+              --platform "$PLATFORM" \
+              --cache-from type=gha,scope=mega-ui \
+              --cache-to type=gha,mode=max,scope=mega-ui \
+              --provenance=false \
+              --sbom=false \
+              --build-arg APP_ENV=${{ matrix.env_name }} \
+              -f apps/web/Dockerfile \
+              -t "$PUBLIC_IMAGE" \
+              -t "$PRIVATE_IMAGE" . \
+              --push
           fi
-
-          docker buildx build \
-            --platform "$PLATFORM" \
-            --cache-from type=gha,scope=mega-ui \
-            --cache-to type=gha,mode=max,scope=mega-ui \
-            --provenance=false \
-            --sbom=false \
-            --build-arg APP_ENV=${{ matrix.env_name }} \
-            -f apps/web/Dockerfile \
-            -t "$IMAGE_BASE:$IMAGE_TAG" . \
-            --push
 
   manifest:
     needs: build-push-single-arch

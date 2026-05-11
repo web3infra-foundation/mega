@@ -20,8 +20,7 @@ bellatrix = { workspace = true }
 saturn = { workspace = true }
 
 anyhow = { workspace = true }
-# TODO: Use 0.16.0 version for GPG Verification, consider to adapt the latest version in the future 
-pgp = { version = "0.16.0" }
+pgp = { workspace = true }
 async-trait = { workspace = true }
 bytes = { workspace = true }
 chrono = { workspace = true }

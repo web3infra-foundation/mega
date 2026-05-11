@@ -1,7 +1,7 @@
 # ---------- planner stage ----------
 # This stage analyzes the Cargo workspace and produces a dependency recipe.
 # The recipe will change ONLY when Cargo.toml changes.
-FROM rust:1.94.0-bookworm AS chef
+FROM rust:1.95.0 AS chef
 
 ARG TARGETARCH=amd64
 ARG CARGO_CHEF_VERSION=0.1.73

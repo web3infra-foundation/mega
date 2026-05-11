@@ -1,3 +1,5 @@
+#![cfg(target_os = "linux")]
+
 //! Integration tests for Mega ChangeList (CL) merge and update-branch operations
 //!
 //! These tests run inside a QEMU/KVM virtual machine using the qlean crate,

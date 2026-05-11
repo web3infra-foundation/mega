@@ -1,8 +1,9 @@
-pub use pgp::{
-    KeyType,
-    composed::{Deserializable, SignedPublicKey, SignedSecretKey},
+use pgp::composed::{Deserializable, EncryptionCaps};
+pub use pgp::composed::{
+    KeyType, SecretKeyParams, SecretKeyParamsBuilder, SignedPublicKey, SignedSecretKey,
+    SubkeyParamsBuilder,
 };
-use pgp::{SecretKeyParams, SecretKeyParamsBuilder, SubkeyParamsBuilder, types::SecretKeyTrait};
+use rand::thread_rng;
 /// This module provides functions for generating, loading, saving, and deleting PGP key pairs.
 ///
 /// It uses the `pgp` crate for key generation and management, and stores the keys in a vault
@@ -28,33 +29,13 @@ impl VaultCore {
     pub fn gen_pgp_keypair(
         &self,
         params: SecretKeyParams,
-        passwd: Option<String>,
+        _passwd: Option<String>,
     ) -> (SignedPublicKey, SignedSecretKey) {
-        let mut rng = secp256k1::rand::rngs::OsRng;
-        let key = params
-            .generate(rng)
+        let mut rng = thread_rng();
+        let signed_key = params
+            .generate(&mut rng)
             .expect("failed to generate secret key, encrypted");
-
-        let signed_key = key
-            .sign(&mut rng, || {
-                if let Some(passwd) = passwd.clone() {
-                    passwd
-                } else {
-                    "".into()
-                }
-            })
-            .expect("failed to sign key");
-
-        let pub_key = signed_key.public_key();
-        let signed_pub = pub_key
-            .sign(rng, &signed_key, || {
-                if let Some(passwd) = passwd {
-                    passwd
-                } else {
-                    "".into()
-                }
-            })
-            .expect("failed to sign key");
+        let signed_pub = signed_key.to_public_key();
 
         (signed_pub, signed_key)
     }
@@ -69,7 +50,7 @@ impl VaultCore {
         if let Some(data) = key {
             let key = data["pub_key"].as_str().unwrap();
             let (key, _headers) = SignedPublicKey::from_string(key).expect("failed to parse key");
-            key.verify().expect("invalid key");
+            key.verify_bindings().expect("invalid key");
             Some(key)
         } else {
             None
@@ -86,7 +67,7 @@ impl VaultCore {
         if let Some(data) = key {
             let key = data["sec_key"].as_str().unwrap();
             let (key, _headers) = SignedSecretKey::from_string(key).expect("failed to parse key");
-            key.verify().expect("invalid key");
+            key.verify_bindings().expect("invalid key");
             Some(key)
         } else {
             None
@@ -141,7 +122,7 @@ impl VaultCore {
     /// # Returns
     ///
     /// A `SecretKeyParams` object configured with the specified parameters, ready for key generation.
-    pub fn params(key_type: pgp::KeyType, passwd: Option<String>, uid: &str) -> SecretKeyParams {
+    pub fn params(key_type: KeyType, passwd: Option<String>, uid: &str) -> SecretKeyParams {
         let version = pgp::types::KeyVersion::V6;
 
         let mut key_params = SecretKeyParamsBuilder::default();
@@ -157,11 +138,11 @@ impl VaultCore {
                 pgp::crypto::sym::SymmetricKeyAlgorithm::AES128,
             ])
             .preferred_hash_algorithms(smallvec![
-                pgp::crypto::hash::HashAlgorithm::SHA2_256,
-                pgp::crypto::hash::HashAlgorithm::SHA2_384,
-                pgp::crypto::hash::HashAlgorithm::SHA2_512,
-                pgp::crypto::hash::HashAlgorithm::SHA2_224,
-                pgp::crypto::hash::HashAlgorithm::SHA1,
+                pgp::crypto::hash::HashAlgorithm::Sha256,
+                pgp::crypto::hash::HashAlgorithm::Sha384,
+                pgp::crypto::hash::HashAlgorithm::Sha512,
+                pgp::crypto::hash::HashAlgorithm::Sha224,
+                pgp::crypto::hash::HashAlgorithm::Sha1,
             ])
             .preferred_compression_algorithms(smallvec![
                 pgp::types::CompressionAlgorithm::ZLIB,
@@ -173,7 +154,7 @@ impl VaultCore {
                     .version(version)
                     .key_type(key_type)
                     .passphrase(passwd)
-                    .can_encrypt(true)
+                    .can_encrypt(EncryptionCaps::All)
                     .build()
                     .unwrap(),
             )
