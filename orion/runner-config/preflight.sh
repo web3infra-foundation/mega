@@ -34,4 +34,15 @@ if (( (16#${CAP_EFF_HEX} & CAP_SYS_ADMIN_MASK) == 0 )); then
     exit 1
 fi
 
+echo "==> [预检] 检查 buck2 ..."
+if ! command -v buck2 >/dev/null 2>&1; then
+    echo "错误：buck2 不在 PATH 中，请安装 buck2 到 /usr/local/bin/buck2。"
+    exit 1
+fi
+if ! buck2 version >/dev/null 2>&1; then
+    echo "错误：buck2 已安装但无法执行（权限或依赖问题）。"
+    exit 1
+fi
+echo "  - buck2 就绪: $(which buck2)"
+
 echo "==> [预检] 通过"

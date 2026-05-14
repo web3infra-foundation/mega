@@ -35,14 +35,8 @@ KillSignal=SIGTERM
 SendSIGKILL=yes
 FinalKillSignal=SIGKILL
 
-# Grant capabilities for FUSE mounting and read-search bypass
-AmbientCapabilities=CAP_SYS_ADMIN
-CapabilityBoundingSet=CAP_SYS_ADMIN CAP_DAC_OVERRIDE CAP_DAC_READ_SEARCH
-
-# Basic hardening (relaxed for FUSE operations)
-NoNewPrivileges=false
-PrivateTmp=false
-PrivateMounts=no
+LimitNOFILE=10485760
+LimitNPROC=1048576
 
 [Install]
 WantedBy=multi-user.target
