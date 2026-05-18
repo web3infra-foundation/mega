@@ -1,3 +1,5 @@
+#![cfg(target_os = "linux")]
+
 //! Integration tests for session management with real Redis
 //!
 //! These tests run inside a QEMU/KVM virtual machine using the qlean crate,

@@ -95,9 +95,7 @@ jobs:
 
           docker buildx build \
             --cache-from type=gha,scope=$CACHE_SCOPE \
-            --cache-from type=registry,ref=$ECR_CACHE_IMAGE \
             --cache-to type=gha,mode=max,scope=$CACHE_SCOPE \
-            --cache-to type=registry,ref=$ECR_CACHE_IMAGE,mode=max \
             --provenance=false \
             --sbom=false \
             -f ./mono/Dockerfile \

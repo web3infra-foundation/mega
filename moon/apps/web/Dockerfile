@@ -8,7 +8,7 @@ ENV APP_ENV=${APP_ENV}
 # configure pnpm
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
-RUN corepack enable
+RUN npm install -g pnpm
 
 ARG TIPTAP_PRIVATE_REGISTRY_KEY
 

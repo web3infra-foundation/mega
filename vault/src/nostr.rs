@@ -1,4 +1,4 @@
-use secp256k1::{PublicKey, Secp256k1, SecretKey, rand::rngs::OsRng};
+use secp256k1::{PublicKey, Secp256k1, SecretKey};
 use tracing::log;
 
 use crate::integration::vault_core::{VaultCore, VaultCoreInterface};
@@ -16,7 +16,7 @@ const NOSTR_IDENTITY_KEY: &str = "nostr_identity_key";
 /// - A tuple of `(SecretKey, PublicKey)`
 pub fn generate_nostr_id() -> (String, (SecretKey, PublicKey)) {
     let secp = Secp256k1::new();
-    let mut rng = OsRng;
+    let mut rng = secp256k1::rand::rng();
     let secret_key = SecretKey::new(&mut rng);
     let public_key = secret_key.public_key(&secp);
     let nostr = bs58::encode(public_key.serialize()).into_string();
@@ -99,8 +99,8 @@ mod tests {
         assert_eq!(PublicKey::from_slice(&nostr_decode).unwrap(), public_key);
         // verify
         let secp = Secp256k1::new();
-        let message = Message::from_digest_slice(&[0xab; 32]).expect("32 bytes");
-        let sig = secp.sign_ecdsa(&message, &secret_key);
-        assert_eq!(secp.verify_ecdsa(&message, &sig, &public_key), Ok(()));
+        let message = Message::from_digest([0xab; 32]);
+        let sig = secp.sign_ecdsa(message, &secret_key);
+        assert_eq!(secp.verify_ecdsa(message, &sig, &public_key), Ok(()));
     }
 }

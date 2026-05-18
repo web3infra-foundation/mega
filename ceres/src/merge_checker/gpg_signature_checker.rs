@@ -3,7 +3,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use common::errors::MegaError;
 use jupiter::{model::cl_dto::ClInfoDto, storage::Storage};
-use pgp::composed::{Deserializable, SignedPublicKey, StandaloneSignature};
+use pgp::composed::{Deserializable, DetachedSignature, SignedPublicKey};
 use regex::Regex;
 use serde::Deserialize;
 use serde_json::Value;
@@ -115,12 +115,11 @@ impl GpgSignatureChecker {
         let pub_key = SignedPublicKey::from_string(public_key)
             .map_err(|e| MegaError::Other(format!("Failed to parse public key: {e}")))?
             .0;
-        let sig = StandaloneSignature::from_string(signature)
+        let sig = DetachedSignature::from_string(signature)
             .map_err(|e| MegaError::Other(format!("Failed to parse signature: {e}")))?
             .0;
         let bytes = message.as_bytes();
-        sig.signature
-            .verify(&pub_key, bytes)
+        sig.verify(&pub_key, bytes)
             .map_err(|e| MegaError::Other(format!("Signature verification failed: {e}")))?;
 
         Ok(())
@@ -273,11 +272,9 @@ F5MtAwnDBeT2Qg==
     let pub_key = SignedPublicKey::from_string(pk)
         .expect("unable to parse key")
         .0;
-    let sig = StandaloneSignature::from_string(&sig)
+    let sig = DetachedSignature::from_string(&sig)
         .expect("unable to parse sig")
         .0;
     let bytes = msg.as_bytes();
-    sig.signature
-        .verify(&pub_key, bytes)
-        .expect("unable to verify");
+    sig.verify(&pub_key, bytes).expect("unable to verify");
 }

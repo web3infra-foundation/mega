@@ -1,3 +1,5 @@
+#![cfg(target_os = "linux")]
+
 //! Integration tests for LoginUser extractor with real services
 //!
 //! These tests run inside a QEMU/KVM virtual machine using the qlean crate,

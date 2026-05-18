@@ -1,3 +1,5 @@
+#![cfg(target_os = "linux")]
+
 //! Qlean Integration Tests - Simplified Version
 //!
 //! This version uses docker-compose.demo.yml for ALL services,
