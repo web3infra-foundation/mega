@@ -90,7 +90,7 @@ rsa = "0.9.10"
 hmac = "0.13"
 
 idgenerator = "2.0.0"
-config = "0.15.22"
+config = "0.15.23"
 reqwest = "0.13.3"
 lazy_static = "1.5.0"
 uuid = "1.23.1"
