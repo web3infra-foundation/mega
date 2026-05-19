@@ -329,6 +329,14 @@ fn get_repo_targets(
 
     for attempt in 1..=MAX_ATTEMPTS {
         tracing::debug!("Get targets for repo {repo_path:?} (attempt {attempt}/{MAX_ATTEMPTS})");
+
+        // DEBUG: Log exact command execution context
+        tracing::debug!(
+            repo_path = %repo_path.display(),
+            cwd_exists = repo_path.exists(),
+            "DEBUG: Buck2 command execution context"
+        );
+
         let mut command = std::process::Command::new("buck2");
         command
             .env("BUCKD_STARTUP_TIMEOUT", "30")
@@ -347,7 +355,20 @@ fn get_repo_targets(
             command.arg("//...");
         }
 
+        // DEBUG: Log the current directory
+        tracing::debug!(current_dir = %repo_path.display(), "DEBUG: Setting buck2 current_dir");
         command.current_dir(repo_path);
+
+        // DEBUG: Check if we can stat the required files
+        let buckconfig_path = repo_path.join(".buckconfig");
+        let buck_path = repo_path.join("BUCK");
+        tracing::debug!(
+            current_dir = %repo_path.display(),
+            buckconfig_exists = buckconfig_path.exists(),
+            buck_exists = buck_path.exists(),
+            "DEBUG: Cell marker files check"
+        );
+
         command.stderr(Stdio::piped());
         let (mut child, stdout) = spawn(command)?;
         let mut stderr = child.stderr.take().expect("stderr should be piped");
@@ -557,15 +578,57 @@ async fn get_build_targets(
     tracing::info!("Get cells at {:?}", mount_point);
     let mount_path = PathBuf::from(mount_point);
     let old_repo = PathBuf::from(old_repo_mount_point);
+
+    // DEBUG: Log path details before Buck2 operations
+    tracing::debug!(
+        mount_point = %mount_point,
+        mount_path = %mount_path.display(),
+        old_repo_mount_point = %old_repo_mount_point,
+        old_repo = %old_repo.display(),
+        "DEBUG: Buck2 get_build_targets paths"
+    );
+
+    // DEBUG: Check mount_path contents
+    if mount_path.exists() {
+        match std::fs::read_dir(&mount_path) {
+            Ok(entries) => {
+                let dir_contents: Vec<_> = entries
+                    .filter_map(|e| e.ok())
+                    .map(|e| e.file_name().to_string_lossy().to_string())
+                    .collect();
+                tracing::debug!(mount_path = %mount_path.display(), contents = ?dir_contents, "DEBUG: Mount path directory contents");
+            }
+            Err(e) => {
+                tracing::warn!(mount_path = %mount_path.display(), error = %e, "DEBUG: Failed to read mount path");
+            }
+        }
+    } else {
+        tracing::warn!(mount_path = %mount_path.display(), "DEBUG: Mount path does not exist!");
+    }
+
     tracing::debug!("Analyzing changes {mega_changes:?}");
 
     preheat_shallow(&mount_path, preheat_shallow_depth())?;
+
+    // DEBUG: Log Buck2 initialization
+    tracing::debug!(buck2_root = %mount_path.display(), "DEBUG: Initializing Buck2 with root");
     let mut buck2 = Buck2::with_root("buck2".to_string(), mount_path.clone());
-    let mut cells = CellInfo::parse(
-        &buck2
-            .cells()
-            .map_err(|err| anyhow!("Fail to get cells: {}", err))?,
-    )?;
+
+    // DEBUG: Log before buck2 cells() call
+    tracing::debug!(buck2_root = %mount_path.display(), "DEBUG: About to call buck2 cells()");
+    let cells_result = buck2.cells();
+
+    match &cells_result {
+        Ok(_cells_info) => {
+            tracing::debug!(buck2_root = %mount_path.display(), "DEBUG: buck2 cells() succeeded");
+        }
+        Err(e) => {
+            tracing::warn!(buck2_root = %mount_path.display(), error = %e, "DEBUG: buck2 cells() failed");
+        }
+    }
+
+    let mut cells =
+        CellInfo::parse(&cells_result.map_err(|err| anyhow!("Fail to get cells: {}", err))?)?;
 
     tracing::debug!("Get config");
     cells.parse_config_data(
@@ -620,7 +683,25 @@ fn validate_project_roots(
 }
 
 fn validate_project_root_exists(kind: &str, project_root: &Path) -> anyhow::Result<()> {
+    // DEBUG: Log the path being validated
+    tracing::debug!(
+        kind = kind,
+        project_root = %project_root.display(),
+        exists = project_root.exists(),
+        "DEBUG: Validating project root"
+    );
+
     if project_root.exists() {
+        // DEBUG: Check if key cell files exist
+        let buckconfig = project_root.join(".buckconfig");
+        let buck_file = project_root.join("BUCK");
+        tracing::debug!(
+            kind = kind,
+            project_root = %project_root.display(),
+            has_buckconfig = buckconfig.exists(),
+            has_buck_file = buck_file.exists(),
+            "DEBUG: Project root exists, checking cell markers"
+        );
         return Ok(());
     }
 

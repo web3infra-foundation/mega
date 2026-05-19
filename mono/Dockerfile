@@ -1,6 +1,5 @@
-# ---------- planner stage ----------
-# This stage analyzes the Cargo workspace and produces a dependency recipe.
-# The recipe will change ONLY when Cargo.toml changes.
+# ────── Stage 0: Chef ──────
+# Downloads and installs cargo-chef (prebuilt binary, no Rust compilation needed).
 FROM rust:1.95.0 AS chef
 
 ARG TARGETARCH=amd64
@@ -11,7 +10,6 @@ WORKDIR /opt/mega
 # Prebuilt cargo-chef (avoids compiling it on every cold planner layer).
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl \
     && rm -rf /var/lib/apt/lists/* \
-    && set -eux \
     && case "$TARGETARCH" in \
          amd64) chef_arch=x86_64-unknown-linux-musl ;; \
          arm64) chef_arch=aarch64-unknown-linux-gnu ;; \
@@ -19,6 +17,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
        esac \
     && curl -fsSL "https://github.com/LukeMathWalker/cargo-chef/releases/download/v${CARGO_CHEF_VERSION}/cargo-chef-${chef_arch}.tar.gz" \
          | tar xz -C /usr/local/cargo/bin
+
+# ────── Stage 1: Planner ──────
+# Copies all Cargo.toml files; cargo-chef emits recipe.json describing the full dependency graph.
+# This stage is cached unless a Cargo.toml changes.
+FROM chef AS planner
+
+WORKDIR /opt/mega
 
 COPY Cargo.toml ./
 COPY api-model/Cargo.toml api-model/
@@ -38,14 +43,13 @@ COPY orion-server/bellatrix/Cargo.toml orion-server/bellatrix/
 COPY saturn/Cargo.toml saturn/
 COPY vault/Cargo.toml vault/
 
+# Named cache mounts let the builder stage inherit this cache via `from=planner`.
+RUN --mount=type=cache,target=/usr/local/cargo/registry,id=mono-registry \
+    --mount=type=cache,target=/usr/local/cargo/git,id=mono-git \
+    cargo chef prepare --bin mono --recipe-path recipe.json
 
-# Generate a recipe describing the dependency graph
-RUN cargo chef prepare --bin mono --recipe-path recipe.json
-
-
-# ---------- builder stage ----------
-# This stage builds dependencies first (cached),
-# then builds the actual application binary.
+# ────── Stage 2: Builder ──────
+# Installs system libs, builds all dependencies (cached), then builds the mono binary.
 FROM chef AS builder
 
 WORKDIR /opt/mega
@@ -60,56 +64,34 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libprotobuf-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Faster linking (release deps + final mono link).
+# Faster linking for release builds.
 ENV RUSTFLAGS="-C link-arg=-fuse-ld=mold"
 
-# Copy the dependency recipe from the planner stage
-COPY --from=chef /opt/mega/recipe.json recipe.json
+# Inherit registry/git caches from the planner stage.
+COPY --from=planner /opt/mega/recipe.json recipe.json
 
-# Build and cache all Rust dependencies
-# This layer will be reused as long as dependencies do not change
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/usr/local/cargo/git \
-    cargo chef cook --bin mono --release --recipe-path recipe.json
+RUN --mount=type=cache,target=/usr/local/cargo/registry,id=mono-registry,from=planner \
+    --mount=type=cache,target=/usr/local/cargo/git,id=mono-git,from=planner \
+    cargo chef cook --release --recipe-path recipe.json
 
-# Copy only the workspace sources AFTER dependencies are cached.
-# This avoids sending the entire repo context (which can be multiple GB) to the builder.
-COPY Cargo.toml ./
-COPY api-model ./api-model
-COPY ceres ./ceres
-COPY common ./common
-COPY config ./config
-COPY context ./context
-COPY io-orbit ./io-orbit
-COPY jupiter ./jupiter
-COPY mono ./mono
-COPY orion ./orion
-COPY orion-server ./orion-server
-COPY saturn ./saturn
-COPY vault ./vault
+COPY . .
 
-# Build the mono binary (fixed release)
-#
-# NOTE: Build output must be persisted into the image layer for the runtime stage `COPY`.
-# A buildkit cache mount is not committed into the layer, so we build into a cached dir
-# then copy the final binary into `/opt/mega/target/...` (regular filesystem).
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/usr/local/cargo/git \
+# Persist built binary into the image layer (buildkit cache mounts evaporate after build).
+RUN --mount=type=cache,target=/usr/local/cargo/registry,id=mono-registry,from=planner \
+    --mount=type=cache,target=/usr/local/cargo/git,id=mono-git,from=planner \
     --mount=type=cache,target=/opt/mega/target-cache \
     CARGO_TARGET_DIR=/opt/mega/target-cache cargo build --release -p mono && \
     mkdir -p /opt/mega/target/release && \
     cp /opt/mega/target-cache/release/mono /opt/mega/target/release/mono
 
-
-# ---------- runtime stage ----------
-# This is the minimal runtime image containing only the binary and runtime deps
-FROM debian:bookworm-slim
+# ────── Stage 3: Runtime ──────
+FROM debian:trixie-slim
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     less \
-    libssl3 \
+    libssl3t64 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy the compiled binary and startup script

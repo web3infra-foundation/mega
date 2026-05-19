@@ -86,12 +86,15 @@ mod imp {
 
                 tracing::info!("Initializing Antares with config: {}", config_path_str);
 
-                scorpiofs::util::config::init_config(config_path_str).map_err(|e| {
-                    io_other(format!(
-                        "Failed to load scorpio config from {config_path_str}: {e}. \
+                if let Err(e) = scorpiofs::util::config::init_config(config_path_str) {
+                    if !e.contains("already initialized") {
+                        return Err(Box::new(io_other(format!(
+                            "Failed to load scorpio config from {config_path_str}: {e}. \
 Hint: set SCORPIO_CONFIG=/path/to/scorpio.toml or create /etc/scorpio/scorpio.toml"
-                    ))
-                })?;
+                        ))) as DynError);
+                    }
+                    tracing::debug!("Scorpio config already initialized, using existing config");
+                }
 
                 let paths = AntaresPaths::from_global_config();
                 let manager = AntaresManager::new(paths).await;
@@ -233,11 +236,55 @@ Hint: set SCORPIO_CONFIG=/path/to/scorpio.toml or create /etc/scorpio/scorpio.to
         let cl_dir = paths.cl_root.join(&cl_id);
         let mountpoint = paths.mount_root.join(job_id);
 
+        // DEBUG: Log Antares mount path construction
+        tracing::debug!(
+            job_id = job_id,
+            repo = repo,
+            cl_link = cl_link,
+            upper_id = %upper_id,
+            cl_id = %cl_id,
+            upper_dir = %upper_dir.display(),
+            cl_dir = %cl_dir.display(),
+            mountpoint = %mountpoint.display(),
+            antares_mount_root = %paths.mount_root.display(),
+            "DEBUG: Antares mount path construction"
+        );
+
         prepare_mountpoint_for_retry(job_id, &mountpoint).await?;
 
         tokio::fs::create_dir_all(&upper_dir).await?;
         tokio::fs::create_dir_all(&mountpoint).await?;
+
+        // DEBUG: Log before CL overlay population
+        tracing::debug!(
+            job_id = job_id,
+            repo = repo,
+            cl_link = cl_link,
+            cl_dir = %cl_dir.display(),
+            "DEBUG: About to populate CL overlay directory"
+        );
+
         populate_cl_overlay_dir(job_id, repo, cl_link, &cl_dir).await?;
+
+        // DEBUG: Verify CL overlay directory contents after population
+        match tokio::fs::read_dir(&cl_dir).await {
+            Ok(mut entries) => {
+                let mut cl_entries = Vec::new();
+                while let Some(entry) = entries.next_entry().await.unwrap_or(None) {
+                    cl_entries.push(entry.path().display().to_string());
+                }
+                tracing::debug!(
+                    job_id = job_id,
+                    cl_dir = %cl_dir.display(),
+                    cl_entries = ?cl_entries,
+                    "DEBUG: CL overlay directory contents after population"
+                );
+            }
+            Err(e) => {
+                tracing::warn!("Failed to read CL overlay dir {}: {}", cl_dir.display(), e);
+            }
+        }
+
         wait_for_dicfuse_ready(manager.as_ref(), job_id).await?;
 
         let dicfuse = manager.dicfuse();
@@ -410,6 +457,18 @@ Hint: set SCORPIO_CONFIG=/path/to/scorpio.toml or create /etc/scorpio/scorpio.to
     #[allow(dead_code)]
     pub(crate) async fn warmup_dicfuse() -> Result<(), DynError> {
         tracing::info!("Initializing Antares Dicfuse during Orion startup");
+
+        // DEBUG: Log Dicfuse configuration
+        let workspace_path = scorpiofs::util::config::workspace();
+        let base_url = scorpiofs::util::config::base_url();
+        let store_path = scorpiofs::util::config::store_path();
+        tracing::debug!(
+            workspace = %workspace_path,
+            base_url = %base_url,
+            store_path = %store_path,
+            "DEBUG: Dicfuse prewarm configuration"
+        );
+
         let manager = get_manager().await?;
         let manager_for_test_mount = Arc::clone(manager);
         let dicfuse = manager.dicfuse();
@@ -578,6 +637,16 @@ Hint: set SCORPIO_CONFIG=/path/to/scorpio.toml or create /etc/scorpio/scorpio.to
     fn resolve_overlay_relative_path(repo: &str, entry_path: &str) -> Result<PathBuf, DynError> {
         let repo_prefix = repo.trim_matches('/');
         let trimmed_entry = entry_path.trim().trim_start_matches('/');
+
+        // DEBUG: Log path resolution inputs
+        tracing::debug!(
+            repo = %repo,
+            entry_path = %entry_path,
+            repo_prefix = %repo_prefix,
+            trimmed_entry = %trimmed_entry,
+            "DEBUG: resolve_overlay_relative_path inputs"
+        );
+
         if trimmed_entry.is_empty() {
             return Err(Box::new(io_other(
                 "CL file entry path is empty after normalization.",
@@ -594,6 +663,14 @@ Hint: set SCORPIO_CONFIG=/path/to/scorpio.toml or create /etc/scorpio/scorpio.to
         } else {
             format!("{repo_prefix}/{trimmed_entry}")
         };
+
+        // DEBUG: Log relative path calculation
+        tracing::debug!(
+            repo_prefix = %repo_prefix,
+            trimmed_entry = %trimmed_entry,
+            relative = %relative,
+            "DEBUG: resolved overlay relative path"
+        );
 
         let candidate = Path::new(&relative);
         if candidate
@@ -616,6 +693,16 @@ Hint: set SCORPIO_CONFIG=/path/to/scorpio.toml or create /etc/scorpio/scorpio.to
         let base_url = scorpiofs::util::config::base_url();
         let clean_oid = oid.trim_start_matches("sha1:");
         let url = format!("{base_url}/api/v1/file/blob/{clean_oid}");
+
+        // DEBUG: Log blob download details
+        tracing::debug!(
+            oid = %oid,
+            clean_oid = %clean_oid,
+            url = %url,
+            dest = %dest.display(),
+            "DEBUG: Downloading blob"
+        );
+
         let response = client.get(&url).send().await.map_err(|err| {
             Box::new(io_other(format!(
                 "Failed to download blob {clean_oid}: {err}"
@@ -630,6 +717,7 @@ Hint: set SCORPIO_CONFIG=/path/to/scorpio.toml or create /etc/scorpio/scorpio.to
         }
 
         if let Some(parent) = dest.parent() {
+            tracing::debug!(dest = %dest.display(), parent = %parent.display(), "DEBUG: Creating parent directories for blob");
             tokio::fs::create_dir_all(parent).await.map_err(|err| {
                 Box::new(io_other(format!(
                     "Failed to create CL overlay dir {:?}: {err}",
@@ -643,6 +731,14 @@ Hint: set SCORPIO_CONFIG=/path/to/scorpio.toml or create /etc/scorpio/scorpio.to
                 "Failed to read blob {clean_oid} response body: {err}"
             ))) as DynError
         })?;
+
+        tracing::debug!(
+            oid = %clean_oid,
+            dest = %dest.display(),
+            bytes_len = bytes.len(),
+            "DEBUG: Writing blob to file"
+        );
+
         let mut file = tokio::fs::File::create(dest).await.map_err(|err| {
             Box::new(io_other(format!(
                 "Failed to create CL overlay file {:?}: {err}",
@@ -655,6 +751,17 @@ Hint: set SCORPIO_CONFIG=/path/to/scorpio.toml or create /etc/scorpio/scorpio.to
                 dest
             ))) as DynError
         })?;
+
+        // DEBUG: Verify file was written
+        match tokio::fs::metadata(dest).await {
+            Ok(meta) => {
+                tracing::debug!(dest = %dest.display(), size = meta.len(), "DEBUG: Blob file written successfully");
+            }
+            Err(e) => {
+                tracing::warn!(dest = %dest.display(), error = %e, "DEBUG: Failed to stat blob file after write");
+            }
+        }
+
         Ok(())
     }
 
