@@ -1878,9 +1878,9 @@ dependencies = [
 
 [[package]]
 name = "dashmap"
-version = "6.1.0"
+version = "6.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5041cc499144891f3790297212f32a74fb938e5136a14943f338ef9e0ae276cf"
+checksum = "e6361d5c062261c78a176addb82d4c821ae42bed6089de0e12603cd25de2059c"
 dependencies = [
  "cfg-if",
  "crossbeam-utils",
@@ -2816,7 +2816,7 @@ dependencies = [
  "chrono",
  "colored",
  "crc32fast",
- "dashmap 6.1.0",
+ "dashmap 6.2.1",
  "diffs",
  "encoding_rs",
  "flate2",
@@ -2861,7 +2861,7 @@ dependencies = [
  "chrono",
  "colored",
  "crc32fast",
- "dashmap 6.1.0",
+ "dashmap 6.2.1",
  "diffs",
  "encoding_rs",
  "flate2",
@@ -4125,7 +4125,7 @@ dependencies = [
  "chrono",
  "crossbeam-channel",
  "daemonize",
- "dashmap 6.1.0",
+ "dashmap 6.2.1",
  "derivative",
  "derive_more 0.99.20",
  "enum-map",
@@ -5027,7 +5027,7 @@ dependencies = [
  "callisto",
  "chrono",
  "common",
- "dashmap 6.1.0",
+ "dashmap 6.2.1",
  "dotenvy",
  "futures",
  "futures-util",
@@ -6344,7 +6344,7 @@ dependencies = [
  "async-trait",
  "bincode 1.3.3",
  "bytes",
- "dashmap 6.1.0",
+ "dashmap 6.2.1",
  "futures-channel",
  "futures-util",
  "libc",
@@ -6558,7 +6558,7 @@ dependencies = [
  "bitflags 2.11.1",
  "bytes",
  "chrono",
- "dashmap 6.1.0",
+ "dashmap 6.2.1",
  "log",
  "serde",
  "serde_bytes",
@@ -6888,7 +6888,7 @@ dependencies = [
  "bytes",
  "clap",
  "crossbeam",
- "dashmap 6.1.0",
+ "dashmap 6.2.1",
  "env_logger",
  "futures",
  "git-internal 0.4.1",
