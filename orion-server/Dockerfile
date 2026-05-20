@@ -24,7 +24,9 @@ COPY orion-server/bellatrix/Cargo.toml orion-server/bellatrix/
 COPY saturn/Cargo.toml saturn/
 COPY vault/Cargo.toml vault/
 
-RUN cargo chef prepare --bin orion-server --recipe-path recipe.json
+RUN --mount=type=cache,target=/usr/local/cargo/registry,id=orion-registry \
+    --mount=type=cache,target=/usr/local/cargo/git,id=orion-git \
+    cargo chef prepare --bin orion-server --recipe-path recipe.json
 
 # ────── Stage 2: Builder ──────
 FROM chef AS builder
@@ -37,8 +39,8 @@ RUN apt-get update && \
 COPY --from=planner /app/recipe.json recipe.json
 
 # -- Step 1: cook dependencies with cache
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/usr/local/cargo/git \
+RUN --mount=type=cache,target=/usr/local/cargo/registry,id=orion-registry \
+    --mount=type=cache,target=/usr/local/cargo/git,id=orion-git \
     cargo chef cook --release --recipe-path recipe.json
 
 COPY . .
@@ -47,21 +49,21 @@ COPY . .
 # NOTE: build output must be persisted into the image layer for the runtime stage `COPY`.
 # A buildkit cache mount is not committed into the layer, so we build into a cached dir
 # then copy the final binary into `/app/target/...` (regular filesystem).
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/usr/local/cargo/git \
+RUN --mount=type=cache,target=/usr/local/cargo/registry,id=orion-registry \
+    --mount=type=cache,target=/usr/local/cargo/git,id=orion-git \
     --mount=type=cache,target=/app/target-cache \
     CARGO_TARGET_DIR=/app/target-cache cargo build -p orion-server --release && \
     mkdir -p /app/target/release && \
     cp /app/target-cache/release/orion-server /app/target/release/orion-server
 
 # ────── Stage 3: Runtime ──────
-FROM debian:bookworm-slim
+FROM debian:trixie-slim 
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
-    libssl3 \
+    libssl3t64 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy built executable

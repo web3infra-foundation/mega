@@ -1082,9 +1082,9 @@ dependencies = [
 
 [[package]]
 name = "cedar-policy"
-version = "4.10.0"
+version = "4.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9e5ac4e9c213c70c8bba1b4e7c93143129b889c44bb52de70f0498377373e4df"
+checksum = "674ca6ef6e44a1e29e6c07f6b2ab7e6913938d6049204d48e7849703d02443ce"
 dependencies = [
  "cedar-policy-core",
  "cedar-policy-formatter",
@@ -1102,9 +1102,9 @@ dependencies = [
 
 [[package]]
 name = "cedar-policy-core"
-version = "4.10.0"
+version = "4.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "80d3a8fa85292d3b6cbbaeffd9fa776dde108c55d50f138cfd0d078949309621"
+checksum = "3df781c108240c3b3778c586c6a1b234355f1a2f9d35e08630b63b2590c59dbb"
 dependencies = [
  "chrono",
  "educe",
@@ -1130,9 +1130,9 @@ dependencies = [
 
 [[package]]
 name = "cedar-policy-formatter"
-version = "4.10.0"
+version = "4.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c34306a24ad75b78fb39de84f182352918bf5ca1f4066a465bafc4a4ebf44fdc"
+checksum = "e293607563253e249d19cf4d36ac05821955170a63cf6d65deb4db60138b192e"
 dependencies = [
  "cedar-policy-core",
  "itertools 0.14.0",
@@ -1878,9 +1878,9 @@ dependencies = [
 
 [[package]]
 name = "dashmap"
-version = "6.1.0"
+version = "6.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5041cc499144891f3790297212f32a74fb938e5136a14943f338ef9e0ae276cf"
+checksum = "e6361d5c062261c78a176addb82d4c821ae42bed6089de0e12603cd25de2059c"
 dependencies = [
  "cfg-if",
  "crossbeam-utils",
@@ -2816,7 +2816,7 @@ dependencies = [
  "chrono",
  "colored",
  "crc32fast",
- "dashmap 6.1.0",
+ "dashmap 6.2.1",
  "diffs",
  "encoding_rs",
  "flate2",
@@ -2861,7 +2861,7 @@ dependencies = [
  "chrono",
  "colored",
  "crc32fast",
- "dashmap 6.1.0",
+ "dashmap 6.2.1",
  "diffs",
  "encoding_rs",
  "flate2",
@@ -4125,7 +4125,7 @@ dependencies = [
  "chrono",
  "crossbeam-channel",
  "daemonize",
- "dashmap 6.1.0",
+ "dashmap 6.2.1",
  "derivative",
  "derive_more 0.99.20",
  "enum-map",
@@ -4478,6 +4478,7 @@ dependencies = [
  "async-trait",
  "axum",
  "axum-extra",
+ "base64",
  "bellatrix",
  "bytes",
  "callisto",
@@ -5027,7 +5028,7 @@ dependencies = [
  "callisto",
  "chrono",
  "common",
- "dashmap 6.1.0",
+ "dashmap 6.2.1",
  "dotenvy",
  "futures",
  "futures-util",
@@ -6344,7 +6345,7 @@ dependencies = [
  "async-trait",
  "bincode 1.3.3",
  "bytes",
- "dashmap 6.1.0",
+ "dashmap 6.2.1",
  "futures-channel",
  "futures-util",
  "libc",
@@ -6558,7 +6559,7 @@ dependencies = [
  "bitflags 2.11.1",
  "bytes",
  "chrono",
- "dashmap 6.1.0",
+ "dashmap 6.2.1",
  "log",
  "serde",
  "serde_bytes",
@@ -6888,7 +6889,7 @@ dependencies = [
  "bytes",
  "clap",
  "crossbeam",
- "dashmap 6.1.0",
+ "dashmap 6.2.1",
  "env_logger",
  "futures",
  "git-internal 0.4.1",
@@ -8651,9 +8652,9 @@ dependencies = [
 
 [[package]]
 name = "tower-http"
-version = "0.6.10"
+version = "0.6.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68d6fdd9f81c2819c9a8b0e0cd91660e7746a8e6ea2ba7c6b2b057985f6bcb51"
+checksum = "4cfcf7e2740e6fc6d4d688b4ef00650406bb94adf4731e43c096c3a19fe40840"
 dependencies = [
  "async-compression",
  "bitflags 2.11.1",

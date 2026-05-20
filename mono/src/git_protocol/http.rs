@@ -5,6 +5,7 @@ use axum::{
     body::Body,
     http::{HeaderValue, Request, Response},
 };
+use base64::Engine;
 use bytes::{Bytes, BytesMut};
 use ceres::{
     api_service::state::ProtocolApiState,
@@ -52,29 +53,50 @@ fn auth_failed() -> Result<Response<Body>, ProtocolError> {
         .status(401)
         .header(
             http::header::WWW_AUTHENTICATE,
-            HeaderValue::from_static("Bearer realm=\"Mega\""),
+            HeaderValue::from_static("Basic realm=\"Mega\", Bearer realm=\"Mega\""),
         )
         .body(Body::empty())
         .unwrap();
     Ok(resp)
 }
 
+/// Parses Basic Auth header, returning the password (which is the token).
+/// The username is ignored since we only care about the token in the password field.
+fn basic_auth_password_from_authorization_value(value: &str) -> Option<String> {
+    let stripped = value
+        .strip_prefix("Basic ")
+        .or_else(|| value.strip_prefix("basic "))?;
+    let decoded = base64::engine::general_purpose::STANDARD
+        .decode(stripped.trim())
+        .ok()?;
+    let decoded_str = String::from_utf8(decoded).ok()?;
+    // Basic auth format: "username:password"
+    Some(decoded_str.split(':').nth(1)?.to_owned())
+}
+
 /// Uses [`crate::api::oauth::login_user_from_mono_access_token`] (same as [`crate::api::oauth::AccessTokenUser`]).
-async fn git_receive_pack_bearer_auth(
+/// Supports both Bearer tokens and Basic Auth (with token as password).
+async fn git_receive_pack_auth(
     state: &ProtocolApiState,
     pack_protocol: &mut SmartSession,
     headers: &http::HeaderMap,
 ) -> Result<bool, ProtocolError> {
-    let token = headers
-        .get(AUTHORIZATION)
-        .and_then(|v| v.to_str().ok())
-        .and_then(bearer_token_from_authorization_value);
+    let auth_header = headers.get(AUTHORIZATION).and_then(|v| v.to_str().ok());
+
+    // Try Bearer token first
+    let token = auth_header.and_then(bearer_token_from_authorization_value);
+
+    // If no Bearer token, try Basic Auth (token as password)
+    let token = token
+        .map(String::from)
+        .or_else(|| auth_header.and_then(basic_auth_password_from_authorization_value));
+
     let Some(token) = token else {
         return Ok(false);
     };
 
     let Some(user) =
-        login_user_from_mono_access_token(&state.storage.user_storage(), token).await?
+        login_user_from_mono_access_token(&state.storage.user_storage(), &token).await?
     else {
         return Ok(false);
     };
@@ -179,7 +201,7 @@ pub async fn git_receive_pack(
 ) -> Result<Response<Body>, ProtocolError> {
     let mut pack_protocol =
         SmartSession::new(repo_path, ServiceType::ReceivePack, TransportProtocol::Http);
-    if !git_receive_pack_bearer_auth(state, &mut pack_protocol, req.headers()).await? {
+    if !git_receive_pack_auth(state, &mut pack_protocol, req.headers()).await? {
         return auth_failed();
     }
     // Convert the request body into a data stream.

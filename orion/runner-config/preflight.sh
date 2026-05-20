@@ -39,10 +39,18 @@ if ! command -v buck2 >/dev/null 2>&1; then
     echo "错误：buck2 不在 PATH 中，请安装 buck2 到 /usr/local/bin/buck2。"
     exit 1
 fi
-if ! buck2 version >/dev/null 2>&1; then
-    echo "错误：buck2 已安装但无法执行（权限或依赖问题）。"
+echo "  - buck2 路径: $(which buck2)"
+
+# Use buck2 --version (not buck2 version)
+set +e
+BUCK2_OUTPUT=$(buck2 --version 2>&1)
+BUCK2_STATUS=$?
+set -e
+echo "  - buck2 版本: $BUCK2_OUTPUT"
+if [ $BUCK2_STATUS -ne 0 ]; then
+    echo "错误：buck2 执行失败 (exit $BUCK2_STATUS)。"
     exit 1
 fi
-echo "  - buck2 就绪: $(which buck2)"
+echo "  - buck2 就绪"
 
 echo "==> [预检] 通过"
