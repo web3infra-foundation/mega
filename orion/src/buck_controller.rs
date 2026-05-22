@@ -588,24 +588,6 @@ async fn get_build_targets(
         "DEBUG: Buck2 get_build_targets paths"
     );
 
-    // DEBUG: Check mount_path contents
-    if mount_path.exists() {
-        match std::fs::read_dir(&mount_path) {
-            Ok(entries) => {
-                let dir_contents: Vec<_> = entries
-                    .filter_map(|e| e.ok())
-                    .map(|e| e.file_name().to_string_lossy().to_string())
-                    .collect();
-                tracing::debug!(mount_path = %mount_path.display(), contents = ?dir_contents, "DEBUG: Mount path directory contents");
-            }
-            Err(e) => {
-                tracing::warn!(mount_path = %mount_path.display(), error = %e, "DEBUG: Failed to read mount path");
-            }
-        }
-    } else {
-        tracing::warn!(mount_path = %mount_path.display(), "DEBUG: Mount path does not exist!");
-    }
-
     tracing::debug!("Analyzing changes {mega_changes:?}");
 
     preheat_shallow(&mount_path, preheat_shallow_depth())?;
