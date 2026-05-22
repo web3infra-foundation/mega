@@ -458,7 +458,16 @@ Hint: set SCORPIO_CONFIG=/path/to/scorpio.toml or create /etc/scorpio/scorpio.to
     pub(crate) async fn warmup_dicfuse() -> Result<(), DynError> {
         tracing::info!("Initializing Antares Dicfuse during Orion startup");
 
-        // DEBUG: Log Dicfuse configuration
+        // NOTE: do not read scorpio config accessors before `get_manager()`.
+        // `get_manager()` is what calls `scorpiofs::util::config::init_config(...)`.
+        // Reading accessors first would trigger scorpiofs' lazy DEFAULT_CONFIG
+        // fallback, and any values logged here would be the built-in defaults
+        // (e.g. base_url=http://localhost:8000) rather than the values from
+        // the scorpio.toml that init_config is about to load.
+        let manager = get_manager().await?;
+        let manager_for_test_mount = Arc::clone(manager);
+        let dicfuse = manager.dicfuse();
+
         let workspace_path = scorpiofs::util::config::workspace();
         let base_url = scorpiofs::util::config::base_url();
         let store_path = scorpiofs::util::config::store_path();
@@ -466,12 +475,8 @@ Hint: set SCORPIO_CONFIG=/path/to/scorpio.toml or create /etc/scorpio/scorpio.to
             workspace = %workspace_path,
             base_url = %base_url,
             store_path = %store_path,
-            "DEBUG: Dicfuse prewarm configuration"
+            "Dicfuse prewarm configuration"
         );
-
-        let manager = get_manager().await?;
-        let manager_for_test_mount = Arc::clone(manager);
-        let dicfuse = manager.dicfuse();
 
         dicfuse.start_import();
 
