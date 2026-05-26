@@ -42,7 +42,7 @@ libvault-core = "0.1.0"
 #====
 anyhow = "1.0.102"
 serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.149"
+serde_json = "1.0.150"
 serde_urlencoded = "0.7"
 tracing = "0.1.44"
 tracing-subscriber = "0.3.23"
