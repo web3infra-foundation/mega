@@ -14,7 +14,7 @@ use std::{
 
 use anyhow::Result;
 use common::*;
-use qlean::{Distro, MachineConfig, create_image, with_machine};
+use qlean::{Distro, GuestArch, Image, ImageConfig, MachineConfig, with_machine};
 
 const TEST_USER: &str = "mega";
 const TEST_TOKEN: &str = "mega";
@@ -600,7 +600,12 @@ pub async fn setup_mega_orion_environment(vm: &mut qlean::Machine) -> Result<()>
 async fn test_qlean_dev_environment() -> Result<()> {
     init_tracing();
 
-    let image = create_image(Distro::Debian, "debian-13-generic-amd64").await?;
+    let image = Image::new(
+        ImageConfig::default()
+            .with_distro(Distro::Debian)
+            .with_arch(GuestArch::Amd64),
+    )
+    .await?;
 
     with_machine(
         &image,
@@ -609,6 +614,7 @@ async fn test_qlean_dev_environment() -> Result<()> {
             mem: 8192,
             disk: Some(20),
             clear: true,
+            ..Default::default()
         },
         |vm| {
             Box::pin(async {
