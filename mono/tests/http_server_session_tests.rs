@@ -36,7 +36,7 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use common::*;
-use qlean::{Distro, MachineConfig, create_image, with_machine};
+use qlean::{Distro, GuestArch, Image, ImageConfig, MachineConfig, with_machine};
 
 // ============================================================================
 // Test Scenarios - All in one function to avoid multiple VM startups
@@ -254,12 +254,18 @@ async fn phase5_test_session_without_data(vm: &mut qlean::Machine) -> Result<()>
 async fn test_http_server_session_with_redis() -> Result<()> {
     tracing_subscriber_init();
 
-    let image = create_image(Distro::Debian, "debian-13-generic-amd64").await?;
+    let image = Image::new(
+        ImageConfig::default()
+            .with_distro(Distro::Debian)
+            .with_arch(GuestArch::Amd64),
+    )
+    .await?;
     let config = MachineConfig {
         core: 2,
         mem: 2048,
         disk: Some(15),
         clear: true,
+        ..Default::default()
     };
 
     with_machine(&image, &config, |vm| {

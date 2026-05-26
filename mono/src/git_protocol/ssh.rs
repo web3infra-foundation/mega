@@ -90,13 +90,13 @@ impl server::Handler for SshServer {
                 // TODO handler ProtocolError
                 let res = smart_protocol.git_info_refs(&self.state).await.unwrap();
                 self.smart_protocol = Some(smart_protocol);
-                session.data(channel, res.to_vec().into())?;
+                session.data(channel, res.to_vec())?;
                 session.channel_success(channel)?;
             }
             //Note that currently mega does not support pure ssh to transfer files, still relay on the https server.
             //see https://github.com/git-lfs/git-lfs/blob/main/docs/proposals/ssh_adapter.md for more details about pure ssh file transfer.
             "git-lfs-transfer" => {
-                session.data(channel, "not implemented yet".as_bytes().to_vec().into())?;
+                session.data(channel, "not implemented yet".as_bytes().to_vec())?;
             }
             // When connecting over SSH, the first attempt will be made to use
             // `git-lfs-transfer`, the pure SSH protocol, and if it fails, Git LFS will fall
@@ -114,7 +114,7 @@ impl server::Handler for SshServer {
                         expire_time.to_rfc3339()
                     },
                 };
-                session.data(channel, serde_json::to_vec(&link).unwrap().into())?;
+                session.data(channel, serde_json::to_vec(&link).unwrap())?;
             }
             command => tracing::error!("Not Supported command! {}", command),
         }
@@ -205,7 +205,7 @@ impl SshServer {
 
         tracing::info!("buf is {:?}", buf);
         session
-            .data(channel, String::from_utf8(buf.to_vec()).unwrap().into())
+            .data(channel, String::from_utf8(buf.to_vec()).unwrap())
             .unwrap();
 
         while let Some(chunk) = send_pack_data.next().await {
@@ -218,11 +218,11 @@ impl SshServer {
                     break;
                 }
                 let bytes_out = smart_protocol.build_side_band_format(temp, length);
-                session.data(channel, bytes_out.to_vec().into()).unwrap();
+                session.data(channel, bytes_out.to_vec()).unwrap();
             }
         }
         session
-            .data(channel, smart::PKT_LINE_END_MARKER.to_vec().into())
+            .data(channel, smart::PKT_LINE_END_MARKER.to_vec())
             .unwrap();
     }
 
@@ -250,8 +250,6 @@ impl SshServer {
         }
 
         tracing::info!("report status: {:?}", report_status);
-        session
-            .data(channel, report_status.to_vec().into())
-            .unwrap();
+        session.data(channel, report_status.to_vec()).unwrap();
     }
 }

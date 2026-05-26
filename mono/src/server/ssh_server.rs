@@ -7,7 +7,7 @@ use context::AppContext;
 use ed25519_dalek::pkcs8::spki::der::pem::LineEnding;
 use russh::{
     Preferred,
-    keys::{Algorithm, PrivateKey, ssh_key::rand_core::OsRng},
+    keys::{Algorithm, PrivateKey},
     server::Server,
 };
 use tokio::sync::Mutex;
@@ -77,8 +77,14 @@ pub async fn load_key(ctx: AppContext) -> PrivateKey {
         let secret_key = ssh_key["secret_key"].as_str().unwrap();
         PrivateKey::from_openssh(secret_key).unwrap()
     } else {
-        // generate a keypair if not exists
-        let keys = PrivateKey::random(&mut OsRng, Algorithm::Ed25519).unwrap();
+        // Generate a keypair if not present in the vault.
+        //
+        // `rand::rng()` returns rand 0.10's thread-local CSPRNG (ChaCha, OS-seeded),
+        // which implements `CryptoRng` — the bound required by `ssh-key` 0.7's
+        // `PrivateKey::random`. This matches the pattern used by russh's own tests
+        // and avoids the `OsRng.unwrap_err()` dance that the new `TryRngCore`-only
+        // `rand_core::OsRng` would otherwise force on us.
+        let keys = PrivateKey::random(&mut rand::rng(), Algorithm::Ed25519).unwrap();
         let secret = serde_json::json!({
             "secret_key":
             *keys.to_openssh(LineEnding::CR).unwrap()
