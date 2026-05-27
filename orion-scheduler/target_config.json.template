@@ -1,0 +1,23 @@
+{
+  "log_dir": "/var/log/orion-scheduler",
+  "orion_source_dir": "/path/to/mega/orion",
+  "orion_binary_path": "/path/to/mega/target/debug/orion",
+  "ssh_public_key_path": "~/.ssh/orion_vm_access.pub",
+  "targets": {
+    "aws-gitmega": {
+      "server_ws": "wss://orion.gitmega.com/ws",
+      "scorpio_base_url": "https://git.gitmega.com",
+      "scorpio_lfs_url": "https://git.gitmega.com"
+    },
+    "aws-gitmono": {
+      "server_ws": "wss://orion.gitmono.com/ws",
+      "scorpio_base_url": "https://git.gitmono.com",
+      "scorpio_lfs_url": "https://git.gitmono.com"
+    },
+    "gcp-buck2hub": {
+      "server_ws": "wss://orion.buck2hub.com/ws",
+      "scorpio_base_url": "https://git.buck2hub.com",
+      "scorpio_lfs_url": "https://git.buck2hub.com"
+    }
+  }
+}
