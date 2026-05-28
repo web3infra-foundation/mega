@@ -12,11 +12,12 @@ members = [
   "jupiter/callisto",
   "mono",
   "orion",
+  "orion-scheduler",
   "orion-server",
   "saturn",
   "vault",
 ]
-default-members = ["mono", "orion", "orion-server"]
+default-members = ["mono", "orion", "orion-server", "orion-scheduler"]
 exclude = ["tools/artifacts-compose-e2e"]
 resolver = "3"
 

@@ -5409,6 +5409,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "orion-scheduler"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-stream",
+ "axum",
+ "futures-util",
+ "qlean",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "orion-server"
 version = "0.1.0"
 dependencies = [

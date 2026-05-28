@@ -93,10 +93,28 @@ async fn main() -> anyhow::Result<()> {
         .ok();
     vm_cleanup::sweep_stale_runs().await;
 
-    // Load target configuration
-    let config_path =
-        std::env::var("CONFIG_PATH").unwrap_or_else(|_| "target_config.json".to_string());
-    tracing::info!("[startup] Loading config from: {}", config_path);
+    // Load target configuration.
+    //
+    // If `CONFIG_PATH` is set we respect it verbatim — the operator has been
+    // explicit and we should not silently look elsewhere. Otherwise we walk
+    // a short candidate list (cwd → exe dir → crate root) so common dev
+    // invocations like `cargo run --bin orion-scheduler` from the workspace
+    // root find the crate-local `target_config.json` instead of dying with
+    // a bare `No such file or directory` and no path context.
+    let config_path: std::path::PathBuf = match std::env::var_os("CONFIG_PATH") {
+        Some(explicit) => std::path::PathBuf::from(explicit),
+        None => config::default_config_path().ok_or_else(|| {
+            let candidates = config::default_config_candidates()
+                .into_iter()
+                .map(|p| format!("  - {}", p.display()))
+                .collect::<Vec<_>>()
+                .join("\n");
+            anyhow::anyhow!(
+                "could not locate target_config.json; set CONFIG_PATH or place the file at one of:\n{candidates}"
+            )
+        })?,
+    };
+    tracing::info!("[startup] Loading config from: {}", config_path.display());
     let config = config::Config::load(&config_path).await?;
     let config = Arc::new(tokio::sync::RwLock::new(config));
     tracing::info!(

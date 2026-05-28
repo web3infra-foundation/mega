@@ -1,6 +1,10 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use serde::Deserialize;
 use tokio::sync::RwLock;
 
@@ -49,19 +53,41 @@ impl Config {
         }
     }
 
-    /// Load configuration from a JSON file
-    pub async fn load(path: impl AsRef<std::path::Path>) -> Result<Self> {
-        let content = tokio::fs::read_to_string(path).await?;
-        let parsed: ConfigFile = serde_json::from_str(&content)?;
+    /// Load configuration from a JSON file.
+    ///
+    /// Errors are annotated with the absolute path that was attempted, so
+    /// callers (and users staring at the log) can tell exactly which file
+    /// the loader was looking for.
+    pub async fn load(path: impl AsRef<Path>) -> Result<Self> {
+        let path = path.as_ref();
+        let abs = absolutize(path);
+        let content = tokio::fs::read_to_string(path).await.with_context(|| {
+            format!(
+                "failed to read config file at {} \
+                 (set CONFIG_PATH or run from a directory containing target_config.json)",
+                abs.display()
+            )
+        })?;
+        let parsed: ConfigFile = serde_json::from_str(&content)
+            .with_context(|| format!("failed to parse JSON config at {}", abs.display()))?;
 
         let orion_source_dir = parsed.orion_source_dir.ok_or_else(|| {
-            anyhow::anyhow!("missing required field 'orion_source_dir' in config file")
+            anyhow::anyhow!(
+                "missing required field 'orion_source_dir' in config file {}",
+                abs.display()
+            )
         })?;
         let orion_binary_path = parsed.orion_binary_path.ok_or_else(|| {
-            anyhow::anyhow!("missing required field 'orion_binary_path' in config file")
+            anyhow::anyhow!(
+                "missing required field 'orion_binary_path' in config file {}",
+                abs.display()
+            )
         })?;
         let ssh_public_key_path = parsed.ssh_public_key_path.ok_or_else(|| {
-            anyhow::anyhow!("missing required field 'ssh_public_key_path' in config file")
+            anyhow::anyhow!(
+                "missing required field 'ssh_public_key_path' in config file {}",
+                abs.display()
+            )
         })?;
 
         let mut targets = HashMap::new();
@@ -108,6 +134,62 @@ impl Config {
     /// Get the SSH public key path for VM access
     pub fn ssh_public_key_path(&self) -> &str {
         &self.ssh_public_key_path
+    }
+}
+
+/// Locate `target_config.json` automatically when the operator has not set
+/// `CONFIG_PATH`.
+///
+/// Candidates are tried in order and the first existing path wins:
+/// 1. `./target_config.json` — preserves the historical behaviour of
+///    `cargo run` inside `orion-scheduler/`.
+/// 2. `<exe_dir>/target_config.json` — convenient for shipped binaries that
+///    co-locate the config next to the executable.
+/// 3. `<crate root>/target_config.json` — `CARGO_MANIFEST_DIR` is baked in
+///    at compile time, so `cargo run --bin orion-scheduler` from the mega
+///    workspace root still picks up the crate-local config.
+///
+/// Returns `None` when none of the candidates exist; callers should report
+/// the full search list so users know where to drop the file or which env
+/// var to set.
+pub fn default_config_path() -> Option<PathBuf> {
+    default_config_candidates()
+        .into_iter()
+        .find(|p| p.is_file())
+}
+
+/// Return the ordered list of paths inspected by [`default_config_path`].
+/// Exposed so the caller can log them on failure.
+pub fn default_config_candidates() -> Vec<PathBuf> {
+    const FILE_NAME: &str = "target_config.json";
+    let mut out: Vec<PathBuf> = Vec::new();
+
+    out.push(PathBuf::from(FILE_NAME));
+
+    if let Ok(exe) = std::env::current_exe()
+        && let Some(dir) = exe.parent()
+    {
+        out.push(dir.join(FILE_NAME));
+    }
+
+    out.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(FILE_NAME));
+
+    out
+}
+
+/// Canonicalize when possible so error messages always print an absolute
+/// path. Falls back to a best-effort cwd join when the file does not yet
+/// exist (`canonicalize` requires the path to exist).
+fn absolutize(path: &Path) -> PathBuf {
+    if let Ok(canonical) = std::fs::canonicalize(path) {
+        return canonical;
+    }
+    if path.is_absolute() {
+        return path.to_path_buf();
+    }
+    match std::env::current_dir() {
+        Ok(cwd) => cwd.join(path),
+        Err(_) => path.to_path_buf(),
     }
 }
 
