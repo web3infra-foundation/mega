@@ -6,7 +6,7 @@ use tracing::info;
 
 use crate::{
     handlers::ImageParams,
-    keep_alive::KeepAliveMachine,
+    keep_alive::{ImageSpec, KeepAliveMachine},
     state::{AppState, VmInfo},
     vm_manager,
 };
@@ -85,26 +85,20 @@ pub async fn handle_update(
                 ));
             }
 
-            let img_cfg = match (url, path, digest) {
+            let img_spec = match (url, path, digest) {
                 (Some(url), None, Some(digest)) => {
                     info!("[orion-deploy] Using image from URL: {}", url);
-                    Some(
-                        qlean::ImageConfig::default()
-                            .with_distro(qlean::Distro::Debian)
-                            .with_arch(qlean::GuestArch::Amd64)
-                            .with_source(url.clone())
-                            .with_digest(digest.clone()),
-                    )
+                    Some(ImageSpec {
+                        source: Some(url.clone()),
+                        digest: Some(digest.clone()),
+                    })
                 }
                 (None, Some(path), Some(digest)) => {
                     info!("[orion-deploy] Using image from path: {}", path);
-                    Some(
-                        qlean::ImageConfig::default()
-                            .with_distro(qlean::Distro::Debian)
-                            .with_arch(qlean::GuestArch::Amd64)
-                            .with_source(path.clone())
-                            .with_digest(digest.clone()),
-                    )
+                    Some(ImageSpec {
+                        source: Some(path.clone()),
+                        digest: Some(digest.clone()),
+                    })
                 }
                 (None, None, _) => {
                     info!("[orion-deploy] No image source in params, using default Debian image");
@@ -113,7 +107,7 @@ pub async fn handle_update(
                 _ => unreachable!(),
             };
 
-            (img_cfg, params.disk_gb, params.cpus, params.memory_mb)
+            (img_spec, params.disk_gb, params.cpus, params.memory_mb)
         }
         None => {
             info!("[orion-deploy] No image params provided, using default Debian image");

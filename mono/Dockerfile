@@ -38,6 +38,7 @@ COPY orion/Cargo.toml orion/
 COPY orion/audit/Cargo.toml orion/audit/
 COPY orion/td_util/Cargo.toml orion/td_util/
 COPY orion/buck/Cargo.toml orion/buck/
+COPY orion-scheduler/Cargo.toml orion-scheduler/
 COPY orion-server/Cargo.toml orion-server/
 COPY orion-server/bellatrix/Cargo.toml orion-server/bellatrix/
 COPY saturn/Cargo.toml saturn/
