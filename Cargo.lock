@@ -6736,9 +6736,9 @@ dependencies = [
 
 [[package]]
 name = "redis-test"
-version = "1.0.3"
+version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c44e98700033fcce3c3774ab8e4f31b9cebb2761df3298600f4be30a95d2f2a"
+checksum = "804d36862e4323b69f96440cbb13c9894fc90176abdeaf91264e21d5d77f6aca"
 dependencies = [
  "futures",
  "rand 0.9.4",
