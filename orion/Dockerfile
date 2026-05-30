@@ -75,7 +75,7 @@ COPY orion/audit/Cargo.toml orion/audit/
 COPY orion/td_util/Cargo.toml orion/td_util/
 COPY orion/buck/Cargo.toml orion/buck/
 COPY orion-server/Cargo.toml orion-server/
-COPY orion-server/bellatrix/Cargo.toml orion-server/bellatrix/
+COPY clients/orion-client/Cargo.toml clients/orion-client/
 COPY saturn/Cargo.toml saturn/
 COPY vault/Cargo.toml vault/
 

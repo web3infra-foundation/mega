@@ -28,9 +28,9 @@
 use std::sync::Arc;
 
 use api_model::common::Pagination;
-use bellatrix::Bellatrix;
 use common::errors::MegaError;
 use jupiter::storage::Storage;
+use orion_client::OrionBuildClient;
 
 use crate::{
     api_service::cache::GitObjectCache,
@@ -48,7 +48,7 @@ use crate::{
 pub struct BuildTriggerService {
     storage: Storage,
     registry: TriggerRegistry,
-    bellatrix: Arc<Bellatrix>,
+    orion_client: Arc<OrionBuildClient>,
 }
 
 impl BuildTriggerService {
@@ -65,18 +65,19 @@ impl BuildTriggerService {
     pub fn new(
         storage: Storage,
         git_object_cache: Arc<GitObjectCache>,
-        bellatrix: Arc<Bellatrix>,
+        orion_client: Arc<OrionBuildClient>,
     ) -> Self {
-        let registry = TriggerRegistry::new(storage.clone(), git_object_cache, bellatrix.clone());
+        let registry =
+            TriggerRegistry::new(storage.clone(), git_object_cache, orion_client.clone());
         Self {
             storage,
             registry,
-            bellatrix,
+            orion_client,
         }
     }
 
     pub fn is_enabled(&self) -> bool {
-        self.bellatrix.enable_build()
+        self.orion_client.enable_build()
     }
 
     fn check_build_enabled(&self) -> Result<(), MegaError> {
@@ -113,13 +114,13 @@ impl BuildTriggerService {
     pub async fn build_by_context(
         storage: Storage,
         git_cache: Arc<GitObjectCache>,
-        bellatrix: Arc<Bellatrix>,
+        orion_client: Arc<OrionBuildClient>,
         context: TriggerContext,
     ) -> Result<Option<i64>, MegaError> {
-        if !bellatrix.enable_build() {
+        if !orion_client.enable_build() {
             return Ok(None);
         }
-        let registry = TriggerRegistry::new(storage, git_cache, bellatrix);
+        let registry = TriggerRegistry::new(storage, git_cache, orion_client);
 
         let id = registry.trigger_build(context).await?;
         Ok(Some(id))

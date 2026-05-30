@@ -12,7 +12,6 @@ use std::{
 use api_model::common::Pagination;
 use async_recursion::async_recursion;
 use async_trait::async_trait;
-use bellatrix::Bellatrix;
 use callisto::{
     entity_ext::generate_link,
     mega_cl, mega_code_review_anchor, mega_commit, mega_refs,
@@ -36,6 +35,7 @@ use git_internal::{
 };
 use io_orbit::object_storage::MultiObjectByteStream;
 use jupiter::{sea_orm::DatabaseTransaction, storage::Storage, utils::converter::FromMegaModel};
+use orion_client::OrionBuildClient;
 use tokio::sync::{RwLock, mpsc};
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -58,7 +58,7 @@ pub struct MonoRepo {
     // When only a branch is updated and the pack file is empty, this value will be None.
     pub current_commit: Arc<RwLock<Option<Commit>>>,
     pub cl_link: Arc<RwLock<Option<String>>>,
-    pub bellatrix: Arc<Bellatrix>,
+    pub orion_client: Arc<OrionBuildClient>,
     pub username: Option<String>,
     /// Ref commands for this push (same role as on [`ImportRepo`](crate::pack::import_repo::ImportRepo)).
     pub command_list: Mutex<Vec<RefCommand>>,
@@ -530,12 +530,12 @@ impl MonoRepo {
             .update_or_create_cl(&self.storage, &self.from_hash, &self.to_hash, &username)
             .await?;
         self.traverses_tree_and_update_filepath().await?;
-        if self.bellatrix.enable_build() {
+        if self.orion_client.enable_build() {
             editor
                 .trigger_build_and_check(
                     self.storage.clone(),
                     self.git_object_cache.clone(),
-                    self.bellatrix.clone(),
+                    self.orion_client.clone(),
                     &cl,
                     &username,
                 )

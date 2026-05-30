@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use bellatrix::Bellatrix;
 use callisto::{mega_cl, mega_refs};
 use common::errors::MegaError;
 use jupiter::storage::Storage;
+use orion_client::OrionBuildClient;
 
 use crate::{
     api_service::{cache::GitObjectCache, mono_api_service::MonoApiService},
@@ -59,7 +59,7 @@ impl model::TriggerContextBuilder for OnpushTrigerBuilder {
         &self,
         storage: Storage,
         git_cache: Arc<GitObjectCache>,
-        bellatrix: Arc<Bellatrix>,
+        orion_client: Arc<OrionBuildClient>,
         cl: &mega_cl::Model,
         username: &str,
     ) -> Result<(), MegaError> {
@@ -89,7 +89,7 @@ impl model::TriggerContextBuilder for OnpushTrigerBuilder {
                 Some(cl_model.id),
                 Some(username),
             );
-            BuildTriggerService::build_by_context(storage, git_cache, bellatrix, context).await
+            BuildTriggerService::build_by_context(storage, git_cache, orion_client, context).await
         });
 
         Ok(())

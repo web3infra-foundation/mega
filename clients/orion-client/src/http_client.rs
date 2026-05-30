@@ -1,4 +1,4 @@
-pub use api_model::buck2::{api::TaskBuildRequest, status::Status, types::ProjectRelativePath};
+use api_model::buck2::api::TaskBuildRequest;
 use serde::Deserialize;
 
 /// Response from Orion task handler containing the assigned task ID.
@@ -8,14 +8,16 @@ pub struct TaskResponse {
 }
 
 #[derive(Clone)]
-pub(crate) struct OrionClient {
+pub(crate) struct OrionTaskHttpClient {
     base_url: String,
     client: reqwest::Client,
 }
 
-impl OrionClient {
+impl OrionTaskHttpClient {
     pub fn new(base_url: impl Into<String>) -> Self {
         let base_url = base_url.into();
+        // Loopback connections must bypass any system/HTTP_PROXY env so tests
+        // and local dev don't get black-holed by a corporate proxy.
         let use_direct_connection = base_url.starts_with("http://127.0.0.1")
             || base_url.starts_with("https://127.0.0.1")
             || base_url.starts_with("http://localhost")
@@ -34,7 +36,6 @@ impl OrionClient {
         Self { base_url, client }
     }
 
-    /// Trigger a build on Orion and return the assigned task ID.
     pub async fn trigger_build(&self, req: TaskBuildRequest) -> anyhow::Result<String> {
         let url = format!("{}/v2/task", self.base_url);
         tracing::info!("Try to trigger build with params:{:?}", req);

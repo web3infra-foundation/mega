@@ -16,7 +16,7 @@ common = { workspace = true }
 jupiter = { workspace = true }
 callisto = { workspace = true }
 git-internal = { workspace = true }
-bellatrix = { workspace = true }
+orion-client = { workspace = true }
 saturn = { workspace = true }
 
 anyhow = { workspace = true }

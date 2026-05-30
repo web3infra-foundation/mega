@@ -10,12 +10,12 @@ use axum::{
     response::Response,
     routing::any,
 };
-use bellatrix::Bellatrix;
 use ceres::api_service::{cache::GitObjectCache, state::ProtocolApiState};
 use common::errors::ProtocolError;
 use context::AppContext;
 use http::{HeaderName, HeaderValue, Method};
 use jupiter::service::artifact_service::ArtifactService;
+use orion_client::OrionBuildClient;
 use saturn::entitystore::EntityStore;
 use time::Duration;
 use tokio::task::JoinHandle;
@@ -395,7 +395,7 @@ pub async fn app(ctx: AppContext, host: String, port: u16) -> Router {
         listen_addr: format!("http://{host}:{port}"),
         entity_store: EntityStore::new(),
         git_object_cache,
-        bellatrix: Arc::new(Bellatrix::new(storage.config().build.clone())),
+        orion_client: Arc::new(OrionBuildClient::new(storage.config().build.clone())),
     };
 
     let origins: Vec<HeaderValue> = oauth_config

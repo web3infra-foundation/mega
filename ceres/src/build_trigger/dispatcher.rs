@@ -1,16 +1,16 @@
 use std::sync::Arc;
 
 use api_model::buck2::{api::TaskBuildRequest, status::Status, types::ProjectRelativePath};
-use bellatrix::Bellatrix;
 use common::errors::MegaError;
 use jupiter::storage::Storage;
+use orion_client::OrionBuildClient;
 
 use crate::build_trigger::{BuildTrigger, BuildTriggerPayload};
 
-/// Handles dispatching build triggers to the build execution layer (Bellatrix/Orion).
+/// Handles dispatching build triggers to the build execution layer (Orion).
 pub struct BuildDispatcher {
     storage: Storage,
-    bellatrix: Arc<Bellatrix>,
+    orion_client: Arc<OrionBuildClient>,
 }
 
 fn payload_to_task_request(payload: &BuildTriggerPayload) -> Result<TaskBuildRequest, MegaError> {
@@ -40,8 +40,11 @@ fn payload_to_task_request(payload: &BuildTriggerPayload) -> Result<TaskBuildReq
 }
 
 impl BuildDispatcher {
-    pub fn new(storage: Storage, bellatrix: Arc<Bellatrix>) -> Self {
-        Self { storage, bellatrix }
+    pub fn new(storage: Storage, orion_client: Arc<OrionBuildClient>) -> Self {
+        Self {
+            storage,
+            orion_client,
+        }
     }
 
     pub async fn dispatch(&self, trigger: BuildTrigger) -> Result<i64, MegaError> {
@@ -51,12 +54,12 @@ impl BuildDispatcher {
         })?;
 
         // Determine task_id based on whether build system is enabled
-        let task_id: Option<uuid::Uuid> = if self.bellatrix.enable_build() {
+        let task_id: Option<uuid::Uuid> = if self.orion_client.enable_build() {
             let req = payload_to_task_request(&trigger.payload)?;
 
-            let task_id_str = self.bellatrix.on_post_receive(req).await.map_err(|e| {
-                tracing::error!("Failed to dispatch build to Bellatrix: {}", e);
-                MegaError::Other(format!("Failed to dispatch build to Bellatrix: {}", e))
+            let task_id_str = self.orion_client.on_post_receive(req).await.map_err(|e| {
+                tracing::error!("Failed to dispatch build to Orion: {}", e);
+                MegaError::Other(format!("Failed to dispatch build to Orion: {}", e))
             })?;
 
             let task_uuid = uuid::Uuid::parse_str(&task_id_str).map_err(|e| {
@@ -179,12 +182,12 @@ mod tests {
             spawn_mock_orion(worker_tx, expected_task_id.clone()).await;
         tokio::time::sleep(Duration::from_millis(50)).await;
 
-        let bellatrix = Arc::new(Bellatrix::new(BuildConfig {
+        let orion_client = Arc::new(OrionBuildClient::new(BuildConfig {
             enable_build: true,
             orion_server: orion_base,
             ..Default::default()
         }));
-        let dispatcher = BuildDispatcher::new(storage.clone(), bellatrix);
+        let dispatcher = BuildDispatcher::new(storage.clone(), orion_client);
         let trigger = web_edit_trigger(repo, cl_link, changes.clone());
 
         let trigger_id = dispatcher
@@ -254,12 +257,12 @@ mod tests {
     async fn test_dispatch_skips_orion_when_build_disabled_and_persists_trigger() {
         let temp_dir = tempdir().expect("create temp dir");
         let storage = jupiter::tests::test_storage(temp_dir.path()).await;
-        let bellatrix = Arc::new(Bellatrix::new(BuildConfig {
+        let orion_client = Arc::new(OrionBuildClient::new(BuildConfig {
             enable_build: false,
             orion_server: "http://127.0.0.1:0".to_string(),
             ..Default::default()
         }));
-        let dispatcher = BuildDispatcher::new(storage.clone(), bellatrix);
+        let dispatcher = BuildDispatcher::new(storage.clone(), orion_client);
 
         let trigger = web_edit_trigger(
             "/project/buck2_test",

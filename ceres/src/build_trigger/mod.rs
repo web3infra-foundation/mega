@@ -1,9 +1,9 @@
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
-use bellatrix::Bellatrix;
 use common::errors::MegaError;
 use jupiter::storage::Storage;
+use orion_client::OrionBuildClient;
 
 use crate::api_service::cache::GitObjectCache;
 
@@ -50,11 +50,11 @@ impl TriggerRegistry {
     pub fn new(
         storage: Storage,
         git_object_cache: Arc<GitObjectCache>,
-        bellatrix: Arc<Bellatrix>,
+        orion_client: Arc<OrionBuildClient>,
     ) -> Self {
         let mut registry = Self {
             handlers: HashMap::new(),
-            dispatcher: Arc::new(BuildDispatcher::new(storage.clone(), bellatrix)),
+            dispatcher: Arc::new(BuildDispatcher::new(storage.clone(), orion_client)),
         };
 
         // Register core handlers (Git Push, Manual, Retry)

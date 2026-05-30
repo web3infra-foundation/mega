@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use bellatrix::Bellatrix;
 use callisto::{entity_ext::generate_link, mega_cl, mega_refs, sea_orm_active_enums::ConvTypeEnum};
 use common::errors::MegaError;
 use git_internal::internal::object::commit::Commit;
@@ -9,6 +8,7 @@ use jupiter::{
     storage::{Storage, mono_storage::MonoStorage},
     utils::converter::FromMegaModel,
 };
+use orion_client::OrionBuildClient;
 
 use crate::{
     api_service::{ApiHandler, cache::GitObjectCache},
@@ -73,7 +73,7 @@ pub(crate) trait TriggerContextBuilder {
         &self,
         storage: Storage,
         git_cache: Arc<GitObjectCache>,
-        bellatrix: Arc<Bellatrix>,
+        orion_client: Arc<OrionBuildClient>,
         cl: &mega_cl::Model,
         username: &str,
     ) -> Result<(), MegaError> {
@@ -81,7 +81,7 @@ pub(crate) trait TriggerContextBuilder {
         let username = username.to_string();
         let context = self.get_context(&cl_model, &username).await?;
         tokio::spawn(async move {
-            BuildTriggerService::build_by_context(storage, git_cache, bellatrix, context).await
+            BuildTriggerService::build_by_context(storage, git_cache, orion_client, context).await
         });
         Ok(())
     }
@@ -364,12 +364,12 @@ impl<
         &self,
         storage: Storage,
         git_cache: Arc<GitObjectCache>,
-        bellatrix: Arc<Bellatrix>,
+        orion_client: Arc<OrionBuildClient>,
         cl: &mega_cl::Model,
         username: &str,
     ) -> Result<(), MegaError> {
         self.builder
-            .trigger_build(storage, git_cache, bellatrix, cl, username)
+            .trigger_build(storage, git_cache, orion_client, cl, username)
             .await
     }
 
@@ -394,11 +394,11 @@ impl<
         &self,
         storage: Storage,
         git_cache: Arc<GitObjectCache>,
-        bellatrix: Arc<Bellatrix>,
+        orion_client: Arc<OrionBuildClient>,
         cl: &mega_cl::Model,
         username: &str,
     ) -> Result<(), MegaError> {
-        self.trigger_build(storage.clone(), git_cache, bellatrix, cl, username)
+        self.trigger_build(storage.clone(), git_cache, orion_client, cl, username)
             .await?;
         self.trigger_check(storage, username, cl).await?;
         Ok(())

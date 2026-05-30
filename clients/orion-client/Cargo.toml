@@ -1,16 +1,17 @@
 [package]
-name = "bellatrix"
+name = "orion-client"
 version = "0.1.0"
 edition.workspace = true
+description = "Client for triggering Orion builds via orion-server's task API."
 
 [lib]
-name = "bellatrix"
+name = "orion_client"
 path = "src/lib.rs"
 
 [dependencies]
 api-model = { workspace = true }
 common = { workspace = true }
-reqwest = { workspace = true, features = ["json"]}
+reqwest = { workspace = true, features = ["json"] }
 anyhow = { workspace = true }
 serde = { workspace = true }
 tracing = { workspace = true }

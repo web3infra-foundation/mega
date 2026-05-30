@@ -151,7 +151,7 @@ catalog:
   easymde: '2'
   eslint: ^8.57.0
   eslint-config-next: ^14.2.3
-  eslint-config-turbo: ^2.0.9
+  eslint-config-turbo: ^2.9.16
   eslint-plugin-react: ^7.34.1
   eslint-plugin-react-hooks: ^4.6.2
   eslint-plugin-storybook: ^0.8.0
@@ -252,7 +252,7 @@ catalog:
   tippy.js: ^6.3.7
   tsup: ^8.0.2
   typescript: ^5.4.3
-  turbo: ^2.1.2
+  turbo: ^2.9.16
   use-debounce: ^9.0.4
   use-sound: ^4.0.1
   uuid: ^9.0.1

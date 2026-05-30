@@ -4,7 +4,6 @@ use std::{
 };
 
 use axum::extract::FromRef;
-use bellatrix::Bellatrix;
 use ceres::{
     api_service::{
         ApiHandler, cache::GitObjectCache, import_api_service::ImportApiService,
@@ -23,6 +22,7 @@ use jupiter::{
         user_storage::UserStorage, webhook_storage::WebhookStorage,
     },
 };
+use orion_client::OrionBuildClient;
 use saturn::entitystore::EntityStore;
 use tower_sessions::MemoryStore;
 
@@ -43,7 +43,7 @@ pub struct MonoApiServiceState {
     pub session_store: Option<OAuthApiStore>,
     pub listen_addr: String,
     pub entity_store: EntityStore,
-    pub bellatrix: Arc<Bellatrix>,
+    pub orion_client: Arc<OrionBuildClient>,
 }
 
 impl FromRef<MonoApiServiceState> for MemoryStore {
@@ -137,7 +137,7 @@ impl MonoApiServiceState {
         BuildTriggerService::new(
             self.storage.clone(),
             self.git_object_cache.clone(),
-            self.bellatrix.clone(),
+            self.orion_client.clone(),
         )
     }
 

@@ -45,7 +45,6 @@ use std::{
 
 use api_model::common::Pagination;
 use async_trait::async_trait;
-use bellatrix::Bellatrix;
 use bytes::Bytes;
 use callisto::{
     mega_cl, mega_refs, mega_tag, mega_tree,
@@ -84,6 +83,7 @@ use jupiter::{
     },
     utils::converter::{FromMegaModel, IntoMegaModel, generate_git_keep_with_timestamp},
 };
+use orion_client::OrionBuildClient;
 use regex::Regex;
 use tracing::debug;
 
@@ -1542,13 +1542,13 @@ impl MonoApiService {
         username: &str,
     ) -> Result<(), GitError> {
         let config = self.storage.config();
-        let bellatrix = Bellatrix::new(config.build.clone());
+        let orion_client = OrionBuildClient::new(config.build.clone());
         let git_cache = self.git_object_cache.clone();
         editor
             .trigger_build_and_check(
                 self.storage.clone(),
                 git_cache,
-                Arc::new(bellatrix),
+                Arc::new(orion_client),
                 cl,
                 username,
             )
@@ -1560,8 +1560,8 @@ impl MonoApiService {
     /// Triggers a build for Buck upload completion
     fn trigger_build_for_buck_upload(&self, response: &CompleteResponse, username: &str) {
         let config = self.storage.config();
-        let bellatrix = Arc::new(Bellatrix::new(config.build.clone()));
-        if !bellatrix.enable_build() {
+        let orion_client = Arc::new(OrionBuildClient::new(config.build.clone()));
+        if !orion_client.enable_build() {
             return;
         }
         let storage = self.storage.clone();
@@ -1578,7 +1578,8 @@ impl MonoApiService {
         context.ref_type = Some("branch".to_string());
         tokio::spawn(async move {
             if let Err(e) =
-                BuildTriggerService::build_by_context(storage, git_cache, bellatrix, context).await
+                BuildTriggerService::build_by_context(storage, git_cache, orion_client, context)
+                    .await
             {
                 tracing::error!("Failed to create build trigger for buck upload: {}", e);
             }

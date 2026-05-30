@@ -1,22 +1,22 @@
 # syntax = docker/dockerfile:1
 
-FROM node:22-slim as base
+FROM node:22-slim AS base
 
 # configure pnpm
 ENV PNPM_HOME="/pnpm"
-ENV PATH="$PNPM_HOME:$PATH"
-RUN corepack enable
+ENV PATH="$PNPM_HOME/bin:$PNPM_HOME:$PATH"
+RUN corepack enable && corepack prepare pnpm@9.7.1 --activate
 
 
 # ENV SENTRY_PROPERTIES=sentry.properties
 
 # Throw-away build stage to reduce size of final image
-FROM base as builder
+FROM base AS builder
 # Install packages needed to build node modules
 RUN apt-get update -qq && \
   apt-get install -y build-essential pkg-config python-is-python3 ca-certificates
 WORKDIR /app
-RUN pnpm install turbo@2.0.9 --global
+RUN pnpm install turbo@2.9.16 --global
 COPY . .
 RUN turbo prune @gitmono/sync-server --docker
 WORKDIR /app
@@ -56,6 +56,6 @@ COPY --from=installer /app /app
 
 # Start the server by default, this can be overwritten at runtime
 EXPOSE 9000
-ENV PORT 9000
+ENV PORT=9000
 
 ENTRYPOINT [ "node", "dist/index.mjs" ]
