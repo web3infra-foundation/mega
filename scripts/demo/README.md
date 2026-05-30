@@ -7,7 +7,6 @@ A bash script for building Docker images for the demo environment on your local 
 This script builds Docker images for the following components:
 - **mono-engine** - Mono engine service
 - **orion-server** - Orion server component
-- **orion-client** - Orion client component
 - **mega-ui** - Mega UI web application
 
 Images are built using Docker Buildx and can be tagged with architecture-specific suffixes (e.g., `-arm64`, `-amd64`).
@@ -154,8 +153,7 @@ These are hardcoded in the script and can be modified if needed.
 Images are built in the following order:
 1. mono-engine
 2. orion-server
-3. orion-client
-4. mega-ui
+3. mega-ui
 
 This order ensures dependencies are built first.
 

@@ -99,7 +99,7 @@ get_image_tag() {
 
 is_valid_image() {
     case "$1" in
-        "mono-engine"|"mega-ui"|"orion-server"|"orion-client") return 0 ;;
+        "mono-engine"|"mega-ui"|"orion-server") return 0 ;;
         *) return 1 ;;
     esac
 }

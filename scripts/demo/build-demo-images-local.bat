@@ -63,7 +63,7 @@ if exist "%SCRIPT_DIR%\..\..\Cargo.toml" (
 
 rem Image Definitions
 rem Keep build order consistent with the bash script
-set "IMAGE_ORDER=mono-engine orion-server orion-client mega-ui"
+set "IMAGE_ORDER=mono-engine orion-server mega-ui"
 
 set "IMAGES_mono-engine_DOCKERFILE=mono/Dockerfile"
 set "IMAGES_mono-engine_CONTEXT=."
@@ -76,10 +76,6 @@ set "TAGS_mega-ui=demo-latest"
 set "IMAGES_orion-server_DOCKERFILE=orion-server/Dockerfile"
 set "IMAGES_orion-server_CONTEXT=."
 set "TAGS_orion-server=latest"
-
-set "IMAGES_orion-client_DOCKERFILE=orion/Dockerfile"
-set "IMAGES_orion-client_CONTEXT=."
-set "TAGS_orion-client=latest"
 
 rem Parse Arguments
 set "TARGET_IMAGE="

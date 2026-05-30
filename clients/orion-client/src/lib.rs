@@ -9,10 +9,9 @@ mod http_client;
 
 use api_model::buck2::api::TaskBuildRequest;
 use common::config::BuildConfig;
+pub use http_client::TaskResponse;
 
 use crate::http_client::OrionTaskHttpClient;
-
-pub use http_client::TaskResponse;
 
 #[derive(Clone)]
 pub struct OrionBuildClient {
