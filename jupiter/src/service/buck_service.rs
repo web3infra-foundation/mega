@@ -959,7 +959,7 @@ impl BuckService {
         // TODO: Buck Upload completion flow - remaining steps (not implemented):
         // 1. Output CL creation and diff logs (need to calculate file diffs)
         // 2. Notify change-detector (need to implement change-detector client)
-        // 3. Buck2 build flow (need to integrate bellatrix and dependency analysis):
+        // 3. Buck2 build flow (need to integrate orion-client and dependency analysis):
         //    - Analyze affected targets (based on BUCK dependency graph)
         //    - Return build target list (affected_targets)
         //    - Start build tasks (only build affected_targets)

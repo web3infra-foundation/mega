@@ -41,6 +41,8 @@ REPOSITORY="mega"
 REGISTRY="public.ecr.aws"
 SHOULD_PUSH=false  # Default: only build, don't push
 SHOULD_PRUNE_BUILDKIT=false  # Optional: prune buildkit cache after build
+BUILDX_BUILDER_ARGS=()
+BUILDX_PRUNE_ARGS=()
 
 # Auto-detect platform if not explicitly set
 # The script automatically detects your machine architecture and sets the appropriate platform
@@ -97,7 +99,7 @@ get_image_tag() {
 
 is_valid_image() {
     case "$1" in
-        "mono-engine"|"mega-ui"|"orion-server"|"orion-client") return 0 ;;
+        "mono-engine"|"mega-ui"|"orion-server") return 0 ;;
         *) return 1 ;;
     esac
 }
@@ -175,6 +177,40 @@ setup_buildx() {
     
     local builder_name="mega-builder"
 
+    if [ "$SHOULD_PUSH" != "true" ]; then
+        # Local-only builds prefer a docker-driver builder so the image is loaded
+        # directly into the local Docker engine (no extra --load tar export).
+        # Try common docker-driver builder names; fall back to the currently
+        # active builder if none of them are present.
+        local local_builder=""
+        local candidate
+        for candidate in default desktop-linux orbstack colima; do
+            if docker buildx inspect "${candidate}" >/dev/null 2>&1; then
+                # Only pick docker-driver builders here; container builders
+                # would re-introduce the --load round-trip we are trying to avoid.
+                if docker buildx inspect "${candidate}" 2>/dev/null \
+                        | grep -E '^Driver:[[:space:]]+docker$' >/dev/null; then
+                    local_builder="${candidate}"
+                    break
+                fi
+            fi
+        done
+
+        if [ -n "${local_builder}" ]; then
+            log_info "Using local docker-driver buildx builder: ${local_builder}"
+            BUILDX_BUILDER_ARGS=(--builder "${local_builder}")
+            BUILDX_PRUNE_ARGS=(--builder "${local_builder}")
+        else
+            log_warn "No docker-driver buildx builder found; using currently active builder."
+            log_warn "Tip: enable Docker Desktop's default builder, or run 'docker buildx use default'."
+            BUILDX_BUILDER_ARGS=()
+            BUILDX_PRUNE_ARGS=()
+        fi
+
+        log_info "Buildx setup complete ✓"
+        return 0
+    fi
+
     # Reuse existing builder if present; otherwise create it.
     # NOTE: `docker buildx ls | grep` is not reliable enough (can false-match), so prefer `inspect`.
     if docker buildx inspect "${builder_name}" >/dev/null 2>&1; then
@@ -187,6 +223,9 @@ setup_buildx() {
             exit 1
         fi
     fi
+
+    BUILDX_BUILDER_ARGS=(--builder "${builder_name}")
+    BUILDX_PRUNE_ARGS=(--builder "${builder_name}")
 
     # Ensure the builder is bootstrapped (idempotent)
     if ! docker buildx inspect "${builder_name}" --bootstrap >/dev/null 2>&1; then
@@ -222,37 +261,14 @@ setup_buildx() {
     log_info "Buildx setup complete ✓"
 }
 
-rotate_local_cache_dir() {
-    local cache_dir=$1
-    local cache_dir_new="${cache_dir}-new"
-
-    # BuildKit local cache grows monotonically if we keep writing into the same directory.
-    # Rotate to a temporary directory and replace atomically so stale layers are dropped.
-    if [ -d "${cache_dir_new}" ]; then
-        rm -rf "${cache_dir_new}"
-    fi
-    mkdir -p "${cache_dir_new}"
-    echo "${cache_dir_new}"
-}
-
-finalize_local_cache_dir() {
-    local cache_dir=$1
-    local cache_dir_new="${cache_dir}-new"
-
-    if [ -d "${cache_dir_new}" ]; then
-        rm -rf "${cache_dir}"
-        mv "${cache_dir_new}" "${cache_dir}"
-    fi
-}
-
 prune_buildkit_cache() {
     if [ "${SHOULD_PRUNE_BUILDKIT}" != "true" ]; then
         return 0
     fi
 
-    log_info "Pruning BuildKit cache (builder: mega-builder, filter: unused for 24h)..."
-    if ! docker buildx prune --builder mega-builder --force --filter "until=24h" >/dev/null 2>&1; then
-        log_warn "BuildKit cache prune failed. You can retry manually: docker buildx prune --builder mega-builder --force"
+    log_info "Pruning BuildKit cache (filter: unused for 24h)..."
+    if ! docker buildx prune "${BUILDX_PRUNE_ARGS[@]}" --force --filter "until=24h" >/dev/null 2>&1; then
+        log_warn "BuildKit cache prune failed. You can retry manually: docker buildx prune --force"
         return 0
     fi
 
@@ -299,8 +315,6 @@ build_and_push() {
     fi
     local image_tag_with_arch="${image_tag}-${arch_suffix}"
     local image_repo="${REGISTRY}/${REGISTRY_ALIAS}/${REPOSITORY}/${image_name}"
-    local cache_dir="${REPO_ROOT}/.buildx-cache/${image_name}-${arch_suffix}"
-    local cache_dir_export=""
     
     # Verify paths exist (use absolute paths)
     local full_dockerfile="${REPO_ROOT}/${dockerfile_path}"
@@ -377,17 +391,18 @@ build_and_push() {
     
     # Build command arguments
     local build_args=(
-        --builder mega-builder
+        "${BUILDX_BUILDER_ARGS[@]}"
         --platform "${TARGET_PLATFORMS}"
         --file "${dockerfile_path}"
         --tag "${image_repo}:${image_tag_with_arch}"
-        --progress=plain
+        --progress=auto
         --build-arg BUILDKIT_INLINE_CACHE=1
     )
     
-    # Always load the image into the local Docker engine first.
-    # This guarantees the pushed artifact is a single-architecture image manifest.
-    build_args+=(--load)
+    if [ "$SHOULD_PUSH" = "true" ]; then
+        # Load before docker push so the pushed artifact is a single-architecture image manifest.
+        build_args+=(--load)
+    fi
     
     if [ "$image_name" = "mega-ui" ]; then
         build_args+=(--build-arg APP_ENV=demo)
@@ -398,26 +413,21 @@ build_and_push() {
         build_args+=("${cache_from_args[@]}")
     fi
 
-    # Persist BuildKit cache across builder recreation to speed up local rebuilds.
-    mkdir -p "${cache_dir}"
-    cache_dir_export=$(rotate_local_cache_dir "${cache_dir}")
-    build_args+=(--cache-from "type=local,src=${cache_dir}")
-    build_args+=(--cache-to "type=local,dest=${cache_dir_export},mode=max")
-
-    # Add cache-to (inline cache is always useful)
-    build_args+=(--cache-to type=inline)
+    if [ "$SHOULD_PUSH" = "true" ]; then
+        # Inline cache helps subsequent remote builds without writing a local layer tar cache.
+        build_args+=(--cache-to type=inline)
+    fi
     
     # Add build context
     build_args+=("${build_context}")
     
     log_info "output build args: ${build_args[*]}"
     
-    # Build (load into local engine)
+    # Build the image.
     if ! docker buildx build "${build_args[@]}"; then
         log_error "Failed to build ${image_name}"
         return 1
     fi
-    finalize_local_cache_dir "${cache_dir}"
 
     # Push if requested (ensures single-arch manifest is uploaded)
     if [ "$SHOULD_PUSH" = "true" ]; then

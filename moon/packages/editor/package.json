@@ -61,6 +61,6 @@
     "vitest": "catalog:"
   },
   "peerDependencies": {
-    "prosemirror-model": "^1.22.3"
+    "prosemirror-model": "^1.25.1"
   }
 }

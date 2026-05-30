@@ -6,7 +6,6 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use bellatrix::Bellatrix;
 use callisto::sea_orm_active_enums::RefTypeEnum;
 use common::{
     errors::{MegaError, ProtocolError},
@@ -14,6 +13,7 @@ use common::{
 };
 use import_refs::RefCommand;
 use jupiter::redis::lock::RedLock;
+use orion_client::OrionBuildClient;
 use repo::Repo;
 use tokio::sync::RwLock;
 
@@ -210,7 +210,7 @@ impl SmartSession {
                 to_hash: String::new(),
                 current_commit: Arc::new(RwLock::new(None)),
                 cl_link: Arc::new(RwLock::new(None)),
-                bellatrix: Arc::new(Bellatrix::new(config.build.clone())),
+                orion_client: Arc::new(OrionBuildClient::new(config.build.clone())),
                 username: self.auth.username.clone(),
                 command_list: Mutex::new(commands.clone()),
             };

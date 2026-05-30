@@ -275,6 +275,88 @@ ssh -i ~/.ssh/orion_vm_access root@<vm_ip>
 
 ---
 
+## Release 与部署
+
+orion-scheduler 是宿主机上的 KVM/QEMU 管理 daemon（依赖 `/dev/kvm`、`qlbr0` 网桥、QEMU 子进程长期存活），不适合做成容器镜像运行。发布方式是「**Linux 原生二进制 + systemd**」，由 GitHub Action 构建，作为 **GitHub Release** 资产发布。
+
+### 触发一次 release
+
+向仓库推一个 `orion-scheduler-vX.Y.Z` 形式的 tag：
+
+```bash
+git tag orion-scheduler-v0.1.0
+git push origin orion-scheduler-v0.1.0
+```
+
+[`.github/workflows/orion-scheduler-release.yml`](../.github/workflows/orion-scheduler-release.yml) 会：
+
+1. 在 `ubuntu-latest` 上 `cargo build --release -p orion-scheduler --target x86_64-unknown-linux-gnu`
+2. 打包 `orion-scheduler-vX.Y.Z-linux-amd64.tar.gz`（含二进制、systemd unit、`install.sh`、`target_config.json.template`、`VERSION` 元数据）
+3. 生成 `*.tar.gz.sha256`
+4. 创建 GitHub Release 并上传 tarball + 校验文件
+
+也可以在 Actions 页面手动 `workflow_dispatch` 触发（需要填 `version`），手动触发的产物只放在 Actions artifacts 里，不会发布为 Release。
+
+Release bundle 内部结构：
+
+```text
+orion-scheduler-vX.Y.Z-linux-amd64/
+├── bin/orion-scheduler
+├── etc/target_config.json.template
+├── systemd/orion-scheduler.service
+├── install.sh
+└── VERSION
+```
+
+### Host 端安装
+
+主机预先满足前置要求（KVM 内核模块、`qlbr0` 网桥、QEMU、自定义镜像，见 [前置要求](#前置要求)），然后：
+
+```bash
+VERSION=v0.1.0
+BUNDLE=orion-scheduler-${VERSION}-linux-amd64
+REPO=web3infra-foundation/mega
+
+curl -LO https://github.com/${REPO}/releases/download/orion-scheduler-${VERSION}/${BUNDLE}.tar.gz
+curl -LO https://github.com/${REPO}/releases/download/orion-scheduler-${VERSION}/${BUNDLE}.tar.gz.sha256
+sha256sum -c ${BUNDLE}.tar.gz.sha256
+tar -xzf ${BUNDLE}.tar.gz
+
+sudo bash ${BUNDLE}/install.sh
+sudo $EDITOR /etc/orion-scheduler/target_config.json   # 首次安装会留下模板
+sudo systemctl start orion-scheduler
+sudo journalctl -u orion-scheduler -f
+```
+
+[`install.sh`](install.sh) 完成的工作：
+
+| 工作 | 路径 / 命令 |
+| --- | --- |
+| 创建 service 用户 | `orion` 用户，`-G kvm` 加入 KVM 组 |
+| 落二进制 | `/opt/orion-scheduler/bin/orion-scheduler` |
+| 落配置 | `/etc/orion-scheduler/target_config.json`（已存在则保留） |
+| qlean 状态目录 | `/var/lib/orion-scheduler/qlean/{images,runs}`，软链到 `~orion/.local/share/qlean` |
+| 日志 & 缓存 | `/var/log/orion-scheduler`、`/var/cache/orion-scheduler` |
+| systemd | `/etc/systemd/system/orion-scheduler.service`，`daemon-reload` + `enable` |
+
+可用环境变量覆盖默认值：`PREFIX` / `ETC_DIR` / `STATE_DIR` / `LOG_DIR` / `CACHE_DIR` / `SERVICE_USER` / `SERVICE_GROUP` / `SKIP_ENABLE=1`。
+
+升级时，下载新 tarball 再跑一次 `install.sh` 即可——配置不会被覆盖，systemd unit 会重启。
+
+### 升级 / 回滚
+
+| 操作 | 命令 |
+| --- | --- |
+| 升级 | 下载新版本 tarball → `sudo bash <bundle>/install.sh` → `sudo systemctl restart orion-scheduler` |
+| 回滚 | 下载旧版本 tarball → 同上 |
+| 检查当前版本 | `cat /opt/orion-scheduler/bin/orion-scheduler --version`（若启用了 clap version）或 `cat ~/.../VERSION`（解压后） |
+| 停服并保留 VM | `sudo systemctl stop orion-scheduler`；VM 不会被关闭 |
+| 完全停服 | 先 `POST /shutdown` 关闭 VM，再 `systemctl stop` |
+
+> **注意**：必须从 Linux x86_64 host 上跑。orion-scheduler 通过 `qlean` 依赖 `kvm-ioctls`，不可在 macOS / ARM64 上运行。
+
+---
+
 ## 演进方向
 
 当前 `orion` 二进制路径通过 `target_config.json` 的 `orion_binary_path` 配置，镜像路径通过 `image_path` 或 `image_url`（API 参数）配置。
