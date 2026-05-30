@@ -1,0 +1,44 @@
+[Unit]
+Description=Orion Scheduler (qlean-based KVM micro-VM controller)
+Documentation=https://github.com/web3infra-foundation/mega/tree/main/orion-scheduler
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# The service user must be a member of the `kvm` group so QEMU can open
+# /dev/kvm. install.sh creates the user and adds it to `kvm` for you.
+User=orion
+Group=orion
+SupplementaryGroups=kvm
+
+WorkingDirectory=/opt/orion-scheduler
+Environment=RUST_LOG=info
+Environment=CONFIG_PATH=/etc/orion-scheduler/target_config.json
+# Override these in /etc/systemd/system/orion-scheduler.service.d/*.conf if needed.
+
+ExecStart=/opt/orion-scheduler/bin/orion-scheduler
+
+# qlean writes images/runs under the service user's HOME; the install
+# script provisions /var/lib/orion-scheduler/qlean and symlinks
+# ~orion/.local/share/qlean to it so state survives reinstalls.
+ReadWritePaths=/var/log/orion-scheduler /var/cache/orion-scheduler /var/lib/orion-scheduler
+
+# Give the process room for many concurrent VMs/SSH connections.
+LimitNOFILE=65536
+
+# QEMU bridge helper needs CAP_NET_ADMIN. Keep the rest of the sandbox
+# loose: aggressive ProtectSystem/PrivateDevices flags break bridge
+# networking and /dev/kvm access.
+AmbientCapabilities=CAP_NET_ADMIN
+
+Restart=on-failure
+RestartSec=5s
+
+# Give qlean a chance to power off running VMs gracefully before SIGKILL.
+TimeoutStopSec=60s
+KillMode=mixed
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=multi-user.target

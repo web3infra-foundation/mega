@@ -1,0 +1,185 @@
+name: Orion Scheduler Release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "orion-scheduler-v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Override version tag (e.g. v0.1.0). Required for manual runs."
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build orion-scheduler (linux-amd64)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      bundle_name: ${{ steps.meta.outputs.bundle_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: meta
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF}" == refs/tags/orion-scheduler-* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/orion-scheduler-}"
+          else
+            VERSION="${{ inputs.version }}"
+          fi
+          if [[ -z "$VERSION" ]]; then
+            echo "::error::Could not resolve version. Push an orion-scheduler-vX.Y.Z tag or supply 'version'."
+            exit 1
+          fi
+          SHORT_SHA=$(git rev-parse --short=8 HEAD)
+          BUNDLE_NAME="orion-scheduler-${VERSION}-linux-amd64"
+          echo "version=$VERSION"           >> "$GITHUB_OUTPUT"
+          echo "short_sha=$SHORT_SHA"       >> "$GITHUB_OUTPUT"
+          echo "bundle_name=$BUNDLE_NAME"   >> "$GITHUB_OUTPUT"
+
+      - name: Install system build deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+
+      - name: Cargo cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: orion-scheduler-release-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          cache-on-failure: true
+
+      - name: Build orion-scheduler (release)
+        run: cargo build --release -p orion-scheduler --target x86_64-unknown-linux-gnu
+
+      - name: Stage bundle
+        id: stage
+        env:
+          BUNDLE_NAME: ${{ steps.meta.outputs.bundle_name }}
+          VERSION:     ${{ steps.meta.outputs.version }}
+          SHORT_SHA:   ${{ steps.meta.outputs.short_sha }}
+        run: |
+          set -euo pipefail
+          BUILT_AT=$(date -u +%FT%TZ)
+          BUNDLE_ROOT="dist/${BUNDLE_NAME}"
+          mkdir -p "${BUNDLE_ROOT}"/{bin,etc,systemd}
+
+          install -m 0755 \
+            target/x86_64-unknown-linux-gnu/release/orion-scheduler \
+            "${BUNDLE_ROOT}/bin/orion-scheduler"
+          install -m 0644 \
+            orion-scheduler/target_config.json.template \
+            "${BUNDLE_ROOT}/etc/target_config.json.template"
+          install -m 0644 \
+            orion-scheduler/systemd/orion-scheduler.service \
+            "${BUNDLE_ROOT}/systemd/orion-scheduler.service"
+          install -m 0755 \
+            orion-scheduler/install.sh \
+            "${BUNDLE_ROOT}/install.sh"
+
+          cat > "${BUNDLE_ROOT}/VERSION" <<EOF
+          version=${VERSION}
+          commit=${GITHUB_SHA}
+          commit_short=${SHORT_SHA}
+          built_at=${BUILT_AT}
+          target=x86_64-unknown-linux-gnu
+          EOF
+
+          tar -C dist -czf "dist/${BUNDLE_NAME}.tar.gz" "${BUNDLE_NAME}"
+          (cd dist && sha256sum "${BUNDLE_NAME}.tar.gz" \
+            > "${BUNDLE_NAME}.tar.gz.sha256")
+
+          ls -lh dist/
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.meta.outputs.bundle_name }}
+          path: |
+            dist/${{ steps.meta.outputs.bundle_name }}.tar.gz
+            dist/${{ steps.meta.outputs.bundle_name }}.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/orion-scheduler-')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.bundle_name }}
+          path: dist
+
+      - name: Render release notes
+        id: notes
+        env:
+          VERSION:     ${{ needs.build.outputs.version }}
+          BUNDLE_NAME: ${{ needs.build.outputs.bundle_name }}
+        run: |
+          set -euo pipefail
+          SHA256=$(awk '{print $1}' "dist/${BUNDLE_NAME}.tar.gz.sha256")
+          {
+            echo "## orion-scheduler ${VERSION}"
+            echo
+            echo "Linux amd64 bundle for the qlean/KVM micro-VM controller. Drop the"
+            echo "tarball on a Linux host with KVM + QEMU and run \`install.sh\`."
+            echo
+            echo "### Install"
+            echo
+            echo "\`\`\`bash"
+            echo "curl -LO https://github.com/${{ github.repository }}/releases/download/orion-scheduler-${VERSION}/${BUNDLE_NAME}.tar.gz"
+            echo "curl -LO https://github.com/${{ github.repository }}/releases/download/orion-scheduler-${VERSION}/${BUNDLE_NAME}.tar.gz.sha256"
+            echo "sha256sum -c ${BUNDLE_NAME}.tar.gz.sha256"
+            echo "tar -xzf ${BUNDLE_NAME}.tar.gz"
+            echo "sudo bash ${BUNDLE_NAME}/install.sh"
+            echo "\`\`\`"
+            echo
+            echo "Edit \`/etc/orion-scheduler/target_config.json\` before starting the service."
+            echo "See [\`orion-scheduler/README.md\`](https://github.com/${{ github.repository }}/blob/main/orion-scheduler/README.md) for the full prerequisites (KVM, \`qlbr0\` bridge, custom image)."
+            echo
+            echo "### Checksum"
+            echo
+            echo "\`\`\`"
+            echo "${SHA256}  ${BUNDLE_NAME}.tar.gz"
+            echo "\`\`\`"
+          } > release-notes.md
+          echo "path=release-notes.md" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: orion-scheduler ${{ needs.build.outputs.version }}
+          body_path: ${{ steps.notes.outputs.path }}
+          draft: false
+          prerelease: ${{ contains(needs.build.outputs.version, '-') }}
+          files: |
+            dist/${{ needs.build.outputs.bundle_name }}.tar.gz
+            dist/${{ needs.build.outputs.bundle_name }}.tar.gz.sha256
