@@ -155,6 +155,30 @@ def _first_existing_ancestor_git_repo(p: Path, stop_at: Path) -> Optional[Path]:
         cur = cur.parent
 
 
+def _has_ancestor_git_repo_within(d: Path, scan_root: Path) -> bool:
+    """True if a directory strictly above ``d`` (up to and including ``scan_root``)
+    is itself a git repo.
+
+    This deliberately ignores a ``.git`` sitting directly on ``d`` (that case is a
+    stale leftover from this script and is recovered separately) and never inspects
+    paths above ``scan_root`` (so an outer repo enclosing the scan tree, e.g. the
+    surrounding monorepo checkout, does not cause false skips).
+    """
+
+    scan_root_res = scan_root.resolve()
+    if d.resolve() == scan_root_res:
+        return False
+    cur = d.parent
+    while True:
+        if _is_git_repo_dir(cur):
+            return True
+        if cur.resolve() == scan_root_res:
+            return False
+        if cur.parent == cur:
+            return False
+        cur = cur.parent
+
+
 def _looks_like_version_dir(dir_name: str) -> bool:
     """Heuristic for crate version directories (semver-like by default)."""
 
@@ -201,6 +225,7 @@ def discover_repos(
     scan_root: Path,
     *,
     include_non_semver: bool,
+    dry_run: bool = False,
 ) -> list[RepoSpec]:
     """Discover crate version directories under scan_root and return RepoSpec list."""
 
@@ -209,19 +234,36 @@ def discover_repos(
 
     total = 0
 
-    specs: list[RepoSpec] = []
     for d in _iter_dirs(scan_root):
+        total += 1
         if not _has_buck_file(d):
             skipped["no_buck"] += 1
-            continue
-        if _first_existing_ancestor_git_repo(d, scan_root) is not None:
-            skipped["has_git"] += 1
             continue
 
         version = d.name
         crate_name = d.parent.name
         if not include_non_semver and not _looks_like_version_dir(version):
             skipped["non_semver"] += 1
+            continue
+
+        # A version dir (BUCK + semver) is a leaf import target managed entirely by
+        # this script: it creates a throwaway .git here, pushes, then removes it. So
+        # a .git sitting directly on this dir is always a leftover from a previous
+        # run that was interrupted before cleanup. Recover it (clean and re-import)
+        # instead of skipping it forever, which is what the old has_git filter did.
+        if _is_git_repo_dir(d):
+            if dry_run:
+                _eprint(f"Note: stale leftover .git at '{d}' would be removed before import")
+            else:
+                _eprint(f"Note: removing stale leftover .git at '{d}' (recovering for import)")
+                cleanup_git(d)
+            skipped["recovered_stale_git"] += 1
+
+        # Genuine nesting: a directory above this one (still within scan_root) is its
+        # own git repo. That is not something this script created, so keep skipping
+        # to avoid duplicate/incorrect imports.
+        if _has_ancestor_git_repo_within(d, scan_root):
+            skipped["has_git"] += 1
             continue
 
         rel = _derive_mega_rel_path(scan_root, d)
@@ -231,9 +273,9 @@ def discover_repos(
     print("\n[discover_repos debug]")
     print(f"  scanned dirs:   {total}")
     print(f"  discovered:    {len(specs)}")
-    print("  skipped:")
+    print("  skipped/recovered:")
     for k, v in sorted(skipped.items()):
-        print(f"    - {k:12}: {v}")
+        print(f"    - {k:20}: {v}")
     return sorted(specs, key=lambda s: s.rel_path)
 
 
@@ -684,6 +726,7 @@ def main(argv: list[str]) -> int:
         specs = discover_repos(
             scan_root,
             include_non_semver=args.include_non_semver,
+            dry_run=args.dry_run,
         )
     except Exception as e:
         _eprint(f"Error: failed to scan '{scan_root}': {e}")

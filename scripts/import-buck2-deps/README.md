@@ -9,7 +9,8 @@ The Mega relative path is derived starting from the first `third-party/` path co
 ## Features
 
 - Automatically discovers import targets by scanning the directory tree and identifying version directories containing a `BUCK` file (by default, version directories must look like `x.y.z`)
-- Skips directories that already have a Git repository somewhere above them to avoid duplicate imports
+- Skips a version directory only when an **ancestor** directory (still inside the scan root) is itself a Git repository, to avoid duplicate imports
+- Self-heals interrupted runs: a leftover `.git` sitting directly on a version directory (from a run killed before cleanup) is treated as stale, removed, and re-imported instead of being silently skipped forever (counted as `recovered_stale_git` in the discovery summary; under `--dry-run` it is reported but not deleted)
 - For each import target, automatically runs: repo init, branch create/switch, initial commit, remote configuration, and push to Mega
 - Always removes the per-repo `.git` directory after processing so reruns rediscover candidates
 - Optionally rewrites `//third-party/...` dependency labels in `BUCK` to `//...` (for buckal generated artifacts)

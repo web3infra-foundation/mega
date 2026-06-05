@@ -19,7 +19,6 @@ env:
   REGISTRY_ALIAS: m8q5m4u3
   REPOSITORY: mega/web-sync-server
   IMAGE_TAG: latest
-  GCP_PROJECT_ID: infra-20250121-20260121-0235
 
 jobs:
   build-and-push:
@@ -46,14 +45,6 @@ jobs:
         with:
           registry-type: public
 
-      - name: Auth to GCP
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Configure docker for GCP
-        run: gcloud auth configure-docker us-central1-docker.pkg.dev
-
       - name: Build, tag, and push docker image to Amazon ECR Public
         working-directory: moon
         env:
@@ -62,19 +53,18 @@ jobs:
           set -euo pipefail
 
           AWS_IMAGE_BASE="$REGISTRY/${{ env.REGISTRY_ALIAS }}/${{ env.REPOSITORY }}"
-          GCP_IMAGE_BASE="us-central1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}"
           IMAGE_TAG="${{ env.IMAGE_TAG }}"
+          SHORT_SHA="${GITHUB_SHA:0:7}"
 
           docker build \
             -f apps/sync-server/Dockerfile \
             -t "$AWS_IMAGE_BASE:$IMAGE_TAG" .
 
-          # Push to AWS ECR Public
-          docker push "$AWS_IMAGE_BASE:$IMAGE_TAG"
+          docker tag "$AWS_IMAGE_BASE:$IMAGE_TAG" "$AWS_IMAGE_BASE:$SHORT_SHA"
 
-          # Tag and push to GCP Artifact Registry
-          docker tag "$AWS_IMAGE_BASE:$IMAGE_TAG" "$GCP_IMAGE_BASE:$IMAGE_TAG"
-          docker push "$GCP_IMAGE_BASE:$IMAGE_TAG"
+          # Push to AWS ECR Public (latest + commit hash)
+          docker push "$AWS_IMAGE_BASE:$IMAGE_TAG"
+          docker push "$AWS_IMAGE_BASE:$SHORT_SHA"
 
   deploy-aws:
     needs: build-and-push
@@ -99,33 +89,3 @@ jobs:
           AWS_REGION: ap-southeast-2
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-
-  deploy-gcp:
-    needs: build-and-push
-    if: ${{ github.repository == 'web3infra-foundation/mega' }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Auth to GCP
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Deploy to Cloud Run (force new revision)
-        env:
-          REGION: asia-east1
-          SERVICE_NAME: buck2hub-notesync
-        run: |
-          set -euo pipefail
-
-          IMAGE=$(gcloud run services describe "$SERVICE_NAME" \
-            --project "$GCP_PROJECT_ID" \
-            --region "$REGION" \
-            --format="value(spec.template.spec.containers[0].image)")
-
-          echo "Current image: $IMAGE"
-
-          gcloud run deploy "$SERVICE_NAME" \
-            --image "$IMAGE" \
-            --region "$REGION" \
-            --project "$GCP_PROJECT_ID" \
-            --quiet

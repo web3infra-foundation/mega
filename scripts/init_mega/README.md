@@ -69,29 +69,29 @@ When it returns HTTP 2xx, the service is considered ready and the script proceed
 In a temporary directory, it performs:
 
 1. Clone `toolchains`:
-   - `git clone {base_url}/toolchains.git`
+  - `git clone {base_url}/toolchains.git`
 2. Configure the commit identity (repo-local):
-   - `git config user.email mega-bot@example.com`
-   - `git config user.name Mega Bot`
+  - `git config user.email mega-bot@example.com`
+  - `git config user.name Mega Bot`
 3. Clone `buckal-bundles` inside the `toolchains` repo:
-   - `git clone --depth 1 https://github.com/buck2hub/buckal-bundles.git`
+  - `git clone --depth 1 https://github.com/buck2hub/buckal-bundles.git`
 4. Remove `buckal-bundles/.git` so it becomes a regular directory tracked by `toolchains` (vendoring).
 5. Commit and push:
-   - `git add .`
-   - `git commit -m "import buckal-bundles"`
-   - `git push`
+  - `git add .`
+  - `git commit -m "import buckal-bundles"`
+  - `git push`
 6. Use Mega APIs to find and merge the corresponding CL:
-   - `POST {base_url}/api/v1/cl/list` (paginate open CLs and match `title == "import buckal-bundles"`)
-   - `POST {base_url}/api/v1/cl/{link}/merge-no-auth`
+  - `POST {base_url}/api/v1/cl/list` (paginate open CLs and match `title == "import buckal-bundles"`)
+  - `POST {base_url}/api/v1/cl/{link}/merge-no-auth`
 
 ### 3) Libra workflow
 
 Also in a temporary directory:
 
 1. Clone `libra`:
-   - `git clone https://github.com/web3infra-foundation/libra.git .`
+  - `git clone https://github.com/web3infra-foundation/libra.git .`
 2. Use `third-party/` in the temporary directory as the scan root, and call the existing in-repo import script:
-   - `python3 scripts/import-buck2-deps/import-buck2-deps.py --scan-root <temp>/third-party --git-base-url {base_url} ...`
+  - `python3 scripts/import-buck2-deps/import-buck2-deps.py --scan-root <temp>/third-party --git-base-url {base_url} ...`
 
 ## Notes
 

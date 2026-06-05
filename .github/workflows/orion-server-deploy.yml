@@ -11,7 +11,6 @@ env:
   REGISTRY_ALIAS: m8q5m4u3
   REPOSITORY: mega/orion-server
   IMAGE_TAG_BASE: latest
-  GCP_PROJECT_ID: infra-20250121-20260121-0235
 
 permissions:
   id-token: write
@@ -52,21 +51,9 @@ jobs:
           registry-type: public
 
       # -----------------------------
-      # GCP auth
+      # Build & push to AWS
       # -----------------------------
-      - name: Auth to GCP
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Configure docker for GCP
-        run: |
-          gcloud auth configure-docker us-central1-docker.pkg.dev
-
-      # -----------------------------
-      # Build once, push to AWS + GCP
-      # -----------------------------
-      - name: Build & push amd64 image to AWS and GCP
+      - name: Build & push amd64 image to AWS
         env:
           AWS_REGISTRY: ${{ steps.login-ecr-public.outputs.registry }}
         run: |
@@ -76,7 +63,6 @@ jobs:
           ARCH_SUFFIX="amd64"
 
           AWS_IMAGE_BASE="$AWS_REGISTRY/${{ env.REGISTRY_ALIAS }}/${{ env.REPOSITORY }}"
-          GCP_IMAGE_BASE="us-central1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}"
 
           TAG="${{ env.IMAGE_TAG_BASE }}-$ARCH_SUFFIX"
           CACHE_SCOPE="orion-server-$ARCH_SUFFIX"
@@ -89,7 +75,6 @@ jobs:
             --sbom=false \
             -f orion-server/Dockerfile \
             -t "$AWS_IMAGE_BASE:$TAG" \
-            -t "$GCP_IMAGE_BASE:$TAG" \
             --push .
 
   manifest:
@@ -115,11 +100,21 @@ jobs:
         env:
           REGISTRY: ${{ steps.login-ecr-public.outputs.registry }}
         run: |
+          set -euo pipefail
           IMAGE_BASE="$REGISTRY/${{ env.REGISTRY_ALIAS }}/${{ env.REPOSITORY }}"
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+
+          # latest manifest
           docker manifest create "$IMAGE_BASE:${{ env.IMAGE_TAG_BASE }}" \
             "$IMAGE_BASE:${{ env.IMAGE_TAG_BASE }}-amd64" \
             "$IMAGE_BASE:${{ env.IMAGE_TAG_BASE }}-arm64"
           docker manifest push "$IMAGE_BASE:${{ env.IMAGE_TAG_BASE }}"
+
+          # commit-hash manifest (same digests as latest for this commit)
+          docker manifest create "$IMAGE_BASE:$SHORT_SHA" \
+            "$IMAGE_BASE:${{ env.IMAGE_TAG_BASE }}-amd64" \
+            "$IMAGE_BASE:${{ env.IMAGE_TAG_BASE }}-arm64"
+          docker manifest push "$IMAGE_BASE:$SHORT_SHA"
 
   deploy-aws:
     needs: manifest
@@ -145,33 +140,3 @@ jobs:
           AWS_REGION: ap-southeast-2
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-
-  deploy-gcp:
-    needs: manifest
-    if: ${{ github.repository == 'web3infra-foundation/mega' }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Auth to GCP
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Deploy to Cloud Run (force new revision)
-        env:
-          REGION: asia-east1
-          SERVICE_NAME: buck2hub-orion
-        run: |
-          set -euo pipefail
-
-          IMAGE=$(gcloud run services describe $SERVICE_NAME \
-            --project "$GCP_PROJECT_ID" \
-            --region "$REGION" \
-            --format="value(spec.template.spec.containers[0].image)")
-
-          echo "Current image: $IMAGE"
-
-          gcloud run deploy $SERVICE_NAME \
-            --image "$IMAGE" \
-            --region "$REGION" \
-            --project "$GCP_PROJECT_ID" \
-            --quiet

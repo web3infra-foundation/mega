@@ -12,7 +12,6 @@ env:
   TIPTAP_PRIVATE_REGISTRY_KEY: ${{ secrets.TIPTAP_PRIVATE_REGISTRY_KEY }}
   REGISTRY_ALIAS: m8q5m4u3
   REPOSITORY: mega/mega-ui
-  GCP_PROJECT_ID: infra-20250121-20260121-0235
   IMAGE_VERSION: latest
 
 permissions:
@@ -24,12 +23,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-push-single-arch:
+  # ---------------------------------------------------------------------------
+  # Build ONE environment-agnostic image.
+  #
+  # NEXT_PUBLIC_* values are NOT baked per environment anymore: the image is
+  # built with placeholder URLs (moon/apps/web/.env.runtime) that are replaced
+  # at container start by docker-entrypoint.sh using runtime env vars. Each
+  # environment (ECS task definition) must supply its own NEXT_PUBLIC_* values
+  # at runtime.
+  # ---------------------------------------------------------------------------
+  build-push:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        env_name: [demo, staging, gitmono, buck2hub]
-    timeout-minutes: 10
+    timeout-minutes: 15
     permissions:
       id-token: write
       contents: read
@@ -43,10 +48,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # -----------------------------
-      # AWS login (skip buck2hub)
       - name: Configure AWS Credentials (ECR Public, us-east-1)
-        if: matrix.env_name != 'buck2hub'
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -54,14 +56,12 @@ jobs:
           aws-region: us-east-1
 
       - name: Login to Amazon ECR Public
-        if: matrix.env_name != 'buck2hub'
         id: login-ecr-public
         uses: aws-actions/amazon-ecr-login@v2
         with:
           registry-type: public
 
       - name: Configure AWS Credentials (ECR Private, ap-southeast-2)
-        if: matrix.env_name != 'buck2hub'
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -69,71 +69,45 @@ jobs:
           aws-region: ap-southeast-2
 
       - name: Login to Amazon ECR Private
-        if: matrix.env_name != 'buck2hub'
         id: login-ecr-private
         uses: aws-actions/amazon-ecr-login@v2
         with:
           registry-type: private
 
-      # -----------------------------
-      # GCP login (only buck2hub)
-      - name: Auth to GCP
-        if: matrix.env_name == 'buck2hub'
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Configure docker for GCP
-        if: matrix.env_name == 'buck2hub'
-        run: gcloud auth configure-docker us-central1-docker.pkg.dev
-
-      # -----------------------------
-      # Build & push
-      - name: Build & push ${{ matrix.env_name }} image
+      - name: Build & push unified image
         working-directory: moon
         env:
-          ECR_PUBLIC_REGISTRY: ${{ steps.login-ecr-public.outputs.registry || '' }}
-          ECR_PRIVATE_REGISTRY: ${{ steps.login-ecr-private.outputs.registry || '' }}
+          ECR_PUBLIC_REGISTRY: ${{ steps.login-ecr-public.outputs.registry }}
+          ECR_PRIVATE_REGISTRY: ${{ steps.login-ecr-private.outputs.registry }}
           PLATFORM: linux/amd64
         run: |
           set -euo pipefail
           ARCH_SUFFIX="amd64"
-          IMAGE_TAG="${{ matrix.env_name }}-${IMAGE_VERSION}-${ARCH_SUFFIX}"
+          IMAGE_TAG="${IMAGE_VERSION}-${ARCH_SUFFIX}"
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          SHA_TAG="${SHORT_SHA}-${ARCH_SUFFIX}"
 
-          if [ "${{ matrix.env_name }}" = "buck2hub" ]; then
-            IMAGE_BASE="us-central1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}"
-            docker buildx build \
-              --platform "$PLATFORM" \
-              --cache-from type=gha,scope=mega-ui \
-              --cache-to type=gha,mode=max,scope=mega-ui \
-              --provenance=false \
-              --sbom=false \
-              --build-arg APP_ENV=${{ matrix.env_name }} \
-              -f apps/web/Dockerfile \
-              -t "$IMAGE_BASE:$IMAGE_TAG" . \
-              --push
-          else
-            PUBLIC_IMAGE="$ECR_PUBLIC_REGISTRY/${{ env.REGISTRY_ALIAS }}/${{ env.REPOSITORY }}:$IMAGE_TAG"
-            PRIVATE_IMAGE="$ECR_PRIVATE_REGISTRY/${{ env.REPOSITORY }}:$IMAGE_TAG"
-            docker buildx build \
-              --platform "$PLATFORM" \
-              --cache-from type=gha,scope=mega-ui \
-              --cache-to type=gha,mode=max,scope=mega-ui \
-              --provenance=false \
-              --sbom=false \
-              --build-arg APP_ENV=${{ matrix.env_name }} \
-              -f apps/web/Dockerfile \
-              -t "$PUBLIC_IMAGE" \
-              -t "$PRIVATE_IMAGE" . \
-              --push
-          fi
+          PUBLIC_IMAGE="$ECR_PUBLIC_REGISTRY/${{ env.REGISTRY_ALIAS }}/${{ env.REPOSITORY }}:$IMAGE_TAG"
+          PRIVATE_IMAGE="$ECR_PRIVATE_REGISTRY/${{ env.REPOSITORY }}:$IMAGE_TAG"
+          PUBLIC_IMAGE_SHA="$ECR_PUBLIC_REGISTRY/${{ env.REGISTRY_ALIAS }}/${{ env.REPOSITORY }}:$SHA_TAG"
+          PRIVATE_IMAGE_SHA="$ECR_PRIVATE_REGISTRY/${{ env.REPOSITORY }}:$SHA_TAG"
+
+          docker buildx build \
+            --platform "$PLATFORM" \
+            --cache-from type=gha,scope=mega-ui \
+            --cache-to type=gha,mode=max,scope=mega-ui \
+            --provenance=false \
+            --sbom=false \
+            -f apps/web/Dockerfile \
+            -t "$PUBLIC_IMAGE" \
+            -t "$PRIVATE_IMAGE" \
+            -t "$PUBLIC_IMAGE_SHA" \
+            -t "$PRIVATE_IMAGE_SHA" . \
+            --push
 
   manifest:
-    needs: build-push-single-arch
+    needs: build-push
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        env_name: [demo, staging, gitmono]
     permissions:
       contents: read
     steps:
@@ -150,29 +124,25 @@ jobs:
         with:
           registry-type: public
 
-      - name: Create & push manifest for ${{ matrix.env_name }}
+      - name: Create & push unified manifest
         env:
           REGISTRY: ${{ steps.login-ecr-public.outputs.registry }}
         run: |
           set -euo pipefail
 
           IMAGE_BASE="$REGISTRY/${{ env.REGISTRY_ALIAS }}/${{ env.REPOSITORY }}"
-          TAG="${{ matrix.env_name }}-latest"
+          TAG="${IMAGE_VERSION}"
+          SHORT_SHA="${GITHUB_SHA:0:7}"
 
-          if [ "${{ matrix.env_name }}" = "demo" ]; then
-            echo "Creating multi-arch manifest for demo (amd64 + arm64)"
-
-            docker manifest create "$IMAGE_BASE:$TAG" \
-              "$IMAGE_BASE:${TAG}-amd64" \
-              "$IMAGE_BASE:${TAG}-arm64"
-          else
-            echo "Creating amd64-only manifest for ${{ matrix.env_name }}"
-
-            docker manifest create "$IMAGE_BASE:$TAG" \
-              "$IMAGE_BASE:${TAG}-amd64"
-          fi
-
+          # latest manifest
+          docker manifest create "$IMAGE_BASE:$TAG" \
+            "$IMAGE_BASE:${TAG}-amd64"
           docker manifest push "$IMAGE_BASE:$TAG"
+
+          # commit-hash manifest
+          docker manifest create "$IMAGE_BASE:$SHORT_SHA" \
+            "$IMAGE_BASE:${SHORT_SHA}-amd64"
+          docker manifest push "$IMAGE_BASE:$SHORT_SHA"
 
   deploy-aws:
     needs: manifest
@@ -198,33 +168,3 @@ jobs:
           AWS_REGION: ap-southeast-2
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-
-  deploy-gcp:
-    needs: manifest
-    if: ${{ github.repository == 'web3infra-foundation/mega' }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Auth to GCP
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Deploy to Cloud Run (force new revision)
-        env:
-          REGION: asia-east1
-          SERVICE_NAME: buck2hub-ui
-        run: |
-          set -euo pipefail
-
-          IMAGE=$(gcloud run services describe $SERVICE_NAME \
-            --project "$GCP_PROJECT_ID" \
-            --region "$REGION" \
-            --format="value(spec.template.spec.containers[0].image)")
-
-          echo "Current image: $IMAGE"
-
-          gcloud run deploy $SERVICE_NAME \
-            --image "$IMAGE" \
-            --region "$REGION" \
-            --project "$GCP_PROJECT_ID" \
-            --quiet

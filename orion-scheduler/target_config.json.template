@@ -18,6 +18,11 @@
       "server_ws": "wss://orion.buck2hub.com/ws",
       "scorpio_base_url": "https://git.buck2hub.com",
       "scorpio_lfs_url": "https://git.buck2hub.com"
+    },
+    "k3s-buck2hub": {
+      "server_ws": "wss://orion.xuanwu.openatom.cn/ws",
+      "scorpio_base_url": "https://git.xuanwu.openatom.cn",
+      "scorpio_lfs_url": "https://git.xuanwu.openatom.cn"
     }
   }
 }
