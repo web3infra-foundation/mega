@@ -24,7 +24,10 @@ use uuid::Uuid;
 use crate::{
     auto_retry::AutoRetryJudger,
     model::{dto::CoreWorkerStatus, internal::BuildTargetStateDTO, target_state::TargetState},
-    repository::{build_events_repo::BuildEventsRepo, build_targets_repo::BuildTargetsRepo},
+    repository::{
+        build_events_repo::BuildEventsRepo, build_targets_repo::BuildTargetsRepo,
+        target_state_histories_repo::TargetStateHistoriesRepo,
+    },
 };
 
 /// Task queue configuration
@@ -42,8 +45,8 @@ impl Default for TaskQueueConfig {
     fn default() -> Self {
         Self {
             max_queue_size: 1000,
-            max_wait_time: Duration::from_secs(300), // 5 minutes
-            cleanup_interval: Duration::from_secs(30), // Cleanup every 30 seconds
+            max_wait_time: Duration::from_secs(30), // Fail builds with no worker after 30s
+            cleanup_interval: Duration::from_secs(10), // Scan for expired builds every 10 seconds
         }
     }
 }
@@ -332,6 +335,65 @@ impl TaskScheduler {
         queue.cleanup_expired_v2()
     }
 
+    /// Mark a build that timed out in the queue (no worker became available) as
+    /// ended: the build event is closed with no exit code and every target of
+    /// the task is moved to `Interrupted`, matching the worker-interrupt flow.
+    async fn fail_expired_build(&self, expired: &PendingBuildEventV2) {
+        let build_event_id = expired.event_payload.build_event_id;
+        let task_id = expired.event_payload.task_id;
+        let now = chrono::Utc::now().with_timezone(&FixedOffset::east_opt(0).unwrap());
+
+        if let Err(e) = BuildEventsRepo::mark_interrupted(build_event_id, now, &self.conn).await {
+            tracing::error!(
+                "Failed to mark expired build {} as interrupted: {}",
+                build_event_id,
+                e
+            );
+        }
+
+        match BuildTargetsRepo::list_by_task_id(&self.conn, task_id).await {
+            Ok(targets) => {
+                for target in targets {
+                    if let Err(e) = BuildTargetsRepo::update_latest_state(
+                        &self.conn,
+                        target.id,
+                        TargetState::Interrupted,
+                    )
+                    .await
+                    {
+                        tracing::error!(
+                            "Failed to set target {} to Interrupted for expired build {}: {}",
+                            target.id,
+                            build_event_id,
+                            e
+                        );
+                    }
+                    if let Err(e) = TargetStateHistoriesRepo::upsert_state(
+                        &self.conn,
+                        target.id,
+                        build_event_id,
+                        TargetState::Interrupted.to_string(),
+                        now,
+                    )
+                    .await
+                    {
+                        tracing::error!(
+                            "Failed to record Interrupted history for target {} build {}: {}",
+                            target.id,
+                            build_event_id,
+                            e
+                        );
+                    }
+                }
+            }
+            Err(e) => tracing::error!(
+                "Failed to list targets for expired task {}: {}",
+                task_id,
+                e
+            ),
+        }
+    }
+
     /// Check if there are available workers
     pub fn has_idle_workers(&self) -> bool {
         self.workers
@@ -568,14 +630,15 @@ impl TaskScheduler {
                         expired_tasks.len()
                     );
 
-                    // Log expired task information
+                    // Mark each timed-out build as ended and its targets interrupted.
                     for task in expired_tasks {
-                        tracing::debug!(
-                            "Expired build: {}/{} ({})",
+                        tracing::warn!(
+                            "No worker within wait window; marking build {}/{} ({}) as interrupted",
                             task.event_payload.task_id,
                             task.event_payload.build_event_id,
                             task.event_payload.repo
                         );
+                        cleanup_scheduler.fail_expired_build(&task).await;
                     }
                 }
             }

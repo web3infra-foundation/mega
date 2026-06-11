@@ -3074,6 +3074,242 @@ export type AnchorResponse = {
   original_line_number: number
 }
 
+/** Per-object actions in a batch response (v1 defines `upload` only; omit when `exists`). */
+export type ArtifactActions = {
+  /** Signed or direct upload URL and headers (`href` required when present). */
+  upload?: null | ArtifactLink
+}
+
+export type ArtifactBatchHints = {
+  /**
+   * @format int32
+   * @min 0
+   */
+  max_concurrency?: number | null
+  /**
+   * @format int64
+   * @min 0
+   */
+  multipart_threshold?: number | null
+}
+
+export type ArtifactBatchObjectResponse = {
+  actions?: null | ArtifactActions
+  exists: boolean
+  /** UUID string (RFC 4122) identifying the blob. */
+  oid: string
+  /** @format int64 */
+  size: number
+}
+
+export type ArtifactBatchRequest = {
+  /**
+   * What the `POST .../batch` call is for. V1 only defines [`Upload`](ArtifactIntent::Upload)
+   * (negotiate object uploads). Not to be confused with `ObjectType::Intent`.
+   */
+  intent: ArtifactIntent
+  /** Optional user-provided metadata (commit SHA, task id, etc). */
+  metadata?: any
+  namespace: string
+  /** Object semantic type for this batch (aligned to `git-internal` `ObjectType`). */
+  object_type: ArtifactObjectType
+  objects: ArtifactObjectDescriptor[]
+}
+
+export type ArtifactBatchResponse = {
+  hints?: null | ArtifactBatchHints
+  objects: ArtifactBatchObjectResponse[]
+  transfer: string
+}
+
+export type ArtifactCommitRequest = {
+  artifact_set_id?: string | null
+  /**
+   * @format int64
+   * @min 0
+   */
+  expires_in_seconds?: number | null
+  files: ArtifactFileDescriptor[]
+  metadata?: any
+  namespace: string
+  /** Object semantic type for this commit (aligned to `git-internal` `ObjectType`). */
+  object_type: ArtifactObjectType
+}
+
+export type ArtifactCommitResponse = {
+  artifact_set_id: string
+  missing_objects: string[]
+  status: string
+}
+
+export type ArtifactDiscoveryHints = {
+  /**
+   * @format int32
+   * @min 0
+   */
+  default_max_concurrency: number
+  /**
+   * @format int64
+   * @min 0
+   */
+  multipart_threshold?: number | null
+}
+
+export type ArtifactDiscoveryLimits = {
+  /**
+   * @format int32
+   * @min 0
+   */
+  max_commit_files: number
+  /**
+   * @format int64
+   * @min 0
+   */
+  max_object_size_bytes: number
+  /**
+   * @format int32
+   * @min 0
+   */
+  max_objects_per_batch: number
+}
+
+export type ArtifactDiscoveryResponse = {
+  hints: ArtifactDiscoveryHints
+  limits: ArtifactDiscoveryLimits
+  protocol_version: string
+  supported_object_types: string[]
+  transfers: ArtifactDiscoveryTransfers
+}
+
+export type ArtifactDiscoveryTransfers = {
+  server_fallback_put: boolean
+  server_proxy_get: boolean
+  signed_url_get: boolean
+  signed_url_put: boolean
+}
+
+export type ArtifactFileDescriptor = {
+  /** UUID string (RFC 4122), same as in batch. */
+  oid: string
+  path: string
+  /** @format int64 */
+  size: number
+}
+
+/**
+ * What the `POST .../batch` call is for. V1 only defines [`Upload`](ArtifactIntent::Upload)
+ * (negotiate object uploads). Not to be confused with `ObjectType::Intent`.
+ */
+export enum ArtifactIntent {
+  Upload = 'upload'
+}
+
+export type ArtifactLink = {
+  expires_at?: string | null
+  header?: object | null
+  href: string
+}
+
+export type ArtifactListSetsResponse = {
+  /**
+   * Pass back verbatim as the `cursor` query on the next list request.
+   * Format: `asets-v1|<created_at_unix_micros_utc>|<artifact_sets.id>` (pipe-separated).
+   */
+  next_cursor?: string | null
+  sets: ArtifactSetListItem[]
+}
+
+export type ArtifactObjectDescriptor = {
+  content_type?: string | null
+  /** Artifact object id: UUID string (RFC 4122), not a Git or LFS content hash. */
+  oid: string
+  /** Logical path within the artifact set (not a filesystem path on the server). */
+  path: string
+  /** @format int64 */
+  size: number
+}
+
+/** Optional JSON body when `GET .../objects/{oid}` returns a link instead of bytes (read API §4.4). */
+export type ArtifactObjectReadActions = {
+  download: ArtifactLink
+}
+
+export type ArtifactObjectReadResponse = {
+  /** Optional JSON body when `GET .../objects/{oid}` returns a link instead of bytes (read API §4.4). */
+  actions: ArtifactObjectReadActions
+}
+
+/**
+ * Canonical object type labels aligned with `git-internal`'s `ObjectType` (0.7.4).
+ *
+ * This enum intentionally uses the **string labels** defined by `ObjectType` in
+ * `git-internal/src/internal/object/types.rs` (e.g. `snapshot`, `context_frame`, `plan_step_event`).
+ */
+export enum ArtifactObjectType {
+  Snapshot = 'snapshot',
+  Decision = 'decision',
+  Evidence = 'evidence',
+  Patchset = 'patchset',
+  Plan = 'plan',
+  Provenance = 'provenance',
+  Run = 'run',
+  Task = 'task',
+  Intent = 'intent',
+  Invocation = 'invocation',
+  ContextFrame = 'context_frame',
+  IntentEvent = 'intent_event',
+  TaskEvent = 'task_event',
+  RunEvent = 'run_event',
+  PlanStepEvent = 'plan_step_event',
+  RunUsage = 'run_usage'
+}
+
+export type ArtifactResolveFileResponse = {
+  artifact_set_id: string
+  committed_at: string
+  content_type?: string | null
+  oid: string
+  path: string
+  /** @format int64 */
+  size: number
+}
+
+export type ArtifactSetDetailResponse = {
+  artifact_set_id: string
+  created_at: string
+  expires_at?: string | null
+  files: ArtifactObjectDescriptor[]
+  metadata?: any
+  namespace: string
+  /**
+   * Canonical object type labels aligned with `git-internal`'s `ObjectType` (0.7.4).
+   *
+   * This enum intentionally uses the **string labels** defined by `ObjectType` in
+   * `git-internal/src/internal/object/types.rs` (e.g. `snapshot`, `context_frame`, `plan_step_event`).
+   */
+  object_type: ArtifactObjectType
+}
+
+export type ArtifactSetListItem = {
+  artifact_set_id: string
+  created_at: string
+  expires_at?: string | null
+  /**
+   * @format int64
+   * @min 0
+   */
+  file_count?: number | null
+  metadata?: any
+  namespace: string
+  /**
+   * Canonical object type labels aligned with `git-internal`'s `ObjectType` (0.7.4).
+   *
+   * This enum intentionally uses the **string labels** defined by `ObjectType` in
+   * `git-internal/src/internal/object/types.rs` (e.g. `snapshot`, `context_frame`, `plan_step_event`).
+   */
+  object_type: ArtifactObjectType
+}
+
 export type AssigneeUpdatePayload = {
   assignees: string[]
   /** @format int64 */
@@ -4123,6 +4359,17 @@ export type CommonResultUserGroupsResponse = {
   req_result: boolean
 }
 
+export type CommonResultUserNotificationConfig = {
+  data?: {
+    delivery_mode: string
+    email: string
+    enabled: boolean
+    preferences: UserNotificationPreferenceItem[]
+  }
+  err_message: string
+  req_result: boolean
+}
+
 export type CommonResultValue = {
   data?: any
   err_message: string
@@ -4264,6 +4511,18 @@ export type CommonResultVecMuiTreeNode = {
     id: string
     label: string
     path: string
+  }[]
+  err_message: string
+  req_result: boolean
+}
+
+export type CommonResultVecNotificationEventTypeInfo = {
+  data?: {
+    category: string
+    code: string
+    default_enabled: boolean
+    description: string
+    system_required: boolean
   }[]
   err_message: string
   req_result: boolean
@@ -5025,6 +5284,14 @@ export type NewLabel = {
   name: string
 }
 
+export type NotificationEventTypeInfo = {
+  category: string
+  code: string
+  default_enabled: boolean
+  description: string
+  system_required: boolean
+}
+
 /** Error information for LFS object operations */
 export type ObjectError = {
   /** @format int64 */
@@ -5510,6 +5777,12 @@ export type UpdateSidebarPayload = {
   visible?: boolean | null
 }
 
+export type UpdateUserNotificationConfig = {
+  delivery_mode?: string | null
+  enabled?: boolean | null
+  preferences?: any[] | null
+}
+
 export type UserEffectivePermissionResponse = {
   has_admin: boolean
   has_read: boolean
@@ -5524,6 +5797,18 @@ export type UserEffectivePermissionResponse = {
 export type UserGroupsResponse = {
   groups: GroupResponse[]
   username: string
+}
+
+export type UserNotificationConfig = {
+  delivery_mode: string
+  email: string
+  enabled: boolean
+  preferences: UserNotificationPreferenceItem[]
+}
+
+export type UserNotificationPreferenceItem = {
+  enabled: boolean
+  event_type_code: string
 }
 
 export type Vec = {
@@ -5678,6 +5963,7 @@ export type PageParamsOrionClientQuery = {
 /** Request structure for Retry a build */
 export type RetryBuildRequest = {
   build_id: string
+  /** The list of changed files in the hybrid path contract used by Orion. */
   changes: StatusProjectRelativePath[]
   /** @format int64 */
   cl_id: number
@@ -5687,12 +5973,33 @@ export type RetryBuildRequest = {
 
 export type StatusProjectRelativePath =
   | {
+      /**
+       * Slash-separated relative path used in Buck2 payloads.
+       *
+       * The exact base directory is defined by the surrounding API. For task/build
+       * requests, see the field-level docs to determine whether the path is relative
+       * to the monorepo root or some other project root.
+       */
       Modified: string
     }
   | {
+      /**
+       * Slash-separated relative path used in Buck2 payloads.
+       *
+       * The exact base directory is defined by the surrounding API. For task/build
+       * requests, see the field-level docs to determine whether the path is relative
+       * to the monorepo root or some other project root.
+       */
       Added: string
     }
   | {
+      /**
+       * Slash-separated relative path used in Buck2 payloads.
+       *
+       * The exact base directory is defined by the surrounding API. For task/build
+       * requests, see the field-level docs to determine whether the path is relative
+       * to the monorepo root or some other project root.
+       */
       Removed: string
     }
 
@@ -5739,13 +6046,18 @@ export type TargetStatusResponse = {
 
 /** Parameters required to build a task. */
 export type TaskBuildRequest = {
-  /** The list of file diff changes */
+  /**
+   * The list of changed files in the hybrid path contract:
+   * - files inside `repo` are repo-relative (for example `src/main.rs`)
+   * - shared files outside `repo` stay monorepo-relative
+   *   (for example `common/lib.rs`)
+   */
   changes: StatusProjectRelativePath[]
   /** @format int64 */
   cl_id: number
   /** The change list link (URL) */
   cl_link: string
-  /** The repository base path */
+  /** The Buck2 project path within the monorepo (for example `/jupiter/callisto`). */
   repo: string
   /** Buck2 target path (e.g. //app:server). Optional for backward compatibility. */
   targets?: any[] | null
@@ -7169,6 +7481,82 @@ export type GetApiPermissionsMeByResourceIdData = CommonResultUserEffectivePermi
 
 export type PostApiRepoCloneData = CommonResultString
 
+export type PostApiReposArtifactsBatchData = ArtifactBatchResponse
+
+export type PostApiReposArtifactsCommitData = ArtifactCommitResponse
+
+export type GetApiReposArtifactsDiscoveryData = ArtifactDiscoveryResponse
+
+export type GetApiReposArtifactsObjectsByOidParams = {
+  /** Use `link` for JSON `actions.download` when presigned GET is supported; omit for 302 or proxied bytes */
+  mode?: string
+  /** Single URL path segment identifying the repo (use %2F for `/` inside names, e.g. `org%2Fproject`) */
+  repo: string
+  /** Artifact object id (UUID string per RFC 4122) */
+  oid: string
+}
+
+export type GetApiReposArtifactsObjectsByOidData = ArtifactObjectReadResponse
+
+export type PutApiReposArtifactsObjectsByOidPayload = number[]
+
+export type PutApiReposArtifactsObjectsByOidData = any
+
+export type HeadApiReposArtifactsObjectsByOidData = any
+
+export type GetApiReposArtifactsResolveFileParams = {
+  /** Artifact namespace */
+  namespace: string
+  /** Object type label */
+  object_type: ArtifactObjectType
+  /** Logical artifact path */
+  path: string
+  /** Filter metadata.run_id */
+  run_id?: string
+  /** Filter metadata.commit_sha */
+  commit_sha?: string
+  /** Single URL path segment identifying the repo (use %2F for `/` inside names, e.g. `org%2Fproject`) */
+  repo: string
+}
+
+export type GetApiReposArtifactsResolveFileData = ArtifactResolveFileResponse
+
+export type GetApiReposArtifactsSetsParams = {
+  /** Artifact namespace */
+  namespace: string
+  /** Object type label */
+  object_type: ArtifactObjectType
+  /**
+   * Page size
+   * @format int32
+   * @min 0
+   */
+  limit?: number
+  /** Pagination cursor */
+  cursor?: string
+  /** Filter metadata.run_id */
+  run_id?: string
+  /** Filter metadata.commit_sha */
+  commit_sha?: string
+  /** Single URL path segment identifying the repo (use %2F for `/` inside names, e.g. `org%2Fproject`) */
+  repo: string
+}
+
+export type GetApiReposArtifactsSetsData = ArtifactListSetsResponse
+
+export type GetApiReposArtifactsSetsByArtifactSetIdParams = {
+  /** Artifact namespace */
+  namespace: string
+  /** Object type label */
+  object_type: ArtifactObjectType
+  /** Single URL path segment identifying the repo (use %2F for `/` inside names, e.g. `org%2Fproject`) */
+  repo: string
+  /** Client commit idempotency key for the set */
+  artifactSetId: string
+}
+
+export type GetApiReposArtifactsSetsByArtifactSetIdData = ArtifactSetDetailResponse
+
 export type GetApiSidebarListData = CommonResultVec
 
 export type PostApiSidebarNewData = CommonResultSidebarRes
@@ -7246,6 +7634,12 @@ export type PostApiUserClaContentData = CommonResultClaContentRes
 
 export type GetApiUserClaStatusData = CommonResultClaSignStatusRes
 
+export type GetApiUserNotificationConfigData = CommonResultUserNotificationConfig
+
+export type PutApiUserNotificationConfigData = CommonResultString
+
+export type GetApiUserNotificationTypesData = CommonResultVecNotificationEventTypeInfo
+
 export type PostApiUserSshData = CommonResultString
 
 export type GetApiUserSshListData = CommonResultVecListSSHKey
@@ -7282,8 +7676,6 @@ export type DeleteApiWebhooksByIdData = CommonResultString
 export type GetOrionClientStatusByIdData = OrionClientStatus
 
 export type PostOrionClientsInfoData = CommonPageOrionClientInfo
-
-export type PostRetryBuildData = any
 
 export type GetTargetsLogsParams = {
   /** full | segment */
@@ -7353,6 +7745,8 @@ export type GetLatestBuildResultByTaskIdV2Data = BuildStatus
 
 export type GetLatestBuildResultByTaskIdV2Error = MessageResponse
 
+export type PostRetryBuildV2Data = any
+
 export type GetTargetStatusByTargetIdV2Data = any
 
 export type GetTargetsByTaskIdV2Data = BuildTargetDTO[]
@@ -7360,10 +7754,6 @@ export type GetTargetsByTaskIdV2Data = BuildTargetDTO[]
 export type GetTargetsByTaskIdV2Error = MessageResponse
 
 export type PostTaskV2Data = any
-
-export type PostTaskRetryByIdV2Data = MessageResponse
-
-export type PostTaskRetryByIdV2Error = MessageResponse
 
 export type GetTaskByClV2Data = OrionTaskDTO
 
@@ -7669,31 +8059,6 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
       request: (data: PageParamsOrionClientQuery, params: RequestParams = {}) =>
         this.request<PostOrionClientsInfoData>({
           path: `/orion-clients-info`,
-          method: 'POST',
-          body: data,
-          type: ContentType.Json,
-          ...params
-        })
-    }
-  }
-
-  /**
-   * No description
-   *
-   * @tags Build
-   * @name PostRetryBuild
-   * @summary Retry the build
-   * @request POST:/retry-build
-   */
-  postRetryBuild = () => {
-    const base = 'POST:/retry-build' as const
-
-    return {
-      baseKey: dataTaggedQueryKey<PostRetryBuildData>([base]),
-      requestKey: () => dataTaggedQueryKey<PostRetryBuildData>([base]),
-      request: (data: RetryBuildRequest, params: RequestParams = {}) =>
-        this.request<PostRetryBuildData>({
-          path: `/retry-build`,
           method: 'POST',
           body: data,
           type: ContentType.Json,
@@ -16148,7 +16513,7 @@ supporting either retrieving the entire log at once or segmenting it by line cou
     /**
      * @description List existing tokens for a bot (without plaintext).
      *
-     * @tags Bot Management
+     * @tags Automation & Integrations
      * @name GetApiBotsTokens
      * @summary GET /api/v1/bots/{bot_id}/tokens
      * @request GET:/api/v1/bots/{bot_id}/tokens
@@ -16171,7 +16536,7 @@ supporting either retrieving the entire log at once or segmenting it by line cou
     /**
      * @description Create a new bot token. Only admins can perform this operation.
      *
-     * @tags Bot Management
+     * @tags Automation & Integrations
      * @name PostApiBotsTokens
      * @summary POST /api/v1/bots/{bot_id}/tokens
      * @request POST:/api/v1/bots/{bot_id}/tokens
@@ -16196,7 +16561,7 @@ supporting either retrieving the entire log at once or segmenting it by line cou
     /**
      * @description Revoke all tokens for a given bot. Idempotent.
      *
-     * @tags Bot Management
+     * @tags Automation & Integrations
      * @name PostApiBotsTokensRevokeAll
      * @summary POST /api/v1/bots/{bot_id}/tokens/revoke_all
      * @request POST:/api/v1/bots/{bot_id}/tokens/revoke_all
@@ -16219,7 +16584,7 @@ supporting either retrieving the entire log at once or segmenting it by line cou
     /**
      * @description Revoke a single bot token. Idempotent.
      *
-     * @tags Bot Management
+     * @tags Automation & Integrations
      * @name DeleteApiBotsTokensById
      * @summary DELETE /api/v1/bots/{bot_id}/tokens/{id}
      * @request DELETE:/api/v1/bots/{bot_id}/tokens/{id}
@@ -16242,7 +16607,7 @@ supporting either retrieving the entire log at once or segmenting it by line cou
     /**
      * No description
      *
-     * @tags Bot Management
+     * @tags Automation & Integrations
      * @name GetApiBotsInstallations
      * @summary Get installed bot
      * @request GET:/api/v1/bots/{id}/installations
@@ -16265,7 +16630,7 @@ supporting either retrieving the entire log at once or segmenting it by line cou
     /**
      * No description
      *
-     * @tags Bot Management
+     * @tags Automation & Integrations
      * @name PostApiBotsInstallations
      * @summary Install bot
      * @request POST:/api/v1/bots/{id}/installations
@@ -16290,7 +16655,7 @@ supporting either retrieving the entire log at once or segmenting it by line cou
     /**
      * No description
      *
-     * @tags Bot Management
+     * @tags Automation & Integrations
      * @name DeleteApiBotsInstallationsByInstallationId
      * @request DELETE:/api/v1/bots/{id}/installations/{installation_id}
      */
@@ -16315,7 +16680,7 @@ supporting either retrieving the entire log at once or segmenting it by line cou
     /**
      * No description
      *
-     * @tags Bot Management
+     * @tags Automation & Integrations
      * @name PatchApiBotsInstallationsByInstallationId
      * @request PATCH:/api/v1/bots/{id}/installations/{installation_id}
      */
@@ -18266,6 +18631,236 @@ It's for local testing purposes.
     /**
      * No description
      *
+     * @tags Repo Artifacts
+     * @name PostApiReposArtifactsBatch
+     * @summary Batch negotiate repo-scoped artifact uploads.
+     * @request POST:/api/v1/repos/{repo}/artifacts/batch
+     */
+    postApiReposArtifactsBatch: () => {
+      const base = 'POST:/api/v1/repos/{repo}/artifacts/batch' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiReposArtifactsBatchData>([base]),
+        requestKey: (repo: string) => dataTaggedQueryKey<PostApiReposArtifactsBatchData>([base, repo]),
+        request: (repo: string, data: ArtifactBatchRequest, params: RequestParams = {}) =>
+          this.request<PostApiReposArtifactsBatchData>({
+            path: `/api/v1/repos/${repo}/artifacts/batch`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Repo Artifacts
+     * @name PostApiReposArtifactsCommit
+     * @summary Commit an artifact set manifest to make it queryable.
+     * @request POST:/api/v1/repos/{repo}/artifacts/commit
+     */
+    postApiReposArtifactsCommit: () => {
+      const base = 'POST:/api/v1/repos/{repo}/artifacts/commit' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostApiReposArtifactsCommitData>([base]),
+        requestKey: (repo: string) => dataTaggedQueryKey<PostApiReposArtifactsCommitData>([base, repo]),
+        request: (repo: string, data: ArtifactCommitRequest, params: RequestParams = {}) =>
+          this.request<PostApiReposArtifactsCommitData>({
+            path: `/api/v1/repos/${repo}/artifacts/commit`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Repo Artifacts
+     * @name GetApiReposArtifactsDiscovery
+     * @summary Discover artifact protocol capabilities for a repo (see `docs/artifacts-protocol.md`).
+     * @request GET:/api/v1/repos/{repo}/artifacts/discovery
+     */
+    getApiReposArtifactsDiscovery: () => {
+      const base = 'GET:/api/v1/repos/{repo}/artifacts/discovery' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiReposArtifactsDiscoveryData>([base]),
+        requestKey: (repo: string) => dataTaggedQueryKey<GetApiReposArtifactsDiscoveryData>([base, repo]),
+        request: (repo: string, params: RequestParams = {}) =>
+          this.request<GetApiReposArtifactsDiscoveryData>({
+            path: `/api/v1/repos/${repo}/artifacts/discovery`,
+            method: 'GET',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Repo Artifacts
+     * @name GetApiReposArtifactsObjectsByOid
+     * @summary Download object bytes, redirect to signed URL, or return a JSON download link (see protocol §8.7.4).
+     * @request GET:/api/v1/repos/{repo}/artifacts/objects/{oid}
+     */
+    getApiReposArtifactsObjectsByOid: () => {
+      const base = 'GET:/api/v1/repos/{repo}/artifacts/objects/{oid}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiReposArtifactsObjectsByOidData>([base]),
+        requestKey: (params: GetApiReposArtifactsObjectsByOidParams) =>
+          dataTaggedQueryKey<GetApiReposArtifactsObjectsByOidData>([base, params]),
+        request: ({ repo, oid, ...query }: GetApiReposArtifactsObjectsByOidParams, params: RequestParams = {}) =>
+          this.request<GetApiReposArtifactsObjectsByOidData>({
+            path: `/api/v1/repos/${repo}/artifacts/objects/${oid}`,
+            method: 'GET',
+            query: query,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Repo Artifacts
+     * @name PutApiReposArtifactsObjectsByOid
+     * @summary Fallback endpoint to upload object bytes through the Mono server (when signed URLs are unavailable).
+     * @request PUT:/api/v1/repos/{repo}/artifacts/objects/{oid}
+     */
+    putApiReposArtifactsObjectsByOid: () => {
+      const base = 'PUT:/api/v1/repos/{repo}/artifacts/objects/{oid}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PutApiReposArtifactsObjectsByOidData>([base]),
+        requestKey: (repo: string, oid: string) =>
+          dataTaggedQueryKey<PutApiReposArtifactsObjectsByOidData>([base, repo, oid]),
+        request: (
+          repo: string,
+          oid: string,
+          data: PutApiReposArtifactsObjectsByOidPayload,
+          params: RequestParams = {}
+        ) =>
+          this.request<PutApiReposArtifactsObjectsByOidData>({
+            path: `/api/v1/repos/${repo}/artifacts/objects/${oid}`,
+            method: 'PUT',
+            body: data,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Repo Artifacts
+     * @name HeadApiReposArtifactsObjectsByOid
+     * @summary `HEAD .../objects/{oid}` — metadata only (protocol §8.7.4 optional).
+     * @request HEAD:/api/v1/repos/{repo}/artifacts/objects/{oid}
+     */
+    headApiReposArtifactsObjectsByOid: () => {
+      const base = 'HEAD:/api/v1/repos/{repo}/artifacts/objects/{oid}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<HeadApiReposArtifactsObjectsByOidData>([base]),
+        requestKey: (repo: string, oid: string) =>
+          dataTaggedQueryKey<HeadApiReposArtifactsObjectsByOidData>([base, repo, oid]),
+        request: (repo: string, oid: string, params: RequestParams = {}) =>
+          this.request<HeadApiReposArtifactsObjectsByOidData>({
+            path: `/api/v1/repos/${repo}/artifacts/objects/${oid}`,
+            method: 'HEAD',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Repo Artifacts
+     * @name GetApiReposArtifactsResolveFile
+     * @summary Resolve latest committed file row by logical path and optional metadata filters.
+     * @request GET:/api/v1/repos/{repo}/artifacts/resolve-file
+     */
+    getApiReposArtifactsResolveFile: () => {
+      const base = 'GET:/api/v1/repos/{repo}/artifacts/resolve-file' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiReposArtifactsResolveFileData>([base]),
+        requestKey: (params: GetApiReposArtifactsResolveFileParams) =>
+          dataTaggedQueryKey<GetApiReposArtifactsResolveFileData>([base, params]),
+        request: ({ repo, ...query }: GetApiReposArtifactsResolveFileParams, params: RequestParams = {}) =>
+          this.request<GetApiReposArtifactsResolveFileData>({
+            path: `/api/v1/repos/${repo}/artifacts/resolve-file`,
+            method: 'GET',
+            query: query,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Repo Artifacts
+     * @name GetApiReposArtifactsSets
+     * @summary List committed artifact sets for a repo (paginated).
+     * @request GET:/api/v1/repos/{repo}/artifacts/sets
+     */
+    getApiReposArtifactsSets: () => {
+      const base = 'GET:/api/v1/repos/{repo}/artifacts/sets' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiReposArtifactsSetsData>([base]),
+        requestKey: (params: GetApiReposArtifactsSetsParams) =>
+          dataTaggedQueryKey<GetApiReposArtifactsSetsData>([base, params]),
+        request: ({ repo, ...query }: GetApiReposArtifactsSetsParams, params: RequestParams = {}) =>
+          this.request<GetApiReposArtifactsSetsData>({
+            path: `/api/v1/repos/${repo}/artifacts/sets`,
+            method: 'GET',
+            query: query,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags Repo Artifacts
+     * @name GetApiReposArtifactsSetsByArtifactSetId
+     * @summary Get one artifact set manifest (metadata + files).
+     * @request GET:/api/v1/repos/{repo}/artifacts/sets/{artifact_set_id}
+     */
+    getApiReposArtifactsSetsByArtifactSetId: () => {
+      const base = 'GET:/api/v1/repos/{repo}/artifacts/sets/{artifact_set_id}' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiReposArtifactsSetsByArtifactSetIdData>([base]),
+        requestKey: (params: GetApiReposArtifactsSetsByArtifactSetIdParams) =>
+          dataTaggedQueryKey<GetApiReposArtifactsSetsByArtifactSetIdData>([base, params]),
+        request: (
+          { repo, artifactSetId, ...query }: GetApiReposArtifactsSetsByArtifactSetIdParams,
+          params: RequestParams = {}
+        ) =>
+          this.request<GetApiReposArtifactsSetsByArtifactSetIdData>({
+            path: `/api/v1/repos/${repo}/artifacts/sets/${artifactSetId}`,
+            method: 'GET',
+            query: query,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
      * @tags Sidebar Management
      * @name GetApiSidebarList
      * @summary Get all sidebar menu
@@ -18629,7 +19224,7 @@ It's for local testing purposes.
     /**
      * @description Creates a new build trigger with automatic ref resolution. Supports branch names, tag names, commit hashes, or CL links. Defaults to "main" branch if no ref is specified.
      *
-     * @tags Build Trigger
+     * @tags Automation & Integrations
      * @name PostApiTriggers
      * @summary Create a new build trigger
      * @request POST:/api/v1/triggers
@@ -18654,7 +19249,7 @@ It's for local testing purposes.
     /**
      * @description Returns build triggers with pagination and optional filters. Supports filtering by repository, trigger type, source, user, and time range. This endpoint follows the project's standard Google-style API pattern: - Uses POST method for complex query parameters - Accepts PageParams with pagination and filter parameters - Returns CommonPage with items and total count
      *
-     * @tags Build Trigger
+     * @tags Automation & Integrations
      * @name PostApiTriggersList
      * @summary List build triggers with filters
      * @request POST:/api/v1/triggers/list
@@ -18679,7 +19274,7 @@ It's for local testing purposes.
     /**
      * @description Returns complete details about a specific trigger including: - Trigger metadata (type, source, time) - Repository and commit information - Ref information (branch/tag name if applicable) - Build parameters
      *
-     * @tags Build Trigger
+     * @tags Automation & Integrations
      * @name GetApiTriggersById
      * @summary Get a specific build trigger by ID
      * @request GET:/api/v1/triggers/{id}
@@ -18702,7 +19297,7 @@ It's for local testing purposes.
     /**
      * @description Creates a new trigger that retries a previous build. The new trigger will use the same repository, commit, and parameters as the original trigger.
      *
-     * @tags Build Trigger
+     * @tags Automation & Integrations
      * @name PostApiTriggersRetry
      * @summary Retry a specific build trigger
      * @request POST:/api/v1/triggers/{id}/retry
@@ -18810,6 +19405,77 @@ It's for local testing purposes.
         request: (params: RequestParams = {}) =>
           this.request<GetApiUserClaStatusData>({
             path: `/api/v1/user/cla/status`,
+            method: 'GET',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags User Management
+     * @name GetApiUserNotificationConfig
+     * @summary Get current user's notification config
+     * @request GET:/api/v1/user/notification/config
+     */
+    getApiUserNotificationConfig: () => {
+      const base = 'GET:/api/v1/user/notification/config' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiUserNotificationConfigData>([base]),
+        requestKey: () => dataTaggedQueryKey<GetApiUserNotificationConfigData>([base]),
+        request: (params: RequestParams = {}) =>
+          this.request<GetApiUserNotificationConfigData>({
+            path: `/api/v1/user/notification/config`,
+            method: 'GET',
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags User Management
+     * @name PutApiUserNotificationConfig
+     * @summary Update current user's notification config
+     * @request PUT:/api/v1/user/notification/config
+     */
+    putApiUserNotificationConfig: () => {
+      const base = 'PUT:/api/v1/user/notification/config' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PutApiUserNotificationConfigData>([base]),
+        requestKey: () => dataTaggedQueryKey<PutApiUserNotificationConfigData>([base]),
+        request: (data: UpdateUserNotificationConfig, params: RequestParams = {}) =>
+          this.request<PutApiUserNotificationConfigData>({
+            path: `/api/v1/user/notification/config`,
+            method: 'PUT',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    },
+
+    /**
+     * No description
+     *
+     * @tags User Management
+     * @name GetApiUserNotificationTypes
+     * @summary List supported notification event types
+     * @request GET:/api/v1/user/notification/types
+     */
+    getApiUserNotificationTypes: () => {
+      const base = 'GET:/api/v1/user/notification/types' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<GetApiUserNotificationTypesData>([base]),
+        requestKey: () => dataTaggedQueryKey<GetApiUserNotificationTypesData>([base]),
+        request: (params: RequestParams = {}) =>
+          this.request<GetApiUserNotificationTypesData>({
+            path: `/api/v1/user/notification/types`,
             method: 'GET',
             ...params
           })
@@ -18959,7 +19625,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags Webhook
+     * @tags Automation & Integrations
      * @name GetApiWebhooks
      * @summary List webhooks
      * @request GET:/api/v1/webhooks
@@ -18983,7 +19649,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags Webhook
+     * @tags Automation & Integrations
      * @name PostApiWebhooks
      * @summary Create a webhook
      * @request POST:/api/v1/webhooks
@@ -19008,7 +19674,7 @@ It's for local testing purposes.
     /**
      * No description
      *
-     * @tags Webhook
+     * @tags Automation & Integrations
      * @name DeleteApiWebhooksById
      * @summary Delete a webhook
      * @request DELETE:/api/v1/webhooks/{id}
@@ -19244,6 +19910,32 @@ Returns simple health status based on database connectivity
       }
     }
   }
+  retryBuild = {
+    /**
+     * No description
+     *
+     * @tags Build
+     * @name PostRetryBuildV2
+     * @summary Retry the build
+     * @request POST:/v2/retry-build
+     */
+    postRetryBuildV2: () => {
+      const base = 'POST:/v2/retry-build' as const
+
+      return {
+        baseKey: dataTaggedQueryKey<PostRetryBuildV2Data>([base]),
+        requestKey: () => dataTaggedQueryKey<PostRetryBuildV2Data>([base]),
+        request: (data: RetryBuildRequest, params: RequestParams = {}) =>
+          this.request<PostRetryBuildV2Data>({
+            path: `/v2/retry-build`,
+            method: 'POST',
+            body: data,
+            type: ContentType.Json,
+            ...params
+          })
+      }
+    }
+  }
   targetStatus = {
     /**
      * No description
@@ -19334,29 +20026,6 @@ Returns simple health status based on database connectivity
           this.request<GetTaskByClV2Data>({
             path: `/v2/task/${cl}`,
             method: 'GET',
-            ...params
-          })
-      }
-    }
-  }
-  taskRetry = {
-    /**
-     * No description
-     *
-     * @tags Task
-     * @name PostTaskRetryByIdV2
-     * @request POST:/v2/task-retry/{id}
-     */
-    postTaskRetryByIdV2: () => {
-      const base = 'POST:/v2/task-retry/{id}' as const
-
-      return {
-        baseKey: dataTaggedQueryKey<PostTaskRetryByIdV2Data>([base]),
-        requestKey: (id: string) => dataTaggedQueryKey<PostTaskRetryByIdV2Data>([base, id]),
-        request: (id: string, params: RequestParams = {}) =>
-          this.request<PostTaskRetryByIdV2Data>({
-            path: `/v2/task-retry/${id}`,
-            method: 'POST',
             ...params
           })
       }

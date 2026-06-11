@@ -158,17 +158,39 @@ async fn process_message(
                     );
                 }
                 WSMessage::TaskBuildOutput { build_id, output } => {
-                    if let Some(build_info) = state.scheduler.active_builds.get(&build_id) {
-                        let log_event = LogEvent {
-                            task_id: build_info.event_payload.task_id.to_string(),
-                            repo_name: LogService::last_segment(&build_info.event_payload.repo)
-                                .to_string(),
+                    // Resolve metadata and drop the DashMap guard before awaiting
+                    // to avoid holding a shard lock across an await point.
+                    let meta = state.scheduler.active_builds.get(&build_id).map(|build_info| {
+                        (
+                            build_info.event_payload.task_id.to_string(),
+                            LogService::last_segment(&build_info.event_payload.repo),
+                        )
+                    });
+
+                    if let Some((task_id, repo_name)) = meta {
+                        // Reliable persistence on the build-output path itself.
+                        if let Err(e) = state
+                            .log_service
+                            .append_local(&task_id, &repo_name, &build_id, &output)
+                            .await
+                        {
+                            tracing::error!(
+                                "failed to persist build output, build_id={}, error={:?}",
+                                build_id,
+                                e
+                            );
+                        }
+
+                        // Broadcast for live (SSE) viewers only.
+                        state.log_service.publish(LogEvent {
+                            task_id,
+                            repo_name,
                             build_id: build_id.clone(),
                             line: output.clone(),
                             is_end: false,
-                        };
-                        state.log_service.publish(log_event);
+                        });
                     }
+
                     if let Some(mut build_info) = state.scheduler.active_builds.get_mut(&build_id) {
                         build_info.auto_retry_judger.judge_by_output(&output);
                     }
@@ -251,6 +273,14 @@ async fn process_message(
                         &state.conn,
                     )
                     .await;
+
+                    // Upload the finished build's log to cloud storage in the
+                    // background, with retries.
+                    state.log_service.spawn_cloud_upload(
+                        task_id.to_string(),
+                        LogService::last_segment(&repo),
+                        build_id.to_string(),
+                    );
 
                     let target_state = match (success, exit_code) {
                         (true, Some(0)) => TargetState::Completed,

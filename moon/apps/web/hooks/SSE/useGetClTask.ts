@@ -1,6 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
 
-import { BuildEventDTO, BuildTargetDTO, RequestParams, TargetState } from '@gitmono/types/generated'
+import {
+  BuildEventDTO,
+  BuildTargetDTO,
+  RequestParams,
+  StatusProjectRelativePath,
+  TargetState
+} from '@gitmono/types/generated'
 
 import { BuildDTO, BuildStatus, TargetDTO, TaskInfoDTO } from '@/components/ClView/components/Checks/cpns/store'
 import { orionApiClient } from '@/utils/queryClient'
@@ -28,6 +34,22 @@ const toTargetState = (state: string): TargetState => {
 export function useGetClTask(cl: string, params?: RequestParams) {
   return useQuery<TaskInfoDTO[], Error>({
     queryKey: [...orionApiClient.task.getTaskByClV2().requestKey(cl), params],
+    // Poll while any task is still queued (Uninitialized) or actively building,
+    // so the tree transitions automatically once a worker picks it up, the build
+    // finishes, or the server times it out (-> Interrupted). Stops when idle.
+    refetchInterval: (query) => {
+      const data = query.state.data
+
+      if (!data) return false
+
+      const hasActive = data.some(
+        (task) =>
+          task.targets?.some((t) => t.state === 'Uninitialized' || t.state === 'Building') ||
+          task.build_list?.some((b) => b.status === 'Building')
+      )
+
+      return hasActive ? 5000 : false
+    },
     queryFn: async () => {
       const resp = await orionApiClient.task.getTaskByClV2().request(cl, params)
 
@@ -73,6 +95,7 @@ export function useGetClTask(cl: string, params?: RequestParams) {
 
           return {
             build_list: buildList,
+            changes: (task.changes ?? []) as StatusProjectRelativePath[],
             cl_id: 0,
             created_at: task.created_at,
             targets: mappedTargets,
