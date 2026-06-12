@@ -19,7 +19,6 @@ on:
 env:
   REGISTRY_ALIAS: m8q5m4u3
   REPOSITORY: mega/mono-engine
-  GCP_PROJECT_ID: infra-20250121-20260121-0235
   IMAGE_TAG_BASE: latest
 
 # Using AWS access key for authentication
@@ -59,21 +58,9 @@ jobs:
           registry-type: public
 
       # -----------------------------
-      # GCP / Artifact Registry
+      # Build & push to ECR
       # -----------------------------
-      - name: Auth to GCP
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Configure docker for GCP
-        run: |
-          gcloud auth configure-docker us-central1-docker.pkg.dev
-
-      # -----------------------------
-      # Build once, push to both
-      # -----------------------------
-      - name: Build & push image to ECR + GCP (amd64)
+      - name: Build & push image to ECR (amd64)
         env:
           ECR_REGISTRY: ${{ steps.login-ecr-public.outputs.registry }}
           IMAGE_TAG_BASE: ${{ env.IMAGE_TAG_BASE }}
@@ -84,12 +71,10 @@ jobs:
           IMAGE_TAG="${IMAGE_TAG_BASE}-${ARCH_SUFFIX}"
 
           ECR_IMAGE="$ECR_REGISTRY/${{ env.REGISTRY_ALIAS }}/${{ env.REPOSITORY }}:$IMAGE_TAG"
-          GCP_IMAGE="us-central1-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}:$IMAGE_TAG"
           ECR_CACHE_IMAGE="$ECR_REGISTRY/${{ env.REGISTRY_ALIAS }}/${{ env.REPOSITORY }}:buildcache-${ARCH_SUFFIX}"
           CACHE_SCOPE="mono-engine-${ARCH_SUFFIX}"
 
           echo "ECR_IMAGE=$ECR_IMAGE"
-          echo "GCP_IMAGE=$GCP_IMAGE"
           echo "ECR_CACHE_IMAGE=$ECR_CACHE_IMAGE"
           echo "CACHE_SCOPE=$CACHE_SCOPE"
 
@@ -100,7 +85,6 @@ jobs:
             --sbom=false \
             -f ./mono/Dockerfile \
             -t "$ECR_IMAGE" \
-            -t "$GCP_IMAGE" \
             --push .
 
   manifest:
@@ -126,11 +110,21 @@ jobs:
         env:
           REGISTRY: ${{ steps.login-ecr-public.outputs.registry }}
         run: |
+          set -euo pipefail
           IMAGE_BASE="$REGISTRY/${{ env.REGISTRY_ALIAS }}/${{ env.REPOSITORY }}"
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+
+          # latest manifest
           docker manifest create "$IMAGE_BASE:${{ env.IMAGE_TAG_BASE }}" \
             "$IMAGE_BASE:${{ env.IMAGE_TAG_BASE }}-amd64" \
             "$IMAGE_BASE:${{ env.IMAGE_TAG_BASE }}-arm64"
           docker manifest push "$IMAGE_BASE:${{ env.IMAGE_TAG_BASE }}"
+
+          # commit-hash manifest (same digests as latest for this commit)
+          docker manifest create "$IMAGE_BASE:$SHORT_SHA" \
+            "$IMAGE_BASE:${{ env.IMAGE_TAG_BASE }}-amd64" \
+            "$IMAGE_BASE:${{ env.IMAGE_TAG_BASE }}-arm64"
+          docker manifest push "$IMAGE_BASE:$SHORT_SHA"
 
   deploy-aws:
     needs: manifest
@@ -156,33 +150,3 @@ jobs:
           AWS_REGION: ap-southeast-2
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-
-  deploy-gcp:
-    needs: manifest
-    if: ${{ github.repository == 'web3infra-foundation/mega' }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Auth to GCP
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Deploy to Cloud Run (force new revision)
-        env:
-          REGION: asia-east1
-          SERVICE_NAME: buck2hub-mono
-        run: |
-          set -euo pipefail
-
-          IMAGE=$(gcloud run services describe $SERVICE_NAME \
-            --project "$GCP_PROJECT_ID" \
-            --region "$REGION" \
-            --format="value(spec.template.spec.containers[0].image)")
-
-          echo "Current image: $IMAGE"
-
-          gcloud run deploy $SERVICE_NAME \
-            --image "$IMAGE" \
-            --region "$REGION" \
-            --project "$GCP_PROJECT_ID" \
-            --quiet

@@ -137,16 +137,13 @@ pub async fn start_server() {
     // Do this before `init_log_service(config)` consumes `config`.
     let oauth_cfg = config.oauth.clone();
 
-    // Initialize the LogService and spawn a background task to watch logs,
-    // then create the application state with the same LogService instance.
+    // Initialize the LogService, then create the application state with the same
+    // LogService instance. Log persistence now happens inline on the build-output
+    // path (local) plus a background retryable cloud upload on completion, so no
+    // broadcast-watcher task is needed.
     let log_service = init_log_service(config).await.unwrap_or_else(|e| {
         eprintln!("Failed to initialize LogService: {}", e);
         std::process::exit(1);
-    });
-
-    let log_service_clone = log_service.clone();
-    tokio::spawn(async move {
-        log_service_clone.watch_logs().await;
     });
 
     let state = AppState::new(conn, None, log_service);

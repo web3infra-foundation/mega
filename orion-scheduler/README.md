@@ -17,16 +17,13 @@ flowchart LR
 
 ### 前置要求
 
-
-| 项目      | 要求                                                                                              |
-| ------- | ----------------------------------------------------------------------------------------------- |
+| 项目      | 要求                                                                                            |
+| ------- | --------------------------------------------------------------------------------------------- |
 | CPU 虚拟化 | 需启用 KVM；AWS EC2 环境应选用支持嵌套虚拟化的实例类型（`C8i` / `M8i` / `R8i`），并在实例 CPU 选项中开启 Nested virtualization |
-| NBD 模块   | 构建自定义镜像前需加载：`sudo modprobe nbd max_part=8`                                                 |
-| Rust    | 1.85 及以上（项目采用 Rust 2024 edition）                                                               |
-| 网络      | 主机需存在 `qlbr0` 网桥；`/etc/qemu/bridge.conf` 中应包含 `allow qlbr0`                                |
-| 镜像      | 需预先构建完成 `debian-13-buck2.qcow2`（参见[自定义镜像](#自定义镜像)）                                      |
-
-
+| NBD 模块  | 构建自定义镜像前需加载：`sudo modprobe nbd max_part=8`                                                    |
+| Rust    | 1.85 及以上（项目采用 Rust 2024 edition）                                                              |
+| 网络      | 主机需存在 `qlbr0` 网桥；`/etc/qemu/bridge.conf` 中应包含 `allow qlbr0`                                   |
+| 镜像      | 需构建 `debian-13-buck2.qcow2`（参见[自定义镜像](#自定义镜像)）；基础镜像缺失时构建脚本会自动下载                               |
 
 ### 最小配置（`target_config.json`）
 
@@ -78,45 +75,45 @@ sequenceDiagram
     Note over SC,VM: VM 保持运行<br/>支持后续日志查询
 ```
 
-详细实现参见 [`src/orion_deployer.rs`](src/orion_deployer.rs) 中的 `handle_update` 函数。
+详细实现参见 `[src/orion_deployer.rs](src/orion_deployer.rs)` 中的 `handle_update` 函数。
 
 ---
 
 ## API 端点
 
-
-| 方法    | 路径                    | 说明                                    | 响应                                                          |
-| ----- | --------------------- | ------------------------------------- | ----------------------------------------------------------- |
-| GET   | `/health`             | 服务健康检查                                 | `{ "status": "healthy", ... }`                            |
-| GET   | `/webhook`            | Webhook 端点连通性检查                         | `{ "status": "ok", "vm_id": null, ... }`                |
-| POST  | `/webhook`            | 触发部署，详见下方参数说明                        | `{ "status": "ok", "vm_id", "orion_log_file" }`          |
-| GET   | `/status`             | 当前虚拟机状态                               | `{ "status": "running"\|"no_vm", vm_id, vm_ip, uptime_secs }` |
-| GET   | `/logs/orion/stream`  | SSE 流式推送，每 2 秒推送新增日志                   | `text/event-stream`                                       |
-| GET   | `/scorpio/status`     | Scorpio FUSE 挂载点、目录、进程状态               | JSON                                                       |
-| GET   | `/scorpio/config`     | 直接读取 VM 内 `/home/orion/orion-runner/scorpio.toml` | `{ "path", "content" }`                                  |
-| POST  | `/shutdown`           | 仅关闭虚拟机，服务进程保持运行                        | `{ "status": "ok", "message" }`                          |
-
-
+| 方法   | 路径                   | 说明                                                | 响应                                              |
+| ---- | -------------------- | ------------------------------------------------- | ----------------------------------------------- |
+| GET  | `/health`            | 服务健康检查                                            | `{ "status": "healthy", ... }`                  |
+| GET  | `/webhook`           | Webhook 端点连通性检查                                   | `{ "status": "ok", "vm_id": null, ... }`        |
+| POST | `/webhook`           | 触发部署，详见下方参数说明                                     | `{ "status": "ok", "vm_id", "orion_log_file" }` |
+| GET  | `/status`            | 当前虚拟机状态                                           | `{ "status": "running"                          |
+| GET  | `/logs/orion/stream` | SSE 流式推送，每 2 秒推送新增日志                              | `text/event-stream`                             |
+| GET  | `/scorpio/status`    | Scorpio FUSE 挂载点、目录、进程状态                          | JSON                                            |
+| GET  | `/scorpio/config`    | 直接读取 VM 内 `/home/orion/orion-runner/scorpio.toml` | `{ "path", "content" }`                         |
+| POST | `/shutdown`          | 仅关闭虚拟机，服务进程保持运行                                   | `{ "status": "ok", "message" }`                 |
 
 ### POST /webhook 请求体
 
 ```bash
 curl -X POST http://localhost:8080/webhook \
   -H 'Content-Type: application/json' \
-  -d '{"target": "aws-gitmega"}'
+  -d '{
+    "target": "k3s-buck2hub",
+    "image_path": "/home/orion/.local/share/qlean/images/debian-13-buck2.qcow2",
+    "image_digest": "sha256:a4e664895071017b4ce97e71c533355f9a774acb947fac13147c6d9376b3bc18"
+  }'
 ```
 
-
-| 字段                | 类型      | 必填   | 说明                                                       |
-| ----------------- | ------- | ---- | -------------------------------------------------------- |
-| `target`          | string  | 是    | 必须在 `target_config.json` 的 `targets` 中存在                    |
-| `action`          | string  | 否    | GitHub Actions 事件类型，仅作日志记录                             |
-| `image_path`      | string  | 否    | 本地 qcow2 镜像路径                                           |
-| `image_url`       | string  | 否    | 远程 HTTPS URL                                              |
-| `image_digest`    | string  | 条件必填 | 镜像 SHA256/SHA512 校验和，提供 `image_path` 或 `image_url` 时必须指定 |
-| `image_disk_gb`   | u32     | 否    | 虚拟机磁盘大小（GB）                                           |
-| `image_cpus`      | u32     | 否    | 虚拟 CPU 数量                                               |
-| `image_memory_mb` | u32     | 否    | 内存大小（MB）                                               |
+| 字段                | 类型     | 必填   | 说明                                                       |
+| ----------------- | ------ | ---- | -------------------------------------------------------- |
+| `target`          | string | 是    | 必须在 `target_config.json` 的 `targets` 中存在                 |
+| `action`          | string | 否    | GitHub Actions 事件类型，仅作日志记录                               |
+| `image_path`      | string | 否    | 本地 qcow2 镜像路径                                            |
+| `image_url`       | string | 否    | 远程 HTTPS URL                                             |
+| `image_digest`    | string | 条件必填 | 镜像 SHA256/SHA512 校验和，提供 `image_path` 或 `image_url` 时必须指定 |
+| `image_disk_gb`   | u32    | 否    | 虚拟机磁盘大小（GB）                                              |
+| `image_cpus`      | u32    | 否    | 虚拟 CPU 数量                                                |
+| `image_memory_mb` | u32    | 否    | 内存大小（MB）                                                 |
 
 > `image_path` 与 `image_url` 互斥，不可同时指定。提供镜像参数时 `image_digest` 必须提供（格式：`sha256:...` 或 `sha512:...`）。资源参数未指定时使用默认值（磁盘：镜像内建大小，CPU：4，内存：8192MB）。
 
@@ -133,85 +130,78 @@ sudo modprobe nbd max_part=8
 sudo bash scripts/build-custom-image.sh
 ```
 
+> 基础镜像下载源默认指向 USTC 镜像（`https://mirrors.ustc.edu.cn/debian-cdimage/cloud/trixie/latest`）。如需更换为官方源或其他镜像，通过 `BASE_MIRROR_URL` 覆盖（注意 `sudo` 需加 `-E` 传递环境变量）：
+>
+> ```bash
+> BASE_MIRROR_URL=https://cloud.debian.org/images/cloud/trixie/latest \
+>   sudo -E bash scripts/build-custom-image.sh
+> ```
+
 脚本自动完成以下步骤：
 
-1. 复制 `debian-13-generic-amd64.qcow2` 基础镜像并扩容至 15GB
-2. 通过 `qemu-nbd` 挂载、`growpart` + `resize2fs` 扩展分区
-3. chroot 进入镜像并安装：
+1. 若 `debian-13-generic-amd64.qcow2` 基础镜像缺失，自动下载并校验 SHA512（默认源为 USTC 镜像，可通过 `BASE_MIRROR_URL` 环境变量更换，详见下方说明）
+2. 复制基础镜像并扩容至 15GB
+3. 通过 `qemu-nbd` 挂载、`growpart` + `resize2fs` 扩展分区；若基础镜像目录缺少 `vmlinuz-*` / `initrd.img-*`，自动从镜像内 `/boot` 提取
+4. chroot 进入镜像并安装：
    - Rust 1.95.0 toolchain（在 host 上预下载 tarball，避免 chroot 内 DNS 问题）
    - apt 包：`clang lld pkg-config protobuf-compiler zstd fuse curl git seccomp libseccomp-dev libpython3-dev openssl libssl-dev build-essential`
    - buck2（`2026-04-15` 版本）
    - SSH 公钥写入 `/root/.ssh/authorized_keys`
    - 软链 `rustc` / `cargo` → `/usr/local/bin/`，确保默认 PATH 可找到
-4. chroot 末尾执行 `dd` 写满空闲块再删除，利于压缩
-5. `qemu-img convert -O qcow2 -c` 压缩（**15GB → ~1.2GB**，节省 90%+）
-6. 发布至 qlean 期望的扁平路径：`~/.local/share/qlean/images/debian-13-buck2.qcow2`，并更新 `debian-13-buck2.json` 中的 sha256 digest
+5. chroot 末尾执行 `dd` 写满空闲块再删除，利于压缩
+6. `qemu-img convert -O qcow2 -c` 压缩（**15GB → ~1.2GB**，节省 90%+）
+7. 发布至 qlean 期望的扁平路径：`~/.local/share/qlean/images/debian-13-buck2.qcow2`，并更新 `debian-13-buck2.json` 中的 sha256 digest
 
 ### 安全特性
 
-
-| 特性       | 实现方式                                                    |
-| -------- | ------------------------------------------------------- |
-| 失败自动清理  | `trap cleanup EXIT INT TERM HUP` 卸载 bind mounts + 断开 NBD  |
-| 严格错误捕获  | `set -eo pipefail`，chroot 内任何步骤失败立即中止                   |
-| 锁检测     | 发布前用 `qemu-img info` 探测目标文件，若被运行中 VM 占用则跳过覆盖        |
-| 设备同步    | 使用 `udevadm settle` + 轮询代替固定 `sleep`                      |
-
-
+| 特性     | 实现方式                                                     |
+| ------ | -------------------------------------------------------- |
+| 失败自动清理 | `trap cleanup EXIT INT TERM HUP` 卸载 bind mounts + 断开 NBD |
+| 严格错误捕获 | `set -eo pipefail`，chroot 内任何步骤失败立即中止                    |
+| 锁检测    | 发布前用 `qemu-img info` 探测目标文件，若被运行中 VM 占用则跳过覆盖             |
+| 设备同步   | 使用 `udevadm settle` + 轮询代替固定 `sleep`                     |
 
 ### 预装内容速查
 
-
-| 组件                    | 版本         | 位置                                          |
-| --------------------- | ---------- | ------------------------------------------- |
-| Rust                  | 1.95.0     | `/root/.cargo/bin/`，软链至 `/usr/local/bin/` |
-| buck2                 | 2026-04-15 | `/usr/local/bin/buck2`                     |
-| clang / lld           | 19.x       | apt 系统路径                                    |
-| git / protoc / zstd / openssl | apt 当前版本   | 系统路径                                      |
-| SSH key               | `~/.ssh/orion_vm_access.pub` | `/root/.ssh/authorized_keys`          |
-
-
+| 组件                            | 版本                           | 位置                                        |
+| ----------------------------- | ---------------------------- | ----------------------------------------- |
+| Rust                          | 1.95.0                       | `/root/.cargo/bin/`，软链至 `/usr/local/bin/` |
+| buck2                         | 2026-04-15                   | `/usr/local/bin/buck2`                    |
+| clang / lld                   | 19.x                         | apt 系统路径                                  |
+| git / protoc / zstd / openssl | apt 当前版本                     | 系统路径                                      |
+| SSH key                       | `~/.ssh/orion_vm_access.pub` | `/root/.ssh/authorized_keys`              |
 
 ---
 
 ## 配置说明
 
-完整配置 schema 参见 [`DESIGN.md`](DESIGN.md) 第 5 节。
+完整配置 schema 参见 `[DESIGN.md](DESIGN.md)` 第 5 节。
 
 ### 顶层字段
 
-
-| 字段                    | 类型     | 默认                          | 说明                      |
-| --------------------- | ------ | --------------------------- | ----------------------- |
-| `log_dir`             | string | `/var/log/orion-scheduler`   | Orion 启动期日志落盘目录          |
-| `orion_source_dir`    | string | 无默认值（必填）                | Orion 源码目录（含 runner-config、systemd） |
-| `orion_binary_path`   | string | 无默认值（必填）                | Orion 二进制文件路径            |
-| `ssh_public_key_path` | string | 无默认值（必填）                | SSH 公钥路径                 |
-| `targets`             | map    | `{}`                        | 部署目标定义，至少一项            |
-
-
+| 字段                    | 类型     | 默认                         | 说明                                  |
+| --------------------- | ------ | -------------------------- | ----------------------------------- |
+| `log_dir`             | string | `/var/log/orion-scheduler` | Orion 启动期日志落盘目录                     |
+| `orion_source_dir`    | string | 无默认值（必填）                   | Orion 源码目录（含 runner-config、systemd） |
+| `orion_binary_path`   | string | 无默认值（必填）                   | Orion 二进制文件路径                       |
+| `ssh_public_key_path` | string | 无默认值（必填）                   | SSH 公钥路径                            |
+| `targets`             | map    | `{}`                       | 部署目标定义，至少一项                         |
 
 ### `targets[name]`
 
+| 字段                 | 类型     | 说明                                               |
+| ------------------ | ------ | ------------------------------------------------ |
+| `server_ws`        | string | Orion WebSocket URL，写入 VM 内 `.env` 的 `SERVER_WS` |
+| `scorpio_base_url` | string | 写入 `scorpio.toml` 的 `base_url`                   |
+| `scorpio_lfs_url`  | string | 写入 `scorpio.toml` 的 `lfs_url`                    |
 
-| 字段                 | 类型      | 说明                                       |
-| ------------------ | ------- | ---------------------------------------- |
-| `server_ws`        | string  | Orion WebSocket URL，写入 VM 内 `.env` 的 `SERVER_WS` |
-| `scorpio_base_url` | string  | 写入 `scorpio.toml` 的 `base_url`               |
-| `scorpio_lfs_url`  | string  | 写入 `scorpio.toml` 的 `lfs_url`                |
+### 内置 target（`[target_config.json](target_config.json)` 默认）
 
-
-
-### 内置 target（[`target_config.json`](target_config.json) 默认）
-
-
-| target        | SERVER_WS                      | scorpio base_url           |
-| ------------- | ------------------------------ | -------------------------- |
-| `aws-gitmega` | `wss://orion.gitmega.com/ws`   | `https://git.gitmega.com`  |
-| `aws-gitmono` | `wss://orion.gitmono.com/ws`   | `https://git.gitmono.com`  |
+| target         | SERVER_WS                     | scorpio base_url           |
+| -------------- | ----------------------------- | -------------------------- |
+| `aws-gitmega`  | `wss://orion.gitmega.com/ws`  | `https://git.gitmega.com`  |
+| `aws-gitmono`  | `wss://orion.gitmono.com/ws`  | `https://git.gitmono.com`  |
 | `gcp-buck2hub` | `wss://orion.buck2hub.com/ws` | `https://git.buck2hub.com` |
-
-
 
 ---
 
@@ -243,23 +233,18 @@ orion-scheduler/
 
 ## 信号与环境变量
 
+| 信号 / 动作                    | VM  | 服务进程     | 说明                     |
+| -------------------------- | --- | -------- | ---------------------- |
+| `Ctrl+C` / SIGINT          | 关闭  | 退出       | 优雅关闭                   |
+| SIGTERM                    | 关闭  | 退出       | 同上                     |
+| SIGQUIT                    | 关闭  | 退出       | 同上                     |
+| `POST /shutdown`           | 关闭  | **保持运行** | 仅回收虚拟机                 |
+| `pkill -9 orion-scheduler` | 残留  | 强制终止     | 不优雅关闭，虚拟机将变为孤儿进程，需手动清理 |
 
-| 信号 / 动作                    | VM   | 服务进程      | 说明                                                    |
-| ------------------------- | ---- | --------- | ----------------------------------------------------- |
-| `Ctrl+C` / SIGINT          | 关闭   | 退出        | 优雅关闭                                                  |
-| SIGTERM                    | 关闭   | 退出        | 同上                                                  |
-| SIGQUIT                    | 关闭   | 退出        | 同上                                                  |
-| `POST /shutdown`           | 关闭   | **保持运行**  | 仅回收虚拟机                                               |
-| `pkill -9 orion-scheduler` | 残留   | 强制终止      | 不优雅关闭，虚拟机将变为孤儿进程，需手动清理                                  |
-
-
-
-| 环境变量        | 默认                    | 说明                  |
-| ----------- | --------------------- | ------------------- |
-| `CONFIG_PATH` | `target_config.json`   | 配置文件路径               |
-| `RUST_LOG`    | `info`                | tracing 日志级别，常用 `debug` |
-
-
+| 环境变量          | 默认                   | 说明                      |
+| ------------- | -------------------- | ----------------------- |
+| `CONFIG_PATH` | `target_config.json` | 配置文件路径                  |
+| `RUST_LOG`    | `info`               | tracing 日志级别，常用 `debug` |
 
 ---
 
@@ -271,7 +256,7 @@ orion-scheduler/
 ssh -i ~/.ssh/orion_vm_access root@<vm_ip>
 ```
 
-完整调试流程参见 [`TESTING.md`](TESTING.md)。
+完整调试流程参见 `[TESTING.md](TESTING.md)`。
 
 ---
 
@@ -288,7 +273,7 @@ git tag orion-scheduler-v0.1.0
 git push origin orion-scheduler-v0.1.0
 ```
 
-[`.github/workflows/orion-scheduler-release.yml`](../.github/workflows/orion-scheduler-release.yml) 会：
+`[.github/workflows/orion-scheduler-release.yml](../.github/workflows/orion-scheduler-release.yml)` 会：
 
 1. 在 `ubuntu-latest` 上 `cargo build --release -p orion-scheduler --target x86_64-unknown-linux-gnu`
 2. 打包 `orion-scheduler-vX.Y.Z-linux-amd64.tar.gz`（含二进制、systemd unit、`install.sh`、`target_config.json.template`、`VERSION` 元数据）
@@ -328,16 +313,16 @@ sudo systemctl start orion-scheduler
 sudo journalctl -u orion-scheduler -f
 ```
 
-[`install.sh`](install.sh) 完成的工作：
+`[install.sh](install.sh)` 完成的工作：
 
-| 工作 | 路径 / 命令 |
-| --- | --- |
-| 创建 service 用户 | `orion` 用户，`-G kvm` 加入 KVM 组 |
-| 落二进制 | `/opt/orion-scheduler/bin/orion-scheduler` |
-| 落配置 | `/etc/orion-scheduler/target_config.json`（已存在则保留） |
-| qlean 状态目录 | `/var/lib/orion-scheduler/qlean/{images,runs}`，软链到 `~orion/.local/share/qlean` |
-| 日志 & 缓存 | `/var/log/orion-scheduler`、`/var/cache/orion-scheduler` |
-| systemd | `/etc/systemd/system/orion-scheduler.service`，`daemon-reload` + `enable` |
+| 工作            | 路径 / 命令                                                                        |
+| ------------- | ------------------------------------------------------------------------------ |
+| 创建 service 用户 | `orion` 用户，`-G kvm` 加入 KVM 组                                                   |
+| 落二进制          | `/opt/orion-scheduler/bin/orion-scheduler`                                     |
+| 落配置           | `/etc/orion-scheduler/target_config.json`（已存在则保留）                              |
+| qlean 状态目录    | `/var/lib/orion-scheduler/qlean/{images,runs}`，软链到 `~orion/.local/share/qlean` |
+| 日志 & 缓存       | `/var/log/orion-scheduler`、`/var/cache/orion-scheduler`                        |
+| systemd       | `/etc/systemd/system/orion-scheduler.service`，`daemon-reload` + `enable`       |
 
 可用环境变量覆盖默认值：`PREFIX` / `ETC_DIR` / `STATE_DIR` / `LOG_DIR` / `CACHE_DIR` / `SERVICE_USER` / `SERVICE_GROUP` / `SKIP_ENABLE=1`。
 
@@ -345,13 +330,13 @@ sudo journalctl -u orion-scheduler -f
 
 ### 升级 / 回滚
 
-| 操作 | 命令 |
-| --- | --- |
-| 升级 | 下载新版本 tarball → `sudo bash <bundle>/install.sh` → `sudo systemctl restart orion-scheduler` |
-| 回滚 | 下载旧版本 tarball → 同上 |
-| 检查当前版本 | `cat /opt/orion-scheduler/bin/orion-scheduler --version`（若启用了 clap version）或 `cat ~/.../VERSION`（解压后） |
-| 停服并保留 VM | `sudo systemctl stop orion-scheduler`；VM 不会被关闭 |
-| 完全停服 | 先 `POST /shutdown` 关闭 VM，再 `systemctl stop` |
+| 操作       | 命令                                                                                                    |
+| -------- | ----------------------------------------------------------------------------------------------------- |
+| 升级       | 下载新版本 tarball → `sudo bash <bundle>/install.sh` → `sudo systemctl restart orion-scheduler`            |
+| 回滚       | 下载旧版本 tarball → 同上                                                                                    |
+| 检查当前版本   | `cat /opt/orion-scheduler/bin/orion-scheduler --version`（若启用了 clap version）或 `cat ~/.../VERSION`（解压后） |
+| 停服并保留 VM | `sudo systemctl stop orion-scheduler`；VM 不会被关闭                                                        |
+| 完全停服     | 先 `POST /shutdown` 关闭 VM，再 `systemctl stop`                                                           |
 
 > **注意**：必须从 Linux x86_64 host 上跑。orion-scheduler 通过 `qlean` 依赖 `kvm-ioctls`，不可在 macOS / ARM64 上运行。
 
@@ -367,4 +352,4 @@ sudo journalctl -u orion-scheduler -f
 - 镜像构建 Action 上传至 S3 + manifest，host 端复用 qlean 内置的 HTTPS 拉取 + sha 校验
 - orion-scheduler 每次 webhook 按 manifest 拉取最新版本，本地 cache 命中则跳过下载
 
-详细设计参见 [`ARTIFACT.md`](ARTIFACT.md)。
+详细设计参见 `[ARTIFACT.md](ARTIFACT.md)`。

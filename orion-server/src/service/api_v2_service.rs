@@ -34,7 +34,6 @@ use uuid::Uuid;
 use crate::{
     app_state::AppState,
     auto_retry::AutoRetryJudger,
-    log::log_service::LogService,
     model::{
         dto::{
             BuildEventDTO, BuildStatus, BuildTargetDTO, MessageResponse, OrionClientInfo,
@@ -214,23 +213,6 @@ async fn task_exists_by_id(
     OrionTasksRepo::exists_by_id(conn, task_id).await
 }
 
-pub async fn task_retry(
-    state: &AppState,
-    id: &str,
-) -> Result<Json<MessageResponse>, MessageErrorResponse> {
-    let task_uuid = parse_uuid_or_message_error(id, "Invalid task ID format")?;
-    let task = OrionTasksRepo::find_by_id(&state.conn, task_uuid)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to fetch task {}: {}", id, e);
-            message_error(StatusCode::INTERNAL_SERVER_ERROR, "Database error")
-        })?
-        .ok_or_else(|| message_error(StatusCode::NOT_FOUND, "Task not found"))?;
-
-    tracing::info!("Task retry requested for task {} (CL: {})", id, task.cl);
-    Ok(message_response(format!("Task {} queued for retry", id)))
-}
-
 pub async fn task_get(
     state: &AppState,
     cl: &str,
@@ -347,31 +329,11 @@ pub async fn build_logs(
             )
         })?;
 
-    let orion_task = OrionTasksRepo::find_by_id(&state.conn, build_event.task_id)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to fetch Orion task {}: {}", build_event.task_id, e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(LogErrorResponse {
-                    message: "Database error".to_string(),
-                }),
-            )
-        })?
-        .ok_or_else(|| {
-            (
-                StatusCode::NOT_FOUND,
-                Json(LogErrorResponse {
-                    message: "Task not found".to_string(),
-                }),
-            )
-        })?;
-
-    let task_id = build_event.task_id.to_string();
-    let repo_name = &orion_task.repo_name;
+    // `log_output_file` is the authoritative artifact location recorded at build
+    // creation; read from it directly rather than re-deriving the key.
     let log_content = state
         .log_service
-        .read_full_log(&task_id, repo_name, build_id)
+        .read_full_log_by_key(&build_event.log_output_file)
         .await
         .map_err(|e| {
             tracing::error!("Failed to read log for build {}: {}", build_id, e);
@@ -607,36 +569,17 @@ pub async fn target_logs(
         }
     };
 
-    let orion_task = OrionTasksRepo::find_by_id(&state.conn, build_target.task_id)
-        .await
-        .ok()
-        .flatten();
-    let repo_segment = orion_task
-        .as_ref()
-        .map(|t| LogService::last_segment(&t.repo_name))
-        .unwrap_or_else(|| "".to_string());
+    // Read from the authoritative artifact key recorded on the build event.
+    let log_key = &build_event.log_output_file;
     let log_result = if matches!(params.r#type, LogReadMode::Segment) {
         let offset = params.offset.unwrap_or(0);
         let limit = params.limit.unwrap_or(200);
         state
             .log_service
-            .read_log_range(
-                &build_target.task_id.to_string(),
-                &repo_segment,
-                &build_event.id.to_string(),
-                offset,
-                offset + limit,
-            )
+            .read_log_range_by_key(log_key, offset, offset + limit)
             .await
     } else {
-        state
-            .log_service
-            .read_full_log(
-                &build_target.task_id.to_string(),
-                &repo_segment,
-                &build_event.id.to_string(),
-            )
-            .await
+        state.log_service.read_full_log_by_key(log_key).await
     };
 
     match log_result {
@@ -723,6 +666,36 @@ pub async fn build_retry(
                 .into_response();
         }
     };
+
+    // Only the latest build of a task may be retried. Retrying a superseded build
+    // would fork history and can spawn duplicate concurrent builds.
+    match BuildEventsRepo::latest_by_task_id(&state.conn, old_event.task_id).await {
+        Ok(Some(latest)) if latest.id != old_event.id => {
+            return (
+                StatusCode::CONFLICT,
+                Json(json!({"message": "Only the latest build of the task can be retried"})),
+            )
+                .into_response();
+        }
+        Ok(_) => {}
+        Err(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"message": "Database find failed"})),
+            )
+                .into_response();
+        }
+    }
+
+    // A build can only be retried once it has finished; an unfinished build means
+    // the task still has work in flight (queued or building).
+    if old_event.end_at.is_none() {
+        return (
+            StatusCode::CONFLICT,
+            Json(json!({"message": "Build is still in progress"})),
+        )
+            .into_response();
+    }
 
     let retry_count = old_event.retry_count + 1;
     let repo = task.repo_name.clone();

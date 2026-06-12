@@ -10,7 +10,7 @@ import { useGetClTask } from '@/hooks/SSE/useGetClTask'
 import { fetchHTTPLog } from '@/hooks/SSE/useGetHTTPLog'
 
 import { useTaskSSE } from '../../hook/useSSM'
-import { BuildDTO, statusMapAtom, TaskInfoDTO } from './cpns/store'
+import { BuildDTO, getQueuedBuildIds, statusMapAtom, TaskInfoDTO } from './cpns/store'
 import { TreeRoot } from './cpns/Task'
 
 type LogStatus = 'idle' | 'loading' | 'success' | 'empty' | 'error'
@@ -165,13 +165,17 @@ const Checks = ({ cl, path }: { cl: string; path?: string }) => {
 
     if (validBuilds.length === 0) return
 
-    validBuilds.forEach((b) => {
+    // Queued builds (waiting for a worker) have no logs yet; don't fetch them.
+    const queuedIds = getQueuedBuildIds(tasks)
+    const buildsToFetch = validBuilds.filter((b) => !queuedIds.has(b.build_id))
+
+    buildsToFetch.forEach((b) => {
       setLogStatus((prev) => ({ ...prev, [b.build_id]: 'loading' }))
     })
 
     const fetchLogs = async () => {
       const logsResult = await Promise.allSettled(
-        validBuilds.map(async ({ build_id }) => {
+        buildsToFetch.map(async ({ build_id }) => {
           try {
             const res = await fetchHTTPLog(build_id)
 
@@ -214,7 +218,7 @@ const Checks = ({ cl, path }: { cl: string; path?: string }) => {
           }
         } else {
           // Promise.allSettled rejected (shouldn't happen with try-catch, but defensive)
-          const id = validBuilds[logsResult.indexOf(item)]?.build_id
+          const id = buildsToFetch[logsResult.indexOf(item)]?.build_id
 
           if (id) {
             newLogStatus[id] = 'error'
@@ -227,7 +231,9 @@ const Checks = ({ cl, path }: { cl: string; path?: string }) => {
       setLogStatus((prev) => ({ ...prev, ...newLogStatus }))
     }
 
-    fetchLogs()
+    if (buildsToFetch.length > 0) {
+      fetchLogs()
+    }
 
     if (!buildid && validBuilds.length > 0) {
       setBuildId(validBuilds[0].build_id)
@@ -294,6 +300,10 @@ const Checks = ({ cl, path }: { cl: string; path?: string }) => {
       return { status: 'Pending', color: 'text-yellow-600 dark:text-yellow-400' }
     }
 
+    if (states.some((s: string) => s === 'Uninitialized')) {
+      return { status: 'Uninitialized', color: 'text-gray-600 dark:text-gray-400' }
+    }
+
     if (states.every((s: string) => s === 'Completed')) {
       return { status: 'Completed', color: 'text-green-600 dark:text-green-400' }
     }
@@ -355,12 +365,26 @@ const Checks = ({ cl, path }: { cl: string; path?: string }) => {
     )
   }
 
+  const queuedBuildIds = getQueuedBuildIds(tasks ?? [])
+
   // Render log viewer with status handling
   const renderLogContent = () => {
     if (!buildid) {
       return (
         <div className='text-tertiary flex h-full items-center justify-center'>
           <span>Select a build to view logs</span>
+        </div>
+      )
+    }
+
+    // Queued build: not started yet, so there are no logs to show.
+    if (queuedBuildIds.has(buildid)) {
+      return (
+        <div className='text-tertiary flex h-full items-center justify-center'>
+          <div className='flex items-center gap-3'>
+            <LoadingSpinner />
+            <span>Waiting for an available worker — logs will appear once the build starts</span>
+          </div>
         </div>
       )
     }
@@ -403,7 +427,7 @@ const Checks = ({ cl, path }: { cl: string; path?: string }) => {
     if (status === 'success' && logsMap[buildid]) {
       return (
         <div ref={logContainerRef} className='h-full select-text [&_*]:select-text'>
-          <LazyLog key={buildid} extraLines={1} text={logsMap[buildid]} stream enableSearch caseInsensitive />
+          <LazyLog key={buildid} extraLines={1} text={logsMap[buildid]} enableSearch caseInsensitive />
         </div>
       )
     }
@@ -571,7 +595,9 @@ const Checks = ({ cl, path }: { cl: string; path?: string }) => {
                                             ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
                                             : status.status === 'Pending'
                                               ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300'
-                                              : 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300'
+                                              : status.status === 'Uninitialized'
+                                                ? 'bg-gray-100 text-gray-700 dark:bg-gray-700/60 dark:text-gray-300'
+                                                : 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300'
                                     }`}
                                   >
                                     {status.status}
@@ -601,7 +627,13 @@ const Checks = ({ cl, path }: { cl: string; path?: string }) => {
             className='border-primary h-full overflow-y-auto border-r'
             style={{ width: leftWidth ?? '30%', flexShrink: 0 }}
           >
-            <TreeRoot path={path} tasks={tasksToDisplay} logStatus={logStatus} totalTasksCount={validTasks.length} />
+            <TreeRoot
+              path={path}
+              tasks={tasksToDisplay}
+              logStatus={logStatus}
+              totalTasksCount={validTasks.length}
+              cl={cl}
+            />
           </div>
           {/* Resizer handle */}
           <div

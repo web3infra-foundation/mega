@@ -2,9 +2,6 @@
 
 FROM node:20-slim AS base
 
-ARG APP_ENV=staging
-ENV APP_ENV=${APP_ENV}
-
 # configure pnpm
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME/bin:$PNPM_HOME:$PATH"
@@ -44,8 +41,11 @@ RUN npx patch-package
 
 COPY --from=builder /app/out/full/ .
 
+# Build a single, environment-agnostic image. The placeholder URLs in
+# .env.runtime get baked into the bundle here and are replaced with real
+# per-environment values at container start by docker-entrypoint.sh.
 RUN rm -f /app/apps/web/.env.local \
-  && cp /app/apps/web/.env.${APP_ENV} /app/apps/web/.env.production
+  && cp /app/apps/web/.env.runtime /app/apps/web/.env.production
 
 RUN npx turbo run build --filter=@gitmono/web
 
@@ -63,8 +63,13 @@ COPY --from=installer --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
 COPY --from=installer --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=installer --chown=nextjs:nodejs /app/apps/web/public ./apps/web/public
 
+# Runtime env injection: rewrites placeholder URLs in the compiled assets with
+# real values from runtime environment variables, then starts the server.
+COPY apps/web/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 # Start the server by default, this can be overwritten at runtime
 EXPOSE 3000
 ENV PORT=3000
 
-ENTRYPOINT [ "node", "/app/apps/web/server.js" ]
+ENTRYPOINT [ "/usr/local/bin/docker-entrypoint.sh" ]

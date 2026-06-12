@@ -11,7 +11,6 @@ use crate::api;
         api::task_handler_v2,
         api::task_output_handler,
         api::task_history_output_handler,
-        api::task_retry_handler,
         api::task_get_handler,
         // Build domain
         api::build_retry_handler,

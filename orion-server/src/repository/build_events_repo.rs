@@ -28,8 +28,6 @@ impl BuildEventsRepo {
             start_at: Set(now),
             end_at: Set(None),
             retry_count: Set(0),
-            log: Set(None),
-            // TODO: set correct log output file
             log_output_file: Set(format!("{}/{}/{}.log", task_id, repo_leaf, build_id)),
         }
     }
@@ -61,6 +59,17 @@ impl BuildEventsRepo {
             .filter(callisto::build_events::Column::TaskId.eq(task_id))
             .order_by_desc(callisto::build_events::Column::StartAt)
             .one(conn)
+            .await
+    }
+
+    pub async fn list_unfinished_before(
+        conn: &impl ConnectionTrait,
+        cutoff: sea_orm::prelude::DateTimeWithTimeZone,
+    ) -> Result<Vec<callisto::build_events::Model>, DbErr> {
+        callisto::build_events::Entity::find()
+            .filter(callisto::build_events::Column::EndAt.is_null())
+            .filter(callisto::build_events::Column::StartAt.lt(cutoff))
+            .all(conn)
             .await
     }
 
@@ -104,13 +113,20 @@ impl BuildEventsRepo {
         Ok(())
     }
 
+    /// Atomically transition a build from "unfinished" to interrupted.
+    ///
+    /// The `end_at IS NULL` filter makes this a claim: concurrent/overlapping
+    /// callers (e.g. the in-memory queue timeout and the DB stale-build sweep)
+    /// can both invoke it, but only the first one affects a row. Returns the
+    /// number of rows updated so callers can detect whether they won the claim.
     pub async fn mark_interrupted(
         build_id: Uuid,
         end_at: sea_orm::prelude::DateTimeWithTimeZone,
         db_connection: &impl ConnectionTrait,
-    ) -> Result<(), DbErr> {
-        callisto::build_events::Entity::update_many()
+    ) -> Result<u64, DbErr> {
+        let res = callisto::build_events::Entity::update_many()
             .filter(callisto::build_events::Column::Id.eq(build_id))
+            .filter(callisto::build_events::Column::EndAt.is_null())
             .set(callisto::build_events::ActiveModel {
                 end_at: Set(Some(end_at)),
                 exit_code: Set(None),
@@ -118,7 +134,7 @@ impl BuildEventsRepo {
             })
             .exec(db_connection)
             .await?;
-        Ok(())
+        Ok(res.rows_affected)
     }
 
     fn build_completion_update(

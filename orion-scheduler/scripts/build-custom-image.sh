@@ -21,6 +21,21 @@ BASE_DIR="$OUTPUT_DIR/debian-13-generic-amd64"
 BASE_IMAGE="$BASE_DIR/debian-13-generic-amd64.qcow2"
 CUSTOM_IMAGE="$IMAGE_DIR/$IMAGE_NAME.qcow2"
 
+# Upstream base image (same image qlean itself pins). Auto-downloaded when
+# $BASE_IMAGE is missing; verified against the published SHA512SUMS.
+#
+# Override the mirror via env, e.g. to use the official source:
+#   BASE_MIRROR_URL=https://cloud.debian.org/images/cloud/trixie/latest \
+#     sudo -E bash scripts/build-custom-image.sh
+# Default points at a CN mirror (SJTU) since cloud.debian.org is often
+# unreachable from CN build hosts. NOTE: the USTC mirror returns HTTP 403 for
+# the large .qcow2/.raw cloud images (it only serves the metadata files), so
+# it cannot be used here.
+BASE_IMAGE_FILE="debian-13-generic-amd64.qcow2"
+BASE_MIRROR_URL="${BASE_MIRROR_URL:-https://mirror.sjtu.edu.cn/debian-cdimage/cloud/trixie/latest}"
+BASE_IMAGE_URL="${BASE_MIRROR_URL%/}/${BASE_IMAGE_FILE}"
+BASE_CHECKSUM_URL="${BASE_MIRROR_URL%/}/SHA512SUMS"
+
 IMAGE_SIZE="15G"
 
 RUST_VERSION="1.95.0"
@@ -60,27 +75,56 @@ cleanup() {
 trap cleanup EXIT INT TERM HUP
 
 # ============================================================================
-# Pre-flight: validate base image, locate kernel/initrd via glob
+# Download the upstream base image (qcow2) + verify SHA512
+# ============================================================================
+download_base_image() {
+    echo "[build-custom-image] Base image not found at $BASE_IMAGE"
+    echo "[build-custom-image] Downloading base image from $BASE_IMAGE_URL..."
+    mkdir -p "$BASE_DIR"
+
+    local part="$BASE_IMAGE.part"
+    rm -f "$part"
+    curl -fSL --retry 3 --retry-delay 2 \
+        --connect-timeout 20 --max-time 1800 \
+        -o "$part" "$BASE_IMAGE_URL"
+
+    echo "[build-custom-image] Verifying SHA512 checksum..."
+    local expected
+    expected=$(curl -fsSL --connect-timeout 20 --max-time 60 "$BASE_CHECKSUM_URL" \
+        | awk -v f="$BASE_IMAGE_FILE" '$2 == f { print $1 }')
+    if [ -z "$expected" ]; then
+        echo "[build-custom-image] ERROR: no checksum entry for $BASE_IMAGE_FILE in $BASE_CHECKSUM_URL"
+        rm -f "$part"
+        exit 1
+    fi
+
+    local actual
+    actual=$(sha512sum "$part" | awk '{ print $1 }')
+    if [ "$expected" != "$actual" ]; then
+        echo "[build-custom-image] ERROR: checksum mismatch"
+        echo "[build-custom-image]   expected: $expected"
+        echo "[build-custom-image]   actual:   $actual"
+        rm -f "$part"
+        exit 1
+    fi
+
+    mv "$part" "$BASE_IMAGE"
+    echo "[build-custom-image] Base image downloaded and verified ($(du -sh "$BASE_IMAGE" | cut -f1))"
+}
+
+# ============================================================================
+# Pre-flight: ensure base image (download if missing)
 # ============================================================================
 echo "[build-custom-image] Starting custom image build..."
 
 if [ ! -f "$BASE_IMAGE" ]; then
-    echo "[build-custom-image] ERROR: Base image not found at $BASE_IMAGE"
-    exit 1
+    download_base_image
 fi
 
+# Kernel/initrd are resolved later: if not already present alongside the base
+# image, they are extracted from the mounted image's /boot in Stage 3.
 KERNEL=$(ls "$BASE_DIR"/vmlinuz-* 2>/dev/null | head -n1 || true)
 INITRD=$(ls "$BASE_DIR"/initrd.img-* 2>/dev/null | head -n1 || true)
-if [ ! -f "$KERNEL" ]; then
-    echo "[build-custom-image] ERROR: No vmlinuz-* found in $BASE_DIR"
-    exit 1
-fi
-if [ ! -f "$INITRD" ]; then
-    echo "[build-custom-image] ERROR: No initrd.img-* found in $BASE_DIR"
-    exit 1
-fi
-echo "[build-custom-image] Using kernel: $(basename "$KERNEL")"
-echo "[build-custom-image] Using initrd: $(basename "$INITRD")"
 
 mkdir -p "$IMAGE_DIR"
 
@@ -150,6 +194,22 @@ sudo resize2fs "$NBD_PART"
 MOUNT_DIR=$(mktemp -d /tmp/custom-image-mnt.XXXXXX)
 echo "[build-custom-image] Mounting image at $MOUNT_DIR..."
 sudo mount "$NBD_PART" "$MOUNT_DIR"
+
+# Extract kernel/initrd from the image's /boot if they weren't supplied
+# alongside the base image. The generic cloud qcow2 ships them inside /boot,
+# so we lift them out here for the direct-kernel-boot path (Stage 6).
+if [ -z "$KERNEL" ] || [ ! -f "$KERNEL" ] || [ -z "$INITRD" ] || [ ! -f "$INITRD" ]; then
+    echo "[build-custom-image] Extracting kernel/initrd from image /boot..."
+    sudo bash -c "cp '$MOUNT_DIR'/boot/vmlinuz-* '$BASE_DIR'/ && cp '$MOUNT_DIR'/boot/initrd.img-* '$BASE_DIR'/"
+    KERNEL=$(ls "$BASE_DIR"/vmlinuz-* 2>/dev/null | head -n1 || true)
+    INITRD=$(ls "$BASE_DIR"/initrd.img-* 2>/dev/null | head -n1 || true)
+    if [ ! -f "$KERNEL" ] || [ ! -f "$INITRD" ]; then
+        echo "[build-custom-image] ERROR: failed to extract kernel/initrd from $MOUNT_DIR/boot"
+        exit 1
+    fi
+fi
+echo "[build-custom-image] Using kernel: $(basename "$KERNEL")"
+echo "[build-custom-image] Using initrd: $(basename "$INITRD")"
 
 # Bind mounts for chroot
 sudo mount --bind /proc "$MOUNT_DIR/proc"

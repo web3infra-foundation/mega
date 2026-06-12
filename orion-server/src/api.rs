@@ -56,13 +56,12 @@ fn task_routes() -> Router<AppState> {
         .route("/v2/task", post(task_handler_v2))
         .route("/task-output/{id}", get(task_output_handler))
         .route("/task-history-output", get(task_history_output_handler))
-        .route("/v2/task-retry/{id}", post(task_retry_handler))
         .route("/v2/task/{cl}", get(task_get_handler))
 }
 
 fn build_routes() -> Router<AppState> {
     Router::new()
-        .route("/retry-build", post(build_retry_handler))
+        .route("/v2/retry-build", post(build_retry_handler))
         .route("/v2/build-events/{task_id}", get(build_event_get_handler))
         .route("/v2/targets/{task_id}", get(targets_get_handler))
         .route("/v2/build-state/{build_id}", get(build_state_handler))
@@ -268,7 +267,7 @@ pub async fn get_orion_client_status_by_id(
 /// Retry the build
 #[utoipa::path(
     post,
-    path = "/retry-build",
+    path = "/v2/retry-build",
     tag = "Build",
     request_body = RetryBuildRequest,
     responses(
@@ -285,24 +284,6 @@ pub async fn build_retry_handler(
     Json(req): Json<RetryBuildRequest>,
 ) -> impl IntoResponse {
     api_v2_service::build_retry(&state, req).await
-}
-
-#[utoipa::path(
-    post,
-    path = "/v2/task-retry/{id}",
-    tag = "Task",
-    params(("id" = String, description = "Task ID to retry task")),
-    responses(
-        (status = 200, description = "Task queued for retry", body = MessageResponse),
-        (status = 400, description = "ID format error", body = MessageResponse),
-        (status = 404, description = "Not found this task ID", body = MessageResponse),
-    )
-)]
-pub async fn task_retry_handler(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-) -> Result<Json<MessageResponse>, (StatusCode, Json<MessageResponse>)> {
-    api_v2_service::task_retry(&state, &id).await
 }
 
 #[utoipa::path(

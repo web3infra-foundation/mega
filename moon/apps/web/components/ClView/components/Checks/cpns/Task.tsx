@@ -1,13 +1,15 @@
-import { useState } from 'react'
-import { CheckIcon, ChevronDownIcon, FileDirectoryIcon, XIcon } from '@primer/octicons-react'
+import { useMemo, useState } from 'react'
+import { CheckIcon, ChevronDownIcon, ClockIcon, FileDirectoryIcon, SyncIcon, XIcon } from '@primer/octicons-react'
 import { format } from 'date-fns'
 import { useAtom } from 'jotai'
 
+import { StatusProjectRelativePath } from '@gitmono/types/generated'
 import { LoadingSpinner } from '@gitmono/ui/Spinner'
 
 import { buildIdAtom } from '@/components/Issues/utils/store'
+import { usePostRetryBuild } from '@/hooks/SSE/usePostRetryBuild'
 
-import { BuildDTO, Status, TaskInfoDTO } from './store'
+import { BuildDTO, getLatestBuildId, isTaskQueued, Status, TaskInfoDTO } from './store'
 
 /**
  * Format ISO date string to readable format
@@ -29,12 +31,13 @@ export interface TreeRootProps {
   tasks: TaskInfoDTO[]
   logStatus: Record<string, LogStatus>
   totalTasksCount?: number
+  cl: string
 }
 
 /**
  * Tree Root Component - Top level node showing the path
  */
-export const TreeRoot = ({ path, tasks, logStatus, totalTasksCount }: TreeRootProps) => {
+export const TreeRoot = ({ path, tasks, logStatus, totalTasksCount, cl }: TreeRootProps) => {
   const [isExpanded, setIsExpanded] = useState(true)
 
   // Show the total number of tasks in dropdown (displayed as "builds")
@@ -63,7 +66,7 @@ export const TreeRoot = ({ path, tasks, logStatus, totalTasksCount }: TreeRootPr
       {isExpanded && (
         <div className='bg-gray-50/50 dark:bg-gray-900/20'>
           {tasks.map((t, index) => (
-            <Task key={t.task_id} list={t} logStatus={logStatus} isLast={index === tasks.length - 1} />
+            <Task key={t.task_id} list={t} logStatus={logStatus} isLast={index === tasks.length - 1} cl={cl} />
           ))}
         </div>
       )}
@@ -77,11 +80,13 @@ export const TreeRoot = ({ path, tasks, logStatus, totalTasksCount }: TreeRootPr
 export const Task = ({
   list,
   logStatus,
-  isLast
+  isLast,
+  cl
 }: {
   list: TaskInfoDTO
   logStatus: Record<string, LogStatus>
   isLast?: boolean
+  cl: string
 }) => {
   const [isExpanded, setIsExpanded] = useState(true)
 
@@ -144,6 +149,15 @@ export const Task = ({
       }
     }
 
+    // If any target is uninitialized, show waiting state
+    if (states.some((s) => s === 'Uninitialized')) {
+      return {
+        status: 'Uninitialized',
+        icon: <LoadingSpinner />,
+        badgeClass: 'bg-gray-100 text-gray-700 dark:bg-gray-700/60 dark:text-gray-300'
+      }
+    }
+
     // If all completed, show completed
     if (states.every((s) => s === 'Completed')) {
       return {
@@ -158,6 +172,13 @@ export const Task = ({
 
   const taskStatus = getTaskStatus()
   const fileName = getFileName()
+
+  // Show builds oldest-first so the sequence numbers (#1, #2, ...) read as the
+  // chronological attempt order rather than opaque build ids.
+  const orderedBuilds = useMemo(
+    () => [...(list.build_list ?? [])].sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime()),
+    [list.build_list]
+  )
 
   return (
     <div className={`relative ${!isLast ? 'border-b border-gray-200 dark:border-gray-700' : ''}`}>
@@ -197,8 +218,19 @@ export const Task = ({
 
       {isExpanded && list && (
         <div className='bg-gray-50 dark:bg-gray-900/30'>
-          {list.build_list.map((i, index) => (
-            <TaskItem key={i.id} build={i} logStatus={logStatus[i.id]} isLast={index === list.build_list.length - 1} />
+          {orderedBuilds.map((i, index) => (
+            <TaskItem
+              key={i.id}
+              build={i}
+              seq={index + 1}
+              logStatus={logStatus[i.id]}
+              isLast={index === orderedBuilds.length - 1}
+              cl={cl}
+              clId={list.cl_id}
+              changes={list.changes}
+              isQueued={isTaskQueued(list)}
+              isLatestBuild={i.id === getLatestBuildId(list)}
+            />
           ))}
         </div>
       )}
@@ -211,19 +243,52 @@ export const Task = ({
  */
 export const TaskItem = ({
   build,
+  seq,
   logStatus,
-  isLast
+  isLast,
+  cl,
+  clId,
+  changes,
+  isQueued,
+  isLatestBuild
 }: {
   build: BuildDTO
+  seq?: number
   logStatus?: LogStatus
   isLast?: boolean
+  cl: string
+  clId?: number
+  changes?: StatusProjectRelativePath[]
+  isQueued?: boolean
+  isLatestBuild?: boolean
 }) => {
   const [buildId, setBuildId] = useAtom(buildIdAtom)
+  const { mutate: retryBuild, isPending: isRetrying } = usePostRetryBuild(cl)
+
+  // A not-yet-started build (queued, waiting for a worker) reports as "Building"
+  // because it has no end_at; surface it distinctly so users know it has no logs.
+  const showQueued = Boolean(isQueued) && build.status === 'Building'
 
   const handleClick = (build_id: string) => {
     setBuildId(build_id)
   }
 
+  const handleRetry = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (isRetrying) return
+    retryBuild({
+      build_id: build.id,
+      cl_link: cl,
+      cl_id: clId ?? 0,
+      changes: changes ?? [],
+      targets: []
+    })
+  }
+
+  // Retry only the task's latest build, and only when it has failed or been
+  // interrupted. Being the latest finished build already guarantees no newer
+  // build is in flight; the backend enforces the same invariant.
+  const canRetry = Boolean(isLatestBuild) && (build.status === 'Failed' || build.status === 'Interrupted')
   const isSelected = buildId === build.id
   const isHighlighted = logStatus === 'success'
 
@@ -259,19 +324,42 @@ export const TaskItem = ({
         </div>
 
         <div className='flex items-center gap-2'>
-          {identifyStatus(build.status || Status.NotFound)}
+          {showQueued ? (
+            <ClockIcon size={14} className='text-gray-500 dark:text-gray-400' />
+          ) : (
+            identifyStatus(build.status || Status.NotFound)
+          )}
           <span
+            title={build.id}
             className={`font-mono text-sm transition-colors ${textColor} group-hover:text-blue-600 dark:group-hover:text-blue-400`}
           >
-            {build.id}
+            {seq != null ? `#${seq}` : build.id}
           </span>
+          {build.start_at && (
+            <span className='font-mono text-xs text-gray-400 dark:text-gray-500'>{formatDateTime(build.start_at)}</span>
+          )}
+          {showQueued && (
+            <span className='rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-gray-700/60 dark:text-gray-300'>
+              Queued
+            </span>
+          )}
         </div>
 
-        {isSelected && (
-          <div className='ml-auto'>
-            <div className='h-1.5 w-1.5 animate-pulse rounded-full bg-blue-500' />
-          </div>
-        )}
+        <div className='ml-auto flex items-center gap-2'>
+          {canRetry && (
+            <button
+              type='button'
+              onClick={handleRetry}
+              disabled={isRetrying}
+              title='Retry build'
+              className='flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2 py-0.5 text-xs font-medium text-gray-600 opacity-0 transition-all hover:border-blue-400 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-60 group-hover:opacity-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-blue-500 dark:hover:text-blue-400'
+            >
+              <SyncIcon size={12} className={isRetrying ? 'animate-spin' : ''} />
+              <span>{isRetrying ? 'Retrying' : 'Retry'}</span>
+            </button>
+          )}
+          {isSelected && <div className='h-1.5 w-1.5 animate-pulse rounded-full bg-blue-500' />}
+        </div>
       </div>
     </div>
   )
@@ -283,9 +371,13 @@ export const identifyStatus = (status: Status[keyof Status]) => {
       return <CheckIcon size={14} className='text-green-700 dark:text-green-400' />
     case Status.Failed:
       return <XIcon size={14} className='text-red-600 dark:text-red-400' />
+    case Status.Interrupted:
+      return <XIcon size={14} className='text-orange-600 dark:text-orange-400' />
     case Status.Building:
       return <LoadingSpinner />
     case Status.Pending:
+      return <LoadingSpinner />
+    case Status.Uninitialized:
       return <LoadingSpinner />
     case Status.NotFound:
       return <LoadingSpinner />

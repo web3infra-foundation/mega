@@ -56,7 +56,13 @@ impl AppState {
     ) -> Self {
         let workers = Arc::new(DashMap::new());
         let active_builds = Arc::new(DashMap::new());
-        let scheduler = TaskScheduler::new(conn.clone(), workers, active_builds, queue_config);
+        let scheduler = TaskScheduler::new(
+            conn.clone(),
+            workers,
+            active_builds,
+            queue_config,
+            log_service.clone(),
+        );
         let target_status_cache = TargetStatusCache::new();
         let (shutdown_tx, _) = watch::channel(false);
 
