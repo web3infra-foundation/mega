@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { CheckIcon, ChevronDownIcon, ClockIcon, FileDirectoryIcon, SyncIcon, XIcon } from '@primer/octicons-react'
 import { format } from 'date-fns'
 import { useAtom } from 'jotai'
@@ -9,7 +9,7 @@ import { LoadingSpinner } from '@gitmono/ui/Spinner'
 import { buildIdAtom } from '@/components/Issues/utils/store'
 import { usePostRetryBuild } from '@/hooks/SSE/usePostRetryBuild'
 
-import { BuildDTO, getLatestBuildId, isTaskInFlight, isTaskQueued, Status, TaskInfoDTO } from './store'
+import { BuildDTO, getLatestBuildId, isTaskQueued, Status, TaskInfoDTO } from './store'
 
 /**
  * Format ISO date string to readable format
@@ -173,6 +173,13 @@ export const Task = ({
   const taskStatus = getTaskStatus()
   const fileName = getFileName()
 
+  // Show builds oldest-first so the sequence numbers (#1, #2, ...) read as the
+  // chronological attempt order rather than opaque build ids.
+  const orderedBuilds = useMemo(
+    () => [...(list.build_list ?? [])].sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime()),
+    [list.build_list]
+  )
+
   return (
     <div className={`relative ${!isLast ? 'border-b border-gray-200 dark:border-gray-700' : ''}`}>
       {/* Vertical line connector */}
@@ -211,18 +218,18 @@ export const Task = ({
 
       {isExpanded && list && (
         <div className='bg-gray-50 dark:bg-gray-900/30'>
-          {list.build_list.map((i, index) => (
+          {orderedBuilds.map((i, index) => (
             <TaskItem
               key={i.id}
               build={i}
+              seq={index + 1}
               logStatus={logStatus[i.id]}
-              isLast={index === list.build_list.length - 1}
+              isLast={index === orderedBuilds.length - 1}
               cl={cl}
               clId={list.cl_id}
               changes={list.changes}
               isQueued={isTaskQueued(list)}
               isLatestBuild={i.id === getLatestBuildId(list)}
-              taskInFlight={isTaskInFlight(list)}
             />
           ))}
         </div>
@@ -236,16 +243,17 @@ export const Task = ({
  */
 export const TaskItem = ({
   build,
+  seq,
   logStatus,
   isLast,
   cl,
   clId,
   changes,
   isQueued,
-  isLatestBuild,
-  taskInFlight
+  isLatestBuild
 }: {
   build: BuildDTO
+  seq?: number
   logStatus?: LogStatus
   isLast?: boolean
   cl: string
@@ -253,7 +261,6 @@ export const TaskItem = ({
   changes?: StatusProjectRelativePath[]
   isQueued?: boolean
   isLatestBuild?: boolean
-  taskInFlight?: boolean
 }) => {
   const [buildId, setBuildId] = useAtom(buildIdAtom)
   const { mutate: retryBuild, isPending: isRetrying } = usePostRetryBuild(cl)
@@ -278,12 +285,10 @@ export const TaskItem = ({
     })
   }
 
-  // Retry only the task's latest build, only when it has failed/been interrupted,
-  // and only when nothing for the task is currently in flight.
-  const canRetry =
-    Boolean(isLatestBuild) &&
-    !taskInFlight &&
-    (build.status === 'Failed' || build.status === 'Interrupted')
+  // Retry only the task's latest build, and only when it has failed or been
+  // interrupted. Being the latest finished build already guarantees no newer
+  // build is in flight; the backend enforces the same invariant.
+  const canRetry = Boolean(isLatestBuild) && (build.status === 'Failed' || build.status === 'Interrupted')
   const isSelected = buildId === build.id
   const isHighlighted = logStatus === 'success'
 
@@ -325,10 +330,14 @@ export const TaskItem = ({
             identifyStatus(build.status || Status.NotFound)
           )}
           <span
+            title={build.id}
             className={`font-mono text-sm transition-colors ${textColor} group-hover:text-blue-600 dark:group-hover:text-blue-400`}
           >
-            {build.id}
+            {seq != null ? `#${seq}` : build.id}
           </span>
+          {build.start_at && (
+            <span className='font-mono text-xs text-gray-400 dark:text-gray-500'>{formatDateTime(build.start_at)}</span>
+          )}
           {showQueued && (
             <span className='rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-gray-700/60 dark:text-gray-300'>
               Queued

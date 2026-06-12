@@ -160,12 +160,16 @@ async fn process_message(
                 WSMessage::TaskBuildOutput { build_id, output } => {
                     // Resolve metadata and drop the DashMap guard before awaiting
                     // to avoid holding a shard lock across an await point.
-                    let meta = state.scheduler.active_builds.get(&build_id).map(|build_info| {
-                        (
-                            build_info.event_payload.task_id.to_string(),
-                            LogService::last_segment(&build_info.event_payload.repo),
-                        )
-                    });
+                    let meta = state
+                        .scheduler
+                        .active_builds
+                        .get(&build_id)
+                        .map(|build_info| {
+                            (
+                                build_info.event_payload.task_id.to_string(),
+                                LogService::last_segment(&build_info.event_payload.repo),
+                            )
+                        });
 
                     if let Some((task_id, repo_name)) = meta {
                         // Reliable persistence on the build-output path itself.
@@ -274,11 +278,17 @@ async fn process_message(
                     )
                     .await;
 
-                    // Upload the finished build's log to cloud storage in the
-                    // background, with retries.
+                    // The build has finished, so the local log is now final.
+                    // Mark it complete so reads trust the local copy, then upload
+                    // it to cloud storage in the background with retries.
+                    let repo_segment = LogService::last_segment(&repo);
+                    state
+                        .log_service
+                        .mark_local_complete(&task_id.to_string(), &repo_segment, &build_id)
+                        .await;
                     state.log_service.spawn_cloud_upload(
                         task_id.to_string(),
-                        LogService::last_segment(&repo),
+                        repo_segment,
                         build_id.to_string(),
                     );
 

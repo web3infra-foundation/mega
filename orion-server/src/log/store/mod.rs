@@ -42,7 +42,6 @@ pub trait LogStore: Send + Sync {
     /// # Returns
     /// * `Ok(())` - If the deletion succeeds.
     /// * `Err` - Returns an error if the deletion fails, e.g., file not found, permission denied, or cloud operation failure.
-    #[allow(dead_code)]
     async fn delete(&self, key: &str) -> anyhow::Result<()>;
 
     /// Reads a range of lines from the log identified by `key`.

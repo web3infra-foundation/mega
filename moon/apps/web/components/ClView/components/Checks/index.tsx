@@ -427,7 +427,7 @@ const Checks = ({ cl, path }: { cl: string; path?: string }) => {
     if (status === 'success' && logsMap[buildid]) {
       return (
         <div ref={logContainerRef} className='h-full select-text [&_*]:select-text'>
-          <LazyLog key={buildid} extraLines={1} text={logsMap[buildid]} stream enableSearch caseInsensitive />
+          <LazyLog key={buildid} extraLines={1} text={logsMap[buildid]} enableSearch caseInsensitive />
         </div>
       )
     }

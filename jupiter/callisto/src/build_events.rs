@@ -11,7 +11,6 @@ pub struct Model {
     pub task_id: Uuid,
     pub retry_count: i32,
     pub exit_code: Option<i32>,
-    pub log: Option<String>,
     pub log_output_file: String,
     pub start_at: DateTimeWithTimeZone,
     pub end_at: Option<DateTimeWithTimeZone>,

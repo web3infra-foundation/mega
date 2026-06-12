@@ -23,10 +23,11 @@ use uuid::Uuid;
 
 use crate::{
     auto_retry::AutoRetryJudger,
+    log::log_service::LogService,
     model::{dto::CoreWorkerStatus, internal::BuildTargetStateDTO, target_state::TargetState},
     repository::{
         build_events_repo::BuildEventsRepo, build_targets_repo::BuildTargetsRepo,
-        target_state_histories_repo::TargetStateHistoriesRepo,
+        orion_tasks_repo::OrionTasksRepo, target_state_histories_repo::TargetStateHistoriesRepo,
     },
 };
 
@@ -126,7 +127,6 @@ pub struct BuildEventPayload {
 }
 
 #[derive(Debug, Clone)]
-// #[allow(dead_code)]
 pub struct PendingBuildEventV2 {
     pub event_payload: BuildEventPayload,
     pub(crate) targets: Vec<BuildTargetStateDTO>,
@@ -139,10 +139,8 @@ pub struct PendingBuildEventV2 {
 pub struct BuildInfo {
     pub event_payload: BuildEventPayload,
     pub target_id: Uuid,
-    #[allow(dead_code)]
     pub target_path: String,
     pub changes: Vec<Status<ProjectRelativePath>>,
-    #[allow(dead_code)]
     pub started_at: DateTimeUtc,
     pub auto_retry_judger: AutoRetryJudger,
     pub worker_id: String,
@@ -215,6 +213,8 @@ pub struct TaskScheduler {
     pub active_builds: Arc<DashMap<String, BuildInfo>>,
     /// Database connection
     pub conn: DatabaseConnection,
+    /// Log service, used to persist explanatory logs for timed-out builds
+    pub log_service: LogService,
 }
 
 impl TaskScheduler {
@@ -224,6 +224,7 @@ impl TaskScheduler {
         workers: Arc<DashMap<String, WorkerInfo>>,
         active_builds: Arc<DashMap<String, BuildInfo>>,
         queue_config: Option<TaskQueueConfig>,
+        log_service: LogService,
     ) -> Self {
         let config = queue_config.unwrap_or_default();
         Self {
@@ -232,6 +233,7 @@ impl TaskScheduler {
             workers,
             active_builds,
             conn,
+            log_service,
         }
     }
 
@@ -335,21 +337,60 @@ impl TaskScheduler {
         queue.cleanup_expired_v2()
     }
 
-    /// Mark a build that timed out in the queue (no worker became available) as
-    /// ended: the build event is closed with no exit code and every target of
-    /// the task is moved to `Interrupted`, matching the worker-interrupt flow.
-    async fn fail_expired_build(&self, expired: &PendingBuildEventV2) {
-        let build_event_id = expired.event_payload.build_event_id;
-        let task_id = expired.event_payload.task_id;
+    async fn fail_expired_build_event(
+        &self,
+        build_event_id: Uuid,
+        task_id: Uuid,
+        repo: &str,
+        wait_secs: u64,
+    ) {
         let now = chrono::Utc::now().with_timezone(&FixedOffset::east_opt(0).unwrap());
 
-        if let Err(e) = BuildEventsRepo::mark_interrupted(build_event_id, now, &self.conn).await {
+        // Atomically claim the interrupt transition first. If another path (the
+        // in-memory timeout or the DB stale-build sweep) already finalized this
+        // build, `rows_affected` is 0 and we must not write a second explanatory
+        // log line or duplicate target history.
+        match BuildEventsRepo::mark_interrupted(build_event_id, now, &self.conn).await {
+            Ok(0) => return,
+            Ok(_) => {}
+            Err(e) => {
+                tracing::error!(
+                    "Failed to mark expired build {} as interrupted: {}",
+                    build_event_id,
+                    e
+                );
+                return;
+            }
+        }
+
+        // We won the claim: persist an explanatory log line so the build does not
+        // appear as a silent, empty failure in the UI, mark the local log
+        // complete, and upload it to cloud, mirroring the normal completion flow.
+        let repo_segment = LogService::last_segment(repo);
+        let task_id_str = task_id.to_string();
+        let build_id_str = build_event_id.to_string();
+        let message = format!(
+            "No build worker became available within {wait_secs}s; build marked as Interrupted.\n"
+        );
+        if let Err(e) = self
+            .log_service
+            .append_local(&task_id_str, &repo_segment, &build_id_str, &message)
+            .await
+        {
             tracing::error!(
-                "Failed to mark expired build {} as interrupted: {}",
+                "Failed to write timeout log for expired build {}: {}",
                 build_event_id,
                 e
             );
         }
+        self.log_service
+            .mark_local_complete(&task_id_str, &repo_segment, &build_id_str)
+            .await;
+        self.log_service.spawn_cloud_upload(
+            task_id_str.clone(),
+            repo_segment,
+            build_id_str.clone(),
+        );
 
         match BuildTargetsRepo::list_by_task_id(&self.conn, task_id).await {
             Ok(targets) => {
@@ -386,11 +427,102 @@ impl TaskScheduler {
                     }
                 }
             }
-            Err(e) => tracing::error!(
-                "Failed to list targets for expired task {}: {}",
-                task_id,
-                e
-            ),
+            Err(e) => tracing::error!("Failed to list targets for expired task {}: {}", task_id, e),
+        }
+    }
+
+    /// Mark a build that timed out in the in-memory queue (no worker became
+    /// available) as ended.
+    async fn fail_expired_build(&self, expired: &PendingBuildEventV2) {
+        let wait_secs = {
+            let queue = self.pending_tasks.lock().await;
+            queue.config.max_wait_time.as_secs()
+        };
+
+        self.fail_expired_build_event(
+            expired.event_payload.build_event_id,
+            expired.event_payload.task_id,
+            &expired.event_payload.repo,
+            wait_secs,
+        )
+        .await;
+    }
+
+    /// DB-level safety net for queued builds that are no longer present in this
+    /// process's in-memory queue (for example after restart or multi-instance
+    /// routing). These would otherwise remain `Uninitialized` forever.
+    async fn cleanup_stale_queued_builds(&self) {
+        let max_wait_time = {
+            let queue = self.pending_tasks.lock().await;
+            queue.config.max_wait_time
+        };
+        let wait_secs = max_wait_time.as_secs();
+        let cutoff = (chrono::Utc::now()
+            - chrono::Duration::from_std(max_wait_time)
+                .unwrap_or_else(|_| chrono::Duration::seconds(30)))
+        .with_timezone(&FixedOffset::east_opt(0).unwrap());
+
+        let stale_builds = match BuildEventsRepo::list_unfinished_before(&self.conn, cutoff).await {
+            Ok(builds) => builds,
+            Err(e) => {
+                tracing::error!("Failed to list stale queued builds: {}", e);
+                return;
+            }
+        };
+
+        for build in stale_builds {
+            let build_id = build.id.to_string();
+            if self.active_builds.contains_key(&build_id) {
+                continue;
+            }
+
+            let targets = match BuildTargetsRepo::list_by_task_id(&self.conn, build.task_id).await {
+                Ok(targets) => targets,
+                Err(e) => {
+                    tracing::error!(
+                        "Failed to list targets while checking stale build {}: {}",
+                        build.id,
+                        e
+                    );
+                    continue;
+                }
+            };
+
+            let is_still_queued = targets
+                .iter()
+                .any(|target| target.latest_state == TargetState::Uninitialized.to_string());
+            if !is_still_queued {
+                continue;
+            }
+
+            let repo = match OrionTasksRepo::find_by_id(&self.conn, build.task_id).await {
+                Ok(Some(task)) => task.repo_name,
+                Ok(None) => {
+                    tracing::warn!(
+                        "Skipping stale build {} because task {} no longer exists",
+                        build.id,
+                        build.task_id
+                    );
+                    continue;
+                }
+                Err(e) => {
+                    tracing::error!(
+                        "Failed to load task {} for stale build {}: {}",
+                        build.task_id,
+                        build.id,
+                        e
+                    );
+                    continue;
+                }
+            };
+
+            tracing::warn!(
+                "DB stale queued build {}/{} exceeded wait window; marking as interrupted",
+                build.task_id,
+                build.id
+            );
+            self.fail_expired_build_event(build.id, build.task_id, &repo, wait_secs)
+                .await;
         }
     }
 
@@ -641,6 +773,8 @@ impl TaskScheduler {
                         cleanup_scheduler.fail_expired_build(&task).await;
                     }
                 }
+
+                cleanup_scheduler.cleanup_stale_queued_builds().await;
             }
         });
 

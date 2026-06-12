@@ -65,20 +65,6 @@ export const isTaskQueued = (task: TaskInfoDTO): boolean => {
 }
 
 /**
- * A task has work in flight when any target is still `Pending` / `Building` /
- * `Uninitialized`, or any build event has not finished. Retry must be disabled
- * while a task is in flight to avoid duplicate concurrent builds.
- */
-export const isTaskInFlight = (task: TaskInfoDTO): boolean => {
-  const targetActive = task.targets?.some(
-    (t) => t.state === 'Pending' || t.state === 'Building' || t.state === 'Uninitialized'
-  )
-  const buildActive = task.build_list?.some((b) => b.status === 'Building')
-
-  return Boolean(targetActive || buildActive)
-}
-
-/**
  * Id of the task's most recent build (by start time). Only this build is eligible
  * for retry; superseded builds are read-only history.
  */
