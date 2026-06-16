@@ -39,4 +39,4 @@ serial_test = { workspace = true }
 tempfile = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-scorpiofs = "0.2.2"
+scorpiofs = { git = "https://github.com/web3infra-foundation/scorpiofs.git", rev = "900309f0abc397ccf8b9565ae0da2e3ef1e65618" }
