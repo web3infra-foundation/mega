@@ -1549,7 +1549,10 @@ mod tests {
     #[serial]
     fn test_antares_unmount_grace_duration_clamps_and_falls_back() {
         set_antares_unmount_grace_env(Some("50000"));
-        assert_eq!(antares_unmount_grace_duration(), Duration::from_millis(3000));
+        assert_eq!(
+            antares_unmount_grace_duration(),
+            Duration::from_millis(3000)
+        );
 
         set_antares_unmount_grace_env(Some("not-a-number"));
         assert_eq!(antares_unmount_grace_duration(), Duration::from_millis(150));
