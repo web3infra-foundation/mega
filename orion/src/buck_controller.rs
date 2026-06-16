@@ -67,12 +67,43 @@ fn retain_antares_mounts() -> bool {
     }
 }
 
+fn antares_unmount_grace_duration() -> Duration {
+    const DEFAULT_MS: u64 = 150;
+    match std::env::var("ORION_ANTARES_UNMOUNT_GRACE_MS") {
+        Ok(raw) => match raw.trim().parse::<u64>() {
+            Ok(ms) => Duration::from_millis(ms.clamp(0, 3_000)),
+            Err(_) => {
+                tracing::warn!(
+                    value = %raw,
+                    default_ms = DEFAULT_MS,
+                    "invalid ORION_ANTARES_UNMOUNT_GRACE_MS, using default"
+                );
+                Duration::from_millis(DEFAULT_MS)
+            }
+        },
+        Err(_) => Duration::from_millis(DEFAULT_MS),
+    }
+}
+
 async fn cleanup_antares_mount(
     task_id: &str,
     mount_id: &str,
     mount_point: Option<&str>,
     reason: &str,
 ) {
+    let grace = antares_unmount_grace_duration();
+    if !grace.is_zero() {
+        tracing::info!(
+            "[Task {}] Waiting {:?} before Antares mount cleanup (mount_id={}, mountpoint={}, reason={})",
+            task_id,
+            grace,
+            mount_id,
+            mount_point.unwrap_or("<unknown>"),
+            reason,
+        );
+        tokio::time::sleep(grace).await;
+    }
+
     match unmount_antares_fs(mount_id).await {
         Ok(true) => tracing::info!(
             "[Task {}] Cleaned Antares mount (mount_id={}, mountpoint={}, reason={})",
@@ -1369,6 +1400,7 @@ mod tests {
     use std::{
         fs,
         path::{Path, PathBuf},
+        time::Duration,
     };
 
     use api_model::buck2::{status::Status, types::ProjectRelativePath};
@@ -1378,8 +1410,9 @@ mod tests {
     use tokio::sync::mpsc;
 
     use super::{
-        finish_without_build_if_no_targets, get_build_targets, get_repo_targets,
-        remap_repo_local_change_paths, retain_antares_mounts, validate_project_root_exists,
+        antares_unmount_grace_duration, finish_without_build_if_no_targets, get_build_targets,
+        get_repo_targets, remap_repo_local_change_paths, retain_antares_mounts,
+        validate_project_root_exists,
     };
 
     struct JsonlCleanupGuard {
@@ -1459,6 +1492,16 @@ mod tests {
         }
     }
 
+    fn set_antares_unmount_grace_env(value: Option<&str>) {
+        // SAFETY: these tests are marked serial and only mutate process env inside the test.
+        unsafe {
+            match value {
+                Some(value) => std::env::set_var("ORION_ANTARES_UNMOUNT_GRACE_MS", value),
+                None => std::env::remove_var("ORION_ANTARES_UNMOUNT_GRACE_MS"),
+            }
+        }
+    }
+
     #[test]
     #[serial]
     fn test_retain_antares_mounts_defaults_to_false() {
@@ -1485,6 +1528,33 @@ mod tests {
             );
         }
         set_mount_retention_env(None);
+    }
+
+    #[test]
+    #[serial]
+    fn test_antares_unmount_grace_duration_defaults_to_150ms() {
+        set_antares_unmount_grace_env(None);
+        assert_eq!(antares_unmount_grace_duration(), Duration::from_millis(150));
+    }
+
+    #[test]
+    #[serial]
+    fn test_antares_unmount_grace_duration_accepts_explicit_value() {
+        set_antares_unmount_grace_env(Some("275"));
+        assert_eq!(antares_unmount_grace_duration(), Duration::from_millis(275));
+        set_antares_unmount_grace_env(None);
+    }
+
+    #[test]
+    #[serial]
+    fn test_antares_unmount_grace_duration_clamps_and_falls_back() {
+        set_antares_unmount_grace_env(Some("50000"));
+        assert_eq!(antares_unmount_grace_duration(), Duration::from_millis(3000));
+
+        set_antares_unmount_grace_env(Some("not-a-number"));
+        assert_eq!(antares_unmount_grace_duration(), Duration::from_millis(150));
+
+        set_antares_unmount_grace_env(None);
     }
 
     #[tokio::test]
