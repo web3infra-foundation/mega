@@ -19,6 +19,7 @@ Default git-base-url is "https://git.gitmega.com".
 from __future__ import annotations
 
 import argparse
+import atexit
 import collections
 import os
 import re
@@ -775,6 +776,30 @@ def main(argv: list[str]) -> int:
     signoff = not args.no_signoff
     gpg_sign = not args.no_gpg_sign
 
+    # Guarantee the throwaway per-repo .git directories are removed once the run
+    # finishes, even if it is interrupted (Ctrl-C) or aborts with an exception
+    # before per-task cleanup runs. This prevents stale .git leftovers from
+    # blocking/altering subsequent runs.
+    _swept = False
+
+    def _final_git_sweep() -> None:
+        nonlocal _swept
+        if _swept:
+            return
+        _swept = True
+        leftover = 0
+        for s in uniq_specs:
+            if (s.repo_dir / ".git").exists():
+                cleanup_git(s.repo_dir)
+                leftover += 1
+        if leftover:
+            _eprint(
+                f"Cleaned up {leftover} leftover .git "
+                f"director{'y' if leftover == 1 else 'ies'} after run."
+            )
+
+    atexit.register(_final_git_sweep)
+
     jobs = max(1, int(args.jobs))
 
     pending_specs = list(uniq_specs)
@@ -935,6 +960,8 @@ def main(argv: list[str]) -> int:
             if attempt == retries:
                 # Last attempt failed
                 _eprint(f"\nFailed to import {len(pending_specs)} repositories after {attempt + 1} attempts.")
+
+    _final_git_sweep()
 
     if not use_rich and final_exit_code == 0:
         print("\nAll imports completed successfully.")

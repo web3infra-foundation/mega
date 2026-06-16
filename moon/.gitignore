@@ -5,6 +5,7 @@ node_modules
 .pnp
 .pnp.js
 dist
+*.tsbuildinfo
 
 # testing
 coverage

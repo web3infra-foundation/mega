@@ -14,7 +14,6 @@ use uuid::Uuid;
 
 use crate::{
     app_state::AppState,
-    auto_retry::AutoRetryJudger,
     log::log_service::LogService,
     model::target_state::TargetState,
     repository::{
@@ -23,8 +22,6 @@ use crate::{
     },
     scheduler::{WorkerInfo, WorkerStatus},
 };
-
-const RETRY_COUNT_MAX: i32 = 3;
 
 pub async fn ws_handler(
     ws: WebSocketUpgrade,
@@ -194,10 +191,6 @@ async fn process_message(
                             is_end: false,
                         });
                     }
-
-                    if let Some(mut build_info) = state.scheduler.active_builds.get_mut(&build_id) {
-                        build_info.auto_retry_judger.judge_by_output(&output);
-                    }
                 }
                 WSMessage::TaskBuildCompleteV2 {
                     build_id,
@@ -211,56 +204,16 @@ async fn process_message(
                     exit_code,
                     message,
                 } => {
-                    let (
-                        mut auto_retry_judger,
-                        mut retry_count,
-                        repo,
-                        changes,
-                        cl_link,
-                        task_id,
-                        target_id,
-                    ) = if let Some(build_info) = state.scheduler.active_builds.get(&build_id) {
-                        (
-                            build_info.auto_retry_judger.clone(),
-                            build_info.event_payload.retry_count,
-                            build_info.event_payload.repo.clone(),
-                            build_info.changes.clone(),
-                            build_info.event_payload.cl_link.clone(),
-                            build_info.event_payload.task_id,
-                            build_info.target_id,
-                        )
-                    } else {
-                        return ControlFlow::Continue(());
-                    };
-
-                    auto_retry_judger.judge_by_exit_code(exit_code.unwrap_or(0));
-                    if auto_retry_judger.get_can_auto_retry() && retry_count < RETRY_COUNT_MAX {
-                        retry_count += 1;
-                        if let Some(mut build_info) =
-                            state.scheduler.active_builds.get_mut(&build_id)
-                        {
-                            build_info.event_payload.retry_count = retry_count;
-                            build_info.auto_retry_judger = AutoRetryJudger::new();
-                        }
-                        let _ = BuildEventsRepo::update_retry_count(
-                            &build_id,
-                            retry_count,
-                            &state.conn,
-                        )
-                        .await;
-
-                        let msg = WSMessage::TaskBuild {
-                            build_id: build_id.clone(),
-                            repo: repo.clone(),
-                            cl_link,
-                            changes,
-                        };
-                        if let Some(worker) = state.scheduler.workers.get_mut(&current_worker_id)
-                            && worker.sender.send(msg).is_ok()
-                        {
+                    let (repo, task_id, target_id) =
+                        if let Some(build_info) = state.scheduler.active_builds.get(&build_id) {
+                            (
+                                build_info.event_payload.repo.clone(),
+                                build_info.event_payload.task_id,
+                                build_info.target_id,
+                            )
+                        } else {
                             return ControlFlow::Continue(());
-                        }
-                    }
+                        };
 
                     state.log_service.publish(LogEvent {
                         task_id: task_id.to_string(),

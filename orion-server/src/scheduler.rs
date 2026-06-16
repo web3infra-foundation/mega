@@ -22,7 +22,6 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::{
-    auto_retry::AutoRetryJudger,
     log::log_service::LogService,
     model::{dto::CoreWorkerStatus, internal::BuildTargetStateDTO, target_state::TargetState},
     repository::{
@@ -142,7 +141,6 @@ pub struct BuildInfo {
     pub target_path: String,
     pub changes: Vec<Status<ProjectRelativePath>>,
     pub started_at: DateTimeUtc,
-    pub auto_retry_judger: AutoRetryJudger,
     pub worker_id: String,
 }
 
@@ -344,18 +342,50 @@ impl TaskScheduler {
         repo: &str,
         wait_secs: u64,
     ) {
+        let message = format!(
+            "No build worker became available within {wait_secs}s; build marked as Interrupted.\n"
+        );
+        self.finalize_interrupted_build(build_event_id, task_id, repo, &message)
+            .await;
+    }
+
+    /// Immediately finalize a build that cannot be scheduled because no worker is
+    /// available, marking it `Interrupted` with an explanatory log. Used instead
+    /// of queuing the build when there are no idle workers, so the UI shows a
+    /// clear terminal state (retryable) rather than a build stuck in the queue.
+    pub async fn fail_unschedulable_build(&self, build_event_id: Uuid, task_id: Uuid, repo: &str) {
+        self.finalize_interrupted_build(
+            build_event_id,
+            task_id,
+            repo,
+            "No build worker is currently available; build marked as Interrupted.\n",
+        )
+        .await;
+    }
+
+    /// Core, idempotent build finalization: atomically claim the interrupt
+    /// transition, then (only if we won the claim) persist an explanatory log
+    /// line, mark the local log complete, upload it, and move the task's targets
+    /// to `Interrupted`.
+    async fn finalize_interrupted_build(
+        &self,
+        build_event_id: Uuid,
+        task_id: Uuid,
+        repo: &str,
+        message: &str,
+    ) {
         let now = chrono::Utc::now().with_timezone(&FixedOffset::east_opt(0).unwrap());
 
         // Atomically claim the interrupt transition first. If another path (the
-        // in-memory timeout or the DB stale-build sweep) already finalized this
-        // build, `rows_affected` is 0 and we must not write a second explanatory
-        // log line or duplicate target history.
+        // in-memory timeout, the DB stale-build sweep, or startup reconciliation)
+        // already finalized this build, `rows_affected` is 0 and we must not write
+        // a second explanatory log line or duplicate target history.
         match BuildEventsRepo::mark_interrupted(build_event_id, now, &self.conn).await {
             Ok(0) => return,
             Ok(_) => {}
             Err(e) => {
                 tracing::error!(
-                    "Failed to mark expired build {} as interrupted: {}",
+                    "Failed to mark build {} as interrupted: {}",
                     build_event_id,
                     e
                 );
@@ -369,16 +399,13 @@ impl TaskScheduler {
         let repo_segment = LogService::last_segment(repo);
         let task_id_str = task_id.to_string();
         let build_id_str = build_event_id.to_string();
-        let message = format!(
-            "No build worker became available within {wait_secs}s; build marked as Interrupted.\n"
-        );
         if let Err(e) = self
             .log_service
-            .append_local(&task_id_str, &repo_segment, &build_id_str, &message)
+            .append_local(&task_id_str, &repo_segment, &build_id_str, message)
             .await
         {
             tracing::error!(
-                "Failed to write timeout log for expired build {}: {}",
+                "Failed to write interrupt log for build {}: {}",
                 build_event_id,
                 e
             );
@@ -395,6 +422,10 @@ impl TaskScheduler {
         match BuildTargetsRepo::list_by_task_id(&self.conn, task_id).await {
             Ok(targets) => {
                 for target in targets {
+                    // Never overwrite a target that already reached a final state.
+                    if TargetState::from(target.latest_state.clone()).is_terminal() {
+                        continue;
+                    }
                     if let Err(e) = BuildTargetsRepo::update_latest_state(
                         &self.conn,
                         target.id,
@@ -523,6 +554,80 @@ impl TaskScheduler {
             );
             self.fail_expired_build_event(build.id, build.task_id, &repo, wait_secs)
                 .await;
+        }
+    }
+
+    /// One-shot reconciliation run at process startup.
+    ///
+    /// A freshly started process has an empty `active_builds`, so any build still
+    /// marked unfinished (`end_at IS NULL`) is an orphan left behind by a previous
+    /// instance that crashed or restarted mid-build (e.g. a build stuck in
+    /// `Building`). Without this, such builds — and their `Building`/`Pending`
+    /// targets — would never reach a terminal state, since the periodic queue
+    /// sweep only reconciles `Uninitialized` (still-queued) builds and the
+    /// dead-worker check only covers currently-registered workers.
+    pub async fn reconcile_orphaned_builds_on_startup(&self) {
+        let now = chrono::Utc::now().with_timezone(&FixedOffset::east_opt(0).unwrap());
+
+        let orphaned = match BuildEventsRepo::list_unfinished_before(&self.conn, now).await {
+            Ok(builds) => builds,
+            Err(e) => {
+                tracing::error!(
+                    "Startup reconciliation failed to list unfinished builds: {}",
+                    e
+                );
+                return;
+            }
+        };
+
+        if orphaned.is_empty() {
+            return;
+        }
+
+        tracing::warn!(
+            "Startup reconciliation: finalizing {} orphaned unfinished build(s)",
+            orphaned.len()
+        );
+
+        for build in orphaned {
+            // Defensive: never touch a build this process is actively running.
+            if self.active_builds.contains_key(&build.id.to_string()) {
+                continue;
+            }
+
+            let repo = match OrionTasksRepo::find_by_id(&self.conn, build.task_id).await {
+                Ok(Some(task)) => task.repo_name,
+                Ok(None) => {
+                    tracing::warn!(
+                        "Startup reconciliation skipping build {} because task {} no longer exists",
+                        build.id,
+                        build.task_id
+                    );
+                    continue;
+                }
+                Err(e) => {
+                    tracing::error!(
+                        "Startup reconciliation failed to load task {} for build {}: {}",
+                        build.task_id,
+                        build.id,
+                        e
+                    );
+                    continue;
+                }
+            };
+
+            tracing::warn!(
+                "Startup reconciliation: marking orphaned build {}/{} as interrupted",
+                build.task_id,
+                build.id
+            );
+            self.finalize_interrupted_build(
+                build.id,
+                build.task_id,
+                &repo,
+                "Build server restarted while this build was in progress; marked as Interrupted.\n",
+            )
+            .await;
         }
     }
 
@@ -656,7 +761,6 @@ impl TaskScheduler {
             target_id,
             target_path: target_path.clone(),
             worker_id: chosen_id.clone(),
-            auto_retry_judger: AutoRetryJudger::new(),
             started_at: start_at,
         };
 
