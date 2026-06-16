@@ -818,9 +818,6 @@ importers:
       '@hookform/resolvers':
         specifier: 'catalog:'
         version: 3.3.1(react-hook-form@7.46.1(react@18.2.0))
-      '@melloware/react-logviewer':
-        specifier: ^6.3.2
-        version: 6.3.2(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(vue@3.5.12(typescript@5.4.3))
       '@mui/icons-material':
         specifier: 'catalog:'
         version: 7.1.0(@mui/material@7.1.0(@emotion/react@11.14.0(@types/react@18.2.74)(react@18.2.0))(@emotion/styled@11.14.0(@emotion/react@11.14.0(@types/react@18.2.74)(react@18.2.0))(@types/react@18.2.74)(react@18.2.0))(@types/react@18.2.74)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(@types/react@18.2.74)(react@18.2.0)
@@ -2988,12 +2985,6 @@ packages:
     peerDependencies:
       '@types/react': ^18.0.0
       react: '>=16'
-
-  '@melloware/react-logviewer@6.3.2':
-    resolution: {integrity: sha512-+cNGEI1nZkqxvkTXrD5jZ46QEm77dn+uyHLbWypgiz1Kxerndp+wsC016WNU2dztsGcYIPUi39G1Yor/xJIrZg==}
-    peerDependencies:
-      react: '>=17.0.0'
-      react-dom: '>=17.0.0'
 
   '@metascraper/helpers@5.36.0':
     resolution: {integrity: sha512-sxZDJKRnlNUQrsIq+DMqumMdYphxENdY8Lm4XCLcUan7iq2ASkSmel4fcgOJ8AMdOeiewd17hyZku276bGUuLA==}
@@ -8391,9 +8382,6 @@ packages:
   hosted-git-info@2.8.9:
     resolution: {integrity: sha512-mxIDAb9Lsm6DoOJ7xH+5+X4y1LU/4Hi50L9C5sIswK3JzULS4bwk1FvjdBgvYR4bzT4tuUQiC15FE2f5HbLvYw==}
 
-  hotkeys-js@3.13.15:
-    resolution: {integrity: sha512-gHh8a/cPTCpanraePpjRxyIlxDFrIhYqjuh01UHWEwDpglJKCnvLW8kqSx5gQtOuSsJogNZXLhOdbSExpgUiqg==}
-
   howler@2.2.4:
     resolution: {integrity: sha512-iARIBPgcQrwtEr+tALF+rapJ8qSc+Set2GJQl7xT1MQzWaVkFebdJhR3alVlSiUf5U7nAANKuj3aWpwerocD5w==}
 
@@ -9533,9 +9521,6 @@ packages:
     resolution: {integrity: sha512-bAxsR8BVfj60DWXHE3u30oHzfl4G7khkSuPW+qvpd7jFRHm7dLxOjUk1EHACJ/hxLY8phGJ0YhYHZo7jil7Qdg==}
     engines: {node: '>= 8'}
 
-  mitt@3.0.1:
-    resolution: {integrity: sha512-vKivATfr97l2/QBCYAkXYDbrIWPM2IIKEl7YPhjCvKlG3kE2gm+uBo6nEXK3M5/Ffh/FLpKExzOQ3JJoJGFKBw==}
-
   mkdirp-classic@0.5.3:
     resolution: {integrity: sha512-gKLcREMhtuZRwRAfqP3RFW+TK4JqApVBtOIftVgjuABpAtpxhPGaDcfvbhNvD0B8iD1oUr/txX35NjcaY6Ns/A==}
 
@@ -10659,10 +10644,6 @@ packages:
     peerDependencies:
       react: ^16.8.0 || ^17.0.0 || ^18.0.0
       react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0
-
-  react-string-replace@1.1.1:
-    resolution: {integrity: sha512-26TUbLzLfHQ5jO5N7y3Mx88eeKo0Ml0UjCQuX4BMfOd/JX+enQqlKpL1CZnmjeBRvQE8TR+ds9j1rqx9CxhKHQ==}
-    engines: {node: '>=0.12.0'}
 
   react-style-singleton@2.2.3:
     resolution: {integrity: sha512-b6jSvxvVnyptAiLjbkWLE/lOnR4lfTtDAl+eUC7RZy+QQWc6wRzIV2CE6xBuMmDxc2qIihtDCZD5NPOFl7fRBQ==}
@@ -12050,26 +12031,6 @@ packages:
   video-extensions@1.2.0:
     resolution: {integrity: sha512-TriMl18BHEsh2KuuSA065tbu4SNAC9fge7k8uKoTTofTq89+Xsg4K1BGbmSVETwUZhqSjd9KwRCNwXAW/buXMg==}
     engines: {node: '>=0.10.0'}
-
-  virtua@0.41.5:
-    resolution: {integrity: sha512-x1vsA9qIQNBFcCs1rzCjyYdMvDu/kT6o6zwwQnyqFOFdOyIzqyzU3WfR/hJC8WxUZXSCo2LkuoqapL8VDDMQPg==}
-    peerDependencies:
-      react: '>=16.14.0'
-      react-dom: '>=16.14.0'
-      solid-js: '>=1.0'
-      svelte: '>=5.0'
-      vue: '>=3.2'
-    peerDependenciesMeta:
-      react:
-        optional: true
-      react-dom:
-        optional: true
-      solid-js:
-        optional: true
-      svelte:
-        optional: true
-      vue:
-        optional: true
 
   vite-node@1.5.2:
     resolution: {integrity: sha512-Y8p91kz9zU+bWtF7HGt6DVw2JbhyuB2RlZix3FPYAYmUyZ3n7iTp8eSyLyY6sxtPegvxQtmlTMhfPhUfCUF93A==}
@@ -13864,19 +13825,6 @@ snapshots:
       '@types/mdx': 2.0.13
       '@types/react': 18.2.74
       react: 18.2.0
-
-  '@melloware/react-logviewer@6.3.2(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(vue@3.5.12(typescript@5.4.3))':
-    dependencies:
-      hotkeys-js: 3.13.15
-      mitt: 3.0.1
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-      react-string-replace: 1.1.1
-      virtua: 0.41.5(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(vue@3.5.12(typescript@5.4.3))
-    transitivePeerDependencies:
-      - solid-js
-      - svelte
-      - vue
 
   '@metascraper/helpers@5.36.0':
     dependencies:
@@ -21041,8 +20989,6 @@ snapshots:
 
   hosted-git-info@2.8.9: {}
 
-  hotkeys-js@3.13.15: {}
-
   howler@2.2.4: {}
 
   hsluv@1.0.1: {}
@@ -22420,8 +22366,6 @@ snapshots:
       minipass: 3.3.6
       yallist: 4.0.0
 
-  mitt@3.0.1: {}
-
   mkdirp-classic@0.5.3: {}
 
   mkdirp@1.0.4: {}
@@ -23717,8 +23661,6 @@ snapshots:
       use-isomorphic-layout-effect: 1.1.2(@types/react@18.2.74)(react@18.2.0)
     transitivePeerDependencies:
       - '@types/react'
-
-  react-string-replace@1.1.1: {}
 
   react-style-singleton@2.2.3(@types/react@18.2.74)(react@18.2.0):
     dependencies:
@@ -25340,12 +25282,6 @@ snapshots:
       vfile-message: 4.0.3
 
   video-extensions@1.2.0: {}
-
-  virtua@0.41.5(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(vue@3.5.12(typescript@5.4.3)):
-    optionalDependencies:
-      react: 18.2.0
-      react-dom: 18.2.0(react@18.2.0)
-      vue: 3.5.12(typescript@5.4.3)
 
   vite-node@1.5.2(@types/node@20.12.4)(terser@5.30.3):
     dependencies:

@@ -67,7 +67,7 @@ russh = "0.61.2"
 tower-http = "0.7.0"
 tower = "0.5.3"
 tower-sessions = { version = "0.15", features = ["memory-store"] }
-time = { version = "0.3.47", features = ["serde"] }
+time = { version = "0.3.49", features = ["serde"] }
 lettre = { version = "0.11", default-features = false, features = [
   "builder",
   "smtp-transport",
@@ -82,7 +82,7 @@ sea-orm-migration = "1.1.20"
 
 #====
 rand = "0.10.1"
-smallvec = "1.15.1"
+smallvec = "1.15.2"
 bytes = "1.11.1"
 chrono = { version = "0.4.45", features = ["serde"] }
 hex = "0.4.3"
@@ -124,7 +124,7 @@ bs58 = "0.5.1"
 indexmap = "2.14"
 envsubst = "0.2.1"
 directories = "6.0.0"
-redis = "1.2.2"
+redis = "1.2.3"
 redis-test = "1.0.4"
 rustls = "0.23"
 object_store = "0.13.2"

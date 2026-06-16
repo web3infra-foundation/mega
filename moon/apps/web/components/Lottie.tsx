@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import LottieLight from 'react-lottie-player/dist/LottiePlayerLight'
 
 interface Props {
   url: string
@@ -15,6 +14,22 @@ export function Lottie(props: Props) {
   const [animationItem, setAnimationItem] = useState<any>(null)
   const [loaded, setLoaded] = useState(false)
   const [_frame, setFrame] = useState(0)
+  // lottie-web (pulled in by react-lottie-player) touches `document` at import time, which
+  // breaks the Next.js production build during page-data collection. Load the player lazily
+  // on the client so the module never enters the SSR import graph.
+  const [LottieLight, setLottieLight] = useState<any>(null)
+
+  useEffect(() => {
+    let mounted = true
+
+    import('react-lottie-player/dist/LottiePlayerLight').then((mod) => {
+      if (mounted) setLottieLight(() => mod.default)
+    })
+
+    return () => {
+      mounted = false
+    }
+  }, [])
 
   useEffect(() => {
     if (loaded) {
@@ -35,6 +50,8 @@ export function Lottie(props: Props) {
     setFrame(percentage)
     onFrame?.(percentage)
   }
+
+  if (!LottieLight) return null
 
   return (
     <LottieLight

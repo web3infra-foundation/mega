@@ -1,5 +1,4 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
-import { LazyLog } from '@melloware/react-logviewer'
 import { format } from 'date-fns'
 import { useAtom } from 'jotai'
 
@@ -12,16 +11,17 @@ import { fetchHTTPLog } from '@/hooks/SSE/useGetHTTPLog'
 import { useTaskSSE } from '../../hook/useSSM'
 import { BuildDTO, getQueuedBuildIds, statusMapAtom, TaskInfoDTO } from './cpns/store'
 import { TreeRoot } from './cpns/Task'
+import { LogViewer } from './LogViewer'
 
 type LogStatus = 'idle' | 'loading' | 'success' | 'empty' | 'error'
 
 const MIN_LEFT_WIDTH = 200
 const MAX_LEFT_WIDTH_PERCENT = 0.7
-const DEFAULT_LEFT_WIDTH_PERCENT = 0.3
+const DEFAULT_LEFT_WIDTH_PERCENT = 0.2
 
-const Checks = ({ cl, path }: { cl: string; path?: string }) => {
+const Checks = ({ cl, path, prName }: { cl: string; path?: string; prName?: string }) => {
   const [buildid, setBuildId] = useAtom(buildIdAtom)
-  const { logsMap, setLogsMap } = useTaskSSE()
+  const { eventSourcesRef, setEventSource, closeEventSource, logsMap, setLogsMap } = useTaskSSE()
   const [statusMap, _setStatusMap] = useAtom(statusMapAtom)
   const { data: tasks, isError: isTasksError, isLoading: isTasksLoading } = useGetClTask(cl)
   const [logStatus, setLogStatus] = useState<Record<string, LogStatus>>({})
@@ -39,6 +39,8 @@ const Checks = ({ cl, path }: { cl: string; path?: string }) => {
   const scrollPositionRef = useRef<number>(0)
   const logContainerRef = useRef<HTMLDivElement>(null)
   const startWidthRef = useRef<number>(0)
+  // Explicit pixel height for LogViewer (avoids layout jump while the panel mounts).
+  const [logViewerHeight, setLogViewerHeight] = useState<number>(0)
 
   // Initialize left width based on container width
   useEffect(() => {
@@ -46,6 +48,23 @@ const Checks = ({ cl, path }: { cl: string; path?: string }) => {
       setLeftWidth(containerRef.current.offsetWidth * DEFAULT_LEFT_WIDTH_PERCENT)
     }
   }, [leftWidth])
+
+  // Track the container height and pass it to LogViewer as a fixed pixel value.
+  useEffect(() => {
+    const el = containerRef.current
+
+    if (!el) return
+
+    const update = () => setLogViewerHeight(el.clientHeight)
+
+    update()
+
+    const observer = new ResizeObserver(update)
+
+    observer.observe(el)
+
+    return () => observer.disconnect()
+  }, [])
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!containerRef.current || !leftPanelRef.current) return
@@ -93,10 +112,10 @@ const Checks = ({ cl, path }: { cl: string; path?: string }) => {
 
       // Save scroll position
       if (logContainerRef.current) {
-        const lazyLogElement = logContainerRef.current.querySelector('.react-lazylog')
+        const scrollEl = logContainerRef.current.querySelector('.log-viewer-scroll')
 
-        if (lazyLogElement) {
-          scrollPositionRef.current = lazyLogElement.scrollTop
+        if (scrollEl) {
+          scrollPositionRef.current = scrollEl.scrollTop
         }
       }
 
@@ -125,10 +144,10 @@ const Checks = ({ cl, path }: { cl: string; path?: string }) => {
       if (logContainerRef.current && scrollPositionRef.current > 0) {
         // Use requestAnimationFrame to ensure DOM is updated
         requestAnimationFrame(() => {
-          const lazyLogElement = logContainerRef.current?.querySelector('.react-lazylog')
+          const scrollEl = logContainerRef.current?.querySelector('.log-viewer-scroll')
 
-          if (lazyLogElement) {
-            lazyLogElement.scrollTop = scrollPositionRef.current
+          if (scrollEl) {
+            scrollEl.scrollTop = scrollPositionRef.current
           }
         })
       }
@@ -143,10 +162,10 @@ const Checks = ({ cl, path }: { cl: string; path?: string }) => {
     // Reset scroll to top for new build
     if (logContainerRef.current) {
       requestAnimationFrame(() => {
-        const lazyLogElement = logContainerRef.current?.querySelector('.react-lazylog')
+        const scrollEl = logContainerRef.current?.querySelector('.log-viewer-scroll')
 
-        if (lazyLogElement) {
-          lazyLogElement.scrollTop = 0
+        if (scrollEl) {
+          scrollEl.scrollTop = 0
         }
       })
     }
@@ -157,7 +176,8 @@ const Checks = ({ cl, path }: { cl: string; path?: string }) => {
 
     const builds = tasks.flatMap((task: TaskInfoDTO) =>
       (task.build_list ?? []).map((build: BuildDTO) => ({
-        build_id: build.id
+        build_id: build.id,
+        status: build.status
       }))
     )
 
@@ -168,6 +188,17 @@ const Checks = ({ cl, path }: { cl: string; path?: string }) => {
     // Queued builds (waiting for a worker) have no logs yet; don't fetch them.
     const queuedIds = getQueuedBuildIds(tasks)
     const buildsToFetch = validBuilds.filter((b) => !queuedIds.has(b.build_id))
+    const buildingIds = new Set(buildsToFetch.filter((b) => b.status === 'Building').map((b) => b.build_id))
+
+    buildingIds.forEach((buildId) => {
+      setEventSource(buildId)
+    })
+
+    Object.keys(eventSourcesRef.current).forEach((buildId) => {
+      if (!buildingIds.has(buildId)) {
+        closeEventSource(buildId)
+      }
+    })
 
     buildsToFetch.forEach((b) => {
       setLogStatus((prev) => ({ ...prev, [b.build_id]: 'loading' }))
@@ -186,8 +217,8 @@ const Checks = ({ cl, path }: { cl: string; path?: string }) => {
         })
       )
 
-      const newLogsMap: Record<string, string> = {}
       const newLogStatus: Record<string, LogStatus> = {}
+      const fetchedLogsMap: Record<string, string> = {}
 
       logsResult.forEach((item) => {
         if (item.status === 'fulfilled' && item.value) {
@@ -196,25 +227,21 @@ const Checks = ({ cl, path }: { cl: string; path?: string }) => {
           if (error) {
             // fetchHTTPLog threw an error
             newLogStatus[id] = 'error'
-            newLogsMap[id] = ''
           } else if (!res || !res.data) {
             // Response is null/undefined
             newLogStatus[id] = 'empty'
-            newLogsMap[id] = ''
           } else if (Array.isArray(res.data) && res.data.length === 0) {
             // Response data is empty array
             newLogStatus[id] = 'empty'
-            newLogsMap[id] = ''
           } else if (res.len === 0) {
             // Response len is 0
             newLogStatus[id] = 'empty'
-            newLogsMap[id] = ''
           } else {
             // Success case
             const logText = Array.isArray(res.data) ? res.data.join('\n') : String(res.data || '')
 
             newLogStatus[id] = 'success'
-            newLogsMap[id] = logText
+            fetchedLogsMap[id] = logText
           }
         } else {
           // Promise.allSettled rejected (shouldn't happen with try-catch, but defensive)
@@ -222,12 +249,23 @@ const Checks = ({ cl, path }: { cl: string; path?: string }) => {
 
           if (id) {
             newLogStatus[id] = 'error'
-            newLogsMap[id] = ''
           }
         }
       })
 
-      setLogsMap(newLogsMap)
+      setLogsMap((prev) => {
+        const next = { ...prev }
+
+        Object.entries(fetchedLogsMap).forEach(([id, fetchedLog]) => {
+          const currentLog = next[id] ?? ''
+
+          // HTTP reads can lag behind SSE appends while a build is running; never
+          // replace a longer live log with an older persisted snapshot.
+          next[id] = currentLog.length > fetchedLog.length ? currentLog : fetchedLog
+        })
+
+        return next
+      })
       setLogStatus((prev) => ({ ...prev, ...newLogStatus }))
     }
 
@@ -391,6 +429,14 @@ const Checks = ({ cl, path }: { cl: string; path?: string }) => {
 
     const status = logStatus[buildid]
 
+    if (logsMap[buildid]) {
+      return (
+        <div ref={logContainerRef} className='h-full select-text [&_span]:select-text'>
+          <LogViewer key={buildid} text={logsMap[buildid]} height={logViewerHeight > 0 ? logViewerHeight : 'auto'} />
+        </div>
+      )
+    }
+
     // If status is undefined or idle, user needs to select a build
     if (!status || status === 'idle') {
       return (
@@ -420,14 +466,6 @@ const Checks = ({ cl, path }: { cl: string; path?: string }) => {
       return (
         <div className='text-tertiary flex h-full items-center justify-center'>
           <span>No logs available</span>
-        </div>
-      )
-    }
-
-    if (status === 'success' && logsMap[buildid]) {
-      return (
-        <div ref={logContainerRef} className='h-full select-text [&_*]:select-text'>
-          <LazyLog key={buildid} extraLines={1} text={logsMap[buildid]} enableSearch caseInsensitive />
         </div>
       )
     }
@@ -625,10 +663,11 @@ const Checks = ({ cl, path }: { cl: string; path?: string }) => {
           <div
             ref={leftPanelRef}
             className='border-primary h-full overflow-y-auto border-r'
-            style={{ width: leftWidth ?? '30%', flexShrink: 0 }}
+            style={{ width: leftWidth ?? `${DEFAULT_LEFT_WIDTH_PERCENT * 100}%`, flexShrink: 0 }}
           >
             <TreeRoot
               path={path}
+              prName={prName}
               tasks={tasksToDisplay}
               logStatus={logStatus}
               totalTasksCount={validTasks.length}

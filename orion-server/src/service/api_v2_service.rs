@@ -33,7 +33,6 @@ use uuid::Uuid;
 
 use crate::{
     app_state::AppState,
-    auto_retry::AutoRetryJudger,
     model::{
         dto::{
             BuildEventDTO, BuildStatus, BuildTargetDTO, MessageResponse, OrionClientInfo,
@@ -717,31 +716,32 @@ pub async fn build_retry(
 
     let new_build_id = Uuid::now_v7();
 
-    // If no idle workers, enqueue the retry build.
+    // If no idle workers, do not queue: create the build and immediately mark it
+    // Interrupted so it surfaces as a clear, retryable terminal state.
     if !state.scheduler.has_idle_workers() {
-        match state
-            .scheduler
-            .enqueue_task_with_build_id_v2(
-                new_build_id,
-                task.id,
-                &cl_link,
-                repo,
-                changes,
-                retry_count,
-            )
-            .await
+        if let Err(e) =
+            BuildEventsRepo::insert_build(&state.conn, new_build_id, task.id, repo.clone()).await
         {
-            Ok(()) => (
-                StatusCode::OK,
-                Json(json!({"message": "Build queued for later processing"})),
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"message": format!("Failed to create build event: {e}")})),
             )
-                .into_response(),
-            Err(e) => (
-                StatusCode::SERVICE_UNAVAILABLE,
-                Json(json!({"message": format!("Unable to queue build: {e}")})),
-            )
-                .into_response(),
+                .into_response();
         }
+
+        state
+            .scheduler
+            .fail_unschedulable_build(new_build_id, task.id, &repo)
+            .await;
+
+        (
+            StatusCode::OK,
+            Json(json!({
+                "message": "No build worker available; build marked as Interrupted",
+                "build_id": new_build_id.to_string(),
+            })),
+        )
+            .into_response()
     } else {
         if let Err(e) =
             BuildEventsRepo::insert_build(&state.conn, new_build_id, task.id, repo.clone()).await
@@ -775,7 +775,6 @@ pub async fn build_retry(
             target_path: build_target.path.clone(),
             changes: changes.clone(),
             worker_id: chosen_id.clone(),
-            auto_retry_judger: AutoRetryJudger::new(),
             started_at,
         };
 
@@ -920,7 +919,6 @@ async fn handle_immediate_task_dispatch_v2(
         target_id,
         target_path,
         worker_id: chosen_id,
-        auto_retry_judger: AutoRetryJudger::new(),
         started_at: chrono::Utc::now(),
     };
 
@@ -937,7 +935,47 @@ async fn handle_immediate_task_dispatch_v2(
             ),
         };
     }
+
+    // Move the target to `Building` so the UI shows an active build instead of
+    // leaving it stuck in the queued (`Uninitialized`) state. The queued dispatch
+    // path (`scheduler::dispatch_task_v2`) already does this; the immediate
+    // dispatch path must do the same.
+    let now_tz = chrono::Utc::now()
+        .with_timezone(&chrono::FixedOffset::east_opt(0).unwrap_or_else(|| unreachable!()));
+    let _ =
+        BuildTargetsRepo::update_latest_state(&state.conn, target_id, TargetState::Building).await;
+    let _ = TargetStateHistoriesRepo::upsert_state(
+        &state.conn,
+        target_id,
+        build_event_id,
+        TargetState::Building.to_string(),
+        now_tz,
+    )
+    .await;
+
     activate_worker(&build_info, &state.scheduler).await
+}
+
+/// Create a build event + default target for a task that cannot be scheduled
+/// (no idle worker) and immediately mark it `Interrupted`. Returns the new build
+/// id so callers can report it to the client.
+async fn reject_unschedulable_build(
+    state: &AppState,
+    task_id: Uuid,
+    repo: &str,
+) -> Result<Uuid, sea_orm::DbErr> {
+    let build_event_id = Uuid::now_v7();
+    BuildEventsRepo::insert_build(&state.conn, build_event_id, task_id, repo.to_string()).await?;
+
+    let target_id = Uuid::now_v7();
+    BuildTargetsRepo::insert_default_target(target_id, task_id, &state.conn).await?;
+
+    state
+        .scheduler
+        .fail_unschedulable_build(build_event_id, task_id, repo)
+        .await;
+
+    Ok(build_event_id)
 }
 
 pub async fn task_handler_v2(state: &AppState, req: TaskBuildRequest) -> Response {
@@ -960,20 +998,19 @@ pub async fn task_handler_v2(state: &AppState, req: TaskBuildRequest) -> Respons
         handle_immediate_task_dispatch_v2(state, task_id, &req.repo, &req.cl_link, req.changes)
             .await
     } else {
-        match state
-            .scheduler
-            .enqueue_task_v2(task_id, &req.cl_link, req.repo, req.changes, 0)
-            .await
-        {
+        // No worker is available: instead of queuing (which can leave a build
+        // stuck), create the build and immediately mark it Interrupted so the UI
+        // shows a clear, retryable terminal state.
+        match reject_unschedulable_build(state, task_id, &req.repo).await {
             Ok(build_id) => OrionBuildResult {
                 build_id: build_id.to_string(),
-                status: "queued".to_string(),
-                message: "Task queued for processing when workers become available".to_string(),
+                status: "interrupted".to_string(),
+                message: "No build worker available; build marked as Interrupted".to_string(),
             },
             Err(e) => {
                 return (
-                    StatusCode::SERVICE_UNAVAILABLE,
-                    Json(json!({"message": format!("Unable to queue task: {}", e)})),
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({"message": format!("Unable to record build: {}", e)})),
                 )
                     .into_response();
             }

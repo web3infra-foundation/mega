@@ -148,6 +148,10 @@ pub async fn start_server() {
 
     let state = AppState::new(conn, None, log_service);
 
+    // Reconcile builds orphaned by a previous instance (e.g. left stuck in
+    // `Building` after a crash/restart) before we accept new work or workers.
+    state.scheduler.reconcile_orphaned_builds_on_startup().await;
+
     // Start background health check task
     tokio::spawn(start_health_check_task(state.clone()));
 
