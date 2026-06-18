@@ -1,10 +1,30 @@
+# Local HTTPS reverse proxy for Next.js dev.
+#
+# Browser → Caddy (:443, HTTPS) → Next.js dev (127.0.0.1:80)
+#
+# Prerequisites:
+#   1. Add to /etc/hosts:
+#        127.0.0.1 local.xuanwu.openatom.cn
+#   2. TLS certs in this directory (moon/):
+#        ./local.xuanwu.openatom.cn.pem
+#        ./local.xuanwu.openatom.cn-key.pem
+#   3. Start Next.js dev on port 80 before Caddy.
+#
+# Usage (run from moon/):
+#   sudo caddy run --config Caddyfile          # foreground
+#   sudo caddy start --config Caddyfile        # background
+#   sudo caddy stop
+#   caddy validate --config Caddyfile
+#   caddy fmt --overwrite Caddyfile
+#
+# Open: https://local.xuanwu.openatom.cn
 {
-    # Next.js dev already owns port 80, so don't let Caddy bind it for
-    # the HTTP->HTTPS redirect vhost.
-    auto_https disable_redirects
+	# Next.js dev already owns port 80, so don't let Caddy bind it for
+	# the HTTP->HTTPS redirect vhost.
+	auto_https disable_redirects
 }
 
 https://local.xuanwu.openatom.cn {
-    tls ./local.xuanwu.openatom.cn.pem ./local.xuanwu.openatom.cn-key.pem
-    reverse_proxy 127.0.0.1:80
+	tls ./local.xuanwu.openatom.cn.pem ./local.xuanwu.openatom.cn-key.pem
+	reverse_proxy 127.0.0.1:80
 }

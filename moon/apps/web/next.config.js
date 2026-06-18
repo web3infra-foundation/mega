@@ -49,7 +49,7 @@ const cspResourcesByDirective = {
     // Local demo environments
     'http://*.gitmono.local:8004',
     'http://*.gitmono.local:8000',
-    'http://*.gitmono.local:8080',
+    'http://*.gitmono.local:18080',
     // Local development environments
     'http://*.gitmono.test:3001',
     'http://*.gitmono.test:8000',

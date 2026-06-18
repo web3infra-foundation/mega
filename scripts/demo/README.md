@@ -119,7 +119,7 @@ set TARGET_PLATFORMS=linux/amd64
 |------------|----------------|---------------|-----|
 | `mega/mono-engine` | `mono/Dockerfile` | `.` (repo root) | `latest` |
 | `mega/orion-server` | `orion-server/Dockerfile` | `.` (repo root) | `latest` |
-| `mega/mega-ui` | `moon/apps/web/Dockerfile` | `moon` | `demo-latest` |
+| `mega/mega-ui` | `moon/apps/web/Dockerfile` | `moon` | `latest` |
 
 ## Image Tags
 

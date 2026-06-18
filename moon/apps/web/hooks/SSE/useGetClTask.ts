@@ -32,8 +32,11 @@ const toTargetState = (state: string): TargetState => {
 }
 
 export function useGetClTask(cl: string, params?: RequestParams) {
+  // NOTE(P3): Each task currently triggers 2 extra API calls (buildEvents + targets).
+  // A future Orion `GET /cl/{link}/tasks-full` aggregate endpoint would remove this N+1.
   return useQuery<TaskInfoDTO[], Error>({
     queryKey: [...orionApiClient.task.getTaskByClV2().requestKey(cl), params],
+    enabled: Boolean(cl),
     // Poll while any task is still queued (Uninitialized) or actively building,
     // so the tree transitions automatically once a worker picks it up, the build
     // finishes, or the server times it out (-> Interrupted). Stops when idle.

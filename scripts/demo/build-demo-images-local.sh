@@ -92,7 +92,7 @@ get_image_config() {
 get_image_tag() {
     case "$1" in
         "mono-engine") echo "latest" ;;
-        "mega-ui") echo "demo-latest" ;;
+        "mega-ui") echo "latest" ;;
         "orion-server") echo "latest" ;;
     esac
 }
@@ -402,10 +402,6 @@ build_and_push() {
     if [ "$SHOULD_PUSH" = "true" ]; then
         # Load before docker push so the pushed artifact is a single-architecture image manifest.
         build_args+=(--load)
-    fi
-    
-    if [ "$image_name" = "mega-ui" ]; then
-        build_args+=(--build-arg APP_ENV=demo)
     fi
 
     # Add cache arguments

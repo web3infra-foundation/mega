@@ -1,15 +1,14 @@
-import { useMemo, useState } from 'react'
+import { memo, useMemo, useState } from 'react'
 import { CheckIcon, ChevronDownIcon, ClockIcon, FileDirectoryIcon, SyncIcon, XIcon } from '@primer/octicons-react'
 import { format } from 'date-fns'
-import { useAtom } from 'jotai'
 
 import { StatusProjectRelativePath } from '@gitmono/types/generated'
 import { LoadingSpinner } from '@gitmono/ui/Spinner'
 
-import { buildIdAtom } from '@/components/Issues/utils/store'
 import { usePostRetryBuild } from '@/hooks/SSE/usePostRetryBuild'
 
 import { BuildDTO, getLatestBuildId, isTaskQueued, Status, TaskInfoDTO } from './store'
+import { TERMINAL_BUILD_STATUSES } from '../hooks/logUtils'
 
 /**
  * Format ISO date string to readable format
@@ -24,13 +23,13 @@ const formatDateTime = (isoDate: string): string => {
   }
 }
 
-type LogStatus = 'idle' | 'loading' | 'success' | 'empty' | 'error'
-
 export interface TreeRootProps {
   path?: string
   prName?: string
   tasks: TaskInfoDTO[]
-  logStatus: Record<string, LogStatus>
+  logsAvailableIds: Set<string>
+  selectedBuildId: string
+  onSelectBuild: (buildId: string, taskId?: string) => void
   totalTasksCount?: number
   cl: string
 }
@@ -38,7 +37,16 @@ export interface TreeRootProps {
 /**
  * Tree Root Component - Top level node showing the path
  */
-export const TreeRoot = ({ path, prName, tasks, logStatus, totalTasksCount, cl }: TreeRootProps) => {
+export const TreeRoot = ({
+  path,
+  prName,
+  tasks,
+  logsAvailableIds,
+  selectedBuildId,
+  onSelectBuild,
+  totalTasksCount,
+  cl
+}: TreeRootProps) => {
   const [isExpanded, setIsExpanded] = useState(true)
 
   // Show the total number of tasks in dropdown (displayed as "builds")
@@ -71,7 +79,9 @@ export const TreeRoot = ({ path, prName, tasks, logStatus, totalTasksCount, cl }
               key={t.task_id}
               list={t}
               prName={prName}
-              logStatus={logStatus}
+              logsAvailableIds={logsAvailableIds}
+              selectedBuildId={selectedBuildId}
+              onSelectBuild={onSelectBuild}
               isLast={index === tasks.length - 1}
               cl={cl}
             />
@@ -88,13 +98,17 @@ export const TreeRoot = ({ path, prName, tasks, logStatus, totalTasksCount, cl }
 export const Task = ({
   list,
   prName,
-  logStatus,
+  logsAvailableIds,
+  selectedBuildId,
+  onSelectBuild,
   isLast,
   cl
 }: {
   list: TaskInfoDTO
   prName?: string
-  logStatus: Record<string, LogStatus>
+  logsAvailableIds: Set<string>
+  selectedBuildId: string
+  onSelectBuild: (buildId: string, taskId?: string) => void
   isLast?: boolean
   cl: string
 }) => {
@@ -225,7 +239,9 @@ export const Task = ({
               key={i.id}
               build={i}
               seq={index + 1}
-              logStatus={logStatus[i.id]}
+              hasLogs={logsAvailableIds.has(i.id)}
+              isSelected={selectedBuildId === i.id}
+              onSelectBuild={(buildId) => onSelectBuild(buildId, list.task_id)}
               isLast={index === orderedBuilds.length - 1}
               cl={cl}
               clId={list.cl_id}
@@ -243,10 +259,12 @@ export const Task = ({
 /**
  * TaskItem Component - Build item showing individual builds
  */
-export const TaskItem = ({
+const TaskItem = memo(function TaskItem({
   build,
   seq,
-  logStatus,
+  hasLogs,
+  isSelected,
+  onSelectBuild,
   isLast,
   cl,
   clId,
@@ -256,23 +274,29 @@ export const TaskItem = ({
 }: {
   build: BuildDTO
   seq?: number
-  logStatus?: LogStatus
+  hasLogs?: boolean
+  isSelected: boolean
+  onSelectBuild: (buildId: string) => void
   isLast?: boolean
   cl: string
   clId?: number
   changes?: StatusProjectRelativePath[]
   isQueued?: boolean
   isLatestBuild?: boolean
-}) => {
-  const [buildId, setBuildId] = useAtom(buildIdAtom)
+}) {
   const { mutate: retryBuild, isPending: isRetrying } = usePostRetryBuild(cl)
 
-  // A not-yet-started build (queued, waiting for a worker) reports as "Building"
-  // because it has no end_at; surface it distinctly so users know it has no logs.
   const showQueued = Boolean(isQueued) && build.status === 'Building'
 
-  const handleClick = (build_id: string) => {
-    setBuildId(build_id)
+  const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const scrollParent = e.currentTarget.closest('[data-build-list-scroll]') as HTMLElement | null
+    const scrollTop = scrollParent?.scrollTop ?? 0
+
+    onSelectBuild(build.id)
+
+    requestAnimationFrame(() => {
+      if (scrollParent) scrollParent.scrollTop = scrollTop
+    })
   }
 
   const handleRetry = (e: React.MouseEvent) => {
@@ -287,12 +311,8 @@ export const TaskItem = ({
     })
   }
 
-  // Retry only the task's latest build, and only when it has failed or been
-  // interrupted. Being the latest finished build already guarantees no newer
-  // build is in flight; the backend enforces the same invariant.
-  const canRetry = Boolean(isLatestBuild) && (build.status === 'Failed' || build.status === 'Interrupted')
-  const isSelected = buildId === build.id
-  const isHighlighted = logStatus === 'success'
+  const canRetry = Boolean(isLatestBuild) && TERMINAL_BUILD_STATUSES.has(build.status)
+  const isHighlighted = hasLogs
 
   let bgClass = 'bg-white dark:bg-gray-800/30'
   let textColor = 'text-gray-600 dark:text-gray-400'
@@ -308,7 +328,7 @@ export const TaskItem = ({
 
   return (
     <div
-      onClick={() => handleClick(build.id)}
+      onClick={handleClick}
       className={`group flex cursor-pointer items-center gap-2 py-2 pl-9 pr-3 transition-all hover:bg-gray-100 dark:hover:bg-gray-700/30 ${bgClass} ${
         isSelected ? `border-l-2 ${borderColor}` : 'border-l-2 border-transparent'
       } ${!isLast ? 'border-b border-gray-100 dark:border-gray-800' : ''}`}
@@ -356,7 +376,7 @@ export const TaskItem = ({
       {isSelected && <div className='h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-blue-500' />}
     </div>
   )
-}
+})
 
 export const identifyStatus = (status: Status[keyof Status]) => {
   switch (status) {

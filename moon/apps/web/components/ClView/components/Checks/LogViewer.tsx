@@ -321,3 +321,24 @@ export function LogViewer({ text, height }: LogViewerProps) {
     </div>
   )
 }
+
+/** Keep LogViewer mounted but visually hidden so Virtuoso retains scroll position. */
+export const CachedLogPanel = memo(function CachedLogPanel({
+  text,
+  height,
+  visible
+}: LogViewerProps & { visible: boolean }) {
+  return (
+    <div
+      className='absolute inset-0'
+      style={{
+        visibility: visible ? 'visible' : 'hidden',
+        zIndex: visible ? 1 : 0,
+        pointerEvents: visible ? 'auto' : 'none'
+      }}
+      aria-hidden={!visible}
+    >
+      <LogViewer text={text} height={height} />
+    </div>
+  )
+})

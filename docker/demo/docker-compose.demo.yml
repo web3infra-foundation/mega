@@ -201,20 +201,33 @@ services:
     restart: "no"
 
   # ---------------------------------------------------------------------------
-  # Mega UI (Next.js)
+  # Mega UI (Next.js, unified image)
   # ---------------------------------------------------------------------------
-  # Use pre-built image from ECR Public: public.ecr.aws/m8q5m4u3/mega/mega-ui:{env}-latest
-  # Available environments: staging, openatom, gitmono
-  # Set MEGA_UI_IMAGE environment variable to use ECR image, or tag the ECR image as mega:mono-ui-latest-release
-  # Default uses local tag (mega:mono-ui-latest-release) if ECR image is tagged locally
+  # Single environment-agnostic image: built with placeholder URLs (.env.runtime)
+  # and configured at container start by docker-entrypoint.sh using the
+  # NEXT_PUBLIC_* variables below. Override MEGA_UI_IMAGE to pin a tag or use
+  # a locally built image (see scripts/demo/build-demo-images-local.sh).
   mega_ui:
-    image: ${MEGA_UI_IMAGE:-public.ecr.aws/m8q5m4u3/mega/mega-ui:demo-latest}
+    image: ${MEGA_UI_IMAGE:-public.ecr.aws/m8q5m4u3/mega/mega-ui:latest}
     container_name: mega-demo-ui
     depends_on:
       mega:
         condition: service_healthy
       orion_server:
         condition: service_healthy
+    environment:
+      # Runtime injection for the unified web image (browser-facing URLs).
+      # Browser-facing Campsite URL (host port 18080).
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://api.gitmono.local:18080}
+      # SSR / server-side calls from mega_ui run inside Docker; use container port 8080.
+      NEXT_PUBLIC_INTERNAL_API_URL: ${NEXT_PUBLIC_INTERNAL_API_URL:-http://api.gitmono.local:8080}
+      NEXT_PUBLIC_MONO_API_URL: ${NEXT_PUBLIC_MONO_API_URL:-http://git.gitmono.local:8000}
+      NEXT_PUBLIC_ORION_API_URL: ${NEXT_PUBLIC_ORION_API_URL:-http://orion.gitmono.local:8004}
+      NEXT_PUBLIC_AUTH_URL: ${NEXT_PUBLIC_AUTH_URL:-http://auth.gitmono.local:18080}
+      NEXT_PUBLIC_WEB_URL: ${NEXT_PUBLIC_WEB_URL:-http://app.gitmono.local}
+      # Optional: leave unset when the demo stack has no sync / crates-pro service.
+      NEXT_PUBLIC_SYNC_URL: ${NEXT_PUBLIC_SYNC_URL:-}
+      NEXT_PUBLIC_CRATES_PRO_URL: ${NEXT_PUBLIC_CRATES_PRO_URL:-}
     ports:
       # Container listens on 3000, host port is 80
       - "80:3000"
@@ -321,8 +334,8 @@ services:
 
         exec ${CAMPSITE_SERVER_COMMAND:-bundle exec puma}
     ports:
-      # Container listens on 8080, host port is 8080
-      - "8080:8080"
+      # Container listens on 8080; host port 18080 avoids conflict with Cursor / other local services on 8080
+      - "${CAMPSITE_HOST_PORT:-18080}:8080"
     healthcheck:
       # Campsite API health check
       # NOTE: avoid curl dependency; use bash built-in /dev/tcp
