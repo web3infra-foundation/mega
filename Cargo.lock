@@ -4412,7 +4412,7 @@ dependencies = [
 [[package]]
 name = "libfuse-fs"
 version = "0.1.13"
-source = "git+https://github.com/web3infra-foundation/scorpiofs.git?rev=beecf7dd2906806c686d0c17d80348dddc4a55e9#beecf7dd2906806c686d0c17d80348dddc4a55e9"
+source = "git+https://github.com/web3infra-foundation/scorpiofs.git?rev=e228b34116f9bc460637894cf5f71ed829e1dc03#e228b34116f9bc460637894cf5f71ed829e1dc03"
 dependencies = [
  "async-trait",
  "bitflags 2.13.0",
@@ -7662,7 +7662,7 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 [[package]]
 name = "scorpiofs"
 version = "0.2.2"
-source = "git+https://github.com/web3infra-foundation/scorpiofs.git?rev=beecf7dd2906806c686d0c17d80348dddc4a55e9#beecf7dd2906806c686d0c17d80348dddc4a55e9"
+source = "git+https://github.com/web3infra-foundation/scorpiofs.git?rev=e228b34116f9bc460637894cf5f71ed829e1dc03#e228b34116f9bc460637894cf5f71ed829e1dc03"
 dependencies = [
  "async-recursion",
  "async-trait",
