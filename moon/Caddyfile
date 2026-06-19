@@ -1,0 +1,10 @@
+{
+    # Next.js dev already owns port 80, so don't let Caddy bind it for
+    # the HTTP->HTTPS redirect vhost.
+    auto_https disable_redirects
+}
+
+https://local.xuanwu.openatom.cn {
+    tls ./local.xuanwu.openatom.cn.pem ./local.xuanwu.openatom.cn-key.pem
+    reverse_proxy 127.0.0.1:80
+}

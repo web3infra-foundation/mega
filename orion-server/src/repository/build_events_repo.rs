@@ -83,22 +83,6 @@ impl BuildEventsRepo {
         build_model.insert(conn).await
     }
 
-    pub async fn update_retry_count(
-        build_id: &str,
-        retry_count: i32,
-        db_connection: &impl ConnectionTrait,
-    ) -> Result<(), DbErr> {
-        callisto::build_events::Entity::update_many()
-            .filter(callisto::build_events::Column::Id.eq(build_id.parse::<Uuid>().unwrap()))
-            .set(callisto::build_events::ActiveModel {
-                retry_count: Set(retry_count),
-                ..Default::default()
-            })
-            .exec(db_connection)
-            .await?;
-        Ok(())
-    }
-
     pub async fn update_build_complete_result(
         build_id: &str,
         exit_code: Option<i32>,

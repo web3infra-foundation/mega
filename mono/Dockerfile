@@ -22,6 +22,7 @@ WORKDIR /opt/mega
 ARG TARGETARCH
 
 COPY Cargo.toml ./
+COPY Cargo.lock ./
 COPY api-model/Cargo.toml api-model/
 COPY ceres/Cargo.toml ceres/
 COPY common/Cargo.toml common/
@@ -74,13 +75,13 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,id=mega-cargo-registry-$
 
 COPY . .
 
-# Persist built binary into the image layer (buildkit cache mounts evaporate after build).
+# Build the binary into the SAME target dir cargo-chef cooked into
+# (/opt/mega/target). Reusing that dir means the cooked dependency artifacts
+# from the cook layer are picked up, so only the mono crate itself is compiled
+# here instead of the whole dependency graph.
 RUN --mount=type=cache,target=/usr/local/cargo/registry,id=mega-cargo-registry-${TARGETARCH},sharing=locked \
     --mount=type=cache,target=/usr/local/cargo/git,id=mega-cargo-git-${TARGETARCH},sharing=locked \
-    --mount=type=cache,target=/opt/mega/target-cache \
-    CARGO_TARGET_DIR=/opt/mega/target-cache cargo build --profile demo -p mono && \
-    mkdir -p /opt/mega/target/demo && \
-    cp /opt/mega/target-cache/demo/mono /opt/mega/target/demo/mono
+    cargo build --locked --profile demo -p mono
 
 # ────── Stage 3: Runtime ──────
 FROM debian:trixie-slim

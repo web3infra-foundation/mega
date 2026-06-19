@@ -12,7 +12,7 @@ The Mega relative path is derived starting from the first `third-party/` path co
 - Skips a version directory only when an **ancestor** directory (still inside the scan root) is itself a Git repository, to avoid duplicate imports
 - Self-heals interrupted runs: a leftover `.git` sitting directly on a version directory (from a run killed before cleanup) is treated as stale, removed, and re-imported instead of being silently skipped forever (counted as `recovered_stale_git` in the discovery summary; under `--dry-run` it is reported but not deleted)
 - For each import target, automatically runs: repo init, branch create/switch, initial commit, remote configuration, and push to Mega
-- Always removes the per-repo `.git` directory after processing so reruns rediscover candidates
+- Always removes the per-repo `.git` directory after processing so reruns rediscover candidates; a final sweep also runs when the whole operation ends — including on `Ctrl-C`/errors — so no generated `.git` survives the run
 - Optionally rewrites `//third-party/...` dependency labels in `BUCK` to `//...` (for buckal generated artifacts)
 - Supports concurrent imports (`--jobs`)
 - Supports an interactive UI (`--ui`): rich (if available) or plain; in rich mode, logs keep only the most recent 12 lines and show a Results summary at the end
@@ -42,7 +42,6 @@ The Mega relative path is derived starting from the first `third-party/` path co
 - `--limit N`: Only process the first N import targets (for small-scope validation)
 - `--retry N`: Retry failed repo imports up to N times (default: 0)
 
-
 ## Usage Examples
 
 Example 1: Run the import (defaults):
@@ -62,7 +61,7 @@ Example 3: Specify the scan root and import concurrently:
 
 ```bash
 python3 scripts/import-buck2-deps/import-buck2-deps.py \
-  --scan-root /path/to/third-party \
+  --scan-root /Users/Yetianxing/workspace/rk8s/third-party \
   --jobs 8
 ```
 

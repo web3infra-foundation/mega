@@ -23,6 +23,16 @@ pub enum TargetState {
     Uninitialized,
 }
 
+impl TargetState {
+    /// Whether this is a final state that must not be overwritten by reconciliation.
+    pub fn is_terminal(&self) -> bool {
+        matches!(
+            self,
+            TargetState::Completed | TargetState::Failed | TargetState::Interrupted
+        )
+    }
+}
+
 impl From<String> for TargetState {
     fn from(s: String) -> Self {
         match s.as_str() {

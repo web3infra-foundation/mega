@@ -28,6 +28,7 @@ type LogStatus = 'idle' | 'loading' | 'success' | 'empty' | 'error'
 
 export interface TreeRootProps {
   path?: string
+  prName?: string
   tasks: TaskInfoDTO[]
   logStatus: Record<string, LogStatus>
   totalTasksCount?: number
@@ -37,7 +38,7 @@ export interface TreeRootProps {
 /**
  * Tree Root Component - Top level node showing the path
  */
-export const TreeRoot = ({ path, tasks, logStatus, totalTasksCount, cl }: TreeRootProps) => {
+export const TreeRoot = ({ path, prName, tasks, logStatus, totalTasksCount, cl }: TreeRootProps) => {
   const [isExpanded, setIsExpanded] = useState(true)
 
   // Show the total number of tasks in dropdown (displayed as "builds")
@@ -66,7 +67,14 @@ export const TreeRoot = ({ path, tasks, logStatus, totalTasksCount, cl }: TreeRo
       {isExpanded && (
         <div className='bg-gray-50/50 dark:bg-gray-900/20'>
           {tasks.map((t, index) => (
-            <Task key={t.task_id} list={t} logStatus={logStatus} isLast={index === tasks.length - 1} cl={cl} />
+            <Task
+              key={t.task_id}
+              list={t}
+              prName={prName}
+              logStatus={logStatus}
+              isLast={index === tasks.length - 1}
+              cl={cl}
+            />
           ))}
         </div>
       )}
@@ -79,32 +87,31 @@ export const TreeRoot = ({ path, tasks, logStatus, totalTasksCount, cl }: TreeRo
  */
 export const Task = ({
   list,
+  prName,
   logStatus,
   isLast,
   cl
 }: {
   list: TaskInfoDTO
+  prName?: string
   logStatus: Record<string, LogStatus>
   isLast?: boolean
   cl: string
 }) => {
   const [isExpanded, setIsExpanded] = useState(true)
 
-  // Extract filename from output_file path (from first target's first build)
-  const getFileName = () => {
-    if (!list.targets || list.targets.length === 0) return list.task_name || 'Unnamed Task'
+  // Prefer the PR name as the task label; fall back to the build target path or
+  // repo name so the row never shows an opaque uuid/log-file name.
+  const getTaskLabel = () => {
+    const fromPr = prName?.trim()
 
-    const firstTarget = list.targets[0] as any
+    if (fromPr) return fromPr
 
-    if (!firstTarget.builds || firstTarget.builds.length === 0) return list.task_name || 'Unnamed Task'
+    const targetPath = list.targets?.[0]?.target_path?.trim()
 
-    const firstBuild = firstTarget.builds[0]
+    if (targetPath) return targetPath
 
-    if (!firstBuild.output_file) return list.task_name || 'Unnamed Task'
-
-    const parts = firstBuild.output_file.split('/')
-
-    return parts[parts.length - 1] || 'Unnamed Task'
+    return list.task_name || 'Unnamed Task'
   }
 
   // Get overall task status from targets with styled badge
@@ -171,7 +178,7 @@ export const Task = ({
   }
 
   const taskStatus = getTaskStatus()
-  const fileName = getFileName()
+  const taskLabel = getTaskLabel()
 
   // Show builds oldest-first so the sequence numbers (#1, #2, ...) read as the
   // chronological attempt order rather than opaque build ids.
@@ -181,39 +188,34 @@ export const Task = ({
   )
 
   return (
-    <div className={`relative ${!isLast ? 'border-b border-gray-200 dark:border-gray-700' : ''}`}>
-      {/* Vertical line connector */}
-      <div className='absolute left-6 top-0 h-full w-px bg-gray-300 dark:bg-gray-600' />
-
+    <div className={`${!isLast ? 'border-b border-gray-200 dark:border-gray-700' : ''}`}>
       <div
         onClick={() => setIsExpanded(!isExpanded)}
-        className='group relative flex w-full cursor-pointer items-center gap-3 bg-white px-3 py-2.5 transition-all hover:bg-gray-100 dark:bg-gray-800/50 dark:hover:bg-gray-700/50'
+        className='group flex w-full cursor-pointer items-start gap-2 bg-white px-3 py-2.5 transition-all hover:bg-gray-100 dark:bg-gray-800/50 dark:hover:bg-gray-700/50'
       >
-        {/* Horizontal line connector */}
-        <div className='absolute left-6 top-1/2 h-px w-3 bg-gray-300 dark:bg-gray-600' />
-
-        <div className='relative z-10 ml-6 flex items-center gap-2'>
-          <div
-            className='transition-transform duration-200'
-            style={{ transform: isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)' }}
-          >
-            <ChevronDownIcon size={14} className='text-gray-500 dark:text-gray-400' />
-          </div>
+        <div
+          className='mt-0.5 shrink-0 transition-transform duration-200'
+          style={{ transform: isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)' }}
+        >
+          <ChevronDownIcon size={14} className='text-gray-500 dark:text-gray-400' />
         </div>
 
-        <div className='flex flex-1 flex-col gap-0.5'>
-          <span className='text-sm font-medium text-gray-800 dark:text-gray-200'>{fileName}</span>
-          <span className='text-xs text-gray-500 dark:text-gray-400'>{formatDateTime(list.created_at)}</span>
-        </div>
-
-        {taskStatus && (
-          <div className='flex items-center gap-2'>
-            {taskStatus.icon}
-            <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${taskStatus.badgeClass}`}>
-              {taskStatus.status}
-            </span>
+        <div className='flex min-w-0 flex-1 flex-col gap-1'>
+          <span title={taskLabel} className='truncate text-sm font-medium text-gray-800 dark:text-gray-200'>
+            {taskLabel}
+          </span>
+          <div className='flex flex-wrap items-center gap-x-2 gap-y-1'>
+            {taskStatus && (
+              <span
+                className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium ${taskStatus.badgeClass}`}
+              >
+                <span className='flex h-3.5 w-3.5 items-center justify-center'>{taskStatus.icon}</span>
+                {taskStatus.status}
+              </span>
+            )}
+            <span className='text-xs text-gray-500 dark:text-gray-400'>{formatDateTime(list.created_at)}</span>
           </div>
-        )}
+        </div>
       </div>
 
       {isExpanded && list && (
@@ -305,62 +307,53 @@ export const TaskItem = ({
   }
 
   return (
-    <div className='relative'>
-      {/* Vertical line connector */}
-      <div className={`absolute left-6 top-0 ${isLast ? 'h-1/2' : 'h-full'} w-px bg-gray-300 dark:bg-gray-600`} />
+    <div
+      onClick={() => handleClick(build.id)}
+      className={`group flex cursor-pointer items-center gap-2 py-2 pl-9 pr-3 transition-all hover:bg-gray-100 dark:hover:bg-gray-700/30 ${bgClass} ${
+        isSelected ? `border-l-2 ${borderColor}` : 'border-l-2 border-transparent'
+      } ${!isLast ? 'border-b border-gray-100 dark:border-gray-800' : ''}`}
+    >
+      <span className='flex h-4 w-4 shrink-0 items-center justify-center'>
+        {showQueued ? (
+          <ClockIcon size={14} className='text-gray-500 dark:text-gray-400' />
+        ) : (
+          identifyStatus(build.status || Status.NotFound)
+        )}
+      </span>
 
-      <div
-        onClick={() => handleClick(build.id)}
-        className={`group relative flex h-10 cursor-pointer items-center gap-3 px-3 transition-all hover:bg-gray-100 dark:hover:bg-gray-700/30 ${bgClass}`}
+      <span
+        title={build.id}
+        className={`shrink-0 font-mono text-sm transition-colors ${textColor} group-hover:text-blue-600 dark:group-hover:text-blue-400`}
       >
-        {/* Horizontal line connector */}
-        <div className={`absolute left-6 top-1/2 h-px w-6 ${borderColor}`} />
+        {seq != null ? `#${seq}` : build.id}
+      </span>
 
-        {/* Status dot */}
-        <div
-          className={`relative z-10 ml-12 flex h-2 w-2 items-center justify-center rounded-full ${borderColor} border-2 bg-white dark:bg-gray-800`}
+      {build.start_at && (
+        <span className='min-w-0 flex-1 truncate font-mono text-xs text-gray-400 dark:text-gray-500'>
+          {formatDateTime(build.start_at)}
+        </span>
+      )}
+
+      {showQueued && (
+        <span className='shrink-0 rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-gray-700/60 dark:text-gray-300'>
+          Queued
+        </span>
+      )}
+
+      {canRetry && (
+        <button
+          type='button'
+          onClick={handleRetry}
+          disabled={isRetrying}
+          title='Retry build'
+          className='flex shrink-0 items-center gap-1 rounded-md border border-gray-300 bg-white px-1.5 py-0.5 text-xs font-medium text-gray-600 transition-all hover:border-blue-400 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-blue-500 dark:hover:text-blue-400'
         >
-          {isSelected && <div className='h-1 w-1 rounded-full bg-blue-500' />}
-        </div>
+          <SyncIcon size={12} className={isRetrying ? 'animate-spin' : ''} />
+          <span>{isRetrying ? 'Retrying' : 'Retry'}</span>
+        </button>
+      )}
 
-        <div className='flex items-center gap-2'>
-          {showQueued ? (
-            <ClockIcon size={14} className='text-gray-500 dark:text-gray-400' />
-          ) : (
-            identifyStatus(build.status || Status.NotFound)
-          )}
-          <span
-            title={build.id}
-            className={`font-mono text-sm transition-colors ${textColor} group-hover:text-blue-600 dark:group-hover:text-blue-400`}
-          >
-            {seq != null ? `#${seq}` : build.id}
-          </span>
-          {build.start_at && (
-            <span className='font-mono text-xs text-gray-400 dark:text-gray-500'>{formatDateTime(build.start_at)}</span>
-          )}
-          {showQueued && (
-            <span className='rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-gray-700/60 dark:text-gray-300'>
-              Queued
-            </span>
-          )}
-        </div>
-
-        <div className='ml-auto flex items-center gap-2'>
-          {canRetry && (
-            <button
-              type='button'
-              onClick={handleRetry}
-              disabled={isRetrying}
-              title='Retry build'
-              className='flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2 py-0.5 text-xs font-medium text-gray-600 opacity-0 transition-all hover:border-blue-400 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-60 group-hover:opacity-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-blue-500 dark:hover:text-blue-400'
-            >
-              <SyncIcon size={12} className={isRetrying ? 'animate-spin' : ''} />
-              <span>{isRetrying ? 'Retrying' : 'Retry'}</span>
-            </button>
-          )}
-          {isSelected && <div className='h-1.5 w-1.5 animate-pulse rounded-full bg-blue-500' />}
-        </div>
-      </div>
+      {isSelected && <div className='h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-blue-500' />}
     </div>
   )
 }

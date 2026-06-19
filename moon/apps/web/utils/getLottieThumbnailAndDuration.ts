@@ -1,8 +1,11 @@
-import lottie from 'lottie-web/build/player/lottie_light'
-
 export async function getLottieThumbnailAndDuration(
   file: File
 ): Promise<{ preview: File; duration: number; width: number; height: number }> {
+  // lottie-web's light build touches `document` at import time, which crashes the
+  // Next.js production build during page-data collection. Import it lazily so it only
+  // loads in the browser when this helper actually runs.
+  const lottie = (await import('lottie-web/build/player/lottie_light')).default
+
   return new Promise<any>((resolve, reject) => {
     const src = URL.createObjectURL(file)
 

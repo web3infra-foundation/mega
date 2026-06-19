@@ -25,6 +25,7 @@ WORKDIR /opt/mega
 ARG TARGETARCH
 
 COPY Cargo.toml ./
+COPY Cargo.lock ./
 COPY api-model/Cargo.toml api-model/
 COPY ceres/Cargo.toml ceres/
 COPY common/Cargo.toml common/
@@ -78,15 +79,13 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,id=mega-cargo-registry-$
 
 COPY . .
 
-# Step 2: build binary, then copy out of the cache mount so the runtime stage can COPY it.
-# A buildkit cache mount is not committed into the image layer, so we build into a cached dir
-# and persist the final binary into a regular filesystem path before the layer is sealed.
+# Step 2: build the binary into the SAME target dir cargo-chef cooked into
+# (/opt/mega/target). Reusing that dir means the cooked dependency artifacts
+# from the cook layer are picked up, so only the orion-server crate itself is
+# compiled here instead of the whole dependency graph.
 RUN --mount=type=cache,target=/usr/local/cargo/registry,id=mega-cargo-registry-${TARGETARCH},sharing=locked \
     --mount=type=cache,target=/usr/local/cargo/git,id=mega-cargo-git-${TARGETARCH},sharing=locked \
-    --mount=type=cache,target=/opt/mega/target-cache \
-    CARGO_TARGET_DIR=/opt/mega/target-cache cargo build --profile demo -p orion-server && \
-    mkdir -p /opt/mega/target/demo && \
-    cp /opt/mega/target-cache/demo/orion-server /opt/mega/target/demo/orion-server
+    cargo build --locked --profile demo -p orion-server
 
 # ────── Stage 3: Runtime ──────
 FROM debian:trixie-slim
