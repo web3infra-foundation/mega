@@ -35,6 +35,11 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Checkout path dependencies
+        run: |
+          git clone --depth 1 --branch codex/antares-fuse-local-libfuse https://github.com/web3infra-foundation/scorpiofs.git ../scorpiofs
+          git clone --depth 1 --branch codex/stabilize-libfuse-buck2-races https://github.com/rk8s-dev/rk8s.git ../rk8s
+
       - name: Install nightly toolchain
         run: |
           rustup toolchain install nightly --profile minimal
@@ -57,6 +62,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+
+      - name: Checkout path dependencies
+        run: |
+          git clone --depth 1 --branch codex/antares-fuse-local-libfuse https://github.com/web3infra-foundation/scorpiofs.git ../scorpiofs
+          git clone --depth 1 --branch codex/stabilize-libfuse-buck2-races https://github.com/rk8s-dev/rk8s.git ../rk8s
 
       - name: Install system dependencies
         uses: ./.github/install-dep
@@ -108,6 +118,11 @@ jobs:
         with:
           submodules: recursive
           lfs: true
+
+      - name: Checkout path dependencies
+        run: |
+          git clone --depth 1 --branch codex/antares-fuse-local-libfuse https://github.com/web3infra-foundation/scorpiofs.git ../scorpiofs
+          git clone --depth 1 --branch codex/stabilize-libfuse-buck2-races https://github.com/rk8s-dev/rk8s.git ../rk8s
 
       - name: Install system dependencies
         uses: ./.github/install-dep
