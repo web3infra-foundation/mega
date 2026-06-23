@@ -12,6 +12,7 @@ import {
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso'
 
 import { parseAnsi, type AnsiSegment } from './ansi'
+import { applyErrorHighlight, isErrorLogLine } from './hooks/logUtils'
 
 export interface LogViewerProps {
   text: string
@@ -79,12 +80,13 @@ const LogRow = memo(function LogRow({
   searchQuery,
   getSegments
 }: LogRowProps) {
-  const segments = getSegments(line)
+  const isErrorLine = isErrorLogLine(line)
+  const segments = isErrorLine ? applyErrorHighlight(getSegments(line)) : getSegments(line)
 
   return (
     <div
       className={`flex min-h-[20px] font-mono text-[12px] leading-5 ${
-        isCurrentMatch ? 'bg-yellow-500/15' : isSearchMatch ? 'bg-white/5' : ''
+        isCurrentMatch ? 'bg-yellow-500/15' : isSearchMatch ? 'bg-white/5' : isErrorLine ? 'bg-red-950/25' : ''
       }`}
     >
       <div
