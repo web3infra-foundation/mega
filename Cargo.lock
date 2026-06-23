@@ -4440,7 +4440,7 @@ dependencies = [
 [[package]]
 name = "libfuse-fs"
 version = "0.1.13"
-source = "git+https://github.com/rk8s-dev/rk8s.git?branch=codex%2Fstabilize-libfuse-buck2-races#babb85b837907578144366982368c38c4ee4ba32"
+source = "git+https://github.com/rk8s-dev/rk8s.git?branch=codex%2Fstabilize-libfuse-buck2-races#d3e055a7a3abaf2a8d49e1ff46e110fa76365287"
 dependencies = [
  "async-trait",
  "bitflags 2.13.0",
@@ -7050,7 +7050,7 @@ dependencies = [
 [[package]]
 name = "rfuse3"
 version = "0.0.8"
-source = "git+https://github.com/rk8s-dev/rk8s.git?branch=codex%2Fstabilize-libfuse-buck2-races#babb85b837907578144366982368c38c4ee4ba32"
+source = "git+https://github.com/rk8s-dev/rk8s.git?branch=codex%2Fstabilize-libfuse-buck2-races#d3e055a7a3abaf2a8d49e1ff46e110fa76365287"
 dependencies = [
  "aligned_box",
  "async-notify",
@@ -7697,7 +7697,7 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 [[package]]
 name = "scorpiofs"
 version = "0.2.2"
-source = "git+https://github.com/web3infra-foundation/scorpiofs.git?branch=codex%2Fantares-fuse-local-libfuse#5728f4935ae80b0c03563db99a894e12b94b649f"
+source = "git+https://github.com/web3infra-foundation/scorpiofs.git?branch=codex%2Fantares-fuse-local-libfuse#fa60cbd6aa9ce5fb75ae1c479309700452db71ea"
 dependencies = [
  "async-recursion",
  "async-trait",
