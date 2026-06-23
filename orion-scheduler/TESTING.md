@@ -91,6 +91,8 @@ VM_IP=$(curl -s http://localhost:8080/status | jq -r .vm_ip)
 ssh -i ~/.ssh/orion_vm_access root@$VM_IP
 ```
 
+部署时 scheduler 会在 guest 内创建 **8 GB** swap 文件（`/swapfile`，写入 `/etc/fstab`），减轻全量 buck2 编译时的内存压力。可用 `swapon --show` / `free -h` 确认。
+
 ### 日志
 
 | 端点 | 格式 | 说明 |

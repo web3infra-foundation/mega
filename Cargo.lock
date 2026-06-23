@@ -4440,8 +4440,6 @@ dependencies = [
 [[package]]
 name = "libfuse-fs"
 version = "0.1.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d61be2a0235d6a5ba30064c172f12d5465da0f013281a0e6675604d0781496e9"
 dependencies = [
  "async-trait",
  "bitflags 2.13.0",
@@ -7051,8 +7049,6 @@ dependencies = [
 [[package]]
 name = "rfuse3"
 version = "0.0.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c5d7bea55817b58bd3a706ac0671f9aedc06d2d91e2f68272bd4fbe62f817d2b"
 dependencies = [
  "aligned_box",
  "async-notify",
@@ -7699,7 +7695,6 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 [[package]]
 name = "scorpiofs"
 version = "0.2.2"
-source = "git+https://github.com/web3infra-foundation/scorpiofs.git#230f62a28598100b2bb94379de20bdec9d4566c5"
 dependencies = [
  "async-recursion",
  "async-trait",

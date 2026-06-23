@@ -11,6 +11,51 @@ use crate::{
 /// The target directory inside the VM guest OS where Orion is deployed
 const ORION_TARGET_DIR: &str = "/home/orion/orion-runner";
 
+/// Swap file path and size for Orion build VMs (16 GB RAM by default).
+const VM_SWAP_FILE: &str = "/swapfile";
+const VM_SWAP_SIZE_GB: u32 = 8;
+
+/// Create and enable a swap file if not already active.
+async fn setup_vm_swap(machine: &KeepAliveMachine) -> Result<()> {
+    info!(
+        "[orion-deploy] Configuring {} GB swap at {}",
+        VM_SWAP_SIZE_GB, VM_SWAP_FILE
+    );
+    let cmd = format!(
+        r#"set -e
+if swapon --show --noheadings 2>/dev/null | grep -q '{swap_file}'; then
+  echo 'swap already active'
+elif [ -f '{swap_file}' ]; then
+  swapon '{swap_file}'
+else
+  fallocate -l {size_g}G '{swap_file}' 2>/dev/null \
+    || dd if=/dev/zero of='{swap_file}' bs=1M count=$(( {size_g} * 1024 )) status=none
+  chmod 600 '{swap_file}'
+  mkswap '{swap_file}'
+  swapon '{swap_file}'
+fi
+grep -qF '{swap_file}' /etc/fstab 2>/dev/null \
+  || echo '{swap_file} none swap sw 0 0' >> /etc/fstab
+swapon --show
+free -h | head -2
+"#,
+        swap_file = VM_SWAP_FILE,
+        size_g = VM_SWAP_SIZE_GB,
+    );
+    let output = machine.exec(&cmd).await?;
+    info!(
+        "[orion-deploy] Swap setup output:\n{}",
+        String::from_utf8_lossy(&output.stdout).trim()
+    );
+    if !output.status.success() {
+        anyhow::bail!(
+            "swap setup failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
+    }
+    Ok(())
+}
+
 /// Upload a single file to the VM via SFTP
 async fn upload_file(
     machine: &KeepAliveMachine,
@@ -142,6 +187,8 @@ pub async fn deploy_orion_in_vm(
 /// Returns the Orion service logs on success
 pub async fn start_orion_in_vm(machine: &KeepAliveMachine) -> Result<String> {
     info!("[orion-deploy] Starting Orion service");
+
+    setup_vm_swap(machine).await?;
 
     // Step 1: Create Scorpio directories
     info!("[orion-deploy] Creating Scorpio directories");
