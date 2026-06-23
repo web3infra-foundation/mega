@@ -37,5 +37,4 @@ serial_test = { workspace = true }
 tempfile = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-# scorpiofs = { git = "https://github.com/web3infra-foundation/scorpiofs.git" }
-scorpiofs = { path = "../../scorpiofs" }
+scorpiofs = { git = "https://github.com/web3infra-foundation/scorpiofs.git", branch = "codex/antares-fuse-local-libfuse" }
