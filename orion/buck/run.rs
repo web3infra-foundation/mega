@@ -21,7 +21,8 @@ use tracing::info;
 
 use crate::{
     cells::CellInfo,
-    types::{Package, TargetPattern},
+    platform::append_platform_config,
+    types::{Package, TargetLabel, TargetPattern},
     ExitStatusExt,
 };
 
@@ -150,6 +151,7 @@ impl Buck2 {
                 .arg(output)
                 .arg(at_file.clone())
                 .args(extra_args);
+            append_platform_config(&mut command);
             command
         })?;
         res.status.exit_result().context("buck2 targets failed")?;
@@ -181,6 +183,78 @@ impl Buck2 {
         info!("Running owners query");
         Ok(String::from_utf8(res.stdout)?)
     }
+
+    /// Reverse-deps of `seeds` within `universe_patterns`, via `buck2 uquery rdeps`.
+    ///
+    /// Buck2 defines `rdeps(universe, targets, ...)`: search for reverse dependencies
+    /// of `targets` only within `universe`. Use `%Ss` so each `@` file is expanded
+    /// into a single `set(...)` for one query (not `%s`, which runs one query per line
+    /// and groups JSON output by input literal).
+    pub fn uquery_rdeps(
+        &mut self,
+        seeds: &[TargetLabel],
+        universe_patterns: &[String],
+    ) -> anyhow::Result<Vec<TargetLabel>> {
+        if seeds.is_empty() || universe_patterns.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let seed_exprs: Vec<String> = seeds
+            .iter()
+            .map(|label| label.as_str().to_owned())
+            .collect();
+        let (_seed_file, at_seeds) = create_at_file_arg(&seed_exprs, "\n")?;
+        let (_universe_file, at_universe) = create_at_file_arg(universe_patterns, "\n")?;
+
+        let root = self.root()?;
+        let res = self.run_output_with_retry(|| {
+            let mut command = self.command();
+            command
+                .arg("uquery")
+                .arg("--json")
+                .arg("rdeps(%Ss, %Ss)")
+                .arg(&at_universe)
+                .arg(&at_seeds);
+            append_platform_config(&mut command);
+            command.current_dir(&root);
+            command
+        })?;
+
+        parse_uquery_rdeps_labels(&String::from_utf8(res.stdout)?)
+    }
+}
+
+fn parse_uquery_rdeps_labels(json_str: &str) -> anyhow::Result<Vec<TargetLabel>> {
+    let raw: serde_json::Value = serde_json::from_str(json_str)?;
+    let mut labels = match raw {
+        serde_json::Value::Array(items) => items
+            .into_iter()
+            .filter_map(|v| v.as_str().map(TargetLabel::new))
+            .collect(),
+        serde_json::Value::Object(map) => {
+            // Multi-query `%s` groups results by input literal; collect targets from
+            // values, not keys (keys may be universe patterns like `root//...`).
+            if map.values().all(|v| v.is_array()) {
+                map.into_values()
+                    .flat_map(|v| {
+                        v.as_array()
+                            .map(|arr| {
+                                arr.iter()
+                                    .filter_map(|item| item.as_str().map(TargetLabel::new))
+                                    .collect::<Vec<_>>()
+                            })
+                            .unwrap_or_default()
+                    })
+                    .collect()
+            } else {
+                map.keys().map(|key| TargetLabel::new(key)).collect()
+            }
+        }
+        _ => Vec::new(),
+    };
+    labels.sort();
+    labels.dedup();
+    Ok(labels)
 }
 
 fn should_retry_buck2_daemon(stderr: &str) -> bool {
@@ -193,8 +267,6 @@ fn should_retry_buck2_daemon(stderr: &str) -> bool {
 pub fn targets_arguments() -> &'static [&'static str] {
     &[
         "targets",
-        "--target-platforms",
-        "prelude//platforms:default",
         "--streaming",
         "--keep-going",
         "--no-cache",
@@ -204,4 +276,42 @@ pub fn targets_arguments() -> &'static [&'static str] {
         "--imports",
         "--package-values-regex=^citadel\\.labels$|^test_config_unification\\.rollout$",
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_uquery_rdeps_labels_accepts_target_array() {
+        let json = r#"["root//rk8s/lib:foo", "root//rk8s/bin:bar"]"#;
+        let labels = parse_uquery_rdeps_labels(json).unwrap();
+        assert_eq!(labels.len(), 2);
+        assert!(labels.contains(&TargetLabel::new("root//rk8s/lib:foo")));
+        assert!(labels.contains(&TargetLabel::new("root//rk8s/bin:bar")));
+    }
+
+    #[test]
+    fn parse_uquery_rdeps_labels_flattens_multi_query_grouped_output() {
+        let json = r#"{
+            "root//rk8s/...": ["root//rk8s/lib:foo", "root//rk8s/bin:bar"],
+            "root//other/...": ["root//other:lib"]
+        }"#;
+        let labels = parse_uquery_rdeps_labels(json).unwrap();
+        assert_eq!(labels.len(), 3);
+        assert!(!labels.iter().any(|l| l.as_str().contains("...")));
+        assert!(labels.contains(&TargetLabel::new("root//rk8s/lib:foo")));
+        assert!(labels.contains(&TargetLabel::new("root//other:lib")));
+    }
+
+    #[test]
+    fn parse_uquery_rdeps_labels_reads_target_keys_from_attribute_map() {
+        let json = r#"{
+            "root//rk8s/lib:foo": {"name": "foo"},
+            "root//rk8s/bin:bar": {"name": "bar"}
+        }"#;
+        let labels = parse_uquery_rdeps_labels(json).unwrap();
+        assert_eq!(labels.len(), 2);
+        assert!(labels.contains(&TargetLabel::new("root//rk8s/lib:foo")));
+    }
 }

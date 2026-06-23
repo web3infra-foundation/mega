@@ -239,12 +239,82 @@ pub enum RootImpactKind {
     SelectAll,
 }
 
+/// How to treat targets when the base graph is empty (no old-repo snapshot).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EmptyBasePolicy {
+    /// Entire new repository: every target in the diff graph is impacted.
+    SelectAll,
+    /// Subdirectory import into a monorepo (e.g. all-added `rk8s/`): only targets
+    /// whose package lives under `root//<package_prefix>/...`.
+    ScopedNew { package_prefix: String },
+}
+
+impl EmptyBasePolicy {
+    pub fn scoped_new(prefix: impl Into<String>) -> Self {
+        Self::ScopedNew {
+            package_prefix: prefix.into(),
+        }
+    }
+}
+
+fn target_package_under_prefix(package: &str, package_prefix: &str) -> bool {
+    let qualified = format!("root//{package_prefix}");
+    let qualified_slash = format!("{qualified}/");
+    package == qualified || package.starts_with(&qualified_slash)
+}
+
 pub fn immediate_target_changes<'a>(
     base: &'a Targets,
     diff: &'a Targets,
     changes: &Changes,
     track_prelude_changes: bool,
 ) -> GraphImpact<'a> {
+    immediate_target_changes_with_policy(
+        base,
+        diff,
+        changes,
+        track_prelude_changes,
+        EmptyBasePolicy::SelectAll,
+    )
+}
+
+pub fn immediate_target_changes_with_policy<'a>(
+    base: &'a Targets,
+    diff: &'a Targets,
+    changes: &Changes,
+    track_prelude_changes: bool,
+    empty_base_policy: EmptyBasePolicy,
+) -> GraphImpact<'a> {
+    // If there is no base graph, then everything is new. This must happen before
+    // universal `.buckconfig` handling so initial imports select the full graph
+    // even when the change list includes project-level configuration files.
+    if base.len_targets_upperbound() == 0 {
+        return match empty_base_policy {
+            EmptyBasePolicy::SelectAll => {
+                tracing::info!("All targets are new");
+                let all_targets = diff
+                    .targets()
+                    .map(|t| (t, ImpactTraceData::new(t, RootImpactKind::SelectAll)))
+                    .collect();
+                GraphImpact::from_non_recursive(all_targets)
+            }
+            EmptyBasePolicy::ScopedNew { package_prefix } => {
+                tracing::info!(
+                    package_prefix = %package_prefix,
+                    "All-added import with empty base; selecting new targets under scoped prefix only."
+                );
+                let mut res = GraphImpact::default();
+                for target in diff.targets() {
+                    if target_package_under_prefix(target.package.as_str(), &package_prefix) {
+                        res.recursive
+                            .push((target, ImpactTraceData::new(target, RootImpactKind::New)));
+                    }
+                }
+                res
+            }
+        };
+    }
+
     if changes.cell_paths().any(is_buckconfig_change) {
         let mut ret = GraphImpact::from_non_recursive(
             diff.targets()
@@ -261,16 +331,6 @@ pub fn immediate_target_changes<'a>(
     }
 
     tracing::debug!("Finding changes");
-
-    // If there is no base graph, then everything is new.
-    if base.len_targets_upperbound() == 0 {
-        tracing::info!("All targets are new");
-        let all_targets = diff
-            .targets()
-            .map(|t| (t, ImpactTraceData::new(t, RootImpactKind::SelectAll)))
-            .collect();
-        return GraphImpact::from_non_recursive(all_targets);
-    }
 
     // Find those targets which are different
     let mut old = base.targets_by_label_key();
@@ -846,6 +906,81 @@ mod tests {
             non_recursive.map(|x| x.as_str()),
             &["foo//bar:aaa", "foo//bar:ccc", "foo//baz:bbb"]
         );
+    }
+
+    #[test]
+    fn test_empty_base_selects_all_targets_before_buckconfig_handling() {
+        let base = Targets::new(vec![]);
+        let diff = Targets::new(vec![
+            TargetsEntry::Target(BuckTarget::testing(
+                "aaa",
+                "foo//bar",
+                "prelude//rules.bzl:cxx_library",
+            )),
+            TargetsEntry::Target(BuckTarget::testing(
+                "bbb",
+                "foo//baz",
+                "prelude//rules.bzl:cxx_library",
+            )),
+        ]);
+
+        let res = immediate_target_changes(
+            &base,
+            &diff,
+            &Changes::testing(&[
+                Status::Added(CellPath::new("foo//.buckconfig")),
+                Status::Added(CellPath::new("foo//bar/BUCK")),
+            ]),
+            false,
+        );
+
+        assert!(res.recursive.is_empty());
+        assert!(res.removed.is_empty());
+        let mut selected = res
+            .non_recursive
+            .iter()
+            .map(|(target, trace)| (target.label().to_string(), trace.root_cause_reason))
+            .collect::<Vec<_>>();
+        selected.sort_by(|a, b| a.0.cmp(&b.0));
+        assert_eq!(
+            selected,
+            vec![
+                ("foo//bar:aaa".to_owned(), RootImpactKind::SelectAll),
+                ("foo//baz:bbb".to_owned(), RootImpactKind::SelectAll),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_empty_base_scoped_new_limits_to_package_prefix() {
+        let base = Targets::new(vec![]);
+        let diff = Targets::new(vec![
+            TargetsEntry::Target(BuckTarget::testing(
+                "aaa",
+                "root//project/lib",
+                "prelude//rules.bzl:rust_library",
+            )),
+            TargetsEntry::Target(BuckTarget::testing(
+                "vendor",
+                "root//third-party/rust/crates/foo/1.0.0",
+                "prelude//rules.bzl:genrule",
+            )),
+        ]);
+
+        let res = immediate_target_changes_with_policy(
+            &base,
+            &diff,
+            &Changes::testing(&[Status::Added(CellPath::new("root//project/lib/src/lib.rs"))]),
+            false,
+            EmptyBasePolicy::scoped_new("project"),
+        );
+
+        assert_eq!(res.recursive.len(), 1);
+        assert_eq!(
+            res.recursive[0].0.label().to_string(),
+            "root//project/lib:aaa"
+        );
+        assert!(res.non_recursive.is_empty());
     }
 
     #[test]

@@ -7,8 +7,8 @@ import { LoadingSpinner } from '@gitmono/ui/Spinner'
 
 import { usePostRetryBuild } from '@/hooks/SSE/usePostRetryBuild'
 
-import { BuildDTO, getLatestBuildId, isTaskQueued, Status, TaskInfoDTO } from './store'
 import { TERMINAL_BUILD_STATUSES } from '../hooks/logUtils'
+import { BuildDTO, getLatestBuildId, isTaskQueued, Status, TaskInfoDTO } from './store'
 
 /**
  * Format ISO date string to readable format

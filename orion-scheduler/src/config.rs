@@ -34,6 +34,22 @@ pub struct Config {
     ssh_public_key_path: String,
 }
 
+/// Expand a leading `~` or `~/` to `$HOME`. Other paths are returned unchanged.
+pub fn expand_tilde(path: impl AsRef<str>) -> PathBuf {
+    let path = path.as_ref();
+    if path == "~" {
+        return std::env::var_os("HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from(path));
+    }
+    if let Some(rest) = path.strip_prefix("~/")
+        && let Some(home) = std::env::var_os("HOME")
+    {
+        return PathBuf::from(home).join(rest);
+    }
+    PathBuf::from(path)
+}
+
 impl Config {
     /// Create a new Config with the given log directory and empty targets
     #[cfg(test)]
@@ -210,3 +226,24 @@ struct ConfigFile {
 
 /// Global configuration state
 pub type SharedConfig = Arc<RwLock<Config>>;
+
+#[cfg(test)]
+mod tests {
+    use super::expand_tilde;
+
+    #[test]
+    fn expand_tilde_home_prefix() {
+        let home = std::env::var("HOME").expect("HOME must be set in test env");
+        let p = expand_tilde("~/.local/share/qlean/images/debian-13-buck2.qcow2");
+        assert_eq!(
+            p,
+            std::path::PathBuf::from(home).join(".local/share/qlean/images/debian-13-buck2.qcow2")
+        );
+    }
+
+    #[test]
+    fn expand_tilde_absolute_unchanged() {
+        let abs = "/home/orion/image.qcow2";
+        assert_eq!(expand_tilde(abs), std::path::PathBuf::from(abs));
+    }
+}

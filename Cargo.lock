@@ -5441,7 +5441,7 @@ dependencies = [
 
 [[package]]
 name = "orion"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "api-model",
@@ -5460,7 +5460,6 @@ dependencies = [
  "td_util",
  "td_util_buck",
  "tempfile",
- "thiserror 2.0.18",
  "tokio",
  "tokio-tungstenite",
  "tokio-util",
@@ -5468,7 +5467,6 @@ dependencies = [
  "tracing-subscriber",
  "tungstenite",
  "url",
- "utoipa",
  "uuid",
 ]
 
@@ -6266,9 +6264,9 @@ dependencies = [
 
 [[package]]
 name = "primefield"
-version = "0.14.0-rc.12"
+version = "0.14.0-rc.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8675564771a62f69a0af716b03e89b917b963c7b173b5855575e84fd4f605ca0"
+checksum = "2db02b39ea98560a1fec81df6266f3c1ef7fdde06ac5ef17f69aee6101602630"
 dependencies = [
  "crypto-bigint 0.7.5",
  "crypto-common 0.2.2",
@@ -7701,8 +7699,7 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 [[package]]
 name = "scorpiofs"
 version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fa605833112079da3f5075eafffd75d9cb02a48ddd8feae7f6c1b83fc7959e43"
+source = "git+https://github.com/web3infra-foundation/scorpiofs.git#230f62a28598100b2bb94379de20bdec9d4566c5"
 dependencies = [
  "async-recursion",
  "async-trait",

@@ -17,10 +17,15 @@ use once_cell::sync::Lazy;
 use td_util::{command::spawn, file_io::file_writer, file_tail::tail_compressed_buck2_events};
 use td_util_buck::{
     cells::CellInfo,
+    discovery_scope::{
+        compute_discovery_scope, detect_subproject_buck_root, strip_subproject_changes,
+    },
+    owners::Owners,
+    platform::{append_platform_config, platform_config_flags},
     run::{Buck2, targets_arguments},
     target_status::{BuildState, EVENT_LOG_FILE, Event, LogicalActionId, TargetBuildStatusUpdate},
-    targets::Targets,
-    types::TargetLabel,
+    targets::{BuckTarget, Targets},
+    types::{RuleType, TargetLabel},
 };
 use tokio::{
     io::AsyncBufReadExt,
@@ -51,6 +56,21 @@ struct AntaresMountPair {
     old_mount_point: String,
     new_mount_id: String,
     new_mount_point: String,
+    old_unmounted: bool,
+}
+
+/// Enable buck2 remote cache when set to `1`, `true`, `yes`, or `on`.
+///
+/// Default: disabled (`--no-remote-cache`) so incremental builds always compile
+/// locally and catch syntax errors immediately.
+fn buck_remote_cache_enabled() -> bool {
+    match std::env::var("ORION_BUCK_REMOTE_CACHE") {
+        Ok(value) => {
+            let normalized = value.trim().to_ascii_lowercase();
+            matches!(normalized.as_str(), "1" | "true" | "yes" | "on")
+        }
+        Err(_) => false,
+    }
 }
 
 fn retain_antares_mounts() -> bool {
@@ -131,13 +151,15 @@ async fn cleanup_antares_mount(
 }
 
 async fn cleanup_antares_mount_pair(task_id: &str, mounts: &AntaresMountPair, reason: &str) {
-    cleanup_antares_mount(
-        task_id,
-        &mounts.old_mount_id,
-        Some(&mounts.old_mount_point),
-        reason,
-    )
-    .await;
+    if !mounts.old_unmounted {
+        cleanup_antares_mount(
+            task_id,
+            &mounts.old_mount_id,
+            Some(&mounts.old_mount_point),
+            reason,
+        )
+        .await;
+    }
     cleanup_antares_mount(
         task_id,
         &mounts.new_mount_id,
@@ -145,6 +167,28 @@ async fn cleanup_antares_mount_pair(task_id: &str, mounts: &AntaresMountPair, re
         reason,
     )
     .await;
+}
+
+/// The old-repo mount is only needed for target discovery; release it before buck2 build.
+async fn unmount_discovery_old_mount(task_id: &str, mounts: &mut AntaresMountPair) {
+    if mounts.old_unmounted {
+        return;
+    }
+
+    tracing::info!(
+        "[Task {}] Unmounting old-repo Antares view after target discovery (mount_id={}, mountpoint={})",
+        task_id,
+        mounts.old_mount_id,
+        mounts.old_mount_point,
+    );
+    cleanup_antares_mount(
+        task_id,
+        &mounts.old_mount_id,
+        Some(&mounts.old_mount_point),
+        "old-repo mount no longer needed after target discovery",
+    )
+    .await;
+    mounts.old_unmounted = true;
 }
 
 /// Mount an Antares overlay filesystem for a build job.
@@ -350,10 +394,83 @@ fn resolve_config_path() -> Option<PathBuf> {
 /// populates the Dicfuse backing store which makes subsequent FUSE reads
 /// fast, and `preheat_shallow()` in `get_build_targets()` handles the
 /// per-mount VFS cache warming.
+fn all_changes_are_added(changes: &[Status<ProjectRelativePath>]) -> bool {
+    !changes.is_empty()
+        && changes
+            .iter()
+            .all(|change| matches!(change, Status::Added(_)))
+}
+
+/// Subproject import (e.g. all-added `rk8s/`): only consider paths under `project/`.
+fn filter_changes_under_prefix(
+    changes: &[Status<ProjectRelativePath>],
+    prefix: &str,
+) -> Vec<Status<ProjectRelativePath>> {
+    let prefix_slash = format!("{prefix}/");
+    changes
+        .iter()
+        .filter(|change| {
+            let path = change.get().as_str();
+            path == prefix || path.starts_with(&prefix_slash)
+        })
+        .cloned()
+        .collect()
+}
+
+/// Paths suitable for `buck2 uquery owner()` when seeding all-added subproject builds.
+/// Skips package manifests and vendored trees so we do not select every crate in `project/`.
+fn is_owner_seed_path(path: &str) -> bool {
+    if path.is_empty() {
+        return false;
+    }
+    let file_name = path.rsplit('/').next().unwrap_or(path);
+    if matches!(
+        file_name,
+        "BUCK" | "TARGETS" | "BUCK.v2" | "Cargo.toml" | "Cargo.lock" | ".buckconfig"
+    ) {
+        return false;
+    }
+    !(path.contains("/vendor/") || path.ends_with("/vendor"))
+}
+
+fn filter_owner_seed_changes(
+    changes: &[Status<ProjectRelativePath>],
+) -> Vec<Status<ProjectRelativePath>> {
+    changes
+        .iter()
+        .filter(|change| is_owner_seed_path(change.get().as_str()))
+        .cloned()
+        .collect()
+}
+
+/// Paths passed to `owner()` when the CL is all-added.
+///
+/// All-added sets use an empty base graph (old-repo `buck2 targets` is skipped).
+/// Running graph diff with `EmptyBasePolicy::SelectAll` would mark every target in
+/// the diff graph as impacted; seed from changed source paths instead.
+fn owner_seed_changes_for_discovery(
+    all_added_subproject: bool,
+    all_added: bool,
+    changes: &[Status<ProjectRelativePath>],
+) -> Vec<Status<ProjectRelativePath>> {
+    match (all_added_subproject, all_added) {
+        (true, _) => {
+            let under_project =
+                filter_changes_under_prefix(changes, ALL_ADDED_SUBPROJECT_BUILD_PREFIX);
+            filter_owner_seed_changes(&under_project)
+        }
+        (false, true) => filter_owner_seed_changes(changes),
+        (false, false) => changes.to_vec(),
+    }
+}
+
+const ALL_ADDED_SUBPROJECT_BUILD_PREFIX: &str = "project";
+
 fn get_repo_targets(
     file_name: &str,
     repo_path: &Path,
     cells: Option<&CellInfo>,
+    query_patterns: Option<&[String]>,
 ) -> anyhow::Result<Targets> {
     const MAX_ATTEMPTS: usize = 2;
     let jsonl_path = PathBuf::from(repo_path).join(file_name);
@@ -375,10 +492,14 @@ fn get_repo_targets(
 
         // Add base targets arguments
         command.args(targets_arguments());
+        append_platform_config(&mut command);
 
         // If cells info is provided, query all cells; otherwise just query root cell
         if let Some(cells_info) = cells {
-            let cell_patterns = cells_info.get_all_cell_patterns(repo_path);
+            let cell_patterns = match query_patterns {
+                Some(patterns) if !patterns.is_empty() => patterns.to_vec(),
+                _ => cells_info.get_all_cell_patterns(repo_path),
+            };
             tracing::debug!("Querying targets for cells: {:?}", cell_patterns);
             command.args(&cell_patterns);
         } else {
@@ -495,21 +616,277 @@ fn fallback_targets_for_errored_packages(
     fallback
 }
 
-fn collect_impacted_targets(base: &Targets, diff: &Targets, changes: &Changes) -> Vec<TargetLabel> {
-    let immediate = diff::immediate_target_changes(base, diff, changes, false);
-    let recursive = diff::recursive_target_changes(diff, changes, &immediate, None, |_| true);
+const OWNER_QUERY_BATCH_SIZE: usize = 500;
 
+/// When the `buck2 targets` graph has no impacted nodes (e.g. all-added CL with only
+/// package errors + imports in jsonl), resolve owners directly via `buck2 uquery owner()`.
+fn fallback_targets_from_owners(
+    buck2: &mut Buck2,
+    changes: &[Status<ProjectRelativePath>],
+) -> anyhow::Result<Vec<TargetLabel>> {
+    let paths: Vec<ProjectRelativePath> = changes
+        .iter()
+        .map(|change| change.get().clone())
+        .filter(|path| !path.as_str().is_empty())
+        .collect();
+    if paths.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let mut seen = HashSet::new();
+    let mut targets = Vec::new();
+    let mut batches = 0usize;
+
+    for chunk in paths.chunks(OWNER_QUERY_BATCH_SIZE) {
+        batches += 1;
+        let json = match buck2.owners(&[], chunk) {
+            Ok(json) => json,
+            Err(err) => {
+                tracing::warn!(
+                    error = %err,
+                    owner_batch = batches,
+                    "buck2 uquery owner() batch failed; continuing with remaining paths."
+                );
+                continue;
+            }
+        };
+        let owners = Owners::from_json(&json)?;
+        for label in owners.all_targets() {
+            if label_is_toolchain_or_platform(label) {
+                continue;
+            }
+            if seen.insert(label.clone()) {
+                targets.push(label.clone());
+            }
+        }
+    }
+
+    if targets.is_empty() {
+        tracing::warn!(
+            change_paths = paths.len(),
+            owner_batches = batches,
+            "buck2 uquery owner() returned no build targets for the changed paths."
+        );
+    } else {
+        tracing::info!(
+            change_paths = paths.len(),
+            owner_batches = batches,
+            recovered_targets = targets.len(),
+            "Recovered impacted Buck targets via buck2 uquery owner()."
+        );
+    }
+
+    Ok(targets)
+}
+
+/// Rule types that define toolchains, platforms, or configuration nodes.
+///
+/// These are build-system plumbing, not business targets. We never want to
+/// propagate impact *through* them (a pure-Rust change must not fan out into
+/// JVM/Android/CXX toolchain helpers), nor select them as explicit `buck2
+/// build` targets (e.g. `jdk_system_image`, `__android_sdk_tools__`).
+fn is_toolchain_or_platform_rule(rule_type: &RuleType) -> bool {
+    let short = rule_type.short();
+
+    const EXACT: &[&str] = &[
+        "platform",
+        "execution_platform",
+        "execution_platforms",
+        "constraint_setting",
+        "constraint_value",
+        "config_setting",
+        "configuration",
+        "configured_alias",
+        "toolchain_alias",
+    ];
+
+    EXACT.contains(&short)
+        || short == "toolchain"
+        || short.ends_with("_toolchain")
+        || short.starts_with("toolchain_")
+}
+
+/// Whether a package (cell-qualified, e.g. `root//project/buck2_test/toolchains`)
+/// is a toolchain or platform definition package.
+fn package_is_toolchain_or_platform(package: &str) -> bool {
+    let (cell, rel) = package.split_once("//").unwrap_or(("", package));
+
+    if cell == "toolchains" {
+        return true;
+    }
+
+    for plumbing in ["toolchains", "platforms"] {
+        if rel == plumbing
+            || rel.starts_with(&format!("{plumbing}/"))
+            || rel.ends_with(&format!("/{plumbing}"))
+            || rel.contains(&format!("/{plumbing}/"))
+        {
+            return true;
+        }
+    }
+
+    false
+}
+
+/// Whether a concrete target is a toolchain/platform helper that should be
+/// excluded from the explicit build set.
+fn is_toolchain_or_platform_target(target: &BuckTarget) -> bool {
+    is_toolchain_or_platform_rule(&target.rule_type)
+        || package_is_toolchain_or_platform(target.package.as_str())
+        || matches!(
+            target.name.as_str(),
+            "jdk_system_image" | "__android_sdk_tools__"
+        )
+}
+
+/// Heuristic for fallback labels (we only have the label string, not the
+/// `BuckTarget`), e.g. `root//project/buck2_test/toolchains:jdk_system_image`.
+fn label_is_toolchain_or_platform(label: &TargetLabel) -> bool {
+    let label = label.as_str();
+    let package = label.rsplit_once(':').map(|(pkg, _)| pkg).unwrap_or(label);
+    let name = label.rsplit_once(':').map(|(_, name)| name).unwrap_or("");
+
+    package_is_toolchain_or_platform(package)
+        || matches!(name, "jdk_system_image" | "__android_sdk_tools__")
+}
+
+fn is_rust_build_rule(rule_type: &RuleType) -> bool {
+    matches!(
+        rule_type.short(),
+        "rust_library" | "rust_binary" | "rust_test"
+    )
+}
+
+/// Buckal-generated helper targets that must not be passed to `buck2 build`.
+fn label_is_buckal_plumbing_name(name: &str) -> bool {
+    matches!(name, "vendor" | "manifest") || name.starts_with("build-script")
+}
+
+fn is_buckal_plumbing_target(target: &BuckTarget) -> bool {
+    label_is_buckal_plumbing_name(target.name.as_str())
+        || matches!(
+            target.rule_type.short(),
+            "cargo_manifest" | "filegroup" | "buildscript_run"
+        )
+}
+
+fn target_package_under_prefix(package: &str, package_prefix: &str) -> bool {
+    let qualified = format!("root//{package_prefix}");
+    let qualified_slash = format!("{qualified}/");
+    package == qualified || package.starts_with(&qualified_slash)
+}
+
+fn rust_build_targets_in_package<'a>(diff: &'a Targets, package: &str) -> Vec<&'a BuckTarget> {
+    diff.targets()
+        .filter(|t| t.package.as_str() == package && is_rust_build_rule(&t.rule_type))
+        .collect()
+}
+
+/// `buck2 uquery owner()` on buckal trees often returns `:vendor` filegroups.
+/// Map those to the real `rust_library` / `rust_binary` targets in the same package.
+fn normalize_owner_targets_to_rust(diff: &Targets, seeds: Vec<TargetLabel>) -> Vec<TargetLabel> {
+    let mut seen = HashSet::new();
+    let mut out = Vec::new();
+
+    for label in seeds {
+        if label_is_toolchain_or_platform(&label) {
+            continue;
+        }
+        let label_str = label.as_str();
+        let package = label_str
+            .rsplit_once(':')
+            .map(|(pkg, _)| pkg)
+            .unwrap_or(label_str);
+        let name = label_str.rsplit_once(':').map(|(_, n)| n).unwrap_or("");
+
+        let push_rust_in_package = |out: &mut Vec<_>, seen: &mut HashSet<_>| {
+            for target in rust_build_targets_in_package(diff, package) {
+                let rust_label = target.label();
+                if seen.insert(rust_label.clone()) {
+                    out.push(rust_label);
+                }
+            }
+        };
+
+        if label_is_buckal_plumbing_name(name) {
+            push_rust_in_package(&mut out, &mut seen);
+            continue;
+        }
+
+        if let Some(target) = diff.targets().find(|t| t.label() == label)
+            && (is_buckal_plumbing_target(target) || !is_rust_build_rule(&target.rule_type))
+        {
+            push_rust_in_package(&mut out, &mut seen);
+            continue;
+        }
+
+        if seen.insert(label.clone()) {
+            out.push(label);
+        }
+    }
+
+    out
+}
+
+fn package_prefix_from_universe_patterns(patterns: &[String]) -> Option<String> {
+    for pattern in patterns {
+        let stripped = pattern.strip_prefix("root//")?;
+        let prefix = stripped.strip_suffix("/...")?;
+        if prefix.is_empty() || prefix.contains("...") {
+            continue;
+        }
+        return Some(prefix.to_owned());
+    }
+    None
+}
+
+fn collect_impacted_targets(
+    base: &Targets,
+    diff: &Targets,
+    changes: &Changes,
+    empty_base_policy: diff::EmptyBasePolicy,
+) -> Vec<TargetLabel> {
+    let immediate =
+        diff::immediate_target_changes_with_policy(base, diff, changes, false, empty_base_policy);
+    // Do not propagate impact *through* toolchain/platform/config nodes: a
+    // change to (or near) a toolchain definition must not drag in every target
+    // that resolves that toolchain.
+    let recursive = diff::recursive_target_changes(diff, changes, &immediate, None, |rule_type| {
+        !is_toolchain_or_platform_rule(rule_type)
+    });
+
+    let mut excluded_helpers = 0usize;
     let mut targets: Vec<_> = recursive
         .into_iter()
         .flatten()
+        .filter(|(target, _)| {
+            // Never build toolchain/platform helpers as explicit targets; if a
+            // real target needs them, buck2 still builds them transitively.
+            let keep = !is_toolchain_or_platform_target(target);
+            if !keep {
+                excluded_helpers += 1;
+            }
+            keep
+        })
         .map(|(target, _)| target.label())
         .collect();
     let mut seen: HashSet<_> = targets.iter().cloned().collect();
 
     for label in fallback_targets_for_errored_packages(base, diff, changes) {
+        if label_is_toolchain_or_platform(&label) {
+            excluded_helpers += 1;
+            continue;
+        }
         if seen.insert(label.clone()) {
             targets.push(label);
         }
+    }
+
+    if excluded_helpers > 0 {
+        tracing::info!(
+            excluded_helpers,
+            "Excluded toolchain/platform helper targets from the build set."
+        );
     }
 
     if targets.is_empty() {
@@ -529,6 +906,162 @@ fn collect_impacted_targets(base: &Targets, diff: &Targets, changes: &Changes) -
     }
 
     targets
+}
+
+/// Expand impacted targets with reverse-deps from the full cell universe (scheme D).
+fn expand_impacted_with_rdeps(
+    buck2: &mut Buck2,
+    seeds: &[TargetLabel],
+    universe_patterns: &[String],
+) -> anyhow::Result<Vec<TargetLabel>> {
+    if seeds.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let rdeps = buck2.uquery_rdeps(seeds, universe_patterns)?;
+    let mut seen: HashSet<TargetLabel> = seeds.iter().cloned().collect();
+    let mut expanded = seeds.to_vec();
+
+    for label in rdeps {
+        if label_is_toolchain_or_platform(&label) {
+            continue;
+        }
+        if seen.insert(label.clone()) {
+            expanded.push(label);
+        }
+    }
+
+    Ok(expanded)
+}
+
+/// Reverse-deps expansion using the in-memory `buck2 targets` graph.
+///
+/// Avoids `buck2 uquery rdeps`, which can fail when a dependency references a
+/// missing toolchain cell (e.g. `toolchains//:cxx_no_default_deps`).
+fn expand_impacted_with_graph_rdeps(
+    diff: &Targets,
+    changes: &Changes,
+    seeds: &[TargetLabel],
+    package_prefix: &str,
+) -> Vec<TargetLabel> {
+    if seeds.is_empty() {
+        return Vec::new();
+    }
+
+    let target_by_label: HashMap<TargetLabel, &BuckTarget> =
+        diff.targets().map(|t| (t.label(), t)).collect();
+
+    let mut recursive_seeds = Vec::new();
+    for label in seeds {
+        let Some(target) = target_by_label.get(label) else {
+            continue;
+        };
+        if !target_package_under_prefix(target.package.as_str(), package_prefix) {
+            continue;
+        }
+        recursive_seeds.push((
+            *target,
+            diff::ImpactTraceData::new(target, diff::RootImpactKind::Inputs),
+        ));
+    }
+
+    if recursive_seeds.is_empty() {
+        return seeds.to_vec();
+    }
+
+    let impact = diff::GraphImpact::from_recursive(recursive_seeds);
+    let layers = diff::recursive_target_changes(diff, changes, &impact, None, |rule_type| {
+        !is_toolchain_or_platform_rule(rule_type)
+    });
+
+    let mut seen: HashSet<TargetLabel> = seeds.iter().cloned().collect();
+    let mut expanded = seeds.to_vec();
+
+    for layer in layers {
+        for (target, _) in layer {
+            if !target_package_under_prefix(target.package.as_str(), package_prefix) {
+                continue;
+            }
+            if is_toolchain_or_platform_target(target) || is_buckal_plumbing_target(target) {
+                continue;
+            }
+            if !is_rust_build_rule(&target.rule_type) {
+                continue;
+            }
+            let label = target.label();
+            if seen.insert(label.clone()) {
+                expanded.push(label);
+            }
+        }
+    }
+
+    expanded
+}
+
+fn maybe_expand_narrow_targets(
+    buck2: &mut Buck2,
+    diff: &Targets,
+    changes: &Changes,
+    targets: Vec<TargetLabel>,
+    narrow: bool,
+    universe_patterns: &[String],
+    graph_rdeps_prefix: Option<&str>,
+) -> Vec<TargetLabel> {
+    if !narrow || targets.is_empty() {
+        return targets;
+    }
+
+    if let Some(prefix) = graph_rdeps_prefix {
+        let expanded = expand_impacted_with_graph_rdeps(diff, changes, &targets, prefix);
+        if expanded.len() > targets.len() {
+            tracing::info!(
+                seeds = targets.len(),
+                after_rdeps = expanded.len(),
+                package_prefix = prefix,
+                "Expanded narrowed discovery seeds with in-graph rdeps."
+            );
+        }
+        return expanded;
+    }
+
+    match expand_impacted_with_rdeps(buck2, &targets, universe_patterns) {
+        Ok(expanded) => {
+            if expanded.len() > targets.len() {
+                tracing::info!(
+                    seeds = targets.len(),
+                    after_rdeps = expanded.len(),
+                    "Expanded narrowed discovery seeds with buck2 uquery rdeps."
+                );
+            }
+            expanded
+        }
+        Err(err) => {
+            if let Some(prefix) = package_prefix_from_universe_patterns(universe_patterns) {
+                tracing::warn!(
+                    error = %err,
+                    seed_count = targets.len(),
+                    package_prefix = %prefix,
+                    "buck2 uquery rdeps failed; falling back to in-graph rdeps."
+                );
+                let expanded = expand_impacted_with_graph_rdeps(diff, changes, &targets, &prefix);
+                if expanded.len() > targets.len() {
+                    tracing::info!(
+                        seeds = targets.len(),
+                        after_rdeps = expanded.len(),
+                        "Expanded narrowed discovery seeds with in-graph rdeps fallback."
+                    );
+                }
+                expanded
+            } else {
+                tracing::warn!(
+                    error = %err,
+                    seed_count = targets.len(),
+                    "buck2 uquery rdeps failed; keeping narrowed impacted targets only."
+                );
+                targets
+            }
+        }
+    }
 }
 
 fn has_path_component_suffix(candidate: &str, suffix: &str) -> bool {
@@ -621,22 +1154,44 @@ async fn get_build_targets(
 
     tracing::debug!("Analyzing changes {mega_changes:?}");
 
-    preheat_shallow(&mount_path, preheat_shallow_depth())?;
+    let subproject = detect_subproject_buck_root(&mount_path, &mega_changes);
+    let buck2_root = subproject
+        .as_ref()
+        .map(|sp| sp.buck_root.clone())
+        .unwrap_or_else(|| mount_path.clone());
+    let old_buck_root = subproject
+        .as_ref()
+        .map(|sp| old_repo.join(&sp.strip_prefix))
+        .unwrap_or_else(|| old_repo.clone());
+    let discovery_changes = subproject
+        .as_ref()
+        .map(|sp| strip_subproject_changes(&mega_changes, &sp.strip_prefix))
+        .unwrap_or_else(|| mega_changes.clone());
+
+    if let Some(sp) = &subproject {
+        tracing::info!(
+            buck_root = %sp.buck_root.display(),
+            strip_prefix = %sp.strip_prefix,
+            "Using sub-project .buckconfig for target discovery."
+        );
+    }
+
+    preheat_shallow(&buck2_root, preheat_shallow_depth())?;
 
     // DEBUG: Log Buck2 initialization
-    tracing::debug!(buck2_root = %mount_path.display(), "DEBUG: Initializing Buck2 with root");
-    let mut buck2 = Buck2::with_root("buck2".to_string(), mount_path.clone());
+    tracing::debug!(buck2_root = %buck2_root.display(), "DEBUG: Initializing Buck2 with root");
+    let mut buck2 = Buck2::with_root("buck2".to_string(), buck2_root.clone());
 
     // DEBUG: Log before buck2 cells() call
-    tracing::debug!(buck2_root = %mount_path.display(), "DEBUG: About to call buck2 cells()");
+    tracing::debug!(buck2_root = %buck2_root.display(), "DEBUG: About to call buck2 cells()");
     let cells_result = buck2.cells();
 
     match &cells_result {
         Ok(_cells_info) => {
-            tracing::debug!(buck2_root = %mount_path.display(), "DEBUG: buck2 cells() succeeded");
+            tracing::debug!(buck2_root = %buck2_root.display(), "DEBUG: buck2 cells() succeeded");
         }
         Err(e) => {
-            tracing::warn!(buck2_root = %mount_path.display(), error = %e, "DEBUG: buck2 cells() failed");
+            tracing::warn!(buck2_root = %buck2_root.display(), error = %e, "DEBUG: buck2 cells() failed");
         }
     }
 
@@ -650,36 +1205,163 @@ async fn get_build_targets(
             .map_err(|err| anyhow!("Fail to get config: {}", err))?,
     )?;
 
-    let base = get_repo_targets("base.jsonl", &old_repo, Some(&cells))?;
-    let diff = get_repo_targets("diff.jsonl", &mount_path, Some(&cells))?;
-    let changes = Changes::new(&cells, mega_changes.clone())?;
+    let full_patterns = cells.get_all_cell_patterns(&buck2_root);
+    let all_added = all_changes_are_added(&mega_changes);
+    let all_added_subproject = all_added && subproject.is_some();
+
+    let scope = compute_discovery_scope(&cells, &buck2_root, &discovery_changes);
+    let project_only_patterns = vec![format!("root//{ALL_ADDED_SUBPROJECT_BUILD_PREFIX}/...")];
+    let (discovery_patterns, rdeps_universe) = if all_added_subproject {
+        tracing::info!(
+            patterns = ?project_only_patterns,
+            "All-added subproject import; limiting discovery and build to project/ only."
+        );
+        (project_only_patterns.clone(), project_only_patterns)
+    } else if scope.narrow {
+        tracing::info!(
+            patterns = ?scope.query_patterns,
+            "Using narrowed target discovery scope."
+        );
+        (scope.query_patterns.clone(), full_patterns.clone())
+    } else {
+        (full_patterns.clone(), full_patterns.clone())
+    };
+    let query_patterns = &discovery_patterns;
+    let use_rdeps_expansion = all_added_subproject || scope.narrow;
+    let graph_rdeps_prefix = if all_added_subproject {
+        Some(ALL_ADDED_SUBPROJECT_BUILD_PREFIX)
+    } else {
+        None
+    };
+
+    let base = if all_added {
+        tracing::info!(
+            change_count = mega_changes.len(),
+            "All-added change set; skipping old-repo buck2 targets query."
+        );
+        Targets::new(Vec::new())
+    } else {
+        match get_repo_targets(
+            "base.jsonl",
+            &old_buck_root,
+            Some(&cells),
+            Some(query_patterns),
+        ) {
+            Ok(base) => base,
+            Err(err) => return Err(err),
+        }
+    };
+    let diff = get_repo_targets(
+        "diff.jsonl",
+        &buck2_root,
+        Some(&cells),
+        Some(query_patterns),
+    )?;
+    let changes = Changes::new(&cells, discovery_changes.clone())?;
     tracing::debug!("Changes {changes:?}");
 
     tracing::debug!("Base targets number: {}", base.len_targets_upperbound());
     tracing::debug!("Diff targets number: {}", diff.len_targets_upperbound());
 
-    let targets = collect_impacted_targets(&base, &diff, &changes);
+    let owner_seed_changes =
+        owner_seed_changes_for_discovery(all_added_subproject, all_added, &discovery_changes);
+
+    if all_added_subproject {
+        tracing::info!(
+            owner_seed_paths = owner_seed_changes.len(),
+            "All-added subproject import; seeding targets via owner() on project source paths, then mapping to rust_library/rust_binary."
+        );
+    } else if all_added {
+        tracing::info!(
+            owner_seed_paths = owner_seed_changes.len(),
+            "All-added change set; skipping graph SelectAll on empty base, seeding targets via owner()."
+        );
+    }
+
+    let graph_targets = if all_added {
+        Vec::new()
+    } else {
+        collect_impacted_targets(&base, &diff, &changes, diff::EmptyBasePolicy::SelectAll)
+    };
+
+    let targets = maybe_expand_narrow_targets(
+        &mut buck2,
+        &diff,
+        &changes,
+        graph_targets,
+        use_rdeps_expansion,
+        &rdeps_universe,
+        graph_rdeps_prefix,
+    );
     if !targets.is_empty() {
         return Ok(targets);
     }
 
+    let owner_targets = {
+        let seeds = fallback_targets_from_owners(&mut buck2, &owner_seed_changes)?;
+        let seeds = normalize_owner_targets_to_rust(&diff, seeds);
+        maybe_expand_narrow_targets(
+            &mut buck2,
+            &diff,
+            &changes,
+            seeds,
+            use_rdeps_expansion,
+            &rdeps_universe,
+            graph_rdeps_prefix,
+        )
+    };
+    if !owner_targets.is_empty() {
+        return Ok(owner_targets);
+    }
+
     let (remapped_changes, remapped_count) =
-        remap_repo_local_change_paths(&mount_path, &diff, &mega_changes);
-    if remapped_count == 0 {
-        return Ok(targets);
-    }
-
-    let remapped = Changes::new(&cells, remapped_changes)?;
-    let remapped_targets = collect_impacted_targets(&base, &diff, &remapped);
-    if !remapped_targets.is_empty() {
-        tracing::info!(
-            remapped_count,
-            recovered_target_count = remapped_targets.len(),
-            "Recovered impacted Buck targets after remapping repo-local change paths."
+        remap_repo_local_change_paths(&buck2_root, &diff, &owner_seed_changes);
+    if remapped_count > 0 {
+        let remapped = Changes::new(&cells, remapped_changes.clone())?;
+        let remapped_graph_targets = if all_added {
+            Vec::new()
+        } else {
+            collect_impacted_targets(&base, &diff, &remapped, diff::EmptyBasePolicy::SelectAll)
+        };
+        let remapped_targets = maybe_expand_narrow_targets(
+            &mut buck2,
+            &diff,
+            &remapped,
+            remapped_graph_targets,
+            use_rdeps_expansion,
+            &rdeps_universe,
+            graph_rdeps_prefix,
         );
+        if !remapped_targets.is_empty() {
+            tracing::info!(
+                remapped_count,
+                recovered_target_count = remapped_targets.len(),
+                "Recovered impacted Buck targets after remapping repo-local change paths."
+            );
+            return Ok(remapped_targets);
+        }
+
+        let remapped_owner_seeds =
+            owner_seed_changes_for_discovery(all_added_subproject, all_added, &remapped_changes);
+        let owner_remapped = {
+            let seeds = fallback_targets_from_owners(&mut buck2, &remapped_owner_seeds)?;
+            let seeds = normalize_owner_targets_to_rust(&diff, seeds);
+            maybe_expand_narrow_targets(
+                &mut buck2,
+                &diff,
+                &remapped,
+                seeds,
+                use_rdeps_expansion,
+                &rdeps_universe,
+                graph_rdeps_prefix,
+            )
+        };
+        if !owner_remapped.is_empty() {
+            return Ok(owner_remapped);
+        }
     }
 
-    Ok(remapped_targets)
+    Ok(targets)
 }
 
 fn validate_project_roots(
@@ -1049,6 +1731,7 @@ pub async fn build(
             old_mount_point: old_repo_mount_point.clone(),
             new_mount_id: id_for_repo,
             new_mount_point: repo_mount_point.clone(),
+            old_unmounted: false,
         };
 
         tracing::info!(
@@ -1142,7 +1825,7 @@ pub async fn build(
         }
     }
 
-    let mounts = match selected_mounts {
+    let mut mounts = match selected_mounts {
         Some(value) => value,
         None => {
             let err = last_targets_error
@@ -1166,6 +1849,10 @@ pub async fn build(
     };
     let mount_point = mounts.new_mount_point.clone();
 
+    if !retain_mounts {
+        unmount_discovery_old_mount(&id, &mut mounts).await;
+    }
+
     if finish_without_build_if_no_targets(&id, &targets, &sender)? {
         tracing::info!(
             "[Task {}] No impacted Buck targets detected; skipping buck2 build.",
@@ -1185,9 +1872,16 @@ pub async fn build(
     }
 
     let build_result = async {
-        // Run buck2 build from the sub-project directory, not the monorepo root.
-        // This ensures buck2 uses the sub-project's .buckconfig and PACKAGE files.
-        let project_root = PathBuf::from(&mount_point).join(repo_prefix);
+        // Run buck2 build from the sub-project directory when it has its own `.buckconfig`.
+        let mut project_root = PathBuf::from(&mount_point).join(repo_prefix);
+        if let Some(sp) = detect_subproject_buck_root(&project_root, &changes) {
+            tracing::info!(
+                buck_root = %sp.buck_root.display(),
+                strip_prefix = %sp.strip_prefix,
+                "Using sub-project .buckconfig for buck2 build."
+            );
+            project_root = sp.buck_root;
+        }
         tracing::info!(
             "[Task {}] Starting buck2 build. project_root={}, targets={}",
             id,
@@ -1195,12 +1889,11 @@ pub async fn build(
             targets.len()
         );
 
-        // Disable both remote and local cache to ensure syntax errors are detected:
-        // 1. Kill daemon to clear local action cache
-        // 2. Use unique isolation-dir to prevent cache sharing between builds
-        // 3. Use --no-remote-cache to prevent remote cache usage
+        // Kill daemon + unique isolation-dir limit cross-build local cache sharing.
+        // Remote cache is off by default; set ORION_BUCK_REMOTE_CACHE=1 to enable it.
         // Note: Buck2 requires isolation-dir to be a simple directory name without path separators
         let isolation_dir = format!("buck-isolation-{}", id);
+        let remote_cache = buck_remote_cache_enabled();
         let mut kill_cmd = Command::new("buck2");
         kill_cmd
             .arg("kill")
@@ -1229,21 +1922,26 @@ pub async fn build(
         // FUSE-backed repos may trigger lazy loading during daemon init, which
         // can be slow on cold caches — allow up to 1200s for the daemon to start.
         cmd.env("BUCKD_STARTUP_TIMEOUT", "30")
-            .env("BUCKD_STARTUP_INIT_TIMEOUT", "1200");
-        let cmd = cmd
-            .arg("build")
-            .args(["--event-log", EVENT_LOG_FILE])
+            .env("BUCKD_STARTUP_INIT_TIMEOUT", "1200")
+            .arg("build");
+        for flag in platform_config_flags() {
+            cmd.arg(flag);
+        }
+        cmd.args(["--event-log", EVENT_LOG_FILE])
             .args(&targets)
-            .arg("--target-platforms")
-            .arg("prelude//platforms:default")
             // Avoid failing the whole build when a target is explicitly incompatible
             // with the selected platform (e.g., macOS-only crates on Linux builders).
             .arg("--skip-incompatible-targets")
-            .arg("--verbose=2")
-            // Disable remote cache to ensure we always build with the latest code changes
-            // and detect syntax errors immediately in incremental builds
-            .arg("--no-remote-cache")
-            .arg("--isolation-dir")
+            .arg("--verbose=2");
+        if remote_cache {
+            tracing::info!(
+                "[Task {}] ORION_BUCK_REMOTE_CACHE enabled; buck2 may read remote action cache.",
+                id
+            );
+        } else {
+            cmd.arg("--no-remote-cache");
+        }
+        cmd.arg("--isolation-dir")
             .arg(&isolation_dir)
             .current_dir(&project_root)
             .stdout(Stdio::piped())
@@ -1287,8 +1985,8 @@ pub async fn build(
                 result = stdout_reader.next_line() => {
                     match result {
                         Ok(Some(line)) => {
-                            // Log buck2 stdout for debugging
-                            tracing::debug!("[Task {}] buck2 stdout: {}", id, line);
+                            // Log at info so run.sh/orion.log and scheduler SSE can tail build output.
+                            tracing::info!("[Task {}] buck2: {}", id, line);
                             if sender.send(WSMessage::TaskBuildOutput { build_id: id.clone(), output: line }).is_err() {
                                 child.kill().await?;
                                 return Err("WebSocket connection lost during build.".into());
@@ -1405,13 +2103,19 @@ mod tests {
 
     use api_model::buck2::{status::Status, types::ProjectRelativePath};
     use serial_test::serial;
-    use td_util_buck::types::TargetLabel;
+    use td_util_buck::{
+        targets::{BuckTarget, Targets, TargetsEntry},
+        types::{RuleType, TargetLabel},
+    };
     use tempfile::TempDir;
     use tokio::sync::mpsc;
 
     use super::{
-        antares_unmount_grace_duration, finish_without_build_if_no_targets, get_build_targets,
-        get_repo_targets, remap_repo_local_change_paths, retain_antares_mounts,
+        all_changes_are_added, antares_unmount_grace_duration, buck_remote_cache_enabled,
+        filter_owner_seed_changes, finish_without_build_if_no_targets, get_build_targets,
+        get_repo_targets, is_toolchain_or_platform_rule, is_toolchain_or_platform_target,
+        label_is_toolchain_or_platform, normalize_owner_targets_to_rust,
+        owner_seed_changes_for_discovery, remap_repo_local_change_paths, retain_antares_mounts,
         validate_project_root_exists,
     };
 
@@ -1500,6 +2204,80 @@ mod tests {
                 None => std::env::remove_var("ORION_ANTARES_UNMOUNT_GRACE_MS"),
             }
         }
+    }
+
+    #[test]
+    fn test_toolchain_and_platform_rules_are_detected() {
+        for rule in [
+            "prelude//toolchains/jdk.bzl:system_jdk_toolchain",
+            "prelude//rules.bzl:toolchain",
+            "prelude//platforms.bzl:platform",
+            "prelude//config.bzl:config_setting",
+            "prelude//config.bzl:constraint_value",
+        ] {
+            assert!(
+                is_toolchain_or_platform_rule(&RuleType::new(rule)),
+                "expected {rule} to be treated as toolchain/platform plumbing"
+            );
+        }
+
+        for rule in [
+            "prelude//rules.bzl:rust_library",
+            "prelude//rules.bzl:rust_binary",
+            "prelude//rules.bzl:genrule",
+        ] {
+            assert!(
+                !is_toolchain_or_platform_rule(&RuleType::new(rule)),
+                "expected {rule} to be treated as a business rule"
+            );
+        }
+    }
+
+    #[test]
+    fn test_toolchain_helper_targets_are_excluded() {
+        let jdk = BuckTarget::testing(
+            "jdk_system_image",
+            "root//project/buck2_test/toolchains",
+            "prelude//toolchains/jdk.bzl:create_jdk_system_image",
+        );
+        assert!(is_toolchain_or_platform_target(&jdk));
+
+        let android = BuckTarget::testing(
+            "__android_sdk_tools__",
+            "root//rk8s/foo",
+            "prelude//rules.bzl:genrule",
+        );
+        assert!(is_toolchain_or_platform_target(&android));
+
+        let rk8s_toolchain = BuckTarget::testing(
+            "rust-platform",
+            "root//rk8s/toolchains",
+            "prelude//rules.bzl:platform",
+        );
+        assert!(is_toolchain_or_platform_target(&rk8s_toolchain));
+
+        let rust_lib = BuckTarget::testing(
+            "jni",
+            "root//rk8s/third-party/rust/crates/jni/0.21.1",
+            "prelude//rules.bzl:rust_library",
+        );
+        assert!(
+            !is_toolchain_or_platform_target(&rust_lib),
+            "a real rust crate must not be filtered even if it binds to the JVM"
+        );
+    }
+
+    #[test]
+    fn test_label_toolchain_detection_for_fallback() {
+        assert!(label_is_toolchain_or_platform(&TargetLabel::new(
+            "root//project/buck2_test/toolchains:jdk_system_image"
+        )));
+        assert!(label_is_toolchain_or_platform(&TargetLabel::new(
+            "toolchains//:cxx"
+        )));
+        assert!(!label_is_toolchain_or_platform(&TargetLabel::new(
+            "root//rk8s/src:lib"
+        )));
     }
 
     #[test]
@@ -1663,6 +2441,19 @@ mod tests {
             )),
             "expected mixed change list to rebuild root//orion/tests/fixtures/change_detector_mixed/app:app, got {targets:?}"
         );
+    }
+
+    #[test]
+    fn test_all_changes_are_added_requires_non_empty_all_added_set() {
+        assert!(all_changes_are_added(&[
+            Status::Added(ProjectRelativePath::new(".buckconfig")),
+            Status::Added(ProjectRelativePath::new("src/main.rs")),
+        ]));
+        assert!(!all_changes_are_added(&[]));
+        assert!(!all_changes_are_added(&[
+            Status::Added(ProjectRelativePath::new("src/main.rs")),
+            Status::Modified(ProjectRelativePath::new("src/lib.rs")),
+        ]));
     }
 
     #[tokio::test]
@@ -1909,7 +2700,8 @@ edition = "2024"
         let (_tempdir, _old_root, new_root) = isolated_buck_scope_fixture();
         let jsonl_cleanup =
             JsonlCleanupGuard::new([new_root.join("diff.jsonl"), new_root.join("base.jsonl")]);
-        let diff = get_repo_targets("diff.jsonl", &new_root, None).expect("load diff targets");
+        let diff =
+            get_repo_targets("diff.jsonl", &new_root, None, None).expect("load diff targets");
 
         let (remapped, remapped_count) = remap_repo_local_change_paths(
             &new_root,
@@ -1993,25 +2785,107 @@ edition = "2024"
         );
     }
 
+    fn set_buck_remote_cache_env(value: Option<&str>) {
+        // SAFETY: these tests are marked serial and only mutate process env inside the test.
+        unsafe {
+            match value {
+                Some(value) => std::env::set_var("ORION_BUCK_REMOTE_CACHE", value),
+                None => std::env::remove_var("ORION_BUCK_REMOTE_CACHE"),
+            }
+        }
+    }
+
     #[test]
-    fn test_build_command_includes_no_remote_cache_flag() {
-        // Read the source code file to verify the flag exists
-        let source = include_str!("buck_controller.rs");
+    #[serial]
+    fn test_buck_remote_cache_disabled_by_default() {
+        set_buck_remote_cache_env(None);
+        assert!(!buck_remote_cache_enabled());
+    }
 
-        // Verify build function includes --no-remote-cache
-        assert!(
-            source.contains(r#".arg("--no-remote-cache")"#),
-            "buck2 build command must include --no-remote-cache flag. \
-             This flag ensures incremental builds always use the latest code changes \
-             and detect syntax errors immediately."
-        );
+    #[test]
+    #[serial]
+    fn test_buck_remote_cache_enabled_with_one() {
+        set_buck_remote_cache_env(Some("1"));
+        assert!(buck_remote_cache_enabled());
+        set_buck_remote_cache_env(None);
+    }
 
-        // Verify the comment exists to ensure future maintainers understand why
-        assert!(
-            source.contains(
-                "Disable remote cache to ensure we always build with the latest code changes"
-            ),
-            "The --no-remote-cache flag must have a comment explaining why it's needed"
+    #[test]
+    fn test_filter_owner_seed_changes_skips_buck_and_vendor() {
+        let changes = vec![
+            Status::Added(ProjectRelativePath::new("project/common/src/lib.rs")),
+            Status::Added(ProjectRelativePath::new("project/common/BUCK")),
+            Status::Added(ProjectRelativePath::new("project/common/vendor/foo.rs")),
+        ];
+        let filtered = filter_owner_seed_changes(&changes);
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].get().as_str(), "project/common/src/lib.rs");
+    }
+
+    #[test]
+    fn test_owner_seed_changes_for_all_added_non_subproject_skips_select_all_path() {
+        let changes = vec![
+            Status::Added(ProjectRelativePath::new("orion/src/lib.rs")),
+            Status::Added(ProjectRelativePath::new("orion/BUCK")),
+        ];
+        let seeds = owner_seed_changes_for_discovery(false, true, &changes);
+        assert_eq!(seeds.len(), 1);
+        assert_eq!(seeds[0].get().as_str(), "orion/src/lib.rs");
+    }
+
+    #[test]
+    fn test_owner_seed_changes_for_modified_cl_uses_full_change_list() {
+        let changes = vec![
+            Status::Modified(ProjectRelativePath::new("orion/src/lib.rs")),
+            Status::Added(ProjectRelativePath::new("orion/BUCK")),
+        ];
+        let seeds = owner_seed_changes_for_discovery(false, false, &changes);
+        assert_eq!(seeds.len(), 2);
+    }
+
+    #[test]
+    fn test_normalize_owner_targets_maps_vendor_to_rust_library() {
+        let diff = Targets::new(vec![
+            TargetsEntry::Target(BuckTarget::testing(
+                "vendor",
+                "root//project/common",
+                "filegroup",
+            )),
+            TargetsEntry::Target(BuckTarget::testing(
+                "common",
+                "root//project/common",
+                "rust_library",
+            )),
+        ]);
+        let seeds = vec![
+            TargetLabel::new("root//project/common:vendor"),
+            TargetLabel::new("root//project/common:common"),
+        ];
+        let normalized = normalize_owner_targets_to_rust(&diff, seeds);
+        assert_eq!(normalized.len(), 1);
+        assert_eq!(normalized[0].as_str(), "root//project/common:common");
+    }
+
+    #[test]
+    fn test_normalize_owner_targets_maps_vendor_to_rust_binary() {
+        let diff = Targets::new(vec![
+            TargetsEntry::Target(BuckTarget::testing(
+                "vendor",
+                "root//project/aardvark-dns",
+                "filegroup",
+            )),
+            TargetsEntry::Target(BuckTarget::testing(
+                "aardvark-dns",
+                "root//project/aardvark-dns",
+                "rust_binary",
+            )),
+        ]);
+        let seeds = vec![TargetLabel::new("root//project/aardvark-dns:vendor")];
+        let normalized = normalize_owner_targets_to_rust(&diff, seeds);
+        assert_eq!(normalized.len(), 1);
+        assert_eq!(
+            normalized[0].as_str(),
+            "root//project/aardvark-dns:aardvark-dns"
         );
     }
 }

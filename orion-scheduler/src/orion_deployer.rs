@@ -5,6 +5,7 @@ use tokio::fs;
 use tracing::info;
 
 use crate::{
+    config::expand_tilde,
     handlers::ImageParams,
     keep_alive::{ImageSpec, KeepAliveMachine},
     state::{AppState, VmInfo},
@@ -94,9 +95,25 @@ pub async fn handle_update(
                     })
                 }
                 (None, Some(path), Some(digest)) => {
-                    info!("[orion-deploy] Using image from path: {}", path);
+                    let expanded = expand_tilde(path);
+                    let path_str = expanded.to_string_lossy().into_owned();
+                    if path != &path_str {
+                        info!(
+                            "[orion-deploy] Using image from path: {} (expanded from {})",
+                            path_str, path
+                        );
+                    } else {
+                        info!("[orion-deploy] Using image from path: {}", path_str);
+                    }
+                    if !expanded.is_file() {
+                        return Err(anyhow::anyhow!(
+                            "image file does not exist: {} (from image_path: {})",
+                            path_str,
+                            path
+                        ));
+                    }
                     Some(ImageSpec {
-                        source: Some(path.clone()),
+                        source: Some(path_str),
                         digest: Some(digest.clone()),
                     })
                 }
@@ -150,38 +167,69 @@ pub async fn handle_update(
     Ok(vm_name)
 }
 
-/// Get live Orion logs from the running VM (journalctl + orion.log)
-pub async fn get_live_logs(state: &AppState) -> Result<String> {
+const ORION_LOG_PATH: &str = "/home/orion/orion-runner/log/orion.log";
+/// On the first SSE tick, only bootstrap the tail of orion.log instead of the
+/// entire file (build logs can grow to hundreds of MB).
+const ORION_LOG_BOOTSTRAP_BYTES: u64 = 65536;
+
+/// Incremental snapshot for `/logs/orion/stream`.
+pub struct LiveLogSnapshot {
+    pub journal_window: String,
+    pub orion_log_delta: String,
+    pub orion_log_offset: u64,
+}
+
+/// Get live Orion logs from the running VM (journalctl window + orion.log delta).
+pub async fn get_live_logs_since(
+    state: &AppState,
+    orion_log_offset: u64,
+) -> Result<LiveLogSnapshot> {
     let machine = state
         .get_machine()
         .await
         .ok_or_else(|| anyhow::anyhow!("No VM is currently running"))?;
 
-    info!("[orion-deploy] Fetching live Orion logs");
-
-    // Get recent journalctl logs
+    // Get recent journalctl logs (sliding window; deduped by the SSE handler).
     let output = machine
-        .exec("journalctl -u orion-runner --no-pager -n 100 2>&1")
+        .exec("journalctl -u orion-runner --no-pager -n 200 2>&1")
         .await?;
 
-    // Get Orion log file content
-    let orion_log_output = machine.exec("tail -100 /home/orion/orion-runner/log/orion.log 2>/dev/null || echo 'Orion log not found'").await?;
-
-    // Get process info
-    let process_output = machine
-        .exec("pgrep -a orion || echo 'Orion process not found'")
+    let size_output = machine
+        .exec(&format!("stat -c%s {ORION_LOG_PATH} 2>/dev/null || echo 0"))
         .await?;
+    let file_size: u64 = String::from_utf8_lossy(&size_output.stdout)
+        .trim()
+        .parse()
+        .unwrap_or(0);
 
-    let journal_logs = String::from_utf8_lossy(&output.stdout);
-    let orion_logs = String::from_utf8_lossy(&orion_log_output.stdout);
-    let process_info = String::from_utf8_lossy(&process_output.stdout);
+    let (orion_log_delta, new_offset) = if file_size < orion_log_offset {
+        // Log rotated/truncated — re-read from the start.
+        let out = machine
+            .exec(&format!("cat {ORION_LOG_PATH} 2>/dev/null"))
+            .await?;
+        (String::from_utf8_lossy(&out.stdout).into_owned(), file_size)
+    } else if file_size > orion_log_offset {
+        let read_from = if orion_log_offset == 0 {
+            file_size.saturating_sub(ORION_LOG_BOOTSTRAP_BYTES)
+        } else {
+            orion_log_offset
+        };
+        let cmd = if read_from == 0 {
+            format!("cat {ORION_LOG_PATH} 2>/dev/null")
+        } else {
+            format!("tail -c +{} {ORION_LOG_PATH} 2>/dev/null", read_from + 1)
+        };
+        let out = machine.exec(&cmd).await?;
+        (String::from_utf8_lossy(&out.stdout).into_owned(), file_size)
+    } else {
+        (String::new(), orion_log_offset)
+    };
 
-    let logs = format!(
-        "{}\n\n========== Orion Log (/home/orion/orion-runner/log/orion.log) ==========\n{}\n\n[Orion Process Info]\n{}",
-        journal_logs, orion_logs, process_info
-    );
-
-    Ok(logs)
+    Ok(LiveLogSnapshot {
+        journal_window: String::from_utf8_lossy(&output.stdout).into_owned(),
+        orion_log_delta,
+        orion_log_offset: new_offset,
+    })
 }
 
 /// Get current VM status

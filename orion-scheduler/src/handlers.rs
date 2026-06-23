@@ -378,11 +378,11 @@ impl LogCursor {
             // First non-empty fetch: show recent activity without spamming.
             lines.len().saturating_sub(INITIAL_TAIL_LINES)
         } else {
-            // Resume right after the previous tail. If the source rolled
-            // past our entire fingerprint (huge burst, restart, rotation),
-            // silently re-anchor and wait for new lines on the next tick
-            // instead of replaying the whole window.
-            self.find_resume_index(lines).unwrap_or(lines.len())
+            // Resume right after the previous tail. If the source rolled past our
+            // fingerprint (burst faster than the poll window), emit a recent tail
+            // so the stream stays live instead of going silent until the burst ends.
+            self.find_resume_index(lines)
+                .unwrap_or_else(|| lines.len().saturating_sub(INITIAL_TAIL_LINES))
         };
 
         self.refresh_fingerprint(lines);
@@ -428,29 +428,27 @@ pub async fn logs_stream_handler(
     State(state): State<Arc<AppState>>,
 ) -> Sse<impl futures_util::Stream<Item = Result<Event, std::convert::Infallible>>> {
     let stream = async_stream::stream! {
-        let mut ticker = interval(std::time::Duration::from_secs(2));
+        let mut ticker = interval(std::time::Duration::from_secs(1));
         let mut journal_cursor = LogCursor::default();
-        let mut orion_cursor = LogCursor::default();
+        let mut orion_log_offset: u64 = 0;
 
         loop {
             ticker.tick().await;
 
-            let full_logs = match orion_deployer::get_live_logs(&state).await {
-                Ok(logs) => logs,
+            let snapshot = match orion_deployer::get_live_logs_since(&state, orion_log_offset).await {
+                Ok(snapshot) => snapshot,
                 Err(e) => {
                     yield Ok(Event::default().data(format!("Error: {}", e)));
                     continue;
                 }
             };
+            orion_log_offset = snapshot.orion_log_offset;
 
-            let (journal_part, orion_part) = split_logs(&full_logs);
-            let journal_lines: Vec<&str> = journal_part.lines().collect();
-            let orion_lines: Vec<&str> = orion_part.lines().collect();
-
+            let journal_lines: Vec<&str> = snapshot.journal_window.lines().collect();
             let new_j = journal_cursor.advance(&journal_lines);
-            let new_o = orion_cursor.advance(&orion_lines);
+            let orion_lines: Vec<&str> = snapshot.orion_log_delta.lines().collect();
 
-            if new_j.is_empty() && new_o.is_empty() {
+            if new_j.is_empty() && orion_lines.is_empty() {
                 continue;
             }
 
@@ -458,8 +456,8 @@ pub async fn logs_stream_handler(
             if !new_j.is_empty() {
                 append_logs_section(&mut output, "SYSTEM LOGS", new_j);
             }
-            if !new_o.is_empty() {
-                append_logs_section(&mut output, "ORION LOGS", new_o);
+            if !orion_lines.is_empty() {
+                append_logs_section(&mut output, "ORION LOGS", &orion_lines);
             }
 
             yield Ok(Event::default().comment("---").data(output));
@@ -467,18 +465,6 @@ pub async fn logs_stream_handler(
     };
 
     Sse::new(stream).keep_alive(axum::response::sse::KeepAlive::default())
-}
-
-/// Split combined logs into systemd journal and Orion log file sections
-/// The separator is "========== Orion Log"
-fn split_logs(full_logs: &str) -> (&str, &str) {
-    // Find the separator "========== Orion Log"
-    if let Some(pos) = full_logs.find("========== Orion Log") {
-        let journal = &full_logs[..pos];
-        let orion = &full_logs[pos..];
-        return (journal, orion);
-    }
-    (full_logs, "")
 }
 
 /// Append a log section with a title header and colored log lines to `output`.
