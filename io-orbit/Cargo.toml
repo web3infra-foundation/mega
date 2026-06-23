@@ -11,7 +11,7 @@ path = "src/lib.rs"
 [dependencies]
 common = { workspace = true }
 
-object_store = { workspace = true, features = ["cloud", "aws", "gcp"] }
+object_store = { workspace = true, features = ["cloud-base", "aws", "gcp"] }
 futures = { workspace = true }
 bytes = { workspace = true }
 async-trait = { workspace = true }

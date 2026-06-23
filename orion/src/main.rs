@@ -6,6 +6,8 @@ pub mod repo;
 mod util;
 mod ws;
 
+use std::io::{LineWriter, stderr};
+
 use tracing_subscriber::EnvFilter;
 use uuid::Uuid;
 
@@ -15,12 +17,15 @@ async fn main() {
     // log filters can be configured via RUST_LOG in local dev and deployments.
     dotenvy::dotenv().ok();
 
-    // Initialize structured logging
+    // LineWriter flushes on every newline so redirected stderr (run.sh → orion.log)
+    // stays live for remote tail/SSE consumers instead of block-buffering.
     tracing_subscriber::fmt()
         .with_env_filter(
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+            EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| EnvFilter::new("info,rfuse3::raw::session=error")),
         )
         .with_target(true)
+        .with_writer(|| LineWriter::new(stderr()))
         .init();
 
     // Configure WebSocket server address

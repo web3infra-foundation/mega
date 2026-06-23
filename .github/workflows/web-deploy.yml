@@ -61,24 +61,10 @@ jobs:
         with:
           registry-type: public
 
-      - name: Configure AWS Credentials (ECR Private, ap-southeast-2)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ap-southeast-2
-
-      - name: Login to Amazon ECR Private
-        id: login-ecr-private
-        uses: aws-actions/amazon-ecr-login@v2
-        with:
-          registry-type: private
-
       - name: Build & push unified image
         working-directory: moon
         env:
           ECR_PUBLIC_REGISTRY: ${{ steps.login-ecr-public.outputs.registry }}
-          ECR_PRIVATE_REGISTRY: ${{ steps.login-ecr-private.outputs.registry }}
           PLATFORM: linux/amd64
         run: |
           set -euo pipefail
@@ -88,9 +74,7 @@ jobs:
           SHA_TAG="${SHORT_SHA}-${ARCH_SUFFIX}"
 
           PUBLIC_IMAGE="$ECR_PUBLIC_REGISTRY/${{ env.REGISTRY_ALIAS }}/${{ env.REPOSITORY }}:$IMAGE_TAG"
-          PRIVATE_IMAGE="$ECR_PRIVATE_REGISTRY/${{ env.REPOSITORY }}:$IMAGE_TAG"
           PUBLIC_IMAGE_SHA="$ECR_PUBLIC_REGISTRY/${{ env.REGISTRY_ALIAS }}/${{ env.REPOSITORY }}:$SHA_TAG"
-          PRIVATE_IMAGE_SHA="$ECR_PRIVATE_REGISTRY/${{ env.REPOSITORY }}:$SHA_TAG"
 
           docker buildx build \
             --platform "$PLATFORM" \
@@ -100,9 +84,7 @@ jobs:
             --sbom=false \
             -f apps/web/Dockerfile \
             -t "$PUBLIC_IMAGE" \
-            -t "$PRIVATE_IMAGE" \
-            -t "$PUBLIC_IMAGE_SHA" \
-            -t "$PRIVATE_IMAGE_SHA" . \
+            -t "$PUBLIC_IMAGE_SHA" . \
             --push
 
   manifest:

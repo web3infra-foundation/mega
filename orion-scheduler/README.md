@@ -130,6 +130,8 @@ sudo modprobe nbd max_part=8
 sudo bash scripts/build-custom-image.sh
 ```
 
+> 镜像发布到**调用者**的 qlean 目录（`sudo` 从 `orion` 运行时即 `/home/orion/.local/share/qlean/images/`，不是 `/root/...`）。`orion-scheduler` 与 `cargo run` 也读该路径。可用 `OUTPUT_DIR=...` 覆盖。
+
 > 基础镜像下载源默认指向 USTC 镜像（`https://mirrors.ustc.edu.cn/debian-cdimage/cloud/trixie/latest`）。如需更换为官方源或其他镜像，通过 `BASE_MIRROR_URL` 覆盖（注意 `sudo` 需加 `-E` 传递环境变量）：
 >
 > ```bash

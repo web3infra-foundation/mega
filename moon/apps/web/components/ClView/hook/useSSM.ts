@@ -3,7 +3,7 @@ import { useAtom } from 'jotai'
 
 import { orionApiClient } from '@/utils/queryClient'
 
-import { loadingAtom, logsAtom, statusAtom } from '../components/Checks/cpns/store'
+import { loadingAtom, logsAtomFamily, statusAtom } from '../components/Checks/cpns/store'
 
 /**
  * Get SSE URL for task output streaming
@@ -50,12 +50,12 @@ export const useSSM = () => {
 // together at most once per interval.
 const LOG_FLUSH_INTERVAL_MS = 150
 
-export const useTaskSSE = () => {
+export const useTaskSSE = (cl: string) => {
   const eventSourcesRef = useRef<Record<string, EventSource>>({})
   // Per-task "force flush remaining buffer + cancel pending timer". Used when a
   // stream ends or the component unmounts so we never drop the trailing lines.
   const flushersRef = useRef<Record<string, () => void>>({})
-  const [logsMap, setLogsMap] = useAtom(logsAtom)
+  const [logsMap, setLogsMap] = useAtom(logsAtomFamily(cl))
   const [_, setLoading] = useAtom(loadingAtom)
   const [_status, setStatus] = useAtom(statusAtom)
 
@@ -163,7 +163,6 @@ export const useTaskSSE = () => {
       eventSourcesRef.current = {}
       flushersRef.current = {}
       setLoading(false)
-      setLogsMap({})
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

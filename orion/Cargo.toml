@@ -1,6 +1,6 @@
 [package]
 name = "orion"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 
 [[bin]]
@@ -29,8 +29,6 @@ parse-display = "0.11.0"
 audit = { path = "./audit" }
 td_util = { path = "./td_util" }
 td_util_buck = { path = "./buck" }
-thiserror = { workspace = true }
-utoipa.workspace = true
 common = { path = "../common" }
 tokio-util = { workspace = true }
 
@@ -39,4 +37,4 @@ serial_test = { workspace = true }
 tempfile = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-scorpiofs = { git = "https://github.com/web3infra-foundation/scorpiofs.git", rev = "900309f0abc397ccf8b9565ae0da2e3ef1e65618" }
+scorpiofs = { git = "https://github.com/web3infra-foundation/scorpiofs.git" }

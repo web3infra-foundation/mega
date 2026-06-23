@@ -1,298 +1,49 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
-import { format } from 'date-fns'
-import { useAtom } from 'jotai'
+import { memo, useState } from 'react'
 
 import { LoadingSpinner } from '@gitmono/ui'
 
-import { buildIdAtom } from '@/components/Issues/utils/store'
 import { useGetClTask } from '@/hooks/SSE/useGetClTask'
-import { fetchHTTPLog } from '@/hooks/SSE/useGetHTTPLog'
 
-import { useTaskSSE } from '../../hook/useSSM'
-import { BuildDTO, getQueuedBuildIds, statusMapAtom, TaskInfoDTO } from './cpns/store'
+import { getQueuedBuildIds, TaskInfoDTO } from './cpns/store'
 import { TreeRoot } from './cpns/Task'
-import { LogViewer } from './LogViewer'
+import { useBuildSelection } from './hooks/useBuildSelection'
+import { useLeftPanelScroll } from './hooks/useLeftPanelScroll'
+import { useLogCache } from './hooks/useLogCache'
+import { useMountedLogPanels } from './hooks/useMountedLogPanels'
+import { useResizablePanels } from './hooks/useResizablePanels'
+import { CachedLogPanel } from './LogViewer'
 
-type LogStatus = 'idle' | 'loading' | 'success' | 'empty' | 'error'
-
-const MIN_LEFT_WIDTH = 200
-const MAX_LEFT_WIDTH_PERCENT = 0.7
-const DEFAULT_LEFT_WIDTH_PERCENT = 0.2
+const LogLoadingState = ({ label = 'Loading logs...' }: { label?: string }) => (
+  <div className='text-tertiary flex h-full items-center justify-center'>
+    <div className='flex items-center gap-3'>
+      <LoadingSpinner />
+      <span>{label}</span>
+    </div>
+  </div>
+)
 
 const Checks = ({ cl, path, prName }: { cl: string; path?: string; prName?: string }) => {
-  const [buildid, setBuildId] = useAtom(buildIdAtom)
-  const { eventSourcesRef, setEventSource, closeEventSource, logsMap, setLogsMap } = useTaskSSE()
-  const [statusMap, _setStatusMap] = useAtom(statusMapAtom)
   const { data: tasks, isError: isTasksError, isLoading: isTasksLoading } = useGetClTask(cl)
-  const [logStatus, setLogStatus] = useState<Record<string, LogStatus>>({})
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+  const { buildId, selectBuild, selectedTaskId, selectTask } = useBuildSelection(cl, tasks)
+  const { logsMap, logsAvailableIds, currentLogStatus, isQueued, retryLog } = useLogCache(cl, buildId, tasks)
+  const mountedPanelIds = useMountedLogPanels(buildId, logsMap)
+
+  const {
+    containerRef,
+    leftPanelRef,
+    rightPanelRef,
+    logContainerRef,
+    leftWidth,
+    isDragging,
+    logViewerHeight,
+    handleMouseDown,
+    defaultLeftWidthPercent
+  } = useResizablePanels()
+
+  useLeftPanelScroll(cl, buildId, leftPanelRef)
+
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
-  const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null)
-  const [tooltipPosition, setTooltipPosition] = useState<{ top: number; left: number } | null>(null)
 
-  // Resizable panel state
-  const containerRef = useRef<HTMLDivElement>(null)
-  const leftPanelRef = useRef<HTMLDivElement>(null)
-  const rightPanelRef = useRef<HTMLDivElement>(null)
-  const [leftWidth, setLeftWidth] = useState<number | null>(null)
-  const [isDragging, setIsDragging] = useState(false)
-  const scrollPositionRef = useRef<number>(0)
-  const logContainerRef = useRef<HTMLDivElement>(null)
-  const startWidthRef = useRef<number>(0)
-  // Explicit pixel height for LogViewer (avoids layout jump while the panel mounts).
-  const [logViewerHeight, setLogViewerHeight] = useState<number>(0)
-
-  // Initialize left width based on container width
-  useEffect(() => {
-    if (containerRef.current && leftWidth === null) {
-      setLeftWidth(containerRef.current.offsetWidth * DEFAULT_LEFT_WIDTH_PERCENT)
-    }
-  }, [leftWidth])
-
-  // Track the container height and pass it to LogViewer as a fixed pixel value.
-  useEffect(() => {
-    const el = containerRef.current
-
-    if (!el) return
-
-    const update = () => setLogViewerHeight(el.clientHeight)
-
-    update()
-
-    const observer = new ResizeObserver(update)
-
-    observer.observe(el)
-
-    return () => observer.disconnect()
-  }, [])
-
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!containerRef.current || !leftPanelRef.current) return
-
-    // Directly manipulate DOM without triggering React re-render
-    const containerRect = containerRef.current.getBoundingClientRect()
-    const newLeftWidth = e.clientX - containerRect.left
-    const maxWidth = containerRect.width * MAX_LEFT_WIDTH_PERCENT
-    const clampedWidth = Math.max(MIN_LEFT_WIDTH, Math.min(newLeftWidth, maxWidth))
-
-    // Update DOM directly for smooth dragging
-    leftPanelRef.current.style.width = `${clampedWidth}px`
-  }, [])
-
-  const handleMouseUp = useCallback(() => {
-    // Remove event listeners
-    document.removeEventListener('mousemove', handleMouseMove)
-    document.removeEventListener('mouseup', handleMouseUp)
-    document.body.style.cursor = ''
-    document.body.style.userSelect = ''
-
-    // Show right panel immediately using DOM
-    if (rightPanelRef.current) {
-      rightPanelRef.current.style.display = 'block'
-    }
-
-    // Update React state only once when dragging ends
-    if (leftPanelRef.current) {
-      const finalWidth = leftPanelRef.current.offsetWidth
-
-      setLeftWidth(finalWidth)
-    }
-    setIsDragging(false)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      e.preventDefault()
-
-      // Immediately hide right panel using DOM (no re-render)
-      if (rightPanelRef.current) {
-        rightPanelRef.current.style.display = 'none'
-      }
-
-      // Save scroll position
-      if (logContainerRef.current) {
-        const scrollEl = logContainerRef.current.querySelector('.log-viewer-scroll')
-
-        if (scrollEl) {
-          scrollPositionRef.current = scrollEl.scrollTop
-        }
-      }
-
-      // Save current width
-      if (leftPanelRef.current) {
-        startWidthRef.current = leftPanelRef.current.offsetWidth
-      }
-
-      // Update state asynchronously (won't block dragging)
-      requestAnimationFrame(() => {
-        setIsDragging(true)
-      })
-
-      // Add event listeners immediately
-      document.addEventListener('mousemove', handleMouseMove)
-      document.addEventListener('mouseup', handleMouseUp)
-      document.body.style.cursor = 'col-resize'
-      document.body.style.userSelect = 'none'
-    },
-    [handleMouseMove, handleMouseUp]
-  )
-
-  useEffect(() => {
-    if (!isDragging) {
-      // Restore scroll position after dragging ends
-      if (logContainerRef.current && scrollPositionRef.current > 0) {
-        // Use requestAnimationFrame to ensure DOM is updated
-        requestAnimationFrame(() => {
-          const scrollEl = logContainerRef.current?.querySelector('.log-viewer-scroll')
-
-          if (scrollEl) {
-            scrollEl.scrollTop = scrollPositionRef.current
-          }
-        })
-      }
-    }
-  }, [isDragging])
-
-  // Reset scroll position when buildid changes
-  useEffect(() => {
-    // Clear saved scroll position when switching to a different build
-    scrollPositionRef.current = 0
-
-    // Reset scroll to top for new build
-    if (logContainerRef.current) {
-      requestAnimationFrame(() => {
-        const scrollEl = logContainerRef.current?.querySelector('.log-viewer-scroll')
-
-        if (scrollEl) {
-          scrollEl.scrollTop = 0
-        }
-      })
-    }
-  }, [buildid])
-
-  useEffect(() => {
-    if (!tasks || tasks.length === 0) return
-
-    const builds = tasks.flatMap((task: TaskInfoDTO) =>
-      (task.build_list ?? []).map((build: BuildDTO) => ({
-        build_id: build.id,
-        status: build.status
-      }))
-    )
-
-    const validBuilds = builds.filter((b) => Boolean(b.build_id))
-
-    if (validBuilds.length === 0) return
-
-    // Queued builds (waiting for a worker) have no logs yet; don't fetch them.
-    const queuedIds = getQueuedBuildIds(tasks)
-    const buildsToFetch = validBuilds.filter((b) => !queuedIds.has(b.build_id))
-    const buildingIds = new Set(buildsToFetch.filter((b) => b.status === 'Building').map((b) => b.build_id))
-
-    buildingIds.forEach((buildId) => {
-      setEventSource(buildId)
-    })
-
-    Object.keys(eventSourcesRef.current).forEach((buildId) => {
-      if (!buildingIds.has(buildId)) {
-        closeEventSource(buildId)
-      }
-    })
-
-    buildsToFetch.forEach((b) => {
-      setLogStatus((prev) => ({ ...prev, [b.build_id]: 'loading' }))
-    })
-
-    const fetchLogs = async () => {
-      const logsResult = await Promise.allSettled(
-        buildsToFetch.map(async ({ build_id }) => {
-          try {
-            const res = await fetchHTTPLog(build_id)
-
-            return { id: build_id, res, error: null }
-          } catch (error) {
-            return { id: build_id, res: null, error }
-          }
-        })
-      )
-
-      const newLogStatus: Record<string, LogStatus> = {}
-      const fetchedLogsMap: Record<string, string> = {}
-
-      logsResult.forEach((item) => {
-        if (item.status === 'fulfilled' && item.value) {
-          const { id, res, error } = item.value
-
-          if (error) {
-            // fetchHTTPLog threw an error
-            newLogStatus[id] = 'error'
-          } else if (!res || !res.data) {
-            // Response is null/undefined
-            newLogStatus[id] = 'empty'
-          } else if (Array.isArray(res.data) && res.data.length === 0) {
-            // Response data is empty array
-            newLogStatus[id] = 'empty'
-          } else if (res.len === 0) {
-            // Response len is 0
-            newLogStatus[id] = 'empty'
-          } else {
-            // Success case
-            const logText = Array.isArray(res.data) ? res.data.join('\n') : String(res.data || '')
-
-            newLogStatus[id] = 'success'
-            fetchedLogsMap[id] = logText
-          }
-        } else {
-          // Promise.allSettled rejected (shouldn't happen with try-catch, but defensive)
-          const id = buildsToFetch[logsResult.indexOf(item)]?.build_id
-
-          if (id) {
-            newLogStatus[id] = 'error'
-          }
-        }
-      })
-
-      setLogsMap((prev) => {
-        const next = { ...prev }
-
-        Object.entries(fetchedLogsMap).forEach(([id, fetchedLog]) => {
-          const currentLog = next[id] ?? ''
-
-          // HTTP reads can lag behind SSE appends while a build is running; never
-          // replace a longer live log with an older persisted snapshot.
-          next[id] = currentLog.length > fetchedLog.length ? currentLog : fetchedLog
-        })
-
-        return next
-      })
-      setLogStatus((prev) => ({ ...prev, ...newLogStatus }))
-    }
-
-    if (buildsToFetch.length > 0) {
-      fetchLogs()
-    }
-
-    if (!buildid && validBuilds.length > 0) {
-      setBuildId(validBuilds[0].build_id)
-    }
-
-    return () => {
-      statusMap.clear()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tasks])
-
-  // Initialize selected task
-  useEffect(() => {
-    const validTasks = tasks?.filter((t) => t.build_list && t.build_list.length > 0) || []
-
-    if (validTasks.length > 0 && !selectedTaskId) {
-      setSelectedTaskId(validTasks[0].task_id)
-    }
-  }, [tasks, selectedTaskId])
-
-  // Helper functions for dropdown
   const getTaskFileName = (task: TaskInfoDTO) => {
     if (!task.targets || task.targets.length === 0) return task.task_name || 'Unnamed Task'
 
@@ -307,14 +58,6 @@ const Checks = ({ cl, path, prName }: { cl: string; path?: string; prName?: stri
     const parts = firstBuild.output_file.split('/')
 
     return parts[parts.length - 1] || 'Unnamed Task'
-  }
-
-  const formatDateTime = (isoDate: string): string => {
-    try {
-      return format(new Date(isoDate), 'yyyy-MM-dd HH:mm')
-    } catch {
-      return isoDate
-    }
   }
 
   const getTaskStatus = (task: TaskInfoDTO) => {
@@ -349,7 +92,6 @@ const Checks = ({ cl, path, prName }: { cl: string; path?: string; prName?: stri
     return null
   }
 
-  // Handle tasks loading state
   if (isTasksLoading) {
     return (
       <div className='bg-secondary' style={{ height: `calc(100vh - 104px)` }}>
@@ -368,7 +110,6 @@ const Checks = ({ cl, path, prName }: { cl: string; path?: string; prName?: stri
     )
   }
 
-  // Handle tasks error or empty state
   if (isTasksError) {
     return (
       <div className='bg-secondary' style={{ height: `calc(100vh - 104px)` }}>
@@ -388,7 +129,7 @@ const Checks = ({ cl, path, prName }: { cl: string; path?: string; prName?: stri
   const selectedTask = validTasks.find((t) => t.task_id === selectedTaskId)
   const tasksToDisplay = selectedTask ? [selectedTask] : validTasks
 
-  if (!isTasksLoading && (!tasks || tasks.length === 0 || validTasks.length === 0)) {
+  if (!tasks || tasks.length === 0 || validTasks.length === 0) {
     return (
       <div className='bg-secondary' style={{ height: `calc(100vh - 104px)` }}>
         <div className='border-primary bg-primary flex h-[60px] items-center border-b px-4'>
@@ -403,11 +144,10 @@ const Checks = ({ cl, path, prName }: { cl: string; path?: string; prName?: stri
     )
   }
 
-  const queuedBuildIds = getQueuedBuildIds(tasks ?? [])
+  const queuedBuildIds = getQueuedBuildIds(tasks)
 
-  // Render log viewer with status handling
   const renderLogContent = () => {
-    if (!buildid) {
+    if (!buildId) {
       return (
         <div className='text-tertiary flex h-full items-center justify-center'>
           <span>Select a build to view logs</span>
@@ -415,8 +155,7 @@ const Checks = ({ cl, path, prName }: { cl: string; path?: string; prName?: stri
       )
     }
 
-    // Queued build: not started yet, so there are no logs to show.
-    if (queuedBuildIds.has(buildid)) {
+    if (queuedBuildIds.has(buildId) || isQueued) {
       return (
         <div className='text-tertiary flex h-full items-center justify-center'>
           <div className='flex items-center gap-3'>
@@ -427,42 +166,46 @@ const Checks = ({ cl, path, prName }: { cl: string; path?: string; prName?: stri
       )
     }
 
-    const status = logStatus[buildid]
+    const viewerHeight = logViewerHeight > 0 ? logViewerHeight : 'auto'
+    const hasCachedCurrentBuild = Boolean(logsMap[buildId])
+    const isLoadingCurrentBuild =
+      !hasCachedCurrentBuild && (currentLogStatus === 'loading' || currentLogStatus === 'idle')
 
-    if (logsMap[buildid]) {
+    if (mountedPanelIds.length > 0) {
       return (
-        <div ref={logContainerRef} className='h-full select-text [&_span]:select-text'>
-          <LogViewer key={buildid} text={logsMap[buildid]} height={logViewerHeight > 0 ? logViewerHeight : 'auto'} />
+        <div ref={logContainerRef} className='relative h-full select-text [&_span]:select-text'>
+          {mountedPanelIds.map((id) => (
+            <CachedLogPanel key={id} text={logsMap[id]} height={viewerHeight} visible={id === buildId} />
+          ))}
+          {isLoadingCurrentBuild ? (
+            <div className='bg-secondary absolute inset-0 z-10'>
+              <LogLoadingState />
+            </div>
+          ) : null}
         </div>
       )
     }
 
-    // If status is undefined or idle, user needs to select a build
-    if (!status || status === 'idle') {
-      return (
-        <div className='text-tertiary flex h-full items-center justify-center'>
-          <span>Select a build to view logs</span>
-        </div>
-      )
+    if (isLoadingCurrentBuild || currentLogStatus === 'loading') {
+      return <LogLoadingState />
     }
 
-    if (status === 'loading') {
+    if (currentLogStatus === 'error') {
       return (
-        <div className='text-tertiary flex h-full items-center justify-center'>
-          <span>Loading logs...</span>
-        </div>
-      )
-    }
-
-    if (status === 'error') {
-      return (
-        <div className='flex h-full items-center justify-center text-red-500 dark:text-red-400'>
+        <div className='flex h-full flex-col items-center justify-center gap-3 text-red-500 dark:text-red-400'>
           <span>Failed to fetch logs</span>
+          <button
+            type='button'
+            onClick={retryLog}
+            className='rounded-md border border-red-300 px-3 py-1 text-sm hover:bg-red-50 dark:border-red-700 dark:hover:bg-red-900/20'
+          >
+            Retry
+          </button>
         </div>
       )
     }
 
-    if (status === 'empty') {
+    if (currentLogStatus === 'empty') {
       return (
         <div className='text-tertiary flex h-full items-center justify-center'>
           <span>No logs available</span>
@@ -470,7 +213,6 @@ const Checks = ({ cl, path, prName }: { cl: string; path?: string; prName?: stri
       )
     }
 
-    // Fallback: show select prompt
     return (
       <div className='text-tertiary flex h-full items-center justify-center'>
         <span>Select a build to view logs</span>
@@ -479,218 +221,131 @@ const Checks = ({ cl, path, prName }: { cl: string; path?: string; prName?: stri
   }
 
   return (
-    <>
-      <div className='bg-secondary' style={{ height: `calc(100vh - 104px)` }}>
-        {/* Header with Task Selector */}
-        <div className='border-primary bg-primary flex h-[60px] items-center border-b px-4'>
-          <div className='flex flex-1 items-center gap-2'>
-            <h2 className='text-tertiary text-bold fz-[14px]'>[] tasks status interface</h2>
+    <div className='bg-secondary' style={{ height: `calc(100vh - 104px)` }}>
+      <div className='border-primary bg-primary flex h-[60px] items-center border-b px-4'>
+        <div className='flex flex-1 items-center gap-2'>
+          <h2 className='text-tertiary text-bold fz-[14px]'>[] tasks status interface</h2>
 
-            {/* Task Selector Dropdown - Only show if multiple tasks */}
-            {validTasks.length > 1 && (
-              <div className='relative' style={{ minWidth: '240px', maxWidth: '320px' }}>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setIsDropdownOpen(!isDropdownOpen)
-                  }}
-                  className='flex w-full items-center justify-between rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm transition-all hover:border-blue-400 hover:bg-gray-50 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-800 dark:hover:border-blue-500 dark:hover:bg-gray-700'
-                >
-                  <div className='flex flex-1 items-center gap-2 overflow-hidden'>
-                    {selectedTask ? (
-                      <>
-                        <span className='truncate font-medium text-gray-800 dark:text-gray-200'>
-                          {getTaskFileName(selectedTask)}
+          {validTasks.length > 1 && (
+            <div className='relative' style={{ minWidth: '240px', maxWidth: '320px' }}>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setIsDropdownOpen(!isDropdownOpen)
+                }}
+                className='flex w-full items-center justify-between rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm transition-all hover:border-blue-400 hover:bg-gray-50 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-800 dark:hover:border-blue-500 dark:hover:bg-gray-700'
+              >
+                <div className='flex flex-1 items-center gap-2 overflow-hidden'>
+                  {selectedTask ? (
+                    <>
+                      <span className='truncate font-medium text-gray-800 dark:text-gray-200'>
+                        {getTaskFileName(selectedTask)}
+                      </span>
+                      {getTaskStatus(selectedTask) && (
+                        <span className={`flex-shrink-0 text-xs ${getTaskStatus(selectedTask)?.color}`}>
+                          • {getTaskStatus(selectedTask)?.status}
                         </span>
-                        {getTaskStatus(selectedTask) && (
-                          <span className={`flex-shrink-0 text-xs ${getTaskStatus(selectedTask)?.color}`}>
-                            • {getTaskStatus(selectedTask)?.status}
-                          </span>
-                        )}
-                      </>
-                    ) : (
-                      <span className='text-gray-500 dark:text-gray-400'>Select a task...</span>
-                    )}
-                  </div>
-                  <svg
-                    className={`ml-2 h-4 w-4 flex-shrink-0 text-gray-500 transition-transform dark:text-gray-400 ${
-                      isDropdownOpen ? 'rotate-180' : ''
-                    }`}
-                    fill='none'
-                    stroke='currentColor'
-                    viewBox='0 0 24 24'
-                  >
-                    <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M19 9l-7 7-7-7' />
-                  </svg>
-                </button>
+                      )}
+                    </>
+                  ) : (
+                    <span className='text-gray-500 dark:text-gray-400'>Select a task...</span>
+                  )}
+                </div>
+                <svg
+                  className={`ml-2 h-4 w-4 flex-shrink-0 text-gray-500 transition-transform dark:text-gray-400 ${
+                    isDropdownOpen ? 'rotate-180' : ''
+                  }`}
+                  fill='none'
+                  stroke='currentColor'
+                  viewBox='0 0 24 24'
+                >
+                  <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M19 9l-7 7-7-7' />
+                </svg>
+              </button>
 
-                {/* Dropdown Menu */}
-                {isDropdownOpen && (
-                  <>
-                    {/* Backdrop */}
-                    <div className='fixed inset-0 z-10' onClick={() => setIsDropdownOpen(false)} />
+              {isDropdownOpen && (
+                <>
+                  <div className='fixed inset-0 z-10' onClick={() => setIsDropdownOpen(false)} />
+                  <div className='absolute left-0 top-full z-20 mt-1 max-h-80 w-full overflow-y-auto rounded-lg border border-gray-300 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-800'>
+                    {validTasks.map((task) => {
+                      const fileName = getTaskFileName(task)
+                      const status = getTaskStatus(task)
+                      const isSelected = task.task_id === selectedTaskId
+                      const targetsCount = task.targets?.length || 0
 
-                    {/* Dropdown List */}
-                    <div className='absolute left-0 top-full z-20 mt-1 max-h-80 w-full overflow-y-auto rounded-lg border border-gray-300 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-800'>
-                      {validTasks.map((task) => {
-                        const fileName = getTaskFileName(task)
-                        const status = getTaskStatus(task)
-                        const isSelected = task.task_id === selectedTaskId
-                        const targetsCount = task.targets?.length || 0
-
-                        return (
-                          <div
-                            key={task.task_id}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setSelectedTaskId(task.task_id)
-                              setIsDropdownOpen(false)
-                              setHoveredTaskId(null)
-                            }}
-                            onMouseEnter={(e) => {
-                              setHoveredTaskId(task.task_id)
-
-                              const rect = e.currentTarget.getBoundingClientRect()
-
-                              setTooltipPosition({
-                                top: rect.top,
-                                left: rect.right + 8
-                              })
-                            }}
-                            onMouseLeave={() => {
-                              setHoveredTaskId(null)
-                              setTooltipPosition(null)
-                            }}
-                            className={`flex cursor-pointer items-center justify-between px-3 py-2.5 transition-colors ${
-                              isSelected ? 'bg-blue-50 dark:bg-blue-900/30' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
-                            }`}
-                          >
-                            <div className='flex flex-1 flex-col gap-1 overflow-hidden'>
-                              <div className='flex items-center gap-2'>
-                                <span
-                                  className={`truncate text-sm font-medium ${
-                                    isSelected ? 'text-blue-700 dark:text-blue-300' : 'text-gray-800 dark:text-gray-200'
-                                  }`}
-                                >
-                                  {fileName}
-                                </span>
-                                {status && (
-                                  <span className={`flex-shrink-0 text-xs ${status.color}`}>• {status.status}</span>
-                                )}
-                              </div>
-                              <span className='truncate text-xs text-gray-500 dark:text-gray-400'>
-                                {targetsCount} {targetsCount === 1 ? 'target' : 'targets'}
-                              </span>
-                            </div>
-                            {isSelected && (
-                              <svg
-                                className='ml-2 h-4 w-4 flex-shrink-0 text-blue-600 dark:text-blue-400'
-                                fill='currentColor'
-                                viewBox='0 0 20 20'
+                      return (
+                        <div
+                          key={task.task_id}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            selectTask(task.task_id)
+                            setIsDropdownOpen(false)
+                          }}
+                          className={`flex cursor-pointer items-center justify-between px-3 py-2.5 transition-colors ${
+                            isSelected ? 'bg-blue-50 dark:bg-blue-900/30' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                          }`}
+                        >
+                          <div className='flex flex-1 flex-col gap-1 overflow-hidden'>
+                            <div className='flex items-center gap-2'>
+                              <span
+                                className={`truncate text-sm font-medium ${
+                                  isSelected ? 'text-blue-700 dark:text-blue-300' : 'text-gray-800 dark:text-gray-200'
+                                }`}
                               >
-                                <path
-                                  fillRule='evenodd'
-                                  d='M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z'
-                                  clipRule='evenodd'
-                                />
-                              </svg>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-
-                    {/* Tooltip for hovered task */}
-                    {hoveredTaskId && tooltipPosition && (
-                      <div
-                        className='fixed z-30 max-w-md rounded-lg border border-gray-300 bg-white p-3 shadow-xl dark:border-gray-600 dark:bg-gray-800'
-                        style={{
-                          top: `${tooltipPosition.top}px`,
-                          left: `${tooltipPosition.left}px`
-                        }}
-                      >
-                        {(() => {
-                          const task = validTasks.find((t) => t.task_id === hoveredTaskId)
-
-                          if (!task) return null
-
-                          const fileName = getTaskFileName(task)
-                          const status = getTaskStatus(task)
-                          const targetsCount = task.targets?.length || 0
-
-                          return (
-                            <div className='flex flex-col gap-2'>
-                              <div className='flex items-center gap-2'>
-                                <span className='font-semibold text-gray-800 dark:text-gray-200'>{fileName}</span>
-                                {status && (
-                                  <span
-                                    className={`rounded-md px-2 py-0.5 text-xs font-medium ${
-                                      status.status === 'Completed'
-                                        ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
-                                        : status.status === 'Failed'
-                                          ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
-                                          : status.status === 'Building'
-                                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
-                                            : status.status === 'Pending'
-                                              ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300'
-                                              : status.status === 'Uninitialized'
-                                                ? 'bg-gray-100 text-gray-700 dark:bg-gray-700/60 dark:text-gray-300'
-                                                : 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300'
-                                    }`}
-                                  >
-                                    {status.status}
-                                  </span>
-                                )}
-                              </div>
-                              <div className='text-xs text-gray-600 dark:text-gray-400'>
-                                <div>Task ID: {task.task_id}</div>
-                                <div>Created: {formatDateTime(task.created_at)}</div>
-                                <div>Targets: {targetsCount}</div>
-                              </div>
+                                {fileName}
+                              </span>
+                              {status && (
+                                <span className={`flex-shrink-0 text-xs ${status.color}`}>• {status.status}</span>
+                              )}
                             </div>
-                          )
-                        })()}
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div ref={containerRef} className='flex' style={{ height: `calc(100vh - 164px)` }}>
-          <div
-            ref={leftPanelRef}
-            className='border-primary h-full overflow-y-auto border-r'
-            style={{ width: leftWidth ?? `${DEFAULT_LEFT_WIDTH_PERCENT * 100}%`, flexShrink: 0 }}
-          >
-            <TreeRoot
-              path={path}
-              prName={prName}
-              tasks={tasksToDisplay}
-              logStatus={logStatus}
-              totalTasksCount={validTasks.length}
-              cl={cl}
-            />
-          </div>
-          {/* Resizer handle */}
-          <div
-            onMouseDown={handleMouseDown}
-            className='border-primary h-full w-1 flex-shrink-0 cursor-col-resize transition-colors hover:bg-blue-400'
-            style={{ backgroundColor: isDragging ? '#60a5fa' : undefined }}
-          />
-          <div ref={rightPanelRef} className='flex-1' style={{ display: isDragging ? 'none' : 'block' }}>
-            {renderLogContent()}
-          </div>
-          {isDragging && (
-            <div className='text-tertiary flex flex-1 items-center justify-center'>
-              <span>Resizing...</span>
+                            <span className='truncate text-xs text-gray-500 dark:text-gray-400'>
+                              {targetsCount} {targetsCount === 1 ? 'target' : 'targets'}
+                            </span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>
       </div>
-    </>
+
+      <div ref={containerRef} className='flex' style={{ height: `calc(100vh - 164px)` }}>
+        <div
+          ref={leftPanelRef}
+          data-build-list-scroll
+          className='border-primary h-full overflow-y-auto border-r [overflow-anchor:none]'
+          style={{ width: leftWidth ?? `${defaultLeftWidthPercent * 100}%`, flexShrink: 0 }}
+        >
+          <TreeRoot
+            path={path}
+            prName={prName}
+            tasks={tasksToDisplay}
+            logsAvailableIds={logsAvailableIds}
+            selectedBuildId={buildId}
+            onSelectBuild={selectBuild}
+            totalTasksCount={validTasks.length}
+            cl={cl}
+          />
+        </div>
+        <div
+          onMouseDown={handleMouseDown}
+          className='border-primary h-full w-1 flex-shrink-0 cursor-col-resize transition-colors hover:bg-blue-400'
+          style={{ backgroundColor: isDragging ? '#60a5fa' : undefined }}
+        />
+        <div ref={rightPanelRef} className='flex-1' style={{ display: isDragging ? 'none' : 'block' }}>
+          {renderLogContent()}
+        </div>
+        {isDragging && (
+          <div className='text-tertiary flex flex-1 items-center justify-center'>
+            <span>Resizing...</span>
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
 

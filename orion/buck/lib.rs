@@ -33,11 +33,13 @@ impl ExitStatusExt for ExitStatus {
 
 pub mod cells;
 pub mod config;
+pub mod discovery_scope;
 pub mod glob;
 pub mod ignore_set;
 pub mod labels;
 pub mod owners;
 pub mod package_resolver;
+pub mod platform;
 pub mod run;
 pub mod target_graph;
 pub mod target_map;

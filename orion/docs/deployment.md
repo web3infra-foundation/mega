@@ -165,3 +165,4 @@ sudo umount -lf /workspace/mount
    - Ensure `user_allow_other` is enabled in `/etc/fuse.conf`.
    - Ensure service keeps `AmbientCapabilities=CAP_SYS_ADMIN` and `/dev/fuse` is readable/writable.
    - `preflight.sh` will now block startup early with explicit errors if capability/device checks fail.
+4. **Buck2 `linker_wrapper.sh` ENOENT / `event.jsonl` EBADF on Antares mount**: See [FUSE_MOUNT_ISSUES.md](FUSE_MOUNT_ISSUES.md).

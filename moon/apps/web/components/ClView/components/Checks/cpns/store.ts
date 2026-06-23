@@ -1,4 +1,5 @@
 import { atom } from 'jotai'
+import { atomFamily } from 'jotai/utils'
 
 import { StatusProjectRelativePath, TargetState } from '@gitmono/types/generated'
 
@@ -80,6 +81,37 @@ export const getLatestBuildId = (task: TaskInfoDTO): string | undefined => {
   return latest?.id
 }
 
+/** Most recent build across all tasks (by start time). */
+export const getLatestBuildIdFromTasks = (tasks: TaskInfoDTO[]): string | undefined => {
+  let latest: BuildDTO | undefined
+
+  tasks.forEach((task) => {
+    task.build_list?.forEach((build) => {
+      if (!latest || new Date(build.start_at).getTime() > new Date(latest.start_at).getTime()) {
+        latest = build
+      }
+    })
+  })
+
+  return latest?.id
+}
+
+export const getAllBuildIds = (tasks: TaskInfoDTO[]): Set<string> => {
+  const ids = new Set<string>()
+
+  tasks.forEach((task) => {
+    task.build_list?.forEach((build) => {
+      if (build.id) ids.add(build.id)
+    })
+  })
+
+  return ids
+}
+
+export const findTaskIdByBuildId = (tasks: TaskInfoDTO[], buildId: string): string | undefined => {
+  return tasks.find((task) => task.build_list?.some((build) => build.id === buildId))?.task_id
+}
+
 /**
  * Collect the build ids that are still queued (waiting for a worker). These have
  * no logs yet, so callers should avoid fetching logs for them and instead show a
@@ -99,8 +131,9 @@ export const getQueuedBuildIds = (tasks: TaskInfoDTO[]): Set<string> => {
   return ids
 }
 
-export const logsAtom = atom<Record<string, string>>({})
+export const buildIdAtomFamily = atomFamily((_cl: string) => atom(''))
+export const logsAtomFamily = atomFamily((_cl: string) => atom<Record<string, string>>({}))
+
 export const statusAtom = atom<Record<string, Status>>({})
 export const loadingAtom = atom(true)
-export const statusMapAtom = atom<Map<string, BuildDTO>>(new Map())
 export const tabAtom = atom<'conversation' | 'check' | 'filechange'>('conversation')

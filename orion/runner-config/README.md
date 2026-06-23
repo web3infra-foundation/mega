@@ -2,7 +2,9 @@
 
 此目录包含生产环境下 Orion Worker 的运行配置。
 
-**详细部署文档**: [docs/deployment.md](../docs/deployment.md)
+**详细部署文档**: [docs/deployment.md](../docs/deployment.md)  
+**FUSE 问题分析与修复**: [docs/FUSE_MOUNT_ISSUES.md](../docs/FUSE_MOUNT_ISSUES.md)  
+**Target Discovery 范围问题**: [docs/TARGET_DISCOVERY_SCOPE.md](../docs/TARGET_DISCOVERY_SCOPE.md)
 
 ## 文件说明
 

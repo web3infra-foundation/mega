@@ -7,8 +7,8 @@
 - [Demo Walk-Through](#demo-walk-through)
 - [Service Endpoints](#service-endpoints)
 - [FAQ](#faq)
-- [Stopping & Cleanup](#stopping--cleanup)
-- [Log Streaming](#log-streaming)
+- [Stopping and Cleanup](#stopping-and-cleanup)
+- [View logs](#view-logs)
 - [Architecture Overview](#architecture-overview)
 
 ---
@@ -90,9 +90,22 @@ The main configurable environment variables include:
 
 - **Service Images**:
   - `MEGA_ENGINE_IMAGE`: Mega backend image (default: `public.ecr.aws/m8q5m4u3/mega/mono-engine:latest`)
-  - `MEGA_UI_IMAGE`: Mega UI image (default: `public.ecr.aws/m8q5m4u3/mega/mega-ui:demo-latest`)
+  - `MEGA_UI_IMAGE`: Mega UI unified image (default: `public.ecr.aws/m8q5m4u3/mega/mega-ui:latest`)
   - `CAMPSITE_API_IMAGE`: Campsite API image (default: `public.ecr.aws/m8q5m4u3/mega/campsite-api:latest`)
+  - `CAMPSITE_HOST_PORT`: Host port for Campsite API (default: `18080`, maps to container port `8080`; avoids conflict with local tools such as Cursor on `8080`)
   - `CAMPSITE_RUN_MIGRATIONS`: Whether to run database migrations when the container starts; `1` (default) to run, can be changed to `0` after the first successful migration to skip and speed up subsequent starts.
+
+- **Mega UI Runtime URLs** (injected at container start; must be browser-reachable):
+  - `NEXT_PUBLIC_API_URL`: Campsite API for the **browser** (default: `http://api.gitmono.local:18080`)
+  - `NEXT_PUBLIC_INTERNAL_API_URL`: Campsite API for **Next.js SSR inside the mega_ui container** (default: `http://api.gitmono.local:8080` — Docker network alias + container port `8080`, not host port `18080`)
+  - `NEXT_PUBLIC_MONO_API_URL`: Mega / mono API (default: `http://git.gitmono.local:8000`)
+  - `NEXT_PUBLIC_ORION_API_URL`: Orion Server API (default: `http://orion.gitmono.local:8004`)
+  - `NEXT_PUBLIC_AUTH_URL`: OAuth / auth endpoint (default: `http://auth.gitmono.local:18080`)
+  - `NEXT_PUBLIC_WEB_URL`: Web UI origin (default: `http://app.gitmono.local`)
+  - `NEXT_PUBLIC_SYNC_URL`: Real-time sync WebSocket URL (optional; leave empty if not used)
+  - `NEXT_PUBLIC_CRATES_PRO_URL`: Crates Pro API URL (optional; leave empty if not used)
+
+  The UI image is **environment-agnostic**: it is built once with placeholder URLs and `docker-entrypoint.sh` rewrites them from the variables above when `mega_ui` starts. You no longer need per-environment image tags such as `demo-latest`.
 
 - **RustFS Configuration**:
   - `RUSTFS_ACCESS_KEY`: RustFS access key (default: `rustfsadmin`)
@@ -111,6 +124,13 @@ Execute in the project root directory:
 docker compose -f docker/demo/docker-compose.demo.yml up -d
 ```
 
+Or, if you maintain a local `.env` under `docker/demo/`:
+
+```bash
+cd docker/demo
+docker compose -f docker-compose.demo.yml up -d
+```
+
 This command will:
 
 1. Pull the required Docker images (may take a long time for the first run)
@@ -118,7 +138,9 @@ This command will:
 3. Start all services in dependency order:
    - First, start infrastructure services (PostgreSQL, MySQL, Redis, RustFS)
    - Then, start application services (Mega, Orion Server, Campsite API)
-   - Finally, start client services (Mega UI, Orion Build Client)
+   - Finally, start `mega_ui`, which injects `NEXT_PUBLIC_*` URLs at container start and serves the web UI on port 80
+
+On first `mega_ui` start you should see log lines such as `[entrypoint] injecting runtime environment` followed by `NEXT_PUBLIC_* applied` — that confirms the unified image picked up your demo URLs.
 
 ### 4. Check service status
 
@@ -224,7 +246,7 @@ Log in with the following credentials:
 | **Mega UI** | <http://app.gitmono.local> | Web Frontend UI |
 | **Mega API** | <http://api.gitmono.local:8000> | Mega backend API |
 | **Orion Server** | <http://orion.gitmono.local:8004> | Orion build server API |
-| **Campsite API** | <http://api.gitmono.local:8080> | Campsite OAuth/SSO API |
+| **Campsite API** | <http://api.gitmono.local:18080> | Campsite OAuth/SSO API |
 | **PostgreSQL** | localhost:5432 | Database (used by Mega & Orion, mapped to host port 5432 in demo) |
 | **MySQL** | localhost:3306 | Database (used by Campsite API, mapped to host port 3306 in demo) |
 | **Redis** | localhost:6379 | Cache service (mapped to host port 6379 in demo) |
@@ -233,13 +255,31 @@ Log in with the following credentials:
 
 ### API Health Check Endpoints
 
-- **Mega API**: `GET http://api.gitmono.lcoal:8000/api/v1/status`
+- **Mega API**: `GET http://api.gitmono.local:8000/api/v1/status`
 - **Orion Server**: `GET http://orion.gitmono.local:8004/v2/health`
-- **Campsite API**: `GET http://api.gitmono.local:8080/health`
+- **Campsite API**: `GET http://api.gitmono.local:18080/health`
 
 ---
 
 ## FAQ
+
+### Mega UI points at wrong API URLs
+
+**Problem**: After opening <http://app.gitmono.local>, API calls fail or target placeholder hostnames such as `rt-api.placeholder.local`.
+
+**Cause**: The unified UI image did not receive `NEXT_PUBLIC_*` values at container start (older image without `docker-entrypoint.sh`, or missing environment block).
+
+**Solution**:
+
+1. Ensure `mega_ui` uses `public.ecr.aws/m8q5m4u3/mega/mega-ui:latest` (or a locally built unified image).
+2. Confirm `docker/demo/.env` includes the `NEXT_PUBLIC_*` block from `.env.example`, or rely on the defaults in `docker-compose.demo.yml`.
+3. Restart the UI container and check logs:
+
+   ```bash
+   docker compose -f docker/demo/docker-compose.demo.yml logs mega_ui | grep entrypoint
+   ```
+
+   You should see `NEXT_PUBLIC_* applied` for each configured variable.
 
 ### Port Conflict
 
@@ -526,10 +566,27 @@ The demo environment includes the following services:
 
 - **Application services**:
   - `mega`: Mega backend (Rust)
-  - `mega_ui`: Mega Web UI (Next.js)
+  - `mega_ui`: Mega Web UI (Next.js, unified image with runtime `NEXT_PUBLIC_*` injection)
   - `orion_server`: Orion build server (Rust)
-  - `orion_build_client`: Orion build client (based on the orion-client image)
   - `campsite_api`: Campsite API (Ruby/Rails, built locally by default; if you have the encrypted development credentials configured you can pull the pre-built image directly via `CAMPSITE_API_IMAGE=public.ecr.aws/m8q5m4u3/mega/campsite-api:latest`)
+
+### Mega UI: unified image + runtime configuration
+
+Previously each environment shipped its own UI image tag (`demo-latest`, `gitmono-latest`, etc.) with URLs baked in at build time. The current flow uses **one** `mega-ui:latest` image for every environment:
+
+1. **Build** (`moon/apps/web/Dockerfile`): compile with placeholder URLs from `moon/apps/web/.env.runtime`.
+2. **Start** (`moon/apps/web/docker-entrypoint.sh`): replace placeholders in the compiled assets with `NEXT_PUBLIC_*` values from the container environment, then run `node server.js`.
+3. **Configure locally**: set the `NEXT_PUBLIC_*` block in `docker/demo/.env` (see `.env.example`). Defaults in `docker-compose.demo.yml` already target the `gitmono.local` demo hostnames.
+
+To build the UI image locally instead of pulling from ECR:
+
+```bash
+./scripts/demo/build-demo-images-local.sh mega-ui
+# then in docker/demo/.env:
+# MEGA_UI_IMAGE=public.ecr.aws/m8q5m4u3/mega/mega-ui:latest-<arch>
+```
+
+Replace `<arch>` with `arm64` or `amd64` to match your machine.
 
 For a detailed architecture diagram and dependency list, see the [Mega / Orion Demo architecture design document](./mega-orion-demo-compose-arch.md).
 

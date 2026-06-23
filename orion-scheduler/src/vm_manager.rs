@@ -3,7 +3,10 @@ use std::path::PathBuf;
 use anyhow::Result;
 use tracing::info;
 
-use crate::{config::TargetConfig, keep_alive::KeepAliveMachine};
+use crate::{
+    config::{TargetConfig, expand_tilde},
+    keep_alive::KeepAliveMachine,
+};
 
 /// The target directory inside the VM guest OS where Orion is deployed
 const ORION_TARGET_DIR: &str = "/home/orion/orion-runner";
@@ -214,7 +217,7 @@ pub async fn inject_ssh_keys(machine: &KeepAliveMachine, ssh_public_key_path: &s
     info!("[ssh] Injecting SSH keys for debugging access");
 
     // Read the extra public key from a file
-    let extra_key_path = std::path::Path::new(ssh_public_key_path);
+    let extra_key_path = expand_tilde(ssh_public_key_path);
     let extra_key = if extra_key_path.exists() {
         tokio::fs::read_to_string(extra_key_path)
             .await?

@@ -2,19 +2,37 @@
 # Build a custom Debian image with buck2 and Rust toolchain pre-installed.
 #
 # Pre-installs Rust toolchain, apt packages, and buck2 directly into the image
-# via chroot. No VM boot needed, so this is significantly faster than the
-# previous cloud-init based approach.
+# via chroot. Also caches the prelude cpython_archive tarball behind a local
+# GitHub HTTPS mirror so toolchains//:cpython_archive can fetch without hitting
+# github.com during worker builds (no toolchains repo changes required).
 #
 # Usage: sudo ./build-custom-image.sh
 #
 # Note: Must run as root because qemu-nbd / mount / chroot need it.
+# Images are published to the invoking user's ~/.local/share/qlean/images
+# (e.g. /home/orion/... when run as `sudo -u` or `sudo` from user orion),
+# not /root/. Override with OUTPUT_DIR=... if needed.
 
 set -eo pipefail
 
 # ============================================================================
 # Configuration
 # ============================================================================
-OUTPUT_DIR="${OUTPUT_DIR:-$HOME/.local/share/qlean/images}"
+# qlean / orion-scheduler run as the login user (orion), not root. When this
+# script is invoked via sudo, $HOME is /root — publish to the invoking user's
+# qlean images dir unless OUTPUT_DIR is set explicitly.
+if [ -n "${OUTPUT_DIR:-}" ]; then
+    : # caller override
+elif [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
+    _qlean_home="$(getent passwd "$SUDO_USER" | cut -d: -f6)"
+    OUTPUT_DIR="${_qlean_home}/.local/share/qlean/images"
+elif [ -n "${SUDO_UID:-}" ] && [ "$SUDO_UID" != "0" ]; then
+    _qlean_home="$(getent passwd "$SUDO_UID" | cut -d: -f6)"
+    OUTPUT_DIR="${_qlean_home}/.local/share/qlean/images"
+else
+    OUTPUT_DIR="${HOME}/.local/share/qlean/images"
+fi
+unset _qlean_home
 IMAGE_NAME="debian-13-buck2"
 IMAGE_DIR="$OUTPUT_DIR/$IMAGE_NAME"
 BASE_DIR="$OUTPUT_DIR/debian-13-generic-amd64"
@@ -38,38 +56,88 @@ BASE_CHECKSUM_URL="${BASE_MIRROR_URL%/}/SHA512SUMS"
 
 IMAGE_SIZE="15G"
 
-RUST_VERSION="1.95.0"
+RUST_VERSION="1.96.0"
 RUST_ARCH="x86_64-unknown-linux-gnu"
+# Host-side cache for the Rust toolchain tarball. Pre-place the file here to
+# skip the download (useful when the network is flaky/blocked):
+#   curl -fL -o /tmp/rust-1.96.0-x86_64-unknown-linux-gnu.tar.gz "$RUST_TARBALL_URL"
 RUST_TARBALL="/tmp/rust-${RUST_VERSION}-${RUST_ARCH}.tar.gz"
 RUST_TARBALL_URL="https://static.rust-lang.org/dist/rust-${RUST_VERSION}-${RUST_ARCH}.tar.gz"
 
 BUCK2_VERSION="2026-04-15"
 BUCK2_ARCH="x86_64-unknown-linux-musl"
 BUCK2_URL="https://github.com/facebook/buck2/releases/download/${BUCK2_VERSION}/buck2-${BUCK2_ARCH}.zst"
+# Host-side cache for the buck2 archive. Pre-place the file here to skip the
+# in-chroot GitHub download entirely (useful when GitHub is flaky/blocked):
+#   curl -fL -o /tmp/buck2-x86_64-unknown-linux-musl.zst "$BUCK2_URL"
+BUCK2_TARBALL="/tmp/buck2-${BUCK2_ARCH}.zst"
+# Host-side apt caches, bind-mounted into the chroot so repeated image builds
+# reuse already-downloaded indexes and .deb packages. They live on the host and
+# are unmounted before the image is sealed, so cached data is NOT baked into the
+# final image. Override with APT_LISTS_DIR / APT_CACHE_DIR.
+APT_LISTS_DIR="${APT_LISTS_DIR:-/var/cache/orion-image/apt-lists}"
+APT_CACHE_DIR="${APT_CACHE_DIR:-/var/cache/orion-image/apt-archives}"
+
+# CPython tarball for prelude remote_python_toolchain / toolchains//:cpython_archive.
+# Baked into a local GitHub HTTPS mirror (see chroot) so buck2 http_archive keeps
+# the upstream URL but reads the file from disk on workers.
+CPYTHON_VERSION="3.13.6"
+CPYTHON_BUILD="20250807"
+CPYTHON_ARCH="x86_64-unknown-linux-gnu"
+CPYTHON_TARBALL="/tmp/cpython-${CPYTHON_VERSION}-${CPYTHON_ARCH}.tar.gz"
+CPYTHON_TARBALL_URL="https://github.com/astral-sh/python-build-standalone/releases/download/${CPYTHON_BUILD}/cpython-${CPYTHON_VERSION}+${CPYTHON_BUILD}-${CPYTHON_ARCH}-install_only_stripped.tar.gz"
+CPYTHON_MIRROR_REL_PATH="astral-sh/python-build-standalone/releases/download/${CPYTHON_BUILD}/cpython-${CPYTHON_VERSION}+${CPYTHON_BUILD}-${CPYTHON_ARCH}-install_only_stripped.tar.gz"
+CPYTHON_SHA256="e3e280d4b1ead63de6ebc9816de71792fc8c71b7a6a999ea82f937047beba037"
 
 ROOT_SSH_KEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIF9LTEGIaaad0XP4qUfBoVRgeOg+G36jIWIiqIWP/k4g"
 
 NBD_DEV="/dev/nbd0"
 NBD_PART="${NBD_DEV}p1"
 
+# When run via sudo, root creates files under the invoking user's OUTPUT_DIR.
+# qlean / orion-scheduler must be able to read/write debian-13-buck2.json.
+fix_qlean_ownership() {
+    local owner="${SUDO_USER:-}"
+    if [ -z "$owner" ] || [ "$owner" = "root" ]; then
+        return 0
+    fi
+    echo "[build-custom-image] chown $owner: $OUTPUT_DIR ($IMAGE_NAME artifacts)"
+    chown -R "$owner:$owner" "$IMAGE_DIR" "$BASE_DIR" 2>/dev/null || true
+    chown "$owner:$owner" "$PUBLISHED_IMAGE" "$PUBLISHED_JSON" 2>/dev/null || true
+    chmod 644 "$PUBLISHED_JSON" "$IMAGE_DIR/checksums" 2>/dev/null || true
+    chmod 644 "$PUBLISHED_IMAGE" "$CUSTOM_IMAGE" 2>/dev/null || true
+}
+
 # ============================================================================
 # Cleanup trap — always release mounts and NBD even on failure / Ctrl-C
 # ============================================================================
 MOUNT_DIR=""
+BUILD_STAGE="init"
+
+log_stage() {
+    BUILD_STAGE="$1"
+    echo "[build-custom-image] >>> stage: $BUILD_STAGE"
+}
+
+log_cmd() {
+    echo "[build-custom-image] \$ $*"
+}
+
 cleanup() {
     local rc=$?
     set +e
+    if [ $rc -ne 0 ]; then
+        echo "[build-custom-image] FAILED with exit code $rc (stage: ${BUILD_STAGE:-unknown})" >&2
+    fi
     if [ -n "$MOUNT_DIR" ]; then
-        for sub in proc sys dev; do
+        echo "[build-custom-image] cleanup: unmounting $MOUNT_DIR (stage was: ${BUILD_STAGE:-unknown})"
+        for sub in var/lib/apt/lists var/cache/apt/archives proc sys dev; do
             mountpoint -q "$MOUNT_DIR/$sub" && sudo umount "$MOUNT_DIR/$sub"
         done
         mountpoint -q "$MOUNT_DIR" && sudo umount "$MOUNT_DIR"
         [ -d "$MOUNT_DIR" ] && rmdir "$MOUNT_DIR" 2>/dev/null
     fi
     sudo qemu-nbd --disconnect "$NBD_DEV" 2>/dev/null
-    if [ $rc -ne 0 ]; then
-        echo "[build-custom-image] FAILED with exit code $rc"
-    fi
     exit $rc
 }
 trap cleanup EXIT INT TERM HUP
@@ -115,7 +183,10 @@ download_base_image() {
 # ============================================================================
 # Pre-flight: ensure base image (download if missing)
 # ============================================================================
+log_stage "preflight"
 echo "[build-custom-image] Starting custom image build..."
+echo "[build-custom-image] OUTPUT_DIR=$OUTPUT_DIR"
+echo "[build-custom-image] CUSTOM_IMAGE=$CUSTOM_IMAGE"
 
 if [ ! -f "$BASE_IMAGE" ]; then
     download_base_image
@@ -131,6 +202,7 @@ mkdir -p "$IMAGE_DIR"
 # ============================================================================
 # Stage 1: Copy + resize qcow2
 # ============================================================================
+log_stage "1-copy-resize"
 echo "[build-custom-image] Copying base image..."
 cp "$BASE_IMAGE" "$CUSTOM_IMAGE"
 
@@ -149,8 +221,55 @@ else
 fi
 
 # ============================================================================
+# Stage 2b: Download buck2 on host (avoids needing reliable network in chroot)
+# ============================================================================
+# Reuse a manually pre-downloaded archive if present at $BUCK2_TARBALL.
+if [ ! -f "$BUCK2_TARBALL" ]; then
+    echo "[build-custom-image] Downloading buck2 ${BUCK2_VERSION}..."
+    if ! curl -fL --connect-timeout 30 --retry 5 --retry-delay 3 --retry-all-errors \
+            -C - -o "$BUCK2_TARBALL" "$BUCK2_URL"; then
+        rm -f "$BUCK2_TARBALL"
+        echo "[build-custom-image] ERROR: failed to download buck2 from $BUCK2_URL" >&2
+        echo "[build-custom-image] Pre-download it manually then re-run, e.g.:" >&2
+        echo "[build-custom-image]   curl -fL -o $BUCK2_TARBALL \"$BUCK2_URL\"" >&2
+        exit 56
+    fi
+    echo "[build-custom-image] buck2 downloaded: $(du -sh "$BUCK2_TARBALL" | cut -f1)"
+else
+    echo "[build-custom-image] Using cached buck2 archive: $(du -sh "$BUCK2_TARBALL" | cut -f1)"
+fi
+
+# ============================================================================
+# Stage 2c: Download cpython_archive tarball on host (buckal / prelude python bootstrap)
+# ============================================================================
+if [ ! -f "$CPYTHON_TARBALL" ]; then
+    echo "[build-custom-image] Downloading CPython ${CPYTHON_VERSION} (${CPYTHON_BUILD})..."
+    if ! curl -fL --connect-timeout 30 --retry 5 --retry-delay 3 --retry-all-errors \
+            -C - -o "$CPYTHON_TARBALL" "$CPYTHON_TARBALL_URL"; then
+        rm -f "$CPYTHON_TARBALL"
+        echo "[build-custom-image] ERROR: failed to download CPython from $CPYTHON_TARBALL_URL" >&2
+        echo "[build-custom-image] Pre-download it manually then re-run, e.g.:" >&2
+        echo "[build-custom-image]   curl -fL -o $CPYTHON_TARBALL \"$CPYTHON_TARBALL_URL\"" >&2
+        exit 56
+    fi
+    echo "[build-custom-image] CPython tarball downloaded: $(du -sh "$CPYTHON_TARBALL" | cut -f1)"
+else
+    echo "[build-custom-image] Using cached CPython tarball: $(du -sh "$CPYTHON_TARBALL" | cut -f1)"
+fi
+
+echo "[build-custom-image] Verifying CPython SHA256..."
+actual_cpython_sha=$(sha256sum "$CPYTHON_TARBALL" | awk '{ print $1 }')
+if [ "$CPYTHON_SHA256" != "$actual_cpython_sha" ]; then
+    echo "[build-custom-image] ERROR: CPython checksum mismatch" >&2
+    echo "[build-custom-image]   expected: $CPYTHON_SHA256" >&2
+    echo "[build-custom-image]   actual:   $actual_cpython_sha" >&2
+    exit 1
+fi
+
+# ============================================================================
 # Stage 3: NBD attach + filesystem grow + mount
 # ============================================================================
+log_stage "3-nbd-mount"
 wait_for() {
     # wait_for <path> <max-tries-of-0.25s>
     local path="$1" tries="${2:-40}" i
@@ -217,17 +336,51 @@ sudo mount --bind /sys "$MOUNT_DIR/sys"
 sudo mount --bind /dev "$MOUNT_DIR/dev"
 sudo cp --remove-destination /etc/resolv.conf "$MOUNT_DIR/etc/resolv.conf"
 
+# Bind-mount host apt caches so `apt-get update` / `apt-get install` reuse
+# previously downloaded indexes and .deb files. Because these are bind mounts
+# onto the host, cached data stays on the host and is unmounted before the
+# image is compacted (Stage 5), so it doesn't bloat the final image.
+echo "[build-custom-image] Using apt lists cache: $APT_LISTS_DIR"
+echo "[build-custom-image] Using apt archive cache: $APT_CACHE_DIR"
+sudo mkdir -p "$APT_LISTS_DIR" "$APT_CACHE_DIR/partial"
+sudo mkdir -p "$MOUNT_DIR/var/lib/apt/lists" "$MOUNT_DIR/var/cache/apt/archives/partial"
+sudo mount --bind "$APT_LISTS_DIR" "$MOUNT_DIR/var/lib/apt/lists"
+sudo mount --bind "$APT_CACHE_DIR" "$MOUNT_DIR/var/cache/apt/archives"
+
 # Copy Rust tarball into the image's /tmp before entering chroot
 sudo cp "$RUST_TARBALL" "$MOUNT_DIR/tmp/rust.tar.gz"
+# Copy buck2 archive in too so the chroot reuses it instead of hitting GitHub.
+sudo cp "$BUCK2_TARBALL" "$MOUNT_DIR/tmp/buck2.zst"
+# Copy cpython_archive tarball for the in-image GitHub mirror (toolchains unchanged).
+sudo cp "$CPYTHON_TARBALL" "$MOUNT_DIR/tmp/cpython.tar.gz"
+
+# Resolve github.com while the host still has normal DNS (chroot will point it at 127.0.0.1).
+GITHUB_UPSTREAM_IP=$(getent ahostsv4 github.com 2>/dev/null | awk '{print $1; exit}')
+if [ -z "$GITHUB_UPSTREAM_IP" ]; then
+    GITHUB_UPSTREAM_IP="140.82.121.3"
+    echo "[build-custom-image] WARNING: could not resolve github.com; using fallback ${GITHUB_UPSTREAM_IP}"
+else
+    echo "[build-custom-image] github.com upstream IP for mirror proxy: ${GITHUB_UPSTREAM_IP}"
+fi
 
 # ============================================================================
 # Stage 4: Install everything inside the chroot (no VM boot needed)
 # ============================================================================
+log_stage "4-chroot-install"
+CHROOT_LOG="/tmp/chroot_install.log"
 echo "[build-custom-image] Installing toolchain into image (chroot)..."
+echo "[build-custom-image] chroot log: $CHROOT_LOG"
+# Disable errexit and pipefail for chroot|tee: with pipefail off, set -e would
+# still abort on tee(1) failure even when chroot succeeded; capture PIPESTATUS
+# explicitly instead.
+set +e
+set +o pipefail
 sudo BUCK2_URL="$BUCK2_URL" BUCK2_VERSION="$BUCK2_VERSION" \
+     CPYTHON_MIRROR_REL_PATH="$CPYTHON_MIRROR_REL_PATH" \
+     GITHUB_UPSTREAM_IP="$GITHUB_UPSTREAM_IP" \
      ROOT_SSH_KEY="$ROOT_SSH_KEY" \
-     chroot "$MOUNT_DIR" /bin/bash <<'CHROOT_EOF' 2>&1 | tee /tmp/chroot_install.log
-set -eo pipefail
+     chroot "$MOUNT_DIR" /bin/bash <<'CHROOT_EOF' 2>&1 | tee "$CHROOT_LOG"
+set -eu
 export HOME=/root
 export DEBIAN_FRONTEND=noninteractive
 export PATH=/root/.cargo/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
@@ -254,8 +407,8 @@ echo "=== [chroot] Rust version: $(/root/.cargo/bin/rustc --version) ==="
 echo "=== [chroot] Installing apt packages ==="
 apt-get update
 apt-get install -y \
-    clang lld pkg-config protobuf-compiler zstd fuse curl git \
-    seccomp libseccomp-dev libpython3-dev openssl libssl-dev build-essential
+    clang lld pkg-config protobuf-compiler zstd fuse curl git nginx \
+    seccomp libseccomp-dev libpython3-dev openssl libssl-dev build-essential ca-certificates
 
 echo "=== [chroot] Verifying installed tools ==="
 git --version
@@ -265,11 +418,145 @@ protoc --version
 zstd --version | head -1
 
 echo "=== [chroot] Installing buck2 (${BUCK2_VERSION}) ==="
-curl -fsSL -o /tmp/buck2.zst "$BUCK2_URL"
+# Prefer the archive copied in from the host ($MOUNT_DIR/tmp/buck2.zst). Only
+# fall back to downloading inside the chroot if it's missing. GitHub release
+# downloads frequently get TLS-reset (curl 56: unexpected eof) on flaky
+# networks, so the fallback retries with resume.
+if [ -s /tmp/buck2.zst ]; then
+    echo "=== [chroot] Using buck2 archive provided by host ==="
+else
+    rm -f /tmp/buck2.zst
+    buck2_downloaded=0
+    for attempt in 1 2 3 4 5; do
+        if curl -fL --connect-timeout 30 --retry 5 --retry-delay 3 --retry-all-errors \
+                -C - -o /tmp/buck2.zst "$BUCK2_URL"; then
+            buck2_downloaded=1
+            break
+        fi
+        echo "=== [chroot] buck2 download attempt ${attempt} failed; retrying in 5s ==="
+        sleep 5
+    done
+    if [ "$buck2_downloaded" -ne 1 ]; then
+        echo "=== [chroot] ERROR: failed to download buck2 from $BUCK2_URL after retries ===" >&2
+        exit 56
+    fi
+fi
 zstd -d /tmp/buck2.zst -o /usr/local/bin/buck2
 chmod +x /usr/local/bin/buck2
 rm -f /tmp/buck2.zst
 /usr/local/bin/buck2 --version
+
+echo "=== [chroot] Installing local GitHub mirror for cpython_archive ==="
+if [ ! -s /tmp/cpython.tar.gz ]; then
+    echo "=== [chroot] ERROR: missing /tmp/cpython.tar.gz (host should have copied it) ===" >&2
+    exit 1
+fi
+MIRROR_ROOT=/var/cache/orion-github-mirror
+CERT_DIR=/etc/orion-github-mirror
+mkdir -p "${MIRROR_ROOT}/$(dirname "${CPYTHON_MIRROR_REL_PATH}")" "${CERT_DIR}"
+mv /tmp/cpython.tar.gz "${MIRROR_ROOT}/${CPYTHON_MIRROR_REL_PATH}"
+
+# buck2/rustls rejects openssl req -x509 leaf certs (CaUsedAsEndEntity). Use a
+# small PKI: CA cert -> system trust store; leaf server cert -> nginx.
+cat > "${CERT_DIR}/openssl-ca.cnf" <<'OPENSSL_CA_EOF'
+[req]
+distinguished_name = dn
+x509_extensions = v3_ca
+prompt = no
+
+[dn]
+CN = Orion GitHub Mirror CA
+
+[v3_ca]
+basicConstraints = critical, CA:true, pathlen:0
+keyUsage = critical, keyCertSign, cRLSign
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid:always,issuer
+OPENSSL_CA_EOF
+
+cat > "${CERT_DIR}/openssl-leaf.cnf" <<'OPENSSL_LEAF_EOF'
+[req]
+distinguished_name = dn
+req_extensions = v3_req
+prompt = no
+
+[dn]
+CN = github.com
+
+[v3_req]
+basicConstraints = critical, CA:FALSE
+keyUsage = critical, digitalSignature, keyEncipherment
+extendedKeyUsage = serverAuth
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1 = github.com
+OPENSSL_LEAF_EOF
+
+openssl genrsa -out "${CERT_DIR}/ca.key" 4096
+openssl req -x509 -new -nodes \
+    -key "${CERT_DIR}/ca.key" \
+    -days 3650 \
+    -out "${CERT_DIR}/ca.crt" \
+    -config "${CERT_DIR}/openssl-ca.cnf"
+
+openssl genrsa -out "${CERT_DIR}/github.com.key" 2048
+openssl req -new \
+    -key "${CERT_DIR}/github.com.key" \
+    -out "${CERT_DIR}/github.com.csr" \
+    -config "${CERT_DIR}/openssl-leaf.cnf"
+
+openssl x509 -req \
+    -in "${CERT_DIR}/github.com.csr" \
+    -CA "${CERT_DIR}/ca.crt" \
+    -CAkey "${CERT_DIR}/ca.key" \
+    -CAcreateserial \
+    -out "${CERT_DIR}/github.com.crt" \
+    -days 3650 \
+    -extensions v3_req \
+    -extfile "${CERT_DIR}/openssl-leaf.cnf"
+
+# Trust the CA only (not the leaf); rustls validates the server leaf against it.
+cp "${CERT_DIR}/ca.crt" /usr/local/share/ca-certificates/orion-github-mirror-ca.crt
+update-ca-certificates
+
+# Verify leaf is not flagged as a CA (would trigger CaUsedAsEndEntity in rustls).
+cert_text=$(openssl x509 -in "${CERT_DIR}/github.com.crt" -noout -text)
+if echo "$cert_text" | grep -q "CA:TRUE"; then
+    echo "=== [chroot] ERROR: github.com leaf cert has CA:TRUE extension ===" >&2
+    exit 1
+fi
+
+# Present leaf + CA chain to TLS clients.
+cat "${CERT_DIR}/github.com.crt" "${CERT_DIR}/ca.crt" > "${CERT_DIR}/github.com-chain.crt"
+
+cat > /etc/nginx/sites-available/orion-github-mirror <<NGINX_EOF
+server {
+    listen 443 ssl;
+    server_name github.com;
+
+    ssl_certificate     ${CERT_DIR}/github.com-chain.crt;
+    ssl_certificate_key ${CERT_DIR}/github.com.key;
+
+    location = /${CPYTHON_MIRROR_REL_PATH} {
+        alias ${MIRROR_ROOT}/${CPYTHON_MIRROR_REL_PATH};
+    }
+
+    location / {
+        proxy_pass https://${GITHUB_UPSTREAM_IP}\$request_uri;
+        proxy_ssl_server_name on;
+        proxy_set_header Host github.com;
+    }
+}
+NGINX_EOF
+
+ln -sf /etc/nginx/sites-available/orion-github-mirror /etc/nginx/sites-enabled/orion-github-mirror
+rm -f /etc/nginx/sites-enabled/default
+if ! grep -q '[[:space:]]github.com$' /etc/hosts; then
+    echo "127.0.0.1 github.com" >> /etc/hosts
+fi
+systemctl enable nginx
+echo "=== [chroot] cpython mirror path: https://github.com/${CPYTHON_MIRROR_REL_PATH} ==="
 
 echo "=== [chroot] Installing SSH key for root ==="
 mkdir -p /root/.ssh
@@ -277,52 +564,112 @@ chmod 700 /root/.ssh
 echo "$ROOT_SSH_KEY" > /root/.ssh/authorized_keys
 chmod 600 /root/.ssh/authorized_keys
 
-echo "=== [chroot] Cleaning apt + temp files ==="
-apt-get clean
-rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+echo "=== [chroot] Cleaning temp files (host apt caches kept) ==="
+# NOTE: do NOT run `apt-get clean` or wipe /var/lib/apt/lists here. Both
+# /var/lib/apt/lists and /var/cache/apt/archives are bind-mounted to the host
+# cache, so cleaning them would wipe the cross-build cache. Cached data is
+# unmounted (not copied) before the image is sealed, so it doesn't end up in
+# the final image anyway.
+rm -f /var/cache/apt/*.bin
+rm -rf /tmp/* /var/tmp/*
 rm -f /usr/sbin/policy-rc.d
 
 echo "=== [chroot] Clearing cloud-init state ==="
 rm -rf /var/lib/cloud/data/* /var/lib/cloud/instance/* 2>/dev/null || true
 
 # Zero unused blocks so qemu-img convert below can drop them, producing a
-# much smaller final qcow2.
-echo "=== [chroot] Zeroing free space (helps qcow2 compact) ==="
-dd if=/dev/zero of=/EMPTY bs=4M status=none || true
-sync
+# much smaller final qcow2. Hitting ENOSPC here is expected and harmless.
+echo "=== [chroot] Zeroing free space (helps qcow2 compact; ENOSPC expected) ==="
+dd if=/dev/zero of=/EMPTY bs=4M conv=fdatasync 2>/dev/null || true
 rm -f /EMPTY
 sync
 
 echo "=== [chroot] Disk space after install ==="
 df -h /
+echo "=== [chroot] install finished (exit 0) ==="
 CHROOT_EOF
+_pipe_status=("${PIPESTATUS[@]}")
+CHROOT_RC="${_pipe_status[0]:-255}"
+TEE_RC="${_pipe_status[1]:-255}"
+PIPELINE_RC=$?
+set -e
+set -o pipefail
+
+echo "[build-custom-image] chroot pipeline done: pipeline_rc=$PIPELINE_RC chroot_rc=$CHROOT_RC tee_rc=$TEE_RC"
+if [ -f "$CHROOT_LOG" ]; then
+    echo "[build-custom-image] chroot log: $(wc -l < "$CHROOT_LOG") lines, $(stat -c '%s bytes, owner %U:%G' "$CHROOT_LOG" 2>/dev/null || ls -la "$CHROOT_LOG")"
+else
+    echo "[build-custom-image] WARNING: chroot log missing at $CHROOT_LOG" >&2
+fi
+
+if [ "$CHROOT_RC" -ne 0 ]; then
+    echo "[build-custom-image] ERROR: chroot install failed (exit $CHROOT_RC)" >&2
+    echo "[build-custom-image] Last 20 lines of $CHROOT_LOG:" >&2
+    tail -20 "$CHROOT_LOG" >&2 2>/dev/null || true
+    exit "$CHROOT_RC"
+fi
+if [ "$TEE_RC" -ne 0 ]; then
+    echo "[build-custom-image] WARNING: tee failed (exit $TEE_RC) but chroot succeeded; continuing" >&2
+    echo "[build-custom-image] tee target: $CHROOT_LOG ($(ls -la "$CHROOT_LOG" 2>/dev/null || echo missing))" >&2
+fi
+echo "[build-custom-image] chroot install OK"
 
 # ============================================================================
 # Stage 5: Unmount, disconnect, then compact the qcow2
 # ============================================================================
+log_stage "5-unmount-compact"
 echo "[build-custom-image] Unmounting chroot bind mounts..."
-sudo umount "$MOUNT_DIR/proc"
-sudo umount "$MOUNT_DIR/sys"
-sudo umount "$MOUNT_DIR/dev"
+for _sub in var/lib/apt/lists var/cache/apt/archives proc sys dev; do
+    log_cmd umount "$MOUNT_DIR/$_sub"
+    if ! sudo umount "$MOUNT_DIR/$_sub"; then
+        echo "[build-custom-image] ERROR: umount $MOUNT_DIR/$_sub failed (exit $?)" >&2
+        mountpoint "$MOUNT_DIR/$_sub" 2>/dev/null || true
+        exit 1
+    fi
+done
 
 echo "[build-custom-image] Unmounting image..."
-sudo umount "$MOUNT_DIR"
+log_cmd umount "$MOUNT_DIR"
+if ! sudo umount "$MOUNT_DIR"; then
+    echo "[build-custom-image] ERROR: umount $MOUNT_DIR failed (exit $?)" >&2
+    mountpoint "$MOUNT_DIR" 2>/dev/null || true
+    exit 1
+fi
 rmdir "$MOUNT_DIR"
 MOUNT_DIR=""
 
-sudo qemu-nbd --disconnect "$NBD_DEV"
+log_cmd qemu-nbd --disconnect "$NBD_DEV"
+if ! sudo qemu-nbd --disconnect "$NBD_DEV"; then
+    echo "[build-custom-image] ERROR: qemu-nbd --disconnect $NBD_DEV failed (exit $?)" >&2
+    exit 1
+fi
+echo "[build-custom-image] NBD disconnected"
 
 UNCOMPACT_SIZE=$(du -sh "$CUSTOM_IMAGE" | cut -f1)
 echo "[build-custom-image] Compacting qcow2 (size before: $UNCOMPACT_SIZE)..."
-qemu-img convert -O qcow2 -c "$CUSTOM_IMAGE" "${CUSTOM_IMAGE}.compact"
+NEED_BYTES=$(stat -c%s "$CUSTOM_IMAGE")
+AVAIL_BYTES=$(df --output=avail -B1 "$(dirname "$CUSTOM_IMAGE")" | tail -1)
+echo "[build-custom-image] qemu-img convert needs ~$((NEED_BYTES / 1024 / 1024))MiB, avail $((AVAIL_BYTES / 1024 / 1024))MiB on $(dirname "$CUSTOM_IMAGE")"
+if [ "$AVAIL_BYTES" -lt "$NEED_BYTES" ]; then
+    echo "[build-custom-image] ERROR: need ~$((NEED_BYTES / 1024 / 1024))MiB free for qemu-img convert, only $((AVAIL_BYTES / 1024 / 1024))MiB available on $(dirname "$CUSTOM_IMAGE")" >&2
+    exit 1
+fi
+log_cmd qemu-img convert -O qcow2 -c "$CUSTOM_IMAGE" "${CUSTOM_IMAGE}.compact"
+if ! qemu-img convert -O qcow2 -c "$CUSTOM_IMAGE" "${CUSTOM_IMAGE}.compact"; then
+    echo "[build-custom-image] ERROR: qemu-img convert failed (exit $?)" >&2
+    exit 1
+fi
 mv "${CUSTOM_IMAGE}.compact" "$CUSTOM_IMAGE"
 echo "[build-custom-image] Final image size: $(du -sh "$CUSTOM_IMAGE" | cut -f1)"
 
 # ============================================================================
 # Stage 6: Copy kernel + initrd, write checksums
 # ============================================================================
+log_stage "6-kernel-checksums"
 echo "[build-custom-image] Copying kernel and initrd..."
+log_cmd cp "$KERNEL" "$IMAGE_DIR/"
 cp "$KERNEL" "$IMAGE_DIR/"
+log_cmd cp "$INITRD" "$IMAGE_DIR/"
 cp "$INITRD" "$IMAGE_DIR/"
 
 echo "[build-custom-image] Calculating checksums..."
@@ -330,10 +677,12 @@ echo "[build-custom-image] Calculating checksums..."
     cd "$IMAGE_DIR"
     sha256sum "$IMAGE_NAME.qcow2" > checksums
 )
+echo "[build-custom-image] checksums: $(cat "$IMAGE_DIR/checksums")"
 
 # ============================================================================
 # Stage 7: Publish image to the path qlean expects (parent-dir flat layout)
 # ============================================================================
+log_stage "7-publish"
 # qlean reads $OUTPUT_DIR/$IMAGE_NAME.json which carries `path` pointing at
 # $OUTPUT_DIR/$IMAGE_NAME.qcow2 (flat). The subdir build artifacts above are
 # kept for record but qlean won't read them directly.
@@ -341,23 +690,44 @@ PUBLISHED_IMAGE="$OUTPUT_DIR/$IMAGE_NAME.qcow2"
 PUBLISHED_JSON="$OUTPUT_DIR/$IMAGE_NAME.json"
 
 # Refuse to overwrite if a VM has the file locked (qemu holds a write lock).
-if [ -f "$PUBLISHED_IMAGE" ] && ! qemu-img info "$PUBLISHED_IMAGE" >/dev/null 2>&1; then
-    echo "[build-custom-image] WARNING: $PUBLISHED_IMAGE appears locked (VM running?)."
-    echo "[build-custom-image] Skipping publish. Shut down any VMs using it and re-run, or manually:"
-    echo "[build-custom-image]   cp $CUSTOM_IMAGE $PUBLISHED_IMAGE"
-else
-    echo "[build-custom-image] Publishing to $PUBLISHED_IMAGE..."
-    cp "$CUSTOM_IMAGE" "$PUBLISHED_IMAGE"
+if [ -f "$PUBLISHED_IMAGE" ]; then
+    if qemu-img info "$PUBLISHED_IMAGE" >/dev/null 2>&1; then
+        echo "[build-custom-image] published image exists and is readable: $PUBLISHED_IMAGE"
+    else
+        echo "[build-custom-image] WARNING: $PUBLISHED_IMAGE appears locked (VM running?)."
+        echo "[build-custom-image] qemu-img info exit=$?; skipping publish."
+        echo "[build-custom-image] Shut down any VMs using it and re-run, or manually:"
+        echo "[build-custom-image]   cp $CUSTOM_IMAGE $PUBLISHED_IMAGE"
+    fi
+fi
+if [ ! -f "$PUBLISHED_IMAGE" ] || qemu-img info "$PUBLISHED_IMAGE" >/dev/null 2>&1; then
+    if [ -f "$PUBLISHED_IMAGE" ]; then
+        echo "[build-custom-image] Publishing to $PUBLISHED_IMAGE (overwrite)..."
+    else
+        echo "[build-custom-image] Publishing to $PUBLISHED_IMAGE (new file)..."
+    fi
+    log_cmd cp "$CUSTOM_IMAGE" "$PUBLISHED_IMAGE"
+    if ! cp "$CUSTOM_IMAGE" "$PUBLISHED_IMAGE"; then
+        echo "[build-custom-image] ERROR: failed to copy image to $PUBLISHED_IMAGE (exit $?; disk full or file locked?)" >&2
+        df -h "$(dirname "$PUBLISHED_IMAGE")" >&2
+        echo "[build-custom-image] Build artifact remains at: $CUSTOM_IMAGE" >&2
+        exit 1
+    fi
 
     NEW_DIGEST=$(sha256sum "$PUBLISHED_IMAGE" | awk '{print $1}')
+    echo "[build-custom-image] published digest: sha256:$NEW_DIGEST"
 
     if [ -f "$PUBLISHED_JSON" ]; then
         echo "[build-custom-image] Updating digest in $PUBLISHED_JSON..."
         TMP_JSON=$(mktemp)
-        jq --arg d "$NEW_DIGEST" \
+        if ! jq --arg d "$NEW_DIGEST" \
            --arg p "$PUBLISHED_IMAGE" \
            '.path = $p | .digest = ["Sha256", $d]' \
-           "$PUBLISHED_JSON" > "$TMP_JSON"
+           "$PUBLISHED_JSON" > "$TMP_JSON"; then
+            echo "[build-custom-image] ERROR: jq failed updating $PUBLISHED_JSON (exit $?)" >&2
+            rm -f "$TMP_JSON"
+            exit 1
+        fi
         mv "$TMP_JSON" "$PUBLISHED_JSON"
     else
         echo "[build-custom-image] Creating $PUBLISHED_JSON..."
@@ -371,8 +741,16 @@ else
 }
 JSON_EOF
     fi
+    echo "[build-custom-image] JSON updated: $(cat "$PUBLISHED_JSON")"
 fi
 
+if [ -z "${NEW_DIGEST:-}" ]; then
+    NEW_DIGEST=$(sha256sum "$CUSTOM_IMAGE" | awk '{print $1}')
+fi
+
+fix_qlean_ownership
+
+log_stage "done"
 echo ""
 echo "[build-custom-image] ==============================================="
 echo "[build-custom-image] Custom image build complete!"

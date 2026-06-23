@@ -71,7 +71,7 @@ set "TAGS_mono-engine=latest"
 
 set "IMAGES_mega-ui_DOCKERFILE=moon/apps/web/Dockerfile"
 set "IMAGES_mega-ui_CONTEXT=moon"
-set "TAGS_mega-ui=demo-latest"
+set "TAGS_mega-ui=latest"
 
 set "IMAGES_orion-server_DOCKERFILE=orion-server/Dockerfile"
 set "IMAGES_orion-server_CONTEXT=."
@@ -262,10 +262,6 @@ rem ============================================================================
     
     rem Build command
     set "BUILD_CMD=docker buildx build --builder mega-builder --platform %TARGET_PLATFORMS% --file !dockerfile! --tag !full_image! --progress=plain --build-arg BUILDKIT_INLINE_CACHE=1 --load"
-    
-    if "!img_name!"=="mega-ui" (
-        set "BUILD_CMD=!BUILD_CMD! --build-arg APP_ENV=demo"
-    )
     
     if defined CACHE_ARGS (
         set "BUILD_CMD=!BUILD_CMD! !CACHE_ARGS!"

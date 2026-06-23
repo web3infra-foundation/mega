@@ -238,7 +238,21 @@ const CLDetailPage: PageWithLayout<any> = () => {
     })
   }
 
-  const [tab] = useAtom(tabAtom)
+  const [tab, setTab] = useAtom(tabAtom)
+  const openedBuildTabRef = useRef(false)
+
+  // Open Checks tab when landing with ?tab=check or ?build= shared link.
+  useEffect(() => {
+    if (!router.isReady || openedBuildTabRef.current) return
+
+    const build = router.query.build
+    const tab = router.query.tab
+
+    if (tab === 'check' || (typeof build === 'string' && build)) {
+      setTab('check')
+      openedBuildTabRef.current = true
+    }
+  }, [router.isReady, router.query.build, router.query.tab, setTab])
 
   const renderStatusPill = () => {
     if (!clDetail?.status) return null
