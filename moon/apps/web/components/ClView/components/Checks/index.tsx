@@ -40,7 +40,12 @@ const Checks = ({ cl, path, prName }: { cl: string; path?: string; prName?: stri
     defaultLeftWidthPercent
   } = useResizablePanels()
 
-  useLeftPanelScroll(cl, buildId, leftPanelRef)
+  const { preserveScroll } = useLeftPanelScroll(cl, buildId, leftPanelRef)
+
+  const handleSelectBuild = (nextBuildId: string, taskId?: string) => {
+    preserveScroll()
+    selectBuild(nextBuildId, taskId)
+  }
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
 
@@ -278,6 +283,7 @@ const Checks = ({ cl, path, prName }: { cl: string; path?: string; prName?: stri
                           key={task.task_id}
                           onClick={(e) => {
                             e.stopPropagation()
+                            preserveScroll()
                             selectTask(task.task_id)
                             setIsDropdownOpen(false)
                           }}
@@ -326,7 +332,7 @@ const Checks = ({ cl, path, prName }: { cl: string; path?: string; prName?: stri
             tasks={tasksToDisplay}
             logsAvailableIds={logsAvailableIds}
             selectedBuildId={buildId}
-            onSelectBuild={selectBuild}
+            onSelectBuild={handleSelectBuild}
             totalTasksCount={validTasks.length}
             cl={cl}
           />
