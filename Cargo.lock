@@ -5211,7 +5211,6 @@ version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "680998035259dcfcafe653688bf2aa6d3e2dc05e98be6ab46afb089dc84f1df8"
 dependencies = [
- "proc-macro-crate",
  "proc-macro2",
  "quote",
  "syn 2.0.118",
@@ -5935,9 +5934,9 @@ dependencies = [
 
 [[package]]
 name = "pgp"
-version = "0.19.0"
+version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eaffe1ec22db286599c30ae6be75b37493b558735d86c8e59ec5c38794415fe4"
+checksum = "1cfa4743b28656065ff4c0ba09e46b357a65e8c00fc2341e89084b82f87cbdf1"
 dependencies = [
  "aead 0.5.2",
  "aes 0.8.4",
@@ -5977,6 +5976,7 @@ dependencies = [
  "k256",
  "log",
  "md-5 0.10.6",
+ "memchr",
  "nom 8.0.0",
  "num-bigint-dig",
  "num-traits",
@@ -5986,7 +5986,6 @@ dependencies = [
  "p384 0.13.1",
  "p521 0.13.3",
  "rand 0.8.6",
- "regex",
  "replace_with",
  "ripemd",
  "rsa 0.9.10",
@@ -5997,6 +5996,7 @@ dependencies = [
  "signature 2.2.0",
  "smallvec",
  "snafu",
+ "subtle",
  "twofish",
  "x25519-dalek",
  "zeroize",
@@ -8436,18 +8436,18 @@ dependencies = [
 
 [[package]]
 name = "snafu"
-version = "0.8.9"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e84b3f4eacbf3a1ce05eac6763b4d629d60cbc94d632e4092c54ade71f1e1a2"
+checksum = "d1a012328be2e3f5d5f6f3218147ca02588cea4cb865e876849ab6debcf36522"
 dependencies = [
  "snafu-derive",
 ]
 
 [[package]]
 name = "snafu-derive"
-version = "0.8.9"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1c97747dbf44bb1ca44a561ece23508e99cb592e862f22222dcf42f51d1e451"
+checksum = "5f103c50866b8743da9429b8a581d81a27c2d3a9c4ac7df8f8571c1dd7896eda"
 dependencies = [
  "heck 0.5.0",
  "proc-macro2",
