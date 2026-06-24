@@ -11,6 +11,80 @@ use crate::{
 /// The target directory inside the VM guest OS where Orion is deployed
 const ORION_TARGET_DIR: &str = "/home/orion/orion-runner";
 
+/// Swap file path and size bounds for Orion build VMs (16 GB RAM by default).
+const VM_SWAP_FILE: &str = "/swapfile";
+const VM_SWAP_TARGET_SIZE_GB: u32 = 8;
+const VM_SWAP_MIN_SIZE_GB: u32 = 1;
+const VM_SWAP_FREE_SPACE_RESERVE_GB: u32 = 1;
+
+/// Create and enable a swap file if not already active.
+async fn setup_vm_swap(machine: &KeepAliveMachine) -> Result<()> {
+    info!(
+        "[orion-deploy] Configuring up to {} GB swap at {}",
+        VM_SWAP_TARGET_SIZE_GB, VM_SWAP_FILE
+    );
+    let cmd = format!(
+        r#"set -e
+swap_active=0
+if swapon --show --noheadings 2>/dev/null | grep -q '{swap_file}'; then
+  echo 'swap already active'
+  swap_active=1
+elif [ -f '{swap_file}' ]; then
+  swapon '{swap_file}'
+  swap_active=1
+else
+  target_kb=$(( {target_gb} * 1024 * 1024 ))
+  min_kb=$(( {min_gb} * 1024 * 1024 ))
+  reserve_kb=$(( {reserve_gb} * 1024 * 1024 ))
+  avail_kb=$(df -Pk "$(dirname '{swap_file}')" | awk 'NR == 2 {{ print $4 }}')
+  if [ -z "$avail_kb" ]; then
+    echo 'unable to determine available disk space for swap' >&2
+    exit 1
+  fi
+  usable_kb=$(( avail_kb - reserve_kb ))
+  if [ "$usable_kb" -lt "$min_kb" ]; then
+    echo "skipping swap: only ${{avail_kb}} KiB available, reserving ${{reserve_kb}} KiB"
+  else
+    if [ "$usable_kb" -gt "$target_kb" ]; then
+      swap_kb="$target_kb"
+    else
+      swap_kb="$usable_kb"
+    fi
+    echo "creating ${{swap_kb}} KiB swap file"
+    fallocate -l "${{swap_kb}}K" '{swap_file}' 2>/dev/null \
+      || dd if=/dev/zero of='{swap_file}' bs=1024 count="$swap_kb" status=none
+    chmod 600 '{swap_file}'
+    mkswap '{swap_file}'
+    swapon '{swap_file}'
+    swap_active=1
+  fi
+fi
+if [ "$swap_active" -eq 1 ]; then
+  grep -qF '{swap_file}' /etc/fstab 2>/dev/null \
+    || echo '{swap_file} none swap sw 0 0' >> /etc/fstab
+fi
+swapon --show
+free -h | head -2
+"#,
+        swap_file = VM_SWAP_FILE,
+        target_gb = VM_SWAP_TARGET_SIZE_GB,
+        min_gb = VM_SWAP_MIN_SIZE_GB,
+        reserve_gb = VM_SWAP_FREE_SPACE_RESERVE_GB,
+    );
+    let output = machine.exec(&cmd).await?;
+    info!(
+        "[orion-deploy] Swap setup output:\n{}",
+        String::from_utf8_lossy(&output.stdout).trim()
+    );
+    if !output.status.success() {
+        anyhow::bail!(
+            "swap setup failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
+    }
+    Ok(())
+}
+
 /// Upload a single file to the VM via SFTP
 async fn upload_file(
     machine: &KeepAliveMachine,
@@ -142,6 +216,8 @@ pub async fn deploy_orion_in_vm(
 /// Returns the Orion service logs on success
 pub async fn start_orion_in_vm(machine: &KeepAliveMachine) -> Result<String> {
     info!("[orion-deploy] Starting Orion service");
+
+    setup_vm_swap(machine).await?;
 
     // Step 1: Create Scorpio directories
     info!("[orion-deploy] Creating Scorpio directories");
