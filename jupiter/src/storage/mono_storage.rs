@@ -135,6 +135,19 @@ impl MonoStorage {
         Ok(result)
     }
 
+    pub async fn get_ref_at_path(
+        &self,
+        path: &str,
+        ref_name: &str,
+    ) -> Result<Option<mega_refs::Model>, MegaError> {
+        let result = mega_refs::Entity::find()
+            .filter(mega_refs::Column::Path.eq(path))
+            .filter(mega_refs::Column::RefName.eq(ref_name))
+            .one(self.get_connection())
+            .await?;
+        Ok(result)
+    }
+
     pub async fn get_ref_by_commit(
         &self,
         path: &str,
@@ -307,11 +320,70 @@ impl MonoStorage {
                     active.update(&conn).await?;
                     Ok::<(), MegaError>(())
                 });
+            } else {
+                let is_cl = update.ref_name.starts_with("refs/cl/");
+                let model = mega_refs::Model::new(
+                    &update.path,
+                    update.ref_name.clone(),
+                    update.commit_id.clone(),
+                    update.tree_hash.clone(),
+                    is_cl,
+                );
+                self.save_refs(model, None).await?;
             }
         }
 
         while let Some(res) = futures.next().await {
             res?;
+        }
+
+        Ok(())
+    }
+
+    pub async fn batch_upsert_ref_updates_in_txn(
+        &self,
+        updates: Vec<RefUpdateData>,
+        txn: &DatabaseTransaction,
+    ) -> Result<(), MegaError> {
+        if updates.is_empty() {
+            return Ok(());
+        }
+
+        let mut condition = Condition::any();
+        for update in &updates {
+            condition = condition.add(
+                Condition::all()
+                    .add(mega_refs::Column::Path.eq(update.path.clone()))
+                    .add(mega_refs::Column::RefName.eq(update.ref_name.clone())),
+            );
+        }
+
+        let existing_refs: Vec<mega_refs::Model> =
+            mega_refs::Entity::find().filter(condition).all(txn).await?;
+
+        let ref_map: HashMap<(String, String), mega_refs::Model> = existing_refs
+            .into_iter()
+            .map(|r| ((r.path.clone(), r.ref_name.clone()), r))
+            .collect();
+
+        for update in updates {
+            if let Some(ref_data) = ref_map.get(&(update.path.clone(), update.ref_name.clone())) {
+                let mut active: mega_refs::ActiveModel = ref_data.clone().into();
+                active.ref_commit_hash = Set(update.commit_id);
+                active.ref_tree_hash = Set(update.tree_hash);
+                active.updated_at = Set(chrono::Utc::now().naive_utc());
+                active.update(txn).await?;
+            } else {
+                let is_cl = update.ref_name.starts_with("refs/cl/");
+                let model = mega_refs::Model::new(
+                    &update.path,
+                    update.ref_name.clone(),
+                    update.commit_id.clone(),
+                    update.tree_hash.clone(),
+                    is_cl,
+                );
+                self.save_refs(model, Some(txn)).await?;
+            }
         }
 
         Ok(())

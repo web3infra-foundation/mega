@@ -7,7 +7,7 @@ use axum::extract::FromRef;
 use ceres::{
     api_service::{
         ApiHandler, cache::GitObjectCache, import_api_service::ImportApiService,
-        mono_api_service::MonoApiService, state::ProtocolApiState,
+        mono::MonoApiService, state::ProtocolApiState,
     },
     build_trigger::service::BuildTriggerService,
     protocol::repo::Repo,

@@ -8,7 +8,7 @@ use jupiter::model::group_dto::{
     CreateGroupPayload, DeleteGroupStats, ResourcePermissionBinding, UpdateGroupPayload,
 };
 
-use crate::api_service::mono_api_service::MonoApiService;
+use crate::api_service::mono::MonoApiService;
 
 #[derive(Debug, Clone)]
 pub struct EffectiveResourcePermission {

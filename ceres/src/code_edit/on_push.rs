@@ -6,7 +6,7 @@ use jupiter::storage::Storage;
 use orion_client::OrionBuildClient;
 
 use crate::{
-    api_service::{cache::GitObjectCache, mono_api_service::MonoApiService},
+    api_service::{cache::GitObjectCache, mono::MonoApiService},
     build_trigger::{BuildTriggerService, TriggerContext},
     code_edit::{
         model::{self, CLRefUpdateVisitor},

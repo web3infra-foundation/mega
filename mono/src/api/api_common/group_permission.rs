@@ -1,7 +1,7 @@
 use anyhow::anyhow;
 use callisto::sea_orm_active_enums::ResourceTypeEnum;
 use ceres::{
-    api_service::group_ops::EffectiveResourcePermission,
+    api_service::mono::EffectiveResourcePermission,
     model::group::{PermissionValue, ResourceTypeValue, UserEffectivePermissionResponse},
 };
 use http::StatusCode;

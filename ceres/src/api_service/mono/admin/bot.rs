@@ -3,7 +3,7 @@ use callisto::sea_orm_active_enums::{
 };
 use common::errors::MegaError;
 
-use crate::api_service::mono_api_service::MonoApiService;
+use crate::api_service::mono::MonoApiService;
 
 impl MonoApiService {
     /// Check whether a bot has sufficient permission on a given resource.

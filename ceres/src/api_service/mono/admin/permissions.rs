@@ -13,7 +13,7 @@ use common::errors::MegaError;
 use git_internal::internal::object::tree::Tree;
 use jupiter::{redis::AsyncCommands, utils::converter::FromMegaModel};
 
-use crate::api_service::mono_api_service::MonoApiService;
+use crate::api_service::mono::MonoApiService;
 
 /// Cache TTL for admin list (10 minutes).
 pub const ADMIN_CACHE_TTL: u64 = 600;

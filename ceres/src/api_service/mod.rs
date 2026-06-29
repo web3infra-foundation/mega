@@ -30,19 +30,22 @@ use crate::{
     },
 };
 
-pub mod admin_ops;
 pub mod blame_ops;
 pub mod blob_ops;
-pub mod bot_ops;
 pub mod buck_tree_builder;
 pub mod cache;
 pub mod commit_ops;
-pub mod group_ops;
 pub mod history;
 pub mod import_api_service;
-pub mod mono_api_service;
+pub mod mono;
 pub mod state;
+pub mod tag_ops;
 pub mod tree_ops;
+
+pub use mono::{
+    ADMIN_FILE, EffectiveResourcePermission, MonoApiService, MonoServiceLogic, RefUpdate,
+    TreeUpdateResult, cl_merge,
+};
 
 #[async_trait]
 pub trait ApiHandler: Send + Sync {

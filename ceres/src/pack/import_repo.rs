@@ -34,7 +34,7 @@ use tokio::sync::mpsc::{self, Sender};
 use tokio_stream::wrappers::ReceiverStream;
 
 use crate::{
-    api_service::{cache::GitObjectCache, mono_api_service::MonoApiService, tree_ops},
+    api_service::{cache::GitObjectCache, mono::MonoApiService, tree_ops},
     pack::RepoHandler,
     protocol::{
         import_refs::{CommandType, RefCommand, Refs},

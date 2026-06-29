@@ -24,7 +24,16 @@ use git_internal::{
 use jupiter::{storage::Storage, utils::converter::FromGitModel};
 
 use crate::{
-    api_service::{ApiHandler, cache::GitObjectCache, history},
+    api_service::{
+        ApiHandler,
+        cache::GitObjectCache,
+        history,
+        mono::MonoServiceLogic,
+        tag_ops::{
+            self, build_git_internal_tag, db_error, format_tagger_info, is_annotated_tag,
+            lightweight_commit_tag, merge_paginated_tags, tag_already_exists, tags_full_ref,
+        },
+    },
     model::{
         git::{CreateEntryInfo, CreateEntryResult, EditFilePayload, EditFileResult},
         tag::TagInfo,
@@ -167,51 +176,35 @@ impl ApiHandler for ImportApiService {
         message: Option<String>,
     ) -> Result<TagInfo, GitError> {
         let git_storage = self.storage.git_db_storage();
-        let is_annotated = message.as_ref().map(|s| !s.is_empty()).unwrap_or(false);
-        let tagger_info = match (tagger_name, tagger_email) {
-            (Some(n), Some(e)) => format!("{} <{}>", n, e),
-            (Some(n), None) => n,
-            (None, Some(e)) => e,
-            (None, None) => "unknown".to_string(),
-        };
+        let tagger_info = format_tagger_info(tagger_name, tagger_email);
 
-        // validate target commit if provided
         self.validate_target_commit(target.as_ref()).await?;
 
-        let full_ref = format!("refs/tags/{}", name.clone());
-        // Prevent duplicate tag/ref creation: check annotated table and refs first.
+        let full_ref = tags_full_ref(&name);
         match git_storage
             .get_tag_by_repo_and_name(self.repo.repo_id, &name)
             .await
         {
-            Ok(Some(_)) => {
-                return Err(GitError::CustomError(format!(
-                    "[code:400] Tag '{}' already exists",
-                    name
-                )));
-            }
+            Ok(Some(_)) => return Err(tag_already_exists(&name)),
             Ok(None) => {}
             Err(e) => {
                 tracing::error!("DB error while checking git_tag existence: {}", e);
-                return Err(GitError::CustomError("[code:500] DB error".to_string()));
+                return Err(db_error());
             }
         }
 
         if let Ok(refs) = git_storage.get_ref(self.repo.repo_id).await
             && refs.iter().any(|r| r.ref_name == full_ref)
         {
-            return Err(GitError::CustomError(format!(
-                "[code:400] Tag '{}' already exists",
-                name
-            )));
+            return Err(tag_already_exists(&name));
         }
-        if is_annotated {
+
+        if is_annotated_tag(&message) {
             return self
                 .create_annotated_tag(&git_storage, full_ref, name, target, tagger_info, message)
                 .await;
         }
 
-        // lightweight
         self.create_lightweight_tag(&git_storage, full_ref, name, target, tagger_info)
             .await
     }
@@ -234,8 +227,7 @@ impl ApiHandler for ImportApiService {
             }
         };
 
-        // map annotated page into TagInfo
-        let mut result: Vec<TagInfo> = annotated_tags_page
+        let result: Vec<TagInfo> = annotated_tags_page
             .into_iter()
             .map(|t| TagInfo {
                 name: t.tag_name,
@@ -248,48 +240,30 @@ impl ApiHandler for ImportApiService {
             })
             .collect();
 
-        // lightweight refs
         let mut lightweight_refs: Vec<TagInfo> = vec![];
         if let Ok(refs) = git_storage.get_ref(self.repo.repo_id).await {
             for r in refs {
                 if r.ref_name.starts_with("refs/tags/") {
                     let tag_name = r.ref_name.trim_start_matches("refs/tags/").to_string();
-                    // skip if annotated exists (anywhere)
-                    // Note: we only have the annotated page in memory; to avoid duplicate names we check by tag_name against annotated page and will accept duplicates only if not present.
                     if result.iter().any(|t| t.name == tag_name) {
                         continue;
                     }
-                    let created_at = r.created_at.and_utc().to_rfc3339();
-                    lightweight_refs.push(TagInfo {
-                        name: tag_name.clone(),
-                        tag_id: r.ref_git_id.clone(),
-                        object_id: r.ref_git_id.clone(),
-                        object_type: "commit".to_string(),
-                        tagger: "".to_string(),
-                        message: "".to_string(),
-                        created_at,
-                    });
+                    lightweight_refs.push(lightweight_commit_tag(
+                        tag_name,
+                        r.ref_git_id.clone(),
+                        "",
+                        r.created_at.and_utc().to_rfc3339(),
+                    ));
                 }
             }
         }
 
-        // total is annotated_total + lightweight_refs.len()
-        let total = annotated_total + lightweight_refs.len() as u64;
-
-        // fill page: annotated page items come first, then lightweight refs to make up page size
-        let per_page = if pagination.per_page == 0 {
-            20
-        } else {
-            pagination.per_page
-        } as usize;
-        if result.len() < per_page {
-            let need = per_page - result.len();
-            for r in lightweight_refs.into_iter().take(need) {
-                result.push(r);
-            }
-        }
-
-        Ok((result, total))
+        Ok(merge_paginated_tags(
+            result,
+            lightweight_refs,
+            annotated_total,
+            pagination.per_page,
+        ))
     }
 
     async fn get_tag(
@@ -320,21 +294,16 @@ impl ApiHandler for ImportApiService {
                 return Err(GitError::CustomError("[code:500] DB error".to_string()));
             }
         }
-        // check import_refs for lightweight
-        let full_ref = format!("refs/tags/{}", name.clone());
+        let full_ref = tags_full_ref(&name);
         if let Ok(refs) = git_storage.get_ref(self.repo.repo_id).await {
             for r in refs {
                 if r.ref_name == full_ref {
-                    let created_at = r.created_at.and_utc().to_rfc3339();
-                    return Ok(Some(TagInfo {
-                        name: name.clone(),
-                        tag_id: r.ref_git_id.clone(),
-                        object_id: r.ref_git_id.clone(),
-                        object_type: "commit".to_string(),
-                        tagger: "".to_string(),
-                        message: "".to_string(),
-                        created_at,
-                    }));
+                    return Ok(Some(lightweight_commit_tag(
+                        name,
+                        r.ref_git_id.clone(),
+                        "",
+                        r.created_at.and_utc().to_rfc3339(),
+                    )));
                 }
             }
         }
@@ -349,8 +318,7 @@ impl ApiHandler for ImportApiService {
             .await
         {
             Ok(Some(_tag)) => {
-                // remove import ref if exists
-                let full_ref = format!("refs/tags/{}", name.clone());
+                let full_ref = tags_full_ref(&name);
                 git_storage
                     .remove_ref(self.repo.repo_id, &full_ref)
                     .await
@@ -371,8 +339,7 @@ impl ApiHandler for ImportApiService {
                 Ok(())
             }
             Ok(None) => {
-                // remove lightweight ref if exists
-                let full_ref = format!("refs/tags/{}", name.clone());
+                let full_ref = tags_full_ref(&name);
                 git_storage
                     .remove_ref(self.repo.repo_id, &full_ref)
                     .await
@@ -418,7 +385,7 @@ impl ApiHandler for ImportApiService {
         // Create new blob and rebuild tree up to root
         let new_blob = Blob::from_content(&payload.content);
         let (updated_trees, new_root_id) =
-            self.build_updated_trees(path.clone(), update_chain, new_blob.id)?;
+            MonoServiceLogic::propagate_tree_chain(path.clone(), update_chain, new_blob.id)?;
 
         // Save commit and objects under import repo tables
         let git_storage = self.storage.git_db_storage();
@@ -488,12 +455,8 @@ impl ImportApiService {
         message: Option<String>,
     ) -> Result<TagInfo, GitError> {
         // build git_internal tag and models
-        let (tag_id_hex, object_id) = self.build_git_internal_tag(
-            name.clone(),
-            target.clone(),
-            tagger_info.clone(),
-            message.clone(),
-        )?;
+        let (tag_id_hex, object_id) =
+            build_git_internal_tag(name.clone(), target, tagger_info.clone(), message.clone())?;
 
         let new_model = self.build_git_tag_model(
             tag_id_hex.clone(),
@@ -559,64 +522,30 @@ impl ImportApiService {
                 tracing::error!("Failed to write import ref for lightweight tag: {}", e);
                 GitError::CustomError("[code:500] Failed to write import ref".to_string())
             })?;
-        Ok(TagInfo {
-            name: name.clone(),
-            tag_id: object_id.clone(),
-            object_id: object_id.clone(),
-            object_type: "commit".to_string(),
-            tagger: tagger_info.clone(),
-            message: String::new(),
+        Ok(lightweight_commit_tag(
+            name,
+            object_id,
+            tagger_info,
             created_at,
-        })
+        ))
     }
 
     async fn validate_target_commit(&self, target: Option<&String>) -> Result<(), GitError> {
-        if let Some(ref t) = target {
+        if let Some(t) = target {
             let git_storage = self.storage.git_db_storage();
             match git_storage.get_commit_by_hash(self.repo.repo_id, t).await {
                 Ok(c) => {
                     if c.is_none() {
-                        return Err(GitError::CustomError(format!(
-                            "[code:404] Target commit '{}' not found",
-                            t
-                        )));
+                        return Err(tag_ops::commit_not_found(t));
                     }
                 }
                 Err(e) => {
                     tracing::error!("DB error while fetching commit by hash: {}", e);
-                    return Err(GitError::CustomError("[code:500] DB error".to_string()));
+                    return Err(db_error());
                 }
             }
         }
         Ok(())
-    }
-
-    fn build_git_internal_tag(
-        &self,
-        name: String,
-        target: Option<String>,
-        tagger_info: String,
-        message: Option<String>,
-    ) -> Result<(String, String), GitError> {
-        let tag_target = target
-            .as_ref()
-            .ok_or(GitError::InvalidCommitObject)
-            .and_then(|t| ObjectHash::from_str(t).map_err(|_| GitError::InvalidCommitObject))?;
-        let git_internal_tag = git_internal::internal::object::tag::Tag::new(
-            tag_target,
-            git_internal::internal::object::types::ObjectType::Commit,
-            name.clone(),
-            git_internal::internal::object::signature::Signature::new(
-                git_internal::internal::object::signature::SignatureType::Tagger,
-                tagger_info.clone(),
-                String::new(),
-            ),
-            message.clone().unwrap_or_default(),
-        );
-        Ok((
-            git_internal_tag.id.to_string(),
-            target.unwrap_or_else(|| "HEAD".to_string()),
-        ))
     }
 
     fn build_git_tag_model(
@@ -674,44 +603,5 @@ impl ImportApiService {
             ));
         }
         Ok(())
-    }
-
-    fn update_tree_hash(
-        &self,
-        tree: Arc<Tree>,
-        name: &str,
-        target_hash: ObjectHash,
-    ) -> Result<Tree, GitError> {
-        let index = tree
-            .tree_items
-            .iter()
-            .position(|item| item.name == name)
-            .ok_or_else(|| GitError::CustomError(format!("Tree item '{}' not found", name)))?;
-        let mut items = tree.tree_items.clone();
-        items[index].id = target_hash;
-        Tree::from_tree_items(items).map_err(|_| GitError::CustomError("Invalid tree".to_string()))
-    }
-
-    /// Build updated trees chain and return (updated_trees, new_root_tree_id)
-    fn build_updated_trees(
-        &self,
-        mut path: PathBuf,
-        mut update_chain: Vec<Arc<Tree>>,
-        mut updated_tree_hash: ObjectHash,
-    ) -> Result<(Vec<Tree>, ObjectHash), GitError> {
-        let mut updated_trees = Vec::new();
-        while let Some(tree) = update_chain.pop() {
-            let cloned_path = path.clone();
-            let name = cloned_path
-                .file_name()
-                .and_then(|n| n.to_str())
-                .ok_or_else(|| GitError::CustomError("Invalid path".into()))?;
-            path.pop();
-
-            let new_tree = self.update_tree_hash(tree, name, updated_tree_hash)?;
-            updated_tree_hash = new_tree.id;
-            updated_trees.push(new_tree);
-        }
-        Ok((updated_trees, updated_tree_hash))
     }
 }

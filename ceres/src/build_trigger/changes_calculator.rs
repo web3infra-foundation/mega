@@ -9,7 +9,7 @@ use git_internal::hash::ObjectHash;
 use jupiter::storage::Storage;
 
 use crate::{
-    api_service::{cache::GitObjectCache, mono_api_service::MonoApiService},
+    api_service::{cache::GitObjectCache, mono::MonoApiService},
     build_trigger::TriggerContext,
     model::change_list::ClDiffFile,
 };

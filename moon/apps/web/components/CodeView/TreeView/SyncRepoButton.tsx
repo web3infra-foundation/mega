@@ -5,6 +5,8 @@ import { Dialog } from '@gitmono/ui/Dialog'
 
 import { usePostRepoClone } from '@/hooks/usePostRepoClone'
 
+import { formatGitHubRepoUrl, isProjectSyncPath, parseGitHubRepoUrl } from './syncUtils'
+
 interface Props {
   currentPath?: string
 }
@@ -18,24 +20,29 @@ const isFieldValid = (value: string): boolean => value.trim().length > 0
 
 export default function SyncRepoButton({ currentPath }: Props) {
   const [open, setOpen] = useState(false)
-  const [owner, setOwner] = useState('')
-  const [repo, setRepo] = useState('')
+  const [githubUrl, setGithubUrl] = useState('')
   const [repoName, setRepoName] = useState('')
 
   const { mutateAsync, isPending } = usePostRepoClone()
 
   const basePath = useMemo(() => formatBasePath(currentPath), [currentPath])
+  const isProjectSync = useMemo(() => isProjectSyncPath(currentPath), [currentPath])
+  const parsedRepo = useMemo(() => parseGitHubRepoUrl(githubUrl), [githubUrl])
 
   const fullPath = useMemo(() => (repoName ? `${basePath}${repoName}` : basePath), [basePath, repoName])
 
+  const urlError = useMemo(() => {
+    if (!githubUrl.trim() || parsedRepo) return null
+    return 'Enter a valid GitHub URL (e.g. https://github.com/owner/repo)'
+  }, [githubUrl, parsedRepo])
+
   const canSubmit = useMemo(
-    () => isFieldValid(owner) && isFieldValid(repo) && isFieldValid(repoName) && !isPending,
-    [owner, repo, repoName, isPending]
+    () => Boolean(parsedRepo) && isFieldValid(repoName) && !isPending,
+    [parsedRepo, repoName, isPending]
   )
 
   const resetForm = useCallback(() => {
-    setOwner('')
-    setRepo('')
+    setGithubUrl('')
     setRepoName('')
   }, [])
 
@@ -50,18 +57,22 @@ export default function SyncRepoButton({ currentPath }: Props) {
   )
 
   const handleSync = useCallback(async () => {
+    if (!parsedRepo) return
+
     await mutateAsync({
-      owner: owner.trim(),
-      repo: repo.trim(),
+      owner: parsedRepo.owner,
+      repo: parsedRepo.repo,
       path: fullPath.trim()
     })
 
     handleOpenChange(false)
-  }, [owner, repo, fullPath, mutateAsync, handleOpenChange])
+  }, [parsedRepo, fullPath, mutateAsync, handleOpenChange])
 
   useEffect(() => {
-    setRepoName(repo)
-  }, [repo])
+    if (parsedRepo?.repo) {
+      setRepoName(parsedRepo.repo)
+    }
+  }, [parsedRepo?.repo])
 
   return (
     <>
@@ -78,30 +89,27 @@ export default function SyncRepoButton({ currentPath }: Props) {
           </Dialog.Header>
 
           <div className='flex flex-col gap-4 py-2'>
+            {isProjectSync && (
+              <UIText quaternary size='text-sm'>
+                Syncing under /project creates a Change List and may trigger build checks.
+              </UIText>
+            )}
             <div className='flex flex-col gap-2'>
               <label className='text-quaternary text-sm'>
-                GitHub Owner <span className='text-red-500'>*</span>
+                GitHub URL <span className='text-red-500'>*</span>
               </label>
               <input
                 className='rounded-md border px-3 py-2 text-sm outline-none focus:ring-2'
-                value={owner}
-                onChange={(e) => setOwner(e.target.value)}
-                placeholder='e.g., facebook'
+                value={githubUrl}
+                onChange={(e) => setGithubUrl(e.target.value)}
+                placeholder='https://github.com/owner/repo'
                 disabled={isPending}
               />
-            </div>
-
-            <div className='flex flex-col gap-2'>
-              <label className='text-quaternary text-sm'>
-                Repository Name <span className='text-red-500'>*</span>
-              </label>
-              <input
-                className='rounded-md border px-3 py-2 text-sm outline-none focus:ring-2'
-                value={repo}
-                onChange={(e) => setRepo(e.target.value)}
-                placeholder='e.g., react'
-                disabled={isPending}
-              />
+              {urlError && (
+                <UIText size='text-xs' className='text-red-500'>
+                  {urlError}
+                </UIText>
+              )}
             </div>
 
             <div className='flex flex-col gap-2'>
@@ -120,13 +128,13 @@ export default function SyncRepoButton({ currentPath }: Props) {
               </div>
             </div>
 
-            {owner && repo && (
+            {parsedRepo && (
               <div className='bg-secondary rounded-md p-3'>
                 <UIText quaternary size='text-xs' className='mb-1'>
                   Will sync from:
                 </UIText>
                 <UIText size='text-sm' className='font-mono'>
-                  https://github.com/{owner}/{repo}
+                  {formatGitHubRepoUrl(parsedRepo.owner, parsedRepo.repo)}
                 </UIText>
                 <UIText quaternary size='text-xs' className='mt-2'>
                   To: {fullPath}

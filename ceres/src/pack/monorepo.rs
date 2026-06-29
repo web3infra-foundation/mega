@@ -40,7 +40,11 @@ use tokio::sync::{RwLock, mpsc};
 use tokio_stream::wrappers::ReceiverStream;
 
 use crate::{
-    api_service::{ApiHandler, cache::GitObjectCache, mono_api_service::MonoApiService},
+    api_service::{
+        ApiHandler,
+        cache::GitObjectCache,
+        mono::{MonoApiService, cl_merge},
+    },
     code_edit::{on_push::OnpushCodeEdit, utils::get_changed_files},
     model::change_list::ClDiffFile,
     pack::RepoHandler,
@@ -529,6 +533,19 @@ impl MonoRepo {
         let cl = editor
             .update_or_create_cl(&self.storage, &self.from_hash, &self.to_hash, &username)
             .await?;
+        if self.from_hash == ZERO_ID
+            && self
+                .path
+                .to_str()
+                .is_some_and(|p| p.starts_with("/project/"))
+        {
+            cl_merge::bootstrap_monorepo_path(
+                &mono_api_service,
+                self.path.to_str().unwrap(),
+                Some(&cl),
+            )
+            .await?;
+        }
         self.traverses_tree_and_update_filepath().await?;
         if self.orion_client.enable_build() {
             editor
@@ -628,14 +645,7 @@ impl MonoRepo {
             .await?
         {
             Some(cl) => cl.link.clone(),
-            None => {
-                if self.from_hash == "0".repeat(40) {
-                    return Err(MegaError::Other(
-                        "Can not init directory under monorepo directory!".to_string(),
-                    ));
-                }
-                generate_link()
-            }
+            None => generate_link(),
         };
         let mut lock = self.cl_link.write().await;
         *lock = Some(cl_link.clone());

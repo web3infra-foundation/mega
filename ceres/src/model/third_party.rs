@@ -33,6 +33,7 @@ pub trait ThirdPartyRepoTrait {
     async fn fetch_packs(
         &self,
         want: &[String],
+        depth: Option<u32>,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<Bytes, reqwest::Error>> + Send>>, MegaError>;
 }
 
@@ -156,9 +157,10 @@ impl ThirdPartyRepoTrait for ThirdPartyClient {
     async fn fetch_packs(
         &self,
         want: &[String],
+        depth: Option<u32>,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<Bytes, reqwest::Error>> + Send>>, MegaError> {
         let request_url = format!("{}/git-upload-pack", self.url);
-        let body = self.generate_upload_pack_content(want);
+        let body = self.generate_upload_pack_content(want, depth);
         tracing::debug!("fetch_objects with body {:?}", body);
 
         let res = self
@@ -175,11 +177,19 @@ impl ThirdPartyRepoTrait for ThirdPartyClient {
 }
 
 impl ThirdPartyClient {
-    fn generate_upload_pack_content(&self, want: &[String]) -> Bytes {
+    fn generate_upload_pack_content(&self, want: &[String], depth: Option<u32>) -> Bytes {
         let mut buf = BytesMut::new();
-        let mut write_first_line = false;
+        if let Some(depth) = depth {
+            self.add_pkt_line_string(&mut buf, format!("deepen {depth}\n"));
+        }
 
-        let capability = ["side-band-64k", "ofs-delta", "multi_ack_detailed"].join(" ");
+        let mut write_first_line = false;
+        // Shallow fetches only need a single tip commit; skip multi_ack_detailed negotiation.
+        let capability = if depth.is_some() {
+            ["side-band-64k", "ofs-delta", "no-progress"].join(" ")
+        } else {
+            ["side-band-64k", "ofs-delta", "multi_ack_detailed"].join(" ")
+        };
         for w in want {
             if !write_first_line {
                 self.add_pkt_line_string(
@@ -220,22 +230,30 @@ impl ThirdPartyClient {
                 Err(_) => break,
             };
 
+            // A flush (0000) separates negotiation lines (NAK/shallow) from the pack stream.
             if len == 0 {
-                break;
+                continue;
+            }
+
+            if !reach_pack && data.len() >= 4 && &data[0..4] == b"PACK" {
+                reach_pack = true;
+                pack_data.extend_from_slice(&data);
+                tracing::debug!("Receiving raw PACK data...");
+                continue;
             }
 
             if data.len() >= 5 && &data[1..5] == b"PACK" {
                 reach_pack = true;
-                tracing::debug!("Receiving PACK data...");
+                tracing::debug!("Receiving side-band PACK data...");
             }
 
             if reach_pack {
                 let code = data[0];
-                let data = &data[1..];
+                let payload = &data[1..];
                 match code {
-                    1 => pack_data.extend_from_slice(data),
-                    2 => tracing::info!("{}", String::from_utf8_lossy(data)),
-                    3 => tracing::warn!("{}", String::from_utf8_lossy(data)),
+                    1 => pack_data.extend_from_slice(payload),
+                    2 => tracing::info!("{}", String::from_utf8_lossy(payload)),
+                    3 => tracing::warn!("{}", String::from_utf8_lossy(payload)),
                     _ => tracing::warn!("unknown side-band-64k code: {code}"),
                 }
             } else if &data != b"NAK\n" {
@@ -269,5 +287,19 @@ impl ThirdPartyClient {
         let mut data = vec![0u8; (len - 4) as usize];
         tokio::io::AsyncReadExt::read_exact(reader, &mut data).await?;
         Ok((len as usize, data))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn generate_upload_pack_content_includes_deepen_for_shallow_fetch() {
+        let client = ThirdPartyClient::new("https://github.com/foo/bar.git");
+        let body = client.generate_upload_pack_content(&["abc123".to_string()], Some(1));
+        let text = String::from_utf8_lossy(&body);
+        assert!(text.contains("deepen 1"));
+        assert!(text.contains("want abc123"));
     }
 }

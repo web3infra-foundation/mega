@@ -16,7 +16,7 @@ use git_internal::{
 use jupiter::{storage::Storage, utils::converter::FromMegaModel};
 
 use crate::{
-    api_service::{ApiHandler, commit_ops, mono_api_service::MonoServiceLogic},
+    api_service::{ApiHandler, commit_ops, mono::MonoServiceLogic},
     model::change_list::ClDiffFile,
 };
 
@@ -146,9 +146,13 @@ pub async fn get_changed_files<T: ApiHandler>(
     handler: &T,
     cl: &mega_cl::Model,
 ) -> Result<Vec<String>, MegaError> {
-    let from_commit = handler.get_commit_by_hash(&cl.from_hash).await?;
     let to_commit = handler.get_commit_by_hash(&cl.to_hash).await?;
-    let old_files = commit_ops::collect_commit_blobs(handler, &from_commit).await?;
+    let old_files = if cl.from_hash == ZERO_ID {
+        Vec::new()
+    } else {
+        let from_commit = handler.get_commit_by_hash(&cl.from_hash).await?;
+        commit_ops::collect_commit_blobs(handler, &from_commit).await?
+    };
     let new_files = commit_ops::collect_commit_blobs(handler, &to_commit).await?;
     let changed = cl_files_list(old_files, new_files).await?;
 

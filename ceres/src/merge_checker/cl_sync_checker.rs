@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use common::errors::MegaError;
+use common::{errors::MegaError, utils::ZERO_ID};
 use jupiter::{model::cl_dto::ClInfoDto, storage::Storage};
 use serde::Deserialize;
 
@@ -42,15 +42,24 @@ impl Checker for ClSyncChecker {
     }
 
     async fn build_params(&self, cl_info: &ClInfoDto) -> Result<serde_json::Value, MegaError> {
-        let refs = self
+        let current = match self
             .storage
             .mono_storage()
             .get_main_ref(&cl_info.path)
             .await?
-            .expect("Err: CL Related Refs Not Found");
+        {
+            Some(refs) => refs.ref_commit_hash,
+            None if cl_info.from_hash == ZERO_ID => ZERO_ID.to_string(),
+            None => {
+                return Err(MegaError::Other(format!(
+                    "Main ref not found for CL path {}",
+                    cl_info.path
+                )));
+            }
+        };
         Ok(serde_json::json!({
             "cl_from": cl_info.from_hash,
-            "current": refs.ref_commit_hash
+            "current": current
         }))
     }
 }
