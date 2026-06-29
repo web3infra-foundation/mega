@@ -288,15 +288,8 @@ const TaskItem = memo(function TaskItem({
 
   const showQueued = Boolean(isQueued) && build.status === 'Building'
 
-  const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    const scrollParent = e.currentTarget.closest('[data-build-list-scroll]') as HTMLElement | null
-    const scrollTop = scrollParent?.scrollTop ?? 0
-
+  const handleClick = () => {
     onSelectBuild(build.id)
-
-    requestAnimationFrame(() => {
-      if (scrollParent) scrollParent.scrollTop = scrollTop
-    })
   }
 
   const handleRetry = (e: React.MouseEvent) => {
