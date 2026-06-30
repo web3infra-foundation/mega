@@ -1496,7 +1496,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "api-model",
- "axum",
  "cedar-policy",
  "clap",
  "config",
@@ -1614,15 +1613,6 @@ name = "constant_time_eq"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3d52eff69cd5e647efe296129160853a42795992097e8af39800e1060caeea9b"
-
-[[package]]
-name = "context"
-version = "0.1.0"
-dependencies = [
- "common",
- "jupiter",
- "vault",
-]
 
 [[package]]
 name = "convert_case"
@@ -4225,6 +4215,7 @@ dependencies = [
  "idgenerator",
  "indexmap 2.14.0",
  "io-orbit",
+ "jupiter-migrate",
  "pgp",
  "rand 0.10.1",
  "redis",
@@ -4235,7 +4226,6 @@ dependencies = [
  "rustls",
  "saturn",
  "sea-orm",
- "sea-orm-migration",
  "serde",
  "serde_json",
  "sha1 0.11.0",
@@ -4245,6 +4235,20 @@ dependencies = [
  "tracing",
  "url",
  "uuid",
+]
+
+[[package]]
+name = "jupiter-migrate"
+version = "0.1.0"
+dependencies = [
+ "callisto",
+ "chrono",
+ "common",
+ "sea-orm",
+ "sea-orm-migration",
+ "serde_json",
+ "tempfile",
+ "tracing",
 ]
 
 [[package]]
@@ -4967,7 +4971,6 @@ dependencies = [
  "chrono",
  "clap",
  "common",
- "context",
  "ctrlc",
  "ed25519-dalek 2.2.0",
  "futures",
@@ -4975,6 +4978,7 @@ dependencies = [
  "http",
  "jemallocator",
  "jupiter",
+ "jupiter-migrate",
  "lettre",
  "mimalloc",
  "once_cell",

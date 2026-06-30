@@ -9,6 +9,10 @@ edition.workspace = true
 name = "jupiter"
 path = "src/lib.rs"
 
+[features]
+default = []
+migrate = ["dep:jupiter-migrate"]
+
 [dependencies]
 callisto = { workspace = true }
 common = { workspace = true }
@@ -16,6 +20,7 @@ git-internal = { workspace = true }
 saturn = { workspace = true }
 io-orbit = { workspace = true }
 api-model = { workspace = true }
+jupiter-migrate = { workspace = true, optional = true }
 
 sea-orm = { workspace = true, features = [
     "sqlx-postgres",
@@ -24,7 +29,6 @@ sea-orm = { workspace = true, features = [
     "macros",
     "debug-print",
 ] }
-sea-orm-migration = { workspace = true }
 
 tracing = { workspace = true }
 bytes = { workspace = true }
@@ -65,3 +69,4 @@ ring = "0.17.14"
 
 [dev-dependencies]
 redis-test = { workspace = true, features = ["aio"] }
+jupiter-migrate = { workspace = true }

@@ -77,10 +77,10 @@ impl EmailDispatcher {
 mod tests {
     use callisto::{email_jobs, notification_event_types};
     use jupiter::{
-        migration::apply_migrations,
         sea_orm::{ActiveModelTrait, EntityTrait, Set},
         tests::test_db_connection,
     };
+    use jupiter_migrate::apply_migrations;
     use tempfile::TempDir;
 
     use super::*;

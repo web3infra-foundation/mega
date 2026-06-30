@@ -31,6 +31,25 @@ Legacy paths (`ceres::protocol`, `ceres::pack`, `ceres::api_service`, etc.) rema
 | `bus` | Minimal shared types for events | `transport` / `application` implementations |
 | `mono` (binary) | Assembles `TransportRuntime` + injects handlers | — |
 
+## Model boundary
+
+Three DTO layers; keep imports aligned with this table:
+
+| Layer | Crate / path | Role | Consumers |
+|-------|--------------|------|-----------|
+| Wire | `api-model` | mono ↔ orion cross-process protocol (buck2, artifacts, shared pagination wrappers) | `mono`, `orion`, `orion-client`, `ceres` (pagination only where needed) |
+| HTTP / OpenAPI | `ceres/model` | All mono REST request/response types + `utoipa` schemas | `mono` routers, `ceres` application |
+| Storage assembly | `jupiter/model` | Bundles of `callisto` entities from storage/services; no serde/utoipa | `jupiter` storage/service, `ceres` application only |
+
+Rules:
+
+- `mono` routers must **not** `use jupiter::model` — map via `ceres::model` and `MonoApiService` facades.
+- `api-model` is **not** mono HTTP schema (except shared wrappers like `CommonPage` / `Pagination`).
+- `ceres/model` is the mapping hub: `impl From<jupiter::model::*>` and `impl From<callisto::*>` live here.
+- `application/build_trigger/model` is a ceres subdomain API schema (build triggers); same HTTP rules as `ceres/model`, kept alongside orchestration until a later consolidation.
+
+Long term: extract `ceres/model` → `mega-api-types` only if a non-mono consumer needs HTTP DTOs without ceres domain code.
+
 ## Git push event flow
 
 ```mermaid

@@ -142,7 +142,8 @@ impl MonoServiceLogic {
 mod tests {
     use std::path::{Path, PathBuf};
 
-    use common::errors::{BuckError, MegaError};
+    use bytes::Bytes;
+    use common::{errors::{BuckError, MegaError}, utils::ZERO_ID};
 
     use super::MonoServiceLogic;
 
@@ -291,5 +292,49 @@ mod tests {
             full_path.pop();
             println!("name: {name}, path: {full_path:?}");
         }
+    }
+
+    #[test]
+    fn validate_github_sync_path_accepts_project_and_third_party_subdirs() {
+        assert_eq!(
+            MonoServiceLogic::validate_github_sync_path("/project/foo").unwrap(),
+            "/project/foo"
+        );
+        assert_eq!(
+            MonoServiceLogic::validate_github_sync_path("third-party/bar/").unwrap(),
+            "/third-party/bar"
+        );
+    }
+
+    #[test]
+    fn validate_github_sync_path_rejects_root_and_invalid_prefix() {
+        assert!(MonoServiceLogic::validate_github_sync_path("/project").is_err());
+        assert!(MonoServiceLogic::validate_github_sync_path("/third-party").is_err());
+        assert!(MonoServiceLogic::validate_github_sync_path("/other/x").is_err());
+    }
+
+    #[test]
+    fn receive_pack_report_failed_detects_ng_status() {
+        assert!(MonoServiceLogic::receive_pack_report_failed(&Bytes::from(
+            &b"unpack ok\nng refs/heads/main only single commit support\n"[..]
+        )));
+        assert!(!MonoServiceLogic::receive_pack_report_failed(&Bytes::from(
+            &b"unpack ok\nok refs/heads/main\n"[..]
+        )));
+    }
+
+    #[test]
+    fn is_new_directory_cl_matches_zero_id() {
+        assert!(MonoServiceLogic::is_new_directory_cl(ZERO_ID));
+        assert!(!MonoServiceLogic::is_new_directory_cl(
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        ));
+    }
+
+    #[test]
+    fn sync_old_id_path_routing_import_vs_monorepo() {
+        let import_dir = PathBuf::from("/third-party");
+        assert!(PathBuf::from("/third-party/rust/foo").starts_with(&import_dir));
+        assert!(!PathBuf::from("/project/my-app").starts_with(&import_dir));
     }
 }

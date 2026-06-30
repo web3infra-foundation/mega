@@ -9,6 +9,7 @@ pub mod buck;
 pub mod cl;
 pub mod cla;
 pub mod edit;
+pub mod label_assignee;
 pub mod sync;
 pub mod tag;
 

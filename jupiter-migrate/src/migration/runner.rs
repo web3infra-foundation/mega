@@ -27,7 +27,17 @@ mod tests {
     use sea_orm_migration::prelude::MigratorTrait;
 
     use super::*;
-    use crate::tests::test_db_connection;
+    use sea_orm::{ConnectOptions, Database};
+
+    async fn test_db_connection(temp_dir: &std::path::Path) -> DatabaseConnection {
+        let db_url = format!("sqlite://{}/test.db", temp_dir.to_string_lossy());
+        std::fs::File::create(temp_dir.join("test.db")).expect("create test db file");
+        let mut opt = ConnectOptions::new(db_url);
+        opt.max_connections(5).min_connections(1);
+        Database::connect(opt)
+            .await
+            .expect("connect test database")
+    }
 
     #[tokio::test]
     async fn test_apply_migrations() {

@@ -10,9 +10,6 @@ use ceres::model::group::{
     ResourcePermissionResponse, SetPermissionsRequest, UpdateGroupRequest,
     UserEffectivePermissionResponse, UserGroupsResponse,
 };
-use jupiter::model::group_dto::{
-    CreateGroupPayload, ResourcePermissionBinding, UpdateGroupPayload,
-};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::{
@@ -93,7 +90,7 @@ async fn create_group(
 
     let group = state
         .monorepo()
-        .create_group(CreateGroupPayload {
+        .create_group(CreateGroupRequest {
             name: name.to_string(),
             description,
         })
@@ -224,7 +221,7 @@ async fn update_group(
         .monorepo()
         .update_group(
             group_id,
-            UpdateGroupPayload {
+            UpdateGroupRequest {
                 name: name.to_string(),
                 description,
             },
@@ -405,18 +402,9 @@ async fn set_resource_permissions(
     let (resource_type, _, resource_id) =
         resolve_resource_context(&state, resource_type.as_str(), &resource_id).await?;
 
-    let permissions = req
-        .permissions
-        .into_iter()
-        .map(|item| ResourcePermissionBinding {
-            group_id: item.group_id,
-            permission: item.permission.into(),
-        })
-        .collect();
-
     let saved = state
         .monorepo()
-        .set_resource_permission(resource_type, &resource_id, permissions)
+        .set_resource_permission(resource_type, &resource_id, req.permissions)
         .await?;
     let saved = saved.into_iter().map(Into::into).collect();
 
@@ -484,18 +472,9 @@ async fn update_resource_permissions(
     let (resource_type, _, resource_id) =
         resolve_resource_context(&state, resource_type.as_str(), &resource_id).await?;
 
-    let permissions = req
-        .permissions
-        .into_iter()
-        .map(|item| ResourcePermissionBinding {
-            group_id: item.group_id,
-            permission: item.permission.into(),
-        })
-        .collect();
-
     let updated = state
         .monorepo()
-        .update_resource_permissions(resource_type, &resource_id, permissions)
+        .update_resource_permissions(resource_type, &resource_id, req.permissions)
         .await?;
     let updated = updated.into_iter().map(Into::into).collect();
 

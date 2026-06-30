@@ -43,5 +43,8 @@ regex = { workspace = true }
 tokio-util = { workspace = true }
 rkyv = { workspace = true }
 
+[features]
+migrate = ["jupiter/migrate"]
+
 [dev-dependencies]
 tempfile = { workspace = true }

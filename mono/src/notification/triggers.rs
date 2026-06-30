@@ -127,11 +127,11 @@ mod tests {
 
     use callisto::{email_jobs, mega_cl, mega_cl_reviewer};
     use jupiter::{
-        migration::apply_migrations,
         sea_orm::{ColumnTrait, EntityTrait, QueryFilter},
         storage::base_storage::{BaseStorage, StorageConnector},
         tests::test_db_connection,
     };
+    use jupiter_migrate::apply_migrations;
     use tempfile::TempDir;
 
     use super::*;

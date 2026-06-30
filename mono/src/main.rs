@@ -3,15 +3,6 @@
 //!
 //! And this is the main entry point for the application.
 
-mod cli;
-mod commands;
-
-pub mod api;
-pub mod email;
-pub mod git_protocol;
-pub mod notification;
-use mono::server;
-
 #[cfg(not(target_os = "windows"))]
 #[global_allocator]
 static GLOBAL_ALLOCATOR: jemallocator::Jemalloc = jemallocator::Jemalloc;
@@ -21,11 +12,7 @@ static GLOBAL_ALLOCATOR: jemallocator::Jemalloc = jemallocator::Jemalloc;
 static GLOBAL_ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 fn main() {
-    // Parse the command line arguments
-    let result = cli::parse(None);
-
-    // If there was an error, print it
-    if let Err(e) = result {
+    if let Err(e) = mono::cli::parse(None) {
         panic!("{}", e);
     }
 }

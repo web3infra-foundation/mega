@@ -4,11 +4,12 @@ use axum::{
     Json,
     extract::{Path, State},
 };
-use ceres::model::bots::{BotRes, ChangeInstallationStatus, InstallBotReq, InstallationTargetType};
-use chrono::{DateTime, Duration, Utc};
+use ceres::model::bots::{
+    BotRes, ChangeInstallationStatus, CreateBotTokenRequest, CreateBotTokenResponse,
+    InstallBotReq, InstallationTargetType, ListBotTokenItem,
+};
+use chrono::{Duration, Utc};
 use jupiter::sea_orm::prelude::DateTimeWithTimeZone;
-use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::{
@@ -32,36 +33,6 @@ async fn ensure_bot_exists(state: &MonoApiServiceState, bot_id: i64) -> Result<(
         return Err(ApiError::not_found(anyhow!("Bot not found")));
     }
     Ok(())
-}
-
-/// Request body for creating a new bot token.
-#[derive(Deserialize, ToSchema)]
-pub struct CreateBotTokenRequest {
-    /// Human-readable token name for identification.
-    pub token_name: String,
-    /// Optional relative expiry in seconds from now.
-    pub expires_in: Option<i64>,
-}
-
-/// Response body when a bot token is created.
-///
-/// Note: `token_plain` is only returned once and is never stored in plaintext.
-#[derive(Serialize, ToSchema)]
-pub struct CreateBotTokenResponse {
-    pub id: i64,
-    pub token_name: String,
-    pub expires_at: Option<DateTime<Utc>>,
-    pub token_plain: String,
-}
-
-/// Item in the list bot tokens response.
-#[derive(Serialize, ToSchema)]
-pub struct ListBotTokenItem {
-    pub id: i64,
-    pub token_name: String,
-    pub expires_at: Option<DateTime<Utc>>,
-    pub revoked: bool,
-    pub created_at: DateTime<Utc>,
 }
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {

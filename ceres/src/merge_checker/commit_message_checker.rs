@@ -36,3 +36,30 @@ impl Checker for CommitMessageChecker {
         }))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::CommitMessageChecker;
+    use crate::merge_checker::{CheckType, Checker, ConditionResult};
+
+    #[tokio::test]
+    async fn commit_message_checker_passes_conventional_title() {
+        let checker = CommitMessageChecker;
+        let result = checker
+            .run(&json!({"title": "feat: add webhook support"}))
+            .await;
+        assert_eq!(result.check_type_code, CheckType::CommitMessage);
+        assert_eq!(result.status, ConditionResult::PASSED);
+    }
+
+    #[tokio::test]
+    async fn commit_message_checker_fails_non_conventional_title() {
+        let checker = CommitMessageChecker;
+        let result = checker.run(&json!({"title": "add webhook support"})).await;
+        assert_eq!(result.check_type_code, CheckType::CommitMessage);
+        assert_eq!(result.status, ConditionResult::FAILED);
+        assert!(!result.message.is_empty());
+    }
+}

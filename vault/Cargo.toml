@@ -8,7 +8,7 @@ name = "vault"
 path = "src/lib.rs"
 
 [dependencies]
-jupiter = { workspace = true }
+jupiter = { path = "../jupiter", default-features = false }
 common = { workspace = true }
 
 async-trait = { workspace = true }

@@ -4,11 +4,40 @@ use callisto::{
     sea_orm_active_enums::{PermissionEnum, ResourceTypeEnum},
 };
 use common::errors::MegaError;
-use jupiter::model::group_dto::{
-    CreateGroupPayload, DeleteGroupStats, ResourcePermissionBinding, UpdateGroupPayload,
+use jupiter::model::group_dto::{DeleteGroupStats, ResourcePermissionBinding};
+
+use crate::{
+    api_service::mono::MonoApiService,
+    model::group::{
+        CreateGroupRequest, PermissionBindingRequest, ResourceTypeValue, UpdateGroupRequest,
+    },
 };
 
-use crate::{api_service::mono::MonoApiService, model::group::ResourceTypeValue};
+fn create_group_payload(req: CreateGroupRequest) -> jupiter::model::group_dto::CreateGroupPayload {
+    jupiter::model::group_dto::CreateGroupPayload {
+        name: req.name,
+        description: req.description,
+    }
+}
+
+fn update_group_payload(req: UpdateGroupRequest) -> jupiter::model::group_dto::UpdateGroupPayload {
+    jupiter::model::group_dto::UpdateGroupPayload {
+        name: req.name,
+        description: req.description,
+    }
+}
+
+fn permission_bindings(
+    permissions: Vec<PermissionBindingRequest>,
+) -> Vec<ResourcePermissionBinding> {
+    permissions
+        .into_iter()
+        .map(|item| ResourcePermissionBinding {
+            group_id: item.group_id,
+            permission: item.permission.into(),
+        })
+        .collect()
+}
 
 #[derive(Debug, Clone)]
 pub struct EffectiveResourcePermission {
@@ -19,9 +48,12 @@ pub struct EffectiveResourcePermission {
 impl MonoApiService {
     pub async fn create_group(
         &self,
-        payload: CreateGroupPayload,
+        payload: CreateGroupRequest,
     ) -> Result<mega_group::Model, MegaError> {
-        self.storage.group_storage().create_group(payload).await
+        self.storage
+            .group_storage()
+            .create_group(create_group_payload(payload))
+            .await
     }
 
     pub async fn list_groups(
@@ -41,11 +73,11 @@ impl MonoApiService {
     pub async fn update_group(
         &self,
         group_id: i64,
-        payload: UpdateGroupPayload,
+        payload: UpdateGroupRequest,
     ) -> Result<mega_group::Model, MegaError> {
         self.storage
             .group_storage()
-            .update_group(group_id, payload)
+            .update_group(group_id, update_group_payload(payload))
             .await
     }
 
@@ -109,11 +141,12 @@ impl MonoApiService {
         &self,
         resource_type: ResourceTypeEnum,
         resource_id: &str,
-        permissions: Vec<ResourcePermissionBinding>,
+        permissions: Vec<PermissionBindingRequest>,
     ) -> Result<Vec<mega_resource_permission::Model>, MegaError> {
+        let bindings = permission_bindings(permissions);
         self.storage
             .group_storage()
-            .replace_resource_permissions(resource_type, resource_id, &permissions)
+            .replace_resource_permissions(resource_type, resource_id, &bindings)
             .await
     }
 
@@ -132,11 +165,12 @@ impl MonoApiService {
         &self,
         resource_type: ResourceTypeEnum,
         resource_id: &str,
-        permissions: Vec<ResourcePermissionBinding>,
+        permissions: Vec<PermissionBindingRequest>,
     ) -> Result<Vec<mega_resource_permission::Model>, MegaError> {
+        let bindings = permission_bindings(permissions);
         self.storage
             .group_storage()
-            .upsert_resource_permissions(resource_type, resource_id, &permissions)
+            .upsert_resource_permissions(resource_type, resource_id, &bindings)
             .await
     }
 
@@ -286,4 +320,55 @@ fn permission_level(permission: &PermissionEnum) -> u8 {
 
 fn permission_satisfies(current: &PermissionEnum, required: &PermissionEnum) -> bool {
     permission_level(current) >= permission_level(required)
+}
+
+#[cfg(test)]
+mod tests {
+    use callisto::sea_orm_active_enums::PermissionEnum;
+
+    use super::{
+        create_group_payload, permission_bindings, update_group_payload,
+    };
+    use crate::model::group::{
+        CreateGroupRequest, PermissionBindingRequest, PermissionValue, UpdateGroupRequest,
+    };
+
+    #[test]
+    fn create_group_payload_maps_request_fields() {
+        let payload = create_group_payload(CreateGroupRequest {
+            name: "admins".to_string(),
+            description: Some("core".to_string()),
+        });
+        assert_eq!(payload.name, "admins");
+        assert_eq!(payload.description.as_deref(), Some("core"));
+    }
+
+    #[test]
+    fn update_group_payload_maps_request_fields() {
+        let payload = update_group_payload(UpdateGroupRequest {
+            name: "ops".to_string(),
+            description: None,
+        });
+        assert_eq!(payload.name, "ops");
+        assert!(payload.description.is_none());
+    }
+
+    #[test]
+    fn permission_bindings_maps_permissions_and_preserves_order() {
+        let bindings = permission_bindings(vec![
+            PermissionBindingRequest {
+                group_id: 1,
+                permission: PermissionValue::Write,
+            },
+            PermissionBindingRequest {
+                group_id: 2,
+                permission: PermissionValue::Read,
+            },
+        ]);
+        assert_eq!(bindings.len(), 2);
+        assert_eq!(bindings[0].group_id, 1);
+        assert_eq!(bindings[0].permission, PermissionEnum::Write);
+        assert_eq!(bindings[1].group_id, 2);
+        assert_eq!(bindings[1].permission, PermissionEnum::Read);
+    }
 }

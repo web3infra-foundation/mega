@@ -15,7 +15,7 @@ use ceres::{
     application::artifact::ArtifactApplicationService,
 };
 use common::errors::ProtocolError;
-use context::AppContext;
+use crate::bootstrap::AppContext;
 use http::{HeaderName, HeaderValue, Method};
 use orion_client::OrionBuildClient;
 use saturn::entitystore::EntityStore;
@@ -432,8 +432,13 @@ pub async fn app(ctx: AppContext, host: String, port: u16) -> Router {
             "/{*path}",
             any({
                 let api_state = api_state.clone();
-                move |req: Request<Body>| {
-                    handle_smart_protocol(req, Arc::new(ProtocolApiState::from_ref(&api_state)))
+                move |req: Request<Body>| async move {
+                    match handle_smart_protocol(req, Arc::new(ProtocolApiState::from_ref(&api_state)))
+                        .await
+                    {
+                        Ok(response) => response,
+                        Err(err) => crate::git_protocol::protocol_error::into_response(err),
+                    }
                 }
             }),
         )

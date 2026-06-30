@@ -292,6 +292,9 @@ impl ThirdPartyClient {
 
 #[cfg(test)]
 mod tests {
+    use bytes::Bytes;
+    use futures::stream;
+
     use super::*;
 
     #[test]
@@ -301,5 +304,34 @@ mod tests {
         let text = String::from_utf8_lossy(&body);
         assert!(text.contains("deepen 1"));
         assert!(text.contains("want abc123"));
+    }
+
+    #[tokio::test]
+    async fn process_pack_stream_continues_after_flush_before_pack() {
+        let client = ThirdPartyClient::new("https://github.com/foo/bar.git");
+
+        // pkt-line: shallow negotiation line, flush (0000), then PACK payload
+        let shallow_payload = b"shallow 1\n";
+        let shallow_line = format!("{:04x}", shallow_payload.len() + 4);
+        let pack_chunk = b"PACK1234";
+        let pack_line = format!("{:04x}", pack_chunk.len() + 4);
+        let mut body = Vec::new();
+        body.extend_from_slice(shallow_line.as_bytes());
+        body.extend_from_slice(shallow_payload);
+        body.extend_from_slice(b"0000");
+        body.extend_from_slice(pack_line.as_bytes());
+        body.extend_from_slice(pack_chunk);
+
+        let stream = stream::iter(vec![Ok(Bytes::from(body))]);
+        let pack_data = client
+            .process_pack_stream(stream)
+            .await
+            .expect("process_pack_stream should succeed");
+
+        assert!(
+            !pack_data.is_empty(),
+            "PACK data should be read after 0000 flush"
+        );
+        assert!(pack_data.starts_with(b"PACK"));
     }
 }

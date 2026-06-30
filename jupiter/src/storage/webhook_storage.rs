@@ -208,9 +208,9 @@ mod tests {
 
     use super::*;
     use crate::{
-        migration::apply_migrations,
         tests::{test_db_connection, test_storage},
     };
+    use jupiter_migrate::apply_migrations;
 
     #[test]
     fn test_normalize_event_types_dedupes() {

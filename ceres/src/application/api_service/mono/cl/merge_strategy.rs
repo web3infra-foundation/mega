@@ -258,12 +258,18 @@ pub async fn resolve_merge_leaf_tree_id(
 
 #[cfg(test)]
 mod tests {
-    use super::path_prefixes;
+    use super::{path_prefixes, ClMergeStrategy};
 
     #[test]
     fn path_prefixes_returns_strict_prefixes() {
         assert_eq!(path_prefixes("/project/mega"), vec!["/project".to_string()]);
         assert_eq!(path_prefixes("/project"), Vec::<String>::new());
         assert_eq!(path_prefixes("/"), Vec::<String>::new());
+    }
+
+    #[test]
+    fn cl_merge_strategy_as_str() {
+        assert_eq!(ClMergeStrategy::FileDiff.as_str(), "file_diff");
+        assert_eq!(ClMergeStrategy::SubtreeReplace.as_str(), "subtree_replace");
     }
 }

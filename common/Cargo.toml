@@ -13,7 +13,6 @@ path = "src/lib.rs"
 git-internal = { workspace = true }
 api-model = { workspace = true }
 
-axum = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
 clap = { workspace = true, features = ["derive"] }

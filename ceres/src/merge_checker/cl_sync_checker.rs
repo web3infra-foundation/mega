@@ -63,3 +63,39 @@ impl Checker for ClSyncChecker {
         }))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use jupiter::storage::Storage;
+    use serde_json::json;
+
+    use super::ClSyncChecker;
+    use crate::merge_checker::{CheckType, Checker, ConditionResult};
+
+    #[tokio::test]
+    async fn cl_sync_checker_passes_when_hashes_match() {
+        let checker = ClSyncChecker {
+            storage: Arc::new(Storage::mock()),
+        };
+        let result = checker
+            .run(&json!({"cl_from": "abc123", "current": "abc123"}))
+            .await;
+        assert_eq!(result.check_type_code, CheckType::ClSync);
+        assert_eq!(result.status, ConditionResult::PASSED);
+    }
+
+    #[tokio::test]
+    async fn cl_sync_checker_fails_when_hashes_differ() {
+        let checker = ClSyncChecker {
+            storage: Arc::new(Storage::mock()),
+        };
+        let result = checker
+            .run(&json!({"cl_from": "abc123", "current": "def456"}))
+            .await;
+        assert_eq!(result.check_type_code, CheckType::ClSync);
+        assert_eq!(result.status, ConditionResult::FAILED);
+        assert!(!result.message.is_empty());
+    }
+}

@@ -8,8 +8,10 @@ use io_orbit::factory::MegaObjectStorageWrapper;
 use sea_orm::{ConnectOptions, Database, DatabaseConnection};
 use tracing::log;
 
+#[cfg(feature = "migrate")]
+use jupiter_migrate::apply_migrations;
+
 use crate::{
-    migration::apply_migrations,
     service::{
         artifact_service::ArtifactService, buck_service::BuckService, cl_service::CLService,
         cla_service::ClaService, code_review_service::CodeReviewService, git_service::GitService,
@@ -96,6 +98,7 @@ pub async fn test_storage(temp_dir: impl AsRef<Path>) -> Storage {
         audit_storage: AuditStorage { base: base.clone() },
     };
 
+    #[cfg(feature = "migrate")]
     apply_migrations(&connection, true).await.unwrap();
 
     let webhook_service = WebhookService::mock(svc.webhook_storage.clone());

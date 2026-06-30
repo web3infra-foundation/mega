@@ -6,7 +6,7 @@
 
 use clap::{ArgMatches, Command};
 use common::{config::Config, errors::MegaResult};
-use context::AppContext;
+use crate::bootstrap::AppContext;
 
 pub mod http;
 pub mod multi;

@@ -7,18 +7,14 @@ use axum::{
 };
 use ceres::model::{
     change_list::MuiTreeNode,
-    commit::{CommitBindingResponse, CommitFilesChangedPage, CommitHistoryParams, CommitSummary},
+    commit::{
+        CommitBindingResponse, CommitFilesChangedPage, CommitHistoryParams, CommitSummary,
+        UpdateCommitBindingRequest,
+    },
 };
-use serde::{Deserialize, Serialize};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::{MonoApiServiceState, api_doc::CODE_PREVIEW, error::ApiError};
-
-#[derive(Debug, Deserialize, Serialize, utoipa::ToSchema)]
-pub struct UpdateCommitBindingRequest {
-    pub username: Option<String>,
-    pub is_anonymous: bool,
-}
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new()

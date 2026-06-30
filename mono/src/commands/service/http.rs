@@ -1,6 +1,6 @@
 use clap::{ArgMatches, Args, Command, FromArgMatches};
 use common::errors::MegaResult;
-use context::AppContext;
+use crate::bootstrap::AppContext;
 
 use crate::server::{
     CommonHttpOptions,

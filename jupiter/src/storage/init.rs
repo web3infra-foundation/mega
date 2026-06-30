@@ -9,7 +9,9 @@ use sea_orm::{ConnectOptions, Database, DatabaseConnection};
 use tracing::log;
 use url::Url;
 
-use crate::{migration::apply_migrations, utils::id_generator};
+use crate::{utils::id_generator};
+#[cfg(feature = "migrate")]
+use jupiter_migrate::apply_migrations;
 
 /// Create a database connection with failover logic.
 ///
@@ -63,6 +65,7 @@ pub async fn database_connection(db_config: &DbConfig) -> DatabaseConnection {
     } else {
         sqlite_connection(db_config).await.unwrap()
     };
+    #[cfg(feature = "migrate")]
     apply_migrations(&conn, false)
         .await
         .expect("Failed to apply migrations");

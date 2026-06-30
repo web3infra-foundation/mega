@@ -3,7 +3,7 @@ use std::{collections::HashMap, net::SocketAddr, str::FromStr, sync::Arc};
 use bytes::BytesMut;
 use ceres::api_service::{cache::GitObjectCache, state::ProtocolApiState};
 use clap::Args;
-use context::AppContext;
+use crate::bootstrap::AppContext;
 use ed25519_dalek::pkcs8::spki::der::pem::LineEnding;
 use russh::{
     Preferred,

@@ -85,6 +85,13 @@ jobs:
         with:
           shared-key: base-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           cache-on-failure: true
+      - name: Enforce DTO boundary (mono must not import jupiter::model)
+        run: |
+          if rg -q 'jupiter::model' mono/; then
+            echo "mono must not depend on jupiter::model; use ceres::model and MonoApiService facades"
+            rg 'jupiter::model' mono/
+            exit 1
+          fi
       - name: Run cargo clippy
         run: |
           sccache --start-server || true

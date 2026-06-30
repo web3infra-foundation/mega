@@ -5,11 +5,12 @@ use axum::{
 use serde_json::Value;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
+use ceres::model::note::{NoteShowResponse, NoteUpdateRequest};
+
 use crate::api::{
     MonoApiServiceState,
     api_doc::SYNC_NOTES_STATE_TAG,
     error::ApiError,
-    notes::model::{ShowResponse, UpdateRequest},
 };
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
@@ -25,14 +26,14 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     get,
     path = "/{org_slug}/notes/{id}/sync_state",
     responses(
-        (status = 200, body = ShowResponse, content_type = "application/json")
+        (status = 200, body = NoteShowResponse, content_type = "application/json")
     ),
     tag = SYNC_NOTES_STATE_TAG,
 )]
 async fn show_note(
     state: State<MonoApiServiceState>,
     Path(id): Path<i32>,
-) -> Result<Json<ShowResponse>, ApiError> {
+) -> Result<Json<NoteShowResponse>, ApiError> {
     let note = state.note_stg().get_note_by_id(id.into()).await?;
     if note.is_none() {
         return Err(ApiError::from(anyhow::anyhow!("Note not found")));
@@ -41,7 +42,7 @@ async fn show_note(
 
     // TODO: authorize(note, :show?)
 
-    let response = ShowResponse {
+    let response = NoteShowResponse {
         public_id: note.public_id,
         description_schema_version: note.description_schema_version,
         description_state: match &note.description_state {
@@ -59,7 +60,7 @@ async fn show_note(
 #[utoipa::path(
     patch,
     path = "/{org_slug}/notes/{id}/sync_state",
-    request_body = UpdateRequest,
+    request_body = NoteUpdateRequest,
     responses(
         (status = 200, body = Value, content_type = "application/json")
     ),
@@ -68,7 +69,7 @@ async fn show_note(
 async fn update_note(
     state: State<MonoApiServiceState>,
     Path(id): Path<i32>,
-    Json(json): Json<UpdateRequest>,
+    Json(json): Json<NoteUpdateRequest>,
 ) -> Result<Json<Value>, ApiError> {
     // Get the note first
     let note = state.note_stg().get_note_by_id(id.into()).await?;

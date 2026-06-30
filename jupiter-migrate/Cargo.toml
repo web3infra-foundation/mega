@@ -1,0 +1,25 @@
+[package]
+name = "jupiter-migrate"
+version = "0.1.0"
+edition.workspace = true
+
+[lib]
+name = "jupiter_migrate"
+path = "src/lib.rs"
+
+[dependencies]
+callisto = { workspace = true }
+common = { workspace = true }
+sea-orm = { workspace = true, features = [
+    "sqlx-postgres",
+    "sqlx-sqlite",
+    "runtime-tokio-rustls",
+    "macros",
+] }
+sea-orm-migration = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

@@ -136,9 +136,8 @@ impl GitDbStorage {
         txn: &DatabaseTransaction,
     ) -> Result<(), MegaError> {
         refs.repo_id = repo_id;
-        let conn = self.build_connection_with_txn(Some(txn));
         import_refs::Entity::insert(refs.into_active_model())
-            .exec(&conn)
+            .exec(txn)
             .await
             .map_err(|e| MegaError::Other(format!("Failed to insert import_refs: {e}")))?;
         Ok(())

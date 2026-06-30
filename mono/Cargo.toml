@@ -20,12 +20,11 @@ api-model = { workspace = true }
 orion-client = { workspace = true }
 common = { workspace = true }
 callisto = { workspace = true }
-jupiter = { workspace = true }
+jupiter = { workspace = true, features = ["migrate"] }
 lettre = { workspace = true }
 ceres = { workspace = true }
 vault = { workspace = true }
 saturn = { workspace = true }
-context = { workspace = true }
 git-internal = { workspace = true }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
@@ -83,6 +82,7 @@ mimalloc = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
+jupiter-migrate = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dev-dependencies]
 qlean = { workspace = true }

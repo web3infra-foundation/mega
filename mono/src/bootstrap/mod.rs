@@ -2,25 +2,16 @@ use std::sync::Arc;
 
 use jupiter::redis::{ConnectionManager, init_connection};
 
-/// This is the main application context for the Mono application.
-/// It holds shared state and configuration for the application.
-/// Including database connections, configuration settings, encrypted vault functions, etc.
+/// Main application context for the Mono application.
 #[derive(Clone)]
 pub struct AppContext {
-    /// The storage sub-context for the from jupiter abstract layer.
     pub storage: jupiter::storage::Storage,
-
-    /// The vault core for managing encrypted data.
     pub vault: vault::integration::vault_core::VaultCore,
-
-    /// The configuration settings for the application.
     pub config: Arc<common::config::Config>,
-
     pub connection: ConnectionManager,
 }
 
 impl AppContext {
-    /// Creates a new application context with the given configuration.
     pub async fn new(config: common::config::Config) -> Self {
         let config = Arc::new(config);
 

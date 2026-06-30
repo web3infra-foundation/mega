@@ -4,15 +4,14 @@ use axum::{
     extract::{Path, Query, State},
 };
 use callisto::sea_orm_active_enums::WebhookEventTypeEnum;
+use ceres::model::webhook::{
+    CreateWebhookRequest, ListWebhooksQuery, WebhookResponse, parse_webhook_event_types,
+};
 use chrono::Utc;
 use jupiter::{
     idgenerator::IdInstance,
-    sea_orm::ActiveEnum,
     service::webhook_service::{encrypt_webhook_secret, validate_webhook_target_url},
-    storage::webhook_storage::WebhookWithEventTypes,
 };
-use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::{MonoApiServiceState, api_doc::WEBHOOK_TAG, error::ApiError};
@@ -24,59 +23,8 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
         .routes(routes!(delete_webhook))
 }
 
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct CreateWebhookRequest {
-    pub target_url: String,
-    pub secret: String,
-    /// Event types: "cl.created", "cl.updated", "cl.merged", "cl.closed", "cl.reopened", "cl.comment.created", "*"
-    pub event_types: Vec<String>,
-    pub path_filter: Option<String>,
-    pub active: Option<bool>,
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-pub struct WebhookResponse {
-    pub id: i64,
-    pub target_url: String,
-    pub event_types: Vec<String>,
-    pub path_filter: Option<String>,
-    pub active: bool,
-    pub created_at: String,
-    pub updated_at: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct ListWebhooksQuery {
-    pub page: Option<u64>,
-    pub per_page: Option<u64>,
-}
-
-impl From<WebhookWithEventTypes> for WebhookResponse {
-    fn from(value: WebhookWithEventTypes) -> Self {
-        let m = value.webhook;
-        Self {
-            id: m.id,
-            target_url: m.target_url,
-            event_types: value
-                .event_types
-                .into_iter()
-                .map(|e| e.to_value())
-                .collect(),
-            path_filter: m.path_filter,
-            active: m.active,
-            created_at: m.created_at.to_string(),
-            updated_at: m.updated_at.to_string(),
-        }
-    }
-}
-
 fn parse_event_types(raw: Vec<String>) -> Result<Vec<WebhookEventTypeEnum>, ApiError> {
-    raw.into_iter()
-        .map(|s| {
-            WebhookEventTypeEnum::try_from_value(&s)
-                .map_err(|_| ApiError::bad_request(anyhow::anyhow!("invalid event type: {s}")))
-        })
-        .collect()
+    parse_webhook_event_types(raw).map_err(|s| ApiError::bad_request(anyhow::anyhow!(s)))
 }
 
 /// Create a webhook
