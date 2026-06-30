@@ -28,7 +28,8 @@
 - Rust workspace 当前有 12 个成员，而不是 11 个：`api-model`、`ceres`、`common`、`context`、`io-orbit`、`jupiter`、`jupiter/callisto`、`mono`、`orion`、`orion-server`、`saturn`、`vault`。
 - README 已声明 PR 前置检查：`cargo clippy --all-targets --all-features -- -D warnings`、`cargo +nightly fmt --all --check`、`cargo buckal build`，并要求依赖变更后运行 `cargo buckal migrate`。
 - `docs/contributing.md` 要求提交包含 `Signed-off-by`，并说明 PGP 签名要求；AI 提交规范不能只写 Conventional Commits 和 `Co-Authored-By`。
-- `jupiter/README.md` 已定义 SeaORM migration 和 entity 生成流程，entity 输出目录是 `jupiter/callisto/src`。
+- 数据库迁移见 `jupiter-migrate/README.md`；entity 输出目录是 `jupiter/callisto/src`。
+- REST API 以 Swagger 为准（`/swagger-ui`）；架构见 `docs/architecture.md`。
 - `saturn/` 已有 Cedar schema、policy 和解析/授权代码，是策略审查 agent 的合理边界。
 - `mono/src/api/api_router.rs` 已聚合 file tree、commit、Buck、artifacts、permission、reviewer 等 API；MCP MVP 应优先包装这些已有能力，而不是先承诺新的代码索引能力。
 
@@ -496,7 +497,6 @@ libra status --short
 - Claude Code Subagents: https://code.claude.com/docs/en/sub-agents
 - Claude Code Skills: https://code.claude.com/docs/en/slash-commands
 - Claude Code MCP: https://code.claude.com/docs/en/mcp
-- Mega `README.md`
+- Mega `docs/architecture.md`
 - Mega `docs/development.md`
 - Mega `docs/contributing.md`
-- Mega `docs/api.md`

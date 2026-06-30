@@ -1,5 +1,7 @@
 # FAQ
 
+> **Work in progress.** See the [README](../README.md) for an overview. External references below.
+
 ## References
 
 1. [What is monorepo? (and should you use it?)](https://semaphoreci.com/blog/what-is-monorepo)
