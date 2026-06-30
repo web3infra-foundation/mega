@@ -15,11 +15,13 @@ use jupiter::{
 use orion_client::OrionBuildClient;
 
 use crate::{
-    api_service::{
-        buck_tree_builder::BuckCommitBuilder,
-        mono::{MonoApiService, MonoServiceLogic},
+    application::{
+        api_service::{
+            buck_tree_builder::BuckCommitBuilder,
+            mono::{MonoApiService, MonoServiceLogic},
+        },
+        build_trigger::{BuildTriggerService, TriggerContext},
     },
-    build_trigger::{BuildTriggerService, TriggerContext},
     model::buck::{
         CompletePayload, CompleteResponse, DEFAULT_MODE, FileChange,
         FileToUpload as ApiFileToUpload, ManifestPayload, ManifestResponse,
@@ -60,6 +62,10 @@ impl MonoApiService {
         username: &str,
         path: &str,
     ) -> Result<jupiter::service::buck_service::SessionResponse, MegaError> {
+        let path = path.trim();
+        if path.is_empty() {
+            return Err(MegaError::bad_request("Path cannot be empty"));
+        }
         let normalized_path = MonoServiceLogic::normalize_repo_path(path)?;
         let refs = self
             .storage
@@ -124,7 +130,7 @@ impl MonoApiService {
 
         // Get content hashes (raw SHA-1) and blob IDs
         let (existing_file_hashes, existing_blob_ids_map) =
-            crate::api_service::blob_ops::get_files_content_hashes_with_blob_ids(
+            crate::application::api_service::blob_ops::get_files_content_hashes_with_blob_ids(
                 self,
                 &manifest_paths,
                 session.from_hash.as_deref(),

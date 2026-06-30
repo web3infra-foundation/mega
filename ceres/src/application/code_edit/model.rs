@@ -11,10 +11,12 @@ use jupiter::{
 use orion_client::OrionBuildClient;
 
 use crate::{
-    api_service::{ApiHandler, cache::GitObjectCache},
-    application::webhook::{WebhookEvent, dispatch_cl_webhook},
-    build_trigger::{BuildTriggerService, TriggerContext},
-    code_edit::{model, utils as edit_utils},
+    application::{
+        api_service::{ApiHandler, cache::GitObjectCache},
+        build_trigger::{BuildTriggerService, TriggerContext},
+        code_edit::{model, utils as edit_utils},
+        webhook::{WebhookEvent, dispatch_cl_webhook},
+    },
     merge_checker::CheckerRegistry,
 };
 

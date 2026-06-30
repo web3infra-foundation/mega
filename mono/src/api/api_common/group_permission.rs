@@ -1,7 +1,6 @@
 use anyhow::anyhow;
-use callisto::sea_orm_active_enums::ResourceTypeEnum;
 use ceres::{
-    api_service::mono::EffectiveResourcePermission,
+    application::api_service::mono::EffectiveResourcePermission,
     model::group::{PermissionValue, ResourceTypeValue, UserEffectivePermissionResponse},
 };
 use http::StatusCode;
@@ -28,7 +27,7 @@ pub async fn resolve_resource_context(
     state: &MonoApiServiceState,
     resource_type: &str,
     resource_id: &str,
-) -> Result<(ResourceTypeEnum, ResourceTypeValue, String), ApiError> {
+) -> Result<(ResourceTypeValue, String), ApiError> {
     state
         .monorepo()
         .resolve_resource_context(resource_type, resource_id)

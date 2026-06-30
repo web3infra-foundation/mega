@@ -81,9 +81,8 @@ impl RefResolver {
         }
 
         // Not found
-        Err(MegaError::Other(format!(
-            "[code:404] Reference not found: '{}' (not a branch, tag, or commit)",
-            ref_name
+        Err(MegaError::NotFound(format!(
+            "Reference not found: '{ref_name}' (not a branch, tag, or commit)"
         )))
     }
 

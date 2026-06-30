@@ -14,7 +14,7 @@ use git_internal::{
 use jupiter::utils::converter::FromMegaModel;
 
 use crate::{
-    api_service::{ApiHandler, mono::MonoApiService},
+    application::api_service::{ApiHandler, mono::MonoApiService},
     diff::tree_diff,
     model::change_list::{ClDiffFile, ClFilesChangedItemSchema},
 };
@@ -546,7 +546,7 @@ mod tests {
     use git_internal::{DiffItem, hash::ObjectHash};
 
     use super::collect_page_blobs;
-    use crate::{api_service::mono::MonoApiService, model::change_list::ClDiffFile};
+    use crate::{application::api_service::mono::MonoApiService, model::change_list::ClDiffFile};
 
     #[test]
     fn test_paging_calculation_basic() {

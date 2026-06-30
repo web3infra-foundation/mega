@@ -15,11 +15,11 @@ use axum::{
     http::{HeaderMap, Request, StatusCode},
     response::{IntoResponse, Response},
 };
+use ceres::application::artifact::ArtifactApplicationService;
 use chrono::Utc;
-use common::errors::MegaError;
+use common::errors::mega_error_http_status;
 use futures::{StreamExt, TryStreamExt};
 use http::header;
-use jupiter::service::artifact_service::ArtifactService;
 use percent_encoding::percent_decode_str;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
@@ -47,10 +47,6 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
 
 fn decode_path_segment(segment: &str) -> String {
     percent_decode_str(segment).decode_utf8_lossy().into_owned()
-}
-
-fn mega_to_api(err: MegaError) -> ApiError {
-    ApiError::from(anyhow::Error::from(err))
 }
 
 /// Discover artifact protocol capabilities for a repo (see `docs/artifacts-protocol.md`).
@@ -100,11 +96,10 @@ pub async fn list_artifact_sets(
 ) -> Result<Json<ArtifactListSetsResponse>, ApiError> {
     let repo = decode_path_segment(&repo);
     let body = state
-        .storage
-        .artifact_service
+        .artifact_app_service()
         .list_artifact_sets(&repo, &q)
         .await
-        .map_err(mega_to_api)?;
+        .map_err(ApiError::from)?;
     Ok(Json(body))
 }
 
@@ -133,11 +128,10 @@ pub async fn get_artifact_set(
     let repo = decode_path_segment(&repo);
     let artifact_set_id = decode_path_segment(&artifact_set_id);
     let body = state
-        .storage
-        .artifact_service
+        .artifact_app_service()
         .get_artifact_set_detail(&repo, &artifact_set_id, &q)
         .await
-        .map_err(mega_to_api)?;
+        .map_err(ApiError::from)?;
     Ok(Json(body))
 }
 
@@ -167,11 +161,10 @@ pub async fn resolve_artifact_file(
 ) -> Result<Json<ArtifactResolveFileResponse>, ApiError> {
     let repo = decode_path_segment(&repo);
     let body = state
-        .storage
-        .artifact_service
+        .artifact_app_service()
         .resolve_artifact_file(&repo, &q)
         .await
-        .map_err(mega_to_api)?;
+        .map_err(ApiError::from)?;
     Ok(Json(body))
 }
 
@@ -210,9 +203,9 @@ pub async fn download_object(
     let model = svc
         .artifact_object_model_for_committed_repo_download(&repo, &oid)
         .await
-        .map_err(mega_to_api)?;
+        .map_err(ApiError::from)?;
 
-    let etag = ArtifactService::weak_etag_for_oid_size(&model.oid, model.size_bytes);
+    let etag = ArtifactApplicationService::weak_etag_for_oid_size(&model.oid, model.size_bytes);
     let range_hdr = headers.get(header::RANGE).and_then(|v| v.to_str().ok());
 
     if range_hdr.is_none()
@@ -236,7 +229,7 @@ pub async fn download_object(
     let signed_get = svc
         .artifact_object_signed_get_url(&oid, presign_ttl)
         .await
-        .map_err(mega_to_api)?;
+        .map_err(ApiError::from)?;
 
     if let Some(url) = signed_get {
         if q.mode.as_deref() == Some("link") {
@@ -262,18 +255,18 @@ pub async fn download_object(
     }
 
     let len = model.size_bytes.max(0) as u64;
-    let range_parsed = match ArtifactService::parse_artifact_object_range(range_hdr, len) {
+    let range_parsed = match ArtifactApplicationService::parse_artifact_object_range(range_hdr, len)
+    {
         Ok(v) => v,
         Err(e) => {
-            let msg = e.to_string();
-            if msg.contains("[code:416]") {
+            if mega_error_http_status(&e) == 416 {
                 return Response::builder()
                     .status(StatusCode::RANGE_NOT_SATISFIABLE)
                     .header(header::CONTENT_RANGE, format!("bytes */{len}"))
                     .body(Body::empty())
                     .map_err(ApiError::internal);
             }
-            return Err(mega_to_api(e));
+            return Err(ApiError::from(e));
         }
     };
 
@@ -287,7 +280,7 @@ pub async fn download_object(
             let stream = svc
                 .get_artifact_object_byte_stream(&oid)
                 .await
-                .map_err(mega_to_api)?;
+                .map_err(ApiError::from)?;
             let mapped = stream.map(|r| r.map_err(std::io::Error::other));
             Response::builder()
                 .status(StatusCode::OK)
@@ -301,7 +294,7 @@ pub async fn download_object(
             let stream = svc
                 .get_artifact_object_range_byte_stream(&oid, start, end_exclusive)
                 .await
-                .map_err(mega_to_api)?;
+                .map_err(ApiError::from)?;
             let mapped = stream.map(|r| r.map_err(std::io::Error::other));
             let range_len = end_exclusive.saturating_sub(start);
             let last = end_exclusive.saturating_sub(1);
@@ -343,8 +336,8 @@ pub async fn head_artifact_object(
     let model = svc
         .artifact_object_model_for_committed_repo_download(&repo, &oid)
         .await
-        .map_err(mega_to_api)?;
-    let etag = ArtifactService::weak_etag_for_oid_size(&model.oid, model.size_bytes);
+        .map_err(ApiError::from)?;
+    let etag = ArtifactApplicationService::weak_etag_for_oid_size(&model.oid, model.size_bytes);
     let content_type = model
         .content_type
         .as_deref()
@@ -379,11 +372,10 @@ pub async fn batch(
     Json(req): Json<ArtifactBatchRequest>,
 ) -> Result<Json<ArtifactBatchResponse>, ApiError> {
     let body = state
-        .storage
-        .artifact_service
+        .artifact_app_service()
         .batch_artifacts(&req)
         .await
-        .map_err(mega_to_api)?;
+        .map_err(ApiError::from)?;
     Ok(Json(body))
 }
 
@@ -410,11 +402,10 @@ pub async fn commit(
 ) -> Result<Json<ArtifactCommitResponse>, ApiError> {
     let repo = decode_path_segment(&repo);
     let body = state
-        .storage
-        .artifact_service
+        .artifact_app_service()
         .commit_artifacts(&repo, &req)
         .await
-        .map_err(mega_to_api)?;
+        .map_err(ApiError::from)?;
     Ok(Json(body))
 }
 
@@ -467,10 +458,9 @@ pub async fn upload_object_fallback(
     }
 
     state
-        .storage
-        .artifact_service
+        .artifact_app_service()
         .upload_artifact_object_bytes(&oid, body_bytes)
         .await
-        .map_err(mega_to_api)?;
+        .map_err(ApiError::from)?;
     Ok(StatusCode::NO_CONTENT)
 }

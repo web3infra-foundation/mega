@@ -6,7 +6,6 @@ use sea_orm::{
     ActiveModelTrait, DatabaseConnection, DatabaseTransaction, DbErr, EntityTrait,
     sea_query::OnConflict,
 };
-use sea_orm_migration::SchemaManagerConnection;
 
 #[async_trait]
 pub trait StorageConnector {
@@ -18,38 +17,7 @@ pub trait StorageConnector {
 
     fn new(connection: Arc<DatabaseConnection>) -> Self;
 
-    fn build_connection_with_txn<'a>(
-        &'a self,
-        txn: Option<&'a DatabaseTransaction>,
-    ) -> SchemaManagerConnection<'a> {
-        if let Some(txn) = txn {
-            SchemaManagerConnection::Transaction(txn)
-        } else {
-            SchemaManagerConnection::Connection(self.get_connection())
-        }
-    }
-
     /// Performs batch saving of models in the database.
-    ///
-    /// The method takes a vector of models to be saved and performs batch inserts using the given entity type `E`.
-    /// The models should implement the `ActiveModelTrait` trait, which provides the necessary functionality for saving and inserting the models.
-    ///
-    /// The method splits the models into smaller chunks, each containing models configured by chunk_size, and inserts them into the database using the `E::insert_many` function.
-    /// The results of each insertion are collected into a vector of futures.
-    ///
-    /// Note: Currently, SQLx does not support packets larger than 16MB.
-    /// # Arguments
-    ///
-    /// * `save_models` - A vector of models to be saved.
-    ///
-    /// # Generic Constraints
-    ///
-    /// * `E` - The entity type that implements the `EntityTrait` trait.
-    /// * `A` - The model type that implements the `ActiveModelTrait` trait and is convertible from the corresponding model type of `E`.
-    ///
-    /// # Errors
-    ///
-    /// Returns a `MegaError` if an error occurs during the batch save operation.
     async fn batch_save_model<E, A>(&self, save_models: Vec<A>) -> Result<(), MegaError>
     where
         E: EntityTrait,
@@ -82,19 +50,18 @@ pub trait StorageConnector {
         E: EntityTrait,
         A: ActiveModelTrait<Entity = E> + From<<E as EntityTrait>::Model> + Send,
     {
-        let conn = self.build_connection_with_txn(txn);
-
         let mut i = 0;
         let len = save_models.len();
 
         while i < len {
             let end = (i + Self::BATCH_CHUNK_SIZE).min(len);
             let models = save_models[i..end].to_vec();
-            let _ = match E::insert_many(models)
-                .on_conflict(onconflict.clone())
-                .exec(&conn)
-                .await
-            {
+            let insert = E::insert_many(models).on_conflict(onconflict.clone());
+            let _ = match if let Some(txn) = txn {
+                insert.exec(txn).await
+            } else {
+                insert.exec(self.get_connection()).await
+            } {
                 Ok(_) => Ok(()),
                 Err(DbErr::RecordNotInserted) => Ok(()),
                 Err(e) => Err(e),

@@ -24,7 +24,7 @@ use git_internal::{
 use jupiter::{storage::Storage, utils::converter::FromGitModel};
 
 use crate::{
-    api_service::{
+    application::api_service::{
         ApiHandler,
         cache::GitObjectCache,
         history,
@@ -38,7 +38,7 @@ use crate::{
         git::{CreateEntryInfo, CreateEntryResult, EditFilePayload, EditFileResult},
         tag::TagInfo,
     },
-    protocol::repo::Repo,
+    transport::protocol::repo::Repo,
 };
 
 #[derive(Clone)]
@@ -185,18 +185,18 @@ impl ApiHandler for ImportApiService {
             .get_tag_by_repo_and_name(self.repo.repo_id, &name)
             .await
         {
-            Ok(Some(_)) => return Err(tag_already_exists(&name)),
+            Ok(Some(_)) => return Err(tag_already_exists(&name).into()),
             Ok(None) => {}
             Err(e) => {
                 tracing::error!("DB error while checking git_tag existence: {}", e);
-                return Err(db_error());
+                return Err(db_error().into());
             }
         }
 
         if let Ok(refs) = git_storage.get_ref(self.repo.repo_id).await
             && refs.iter().any(|r| r.ref_name == full_ref)
         {
-            return Err(tag_already_exists(&name));
+            return Err(tag_already_exists(&name).into());
         }
 
         if is_annotated_tag(&message) {
@@ -536,12 +536,12 @@ impl ImportApiService {
             match git_storage.get_commit_by_hash(self.repo.repo_id, t).await {
                 Ok(c) => {
                     if c.is_none() {
-                        return Err(tag_ops::commit_not_found(t));
+                        return Err(tag_ops::commit_not_found(t).into());
                     }
                 }
                 Err(e) => {
                     tracing::error!("DB error while fetching commit by hash: {}", e);
-                    return Err(db_error());
+                    return Err(db_error().into());
                 }
             }
         }

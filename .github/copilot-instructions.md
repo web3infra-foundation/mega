@@ -26,13 +26,18 @@ cargo nextest run -p <crate> when suggesting fast local test runs
 
 ## Key Components (Modules)
 
-This is a monorepo containing many components. Some key ones include:
+| Crate | Role |
+|-------|------|
+| `mono` | Server binary (HTTP REST, Git HTTP/SSH, Swagger) |
+| `ceres` | Domain library: transport, application, HTTP DTOs |
+| `jupiter` / `callisto` | Storage and SeaORM entities |
+| `jupiter-migrate` | Database migrations |
+| `orion` / `orion-server` / `orion-scheduler` | Build orchestration |
+| `saturn` | Cedar policy |
+| `vault` | Crypto and secrets |
+| `moon` | Frontend (TypeScript) |
 
-* **`mono` / `ceres` / `jupiter` / `moon`**: These are various services and libraries within the monorepo, primarily written in Rust and TypeScript.
-* **`orion`**: Build orchestration and workspace management.
-* **`saturn`**: Policy and permission management.
-
-**Note**: `scorpio` (FUSE filesystem) has been moved to its own repository at [scorpiofs](https://github.com/web3infra-foundation/scorpiofs).
+See [docs/architecture.md](docs/architecture.md) for the full workspace map.
 
 ## Coding style & quality
 

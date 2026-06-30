@@ -7,7 +7,6 @@ use ceres::model::code_review::{
     CodeReviewResponse, CommentReplyRequest, CommentReviewResponse, InitializeCommentRequest,
     ThreadReviewResponse, ThreadStatusResponse, UpdateCommentRequest,
 };
-use common::errors::MegaError;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::{
@@ -45,13 +44,9 @@ async fn code_review_comment_list(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<CodeReviewResponse>>, ApiError> {
-    let comments = state
-        .storage
-        .code_review_service
-        .get_all_comments_by_link(&link)
-        .await?;
+    let comments = state.monorepo().get_code_review_comments(&link).await?;
 
-    Ok(Json(CommonResult::success(Some(comments.into()))))
+    Ok(Json(CommonResult::success(Some(comments))))
 }
 
 /// Initialize a code review comment in a new thread
@@ -73,23 +68,11 @@ async fn initialize_code_review_comment(
     Json(paload): Json<InitializeCommentRequest>,
 ) -> Result<Json<CommonResult<ThreadReviewResponse>>, ApiError> {
     let thread = state
-        .storage
-        .code_review_service
-        .create_inline_comment(
-            &link,
-            &paload.file_path,
-            paload.diff_side.into(),
-            &paload.anchor_commit_sha,
-            paload.original_line_number,
-            &paload.normalized_content,
-            &paload.context_before,
-            &paload.context_after,
-            user.username,
-            paload.content,
-        )
+        .monorepo()
+        .create_code_review_comment(&link, user.username, paload)
         .await?;
 
-    Ok(Json(CommonResult::success(Some(thread.into()))))
+    Ok(Json(CommonResult::success(Some(thread))))
 }
 
 /// Reply to a code review comment
@@ -111,17 +94,11 @@ async fn reply_code_review_comment(
     Json(payload): Json<CommentReplyRequest>,
 ) -> Result<Json<CommonResult<CommentReviewResponse>>, ApiError> {
     let comment = state
-        .storage
-        .code_review_service
-        .reply_to_comment(
-            thread_id,
-            payload.parent_comment_id,
-            user.username,
-            payload.content,
-        )
+        .monorepo()
+        .reply_code_review_comment(thread_id, user.username, payload)
         .await?;
 
-    Ok(Json(CommonResult::success(Some(comment.into()))))
+    Ok(Json(CommonResult::success(Some(comment))))
 }
 
 /// Update a code review comment
@@ -142,27 +119,12 @@ async fn update_code_review_comment(
     state: State<MonoApiServiceState>,
     Json(payload): Json<UpdateCommentRequest>,
 ) -> Result<Json<CommonResult<CommentReviewResponse>>, ApiError> {
-    // Validate ownership
     let comment = state
-        .storage
-        .code_review_comment_storage()
-        .find_comment_by_id(comment_id)
-        .await?
-        .ok_or_else(|| ApiError::from(MegaError::Other("Comment not found".to_string())))?;
-
-    if comment.user_name != user.username {
-        return Err(ApiError::from(MegaError::Other(
-            "Cannot update others' comments".to_string(),
-        )));
-    }
-
-    let comment = state
-        .storage
-        .code_review_service
-        .update_comment(comment_id, payload.content)
+        .monorepo()
+        .update_code_review_comment(comment_id, &user.username, payload)
         .await?;
 
-    Ok(Json(CommonResult::success(Some(comment.into()))))
+    Ok(Json(CommonResult::success(Some(comment))))
 }
 
 /// Resolve a code review thread
@@ -182,12 +144,11 @@ async fn resolve_code_review_thread(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<ThreadStatusResponse>>, ApiError> {
     let thread = state
-        .storage
-        .code_review_service
-        .resolve_thread(thread_id)
+        .monorepo()
+        .resolve_code_review_thread(thread_id)
         .await?;
 
-    Ok(Json(CommonResult::success(Some(thread.into()))))
+    Ok(Json(CommonResult::success(Some(thread))))
 }
 
 /// Reopen a code review thread
@@ -207,12 +168,11 @@ async fn reopen_code_review_thread(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<ThreadStatusResponse>>, ApiError> {
     let thread = state
-        .storage
-        .code_review_service
-        .reopen_thread(thread_id)
+        .monorepo()
+        .reopen_code_review_thread(thread_id)
         .await?;
 
-    Ok(Json(CommonResult::success(Some(thread.into()))))
+    Ok(Json(CommonResult::success(Some(thread))))
 }
 
 /// Delete a code review thread and its comments
@@ -232,9 +192,8 @@ async fn delete_code_review_thread(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     state
-        .storage
-        .code_review_service
-        .delete_thread(thread_id)
+        .monorepo()
+        .delete_code_review_thread(thread_id)
         .await?;
 
     Ok(Json(CommonResult::success(None)))
@@ -257,24 +216,9 @@ async fn delete_code_review_comment(
     Path(comment_id): Path<i64>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    // Validate ownership
-    let comment = state
-        .storage
-        .code_review_comment_storage()
-        .find_comment_by_id(comment_id)
-        .await?
-        .ok_or_else(|| ApiError::from(MegaError::Other("Comment not found".to_string())))?;
-
-    if comment.user_name != user.username {
-        return Err(ApiError::from(MegaError::Other(
-            "Cannot update others' comments".to_string(),
-        )));
-    }
-
     state
-        .storage
-        .code_review_service
-        .delete_comment(comment_id)
+        .monorepo()
+        .delete_code_review_comment(comment_id, &user.username)
         .await?;
 
     Ok(Json(CommonResult::success(None)))

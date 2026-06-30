@@ -5,7 +5,7 @@ use common::errors::MegaError;
 use futures::{StreamExt, stream};
 use io_orbit::object_storage::{ObjectKey, ObjectMeta, ObjectNamespace};
 
-use crate::{api_service::mono::MonoApiService, merge_checker::CheckerRegistry};
+use crate::{application::api_service::mono::MonoApiService, merge_checker::CheckerRegistry};
 
 const CLA_CONTENT_OBJECT_KEY: &str = "cla/content/current.txt";
 

@@ -7,7 +7,7 @@ use common::errors::MegaError;
 use tracing;
 
 use crate::{
-    api_service::mono::MonoApiService,
+    application::api_service::mono::MonoApiService,
     model::merge_queue::{
         AddToQueueResponse, QueueItem, QueueListResponse, QueueStatsResponse, QueueStatus,
         QueueStatusResponse,

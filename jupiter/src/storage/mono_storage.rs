@@ -65,10 +65,17 @@ impl MonoStorage {
         model: mega_refs::Model,
         txn: Option<&DatabaseTransaction>,
     ) -> Result<(), MegaError> {
-        model
-            .into_active_model()
-            .insert(&self.build_connection_with_txn(txn))
-            .await?;
+        match txn {
+            Some(txn) => {
+                model.into_active_model().insert(txn).await?;
+            }
+            None => {
+                model
+                    .into_active_model()
+                    .insert(self.get_connection())
+                    .await?;
+            }
+        }
         Ok(())
     }
 
@@ -192,8 +199,14 @@ impl MonoStorage {
         ref_data.reset(mega_refs::Column::RefCommitHash);
         ref_data.reset(mega_refs::Column::RefTreeHash);
         ref_data.reset(mega_refs::Column::UpdatedAt);
-        let conn = self.build_connection_with_txn(txn);
-        ref_data.update(&conn).await?;
+        match txn {
+            Some(txn) => {
+                ref_data.update(txn).await?;
+            }
+            None => {
+                ref_data.update(self.get_connection()).await?;
+            }
+        }
         Ok(())
     }
 

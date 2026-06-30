@@ -3,7 +3,9 @@ use std::sync::Arc;
 use jupiter::storage::Storage;
 
 use super::handler::ApplicationEventHandler;
-use crate::{code_edit::post_receive::RuntimeApplicationHandler, infra::cache::GitObjectCache};
+use crate::{
+    application::code_edit::post_receive::RuntimeApplicationHandler, infra::cache::GitObjectCache,
+};
 
 #[derive(Clone)]
 pub struct TransportRuntime {

@@ -48,19 +48,10 @@ async fn create_session(
     state: State<MonoApiServiceState>,
     Json(payload): Json<CreateSessionPayload>,
 ) -> Result<Json<CommonResult<SessionResponse>>, ApiError> {
-    // Validate path
-    let path = payload.path.trim();
-    if path.is_empty() {
-        return Err(ApiError::bad_request(anyhow::anyhow!(
-            "Path cannot be empty"
-        )));
-    }
-
     let service_resp = state
         .monorepo()
-        .create_buck_session(&user.username, path)
-        .await
-        .map_err(ApiError::from)?;
+        .create_buck_session(&user.username, &payload.path)
+        .await?;
 
     let response = SessionResponse {
         cl_link: service_resp.cl_link,

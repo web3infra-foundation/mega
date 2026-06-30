@@ -11,9 +11,7 @@ path = "src/lib.rs"
 
 [dependencies]
 git-internal = { workspace = true }
-api-model = { workspace = true }
 
-axum = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
 clap = { workspace = true, features = ["derive"] }

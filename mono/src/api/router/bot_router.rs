@@ -4,11 +4,12 @@ use axum::{
     Json,
     extract::{Path, State},
 };
-use ceres::model::bots::{BotRes, ChangeInstallationStatus, InstallBotReq, InstallationTargetType};
-use chrono::{DateTime, Duration, Utc};
+use ceres::model::bots::{
+    BotRes, ChangeInstallationStatus, CreateBotTokenRequest, CreateBotTokenResponse, InstallBotReq,
+    InstallationTargetType, ListBotTokenItem,
+};
+use chrono::{Duration, Utc};
 use jupiter::sea_orm::prelude::DateTimeWithTimeZone;
-use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::{
@@ -22,46 +23,11 @@ const MAX_EXPIRES_IN_SECS: i64 = 365 * 24 * 3600 * 10;
 const MIN_EXPIRES_IN_SECS: i64 = 1;
 
 async fn ensure_bot_exists(state: &MonoApiServiceState, bot_id: i64) -> Result<(), ApiError> {
-    let bot = state
-        .storage
-        .bots_storage()
-        .get_bot_by_id(bot_id)
-        .await
-        .map_err(ApiError::from)?;
+    let bot = state.monorepo().get_bot_by_id(bot_id).await?;
     if bot.is_none() {
         return Err(ApiError::not_found(anyhow!("Bot not found")));
     }
     Ok(())
-}
-
-/// Request body for creating a new bot token.
-#[derive(Deserialize, ToSchema)]
-pub struct CreateBotTokenRequest {
-    /// Human-readable token name for identification.
-    pub token_name: String,
-    /// Optional relative expiry in seconds from now.
-    pub expires_in: Option<i64>,
-}
-
-/// Response body when a bot token is created.
-///
-/// Note: `token_plain` is only returned once and is never stored in plaintext.
-#[derive(Serialize, ToSchema)]
-pub struct CreateBotTokenResponse {
-    pub id: i64,
-    pub token_name: String,
-    pub expires_at: Option<DateTime<Utc>>,
-    pub token_plain: String,
-}
-
-/// Item in the list bot tokens response.
-#[derive(Serialize, ToSchema)]
-pub struct ListBotTokenItem {
-    pub id: i64,
-    pub token_name: String,
-    pub expires_at: Option<DateTime<Utc>>,
-    pub revoked: bool,
-    pub created_at: DateTime<Utc>,
 }
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
@@ -96,18 +62,9 @@ async fn install_bot(
     Path(id): Path<i64>,
     Json(json): Json<InstallBotReq>,
 ) -> Result<Json<CommonResult<BotRes>>, ApiError> {
-    let bot = state
-        .storage
-        .bots_storage()
-        .install_bot(
-            id,
-            json.target_type.into(),
-            json.target_id,
-            json.installed_by,
-        )
-        .await?;
+    let bot = state.monorepo().install_bot(id, json).await?;
 
-    Ok(Json(CommonResult::success(Some(bot.into()))))
+    Ok(Json(CommonResult::success(Some(bot))))
 }
 
 /// Get installed bot
@@ -126,14 +83,7 @@ async fn list_installed_bot(
     state: State<MonoApiServiceState>,
     Path(id): Path<i64>,
 ) -> Result<Json<CommonResult<Vec<BotRes>>>, ApiError> {
-    let models = state
-        .storage
-        .bots_storage()
-        .get_installed_bot_by_id(id)
-        .await?
-        .into_iter()
-        .map(|m| m.into())
-        .collect();
+    let models = state.monorepo().list_installed_bots(id).await?;
 
     Ok(Json(CommonResult::success(Some(models))))
 }
@@ -156,17 +106,11 @@ async fn change_installation_status(
     Json(json): Json<ChangeInstallationStatus>,
 ) -> Result<Json<CommonResult<BotRes>>, ApiError> {
     let model = state
-        .storage
-        .bots_storage()
-        .change_installed_bot_status(
-            id,
-            json.target_type.into(),
-            installation_id,
-            json.status.into(),
-        )
+        .monorepo()
+        .change_bot_installation_status(id, installation_id, json)
         .await?;
 
-    Ok(Json(CommonResult::success(Some(model.into()))))
+    Ok(Json(CommonResult::success(Some(model))))
 }
 
 #[utoipa::path(
@@ -187,9 +131,8 @@ async fn uninstall_bot(
     Json(target_type): Json<InstallationTargetType>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     state
-        .storage
-        .bots_storage()
-        .uninstall_bot(id, target_type.into(), installation_id)
+        .monorepo()
+        .uninstall_bot(id, target_type, installation_id)
         .await?;
 
     Ok(Json(CommonResult::success(Some(
@@ -240,18 +183,10 @@ async fn create_bot_token(
         }
     };
 
-    let (model, token_plain) = state
-        .storage
-        .bots_storage()
+    let resp = state
+        .monorepo()
         .generate_bot_token(bot_id, &req.token_name, expires_at)
         .await?;
-
-    let resp = CreateBotTokenResponse {
-        id: model.id,
-        token_name: model.token_name,
-        expires_at: model.expires_at.map(|dt| dt.with_timezone(&Utc)),
-        token_plain,
-    };
 
     Ok(Json(CommonResult::success(Some(resp))))
 }
@@ -281,18 +216,7 @@ async fn list_bot_tokens(
     ensure_admin(&state, &user).await?;
     ensure_bot_exists(&state, bot_id).await?;
 
-    let tokens = state.storage.bots_storage().list_bot_tokens(bot_id).await?;
-
-    let items = tokens
-        .into_iter()
-        .map(|t| ListBotTokenItem {
-            id: t.id,
-            token_name: t.token_name,
-            expires_at: t.expires_at.map(|dt| dt.with_timezone(&Utc)),
-            revoked: t.revoked,
-            created_at: t.created_at.with_timezone(&Utc),
-        })
-        .collect();
+    let items = state.monorepo().list_bot_tokens(bot_id).await?;
 
     Ok(Json(CommonResult::success(Some(items))))
 }
@@ -323,11 +247,7 @@ async fn revoke_bot_token(
     ensure_admin(&state, &user).await?;
     ensure_bot_exists(&state, bot_id).await?;
 
-    state
-        .storage
-        .bots_storage()
-        .revoke_bot_token(bot_id, token_id)
-        .await?;
+    state.monorepo().revoke_bot_token(bot_id, token_id).await?;
 
     Ok(Json(CommonResult::success(None)))
 }
@@ -357,11 +277,7 @@ async fn revoke_all_bot_tokens(
     ensure_admin(&state, &user).await?;
     ensure_bot_exists(&state, bot_id).await?;
 
-    state
-        .storage
-        .bots_storage()
-        .revoke_bot_tokens_by_bot(bot_id)
-        .await?;
+    state.monorepo().revoke_all_bot_tokens(bot_id).await?;
 
     Ok(Json(CommonResult::success(None)))
 }

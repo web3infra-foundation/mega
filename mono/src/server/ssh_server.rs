@@ -1,9 +1,8 @@
 use std::{collections::HashMap, net::SocketAddr, str::FromStr, sync::Arc};
 
 use bytes::BytesMut;
-use ceres::api_service::{cache::GitObjectCache, state::ProtocolApiState};
+use ceres::{application::api_service::cache::GitObjectCache, transport::ProtocolApiState};
 use clap::Args;
-use context::AppContext;
 use ed25519_dalek::pkcs8::spki::der::pem::LineEnding;
 use russh::{
     Preferred,
@@ -13,7 +12,7 @@ use russh::{
 use tokio::sync::Mutex;
 use vault::integration::vault_core::VaultCoreInterface;
 
-use crate::{git_protocol::ssh::SshServer, server::CommonHttpOptions};
+use crate::{bootstrap::AppContext, git_protocol::ssh::SshServer, server::CommonHttpOptions};
 
 #[derive(Args, Clone, Debug)]
 pub struct SshOptions {

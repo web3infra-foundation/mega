@@ -7,18 +7,14 @@ use axum::{
 };
 use ceres::model::{
     change_list::MuiTreeNode,
-    commit::{CommitBindingResponse, CommitFilesChangedPage, CommitHistoryParams, CommitSummary},
+    commit::{
+        CommitBindingResponse, CommitFilesChangedPage, CommitHistoryParams, CommitSummary,
+        UpdateCommitBindingRequest,
+    },
 };
-use serde::{Deserialize, Serialize};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::{MonoApiServiceState, api_doc::CODE_PREVIEW, error::ApiError};
-
-#[derive(Debug, Deserialize, Serialize, utoipa::ToSchema)]
-pub struct UpdateCommitBindingRequest {
-    pub username: Option<String>,
-    pub is_anonymous: bool,
-}
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new()
@@ -49,31 +45,12 @@ async fn update_commit_binding(
     Path(sha): Path<String>,
     Json(request): Json<UpdateCommitBindingRequest>,
 ) -> Result<Json<CommonResult<CommitBindingResponse>>, ApiError> {
-    let commit_binding_storage = state.storage.commit_binding_storage();
+    let response = state
+        .monorepo()
+        .upsert_commit_binding(&sha, request.username.clone(), request.is_anonymous)
+        .await?;
 
-    // Derive final username from request (ignore username when explicitly anonymous)
-    let final_username = if request.is_anonymous {
-        None
-    } else {
-        request.username.as_ref().and_then(|u| {
-            let t = u.trim();
-            if t.is_empty() || t.eq_ignore_ascii_case("anonymous") {
-                None
-            } else {
-                Some(t.to_string())
-            }
-        })
-    };
-
-    // Update binding with simplified schema (no author_email)
-    commit_binding_storage
-        .upsert_binding(&sha, final_username.clone(), final_username.is_none())
-        .await
-        .map_err(|e| ApiError::from(anyhow::anyhow!("Failed to update binding: {}", e)))?;
-
-    Ok(Json(CommonResult::success(Some(CommitBindingResponse {
-        username: final_username,
-    }))))
+    Ok(Json(CommonResult::success(Some(response))))
 }
 
 /// List commit history with optional refs, path filter, author filter, and pagination.
@@ -114,16 +91,12 @@ async fn list_commit_history(
         ))
     })?;
 
-    let repo_selector = if let Ok(Some(model)) = state
-        .storage
-        .git_db_storage()
-        .find_git_repo_like_path(path_str)
-        .await
-    {
-        PathBuf::from(model.repo_path)
-    } else {
-        abs_path.clone()
-    };
+    let repo_selector =
+        if let Some(model) = state.monorepo().find_git_repo_like_path(path_str).await? {
+            PathBuf::from(model.repo_path)
+        } else {
+            abs_path.clone()
+        };
 
     // Create handler using the repository selector (repo root), not the subdirectory.
     let handler = state.api_handler(&repo_selector).await?;

@@ -6,7 +6,7 @@ use std::{
 use anyhow::Result;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use callisto::sea_orm_active_enums::RefTypeEnum;
-use common::errors::ProtocolError;
+use common::errors::{ProtocolError, mega_to_protocol_error};
 use tokio_stream::wrappers::ReceiverStream;
 
 use crate::{
@@ -303,7 +303,7 @@ impl SmartSession {
                         c.failed(msg.clone());
                     }
                 }
-                return Err(e.into());
+                return Err(mega_to_protocol_error(e));
             }
             finalize_ms = Some(t_finalize.elapsed().as_millis());
 
@@ -523,7 +523,7 @@ pub fn add_pkt_line_string(pkt_line_stream: &mut BytesMut, buf_str: String) {
 ///
 /// ```
 /// use bytes::Bytes;
-/// use ceres::protocol::smart::read_pkt_line;
+/// use ceres::transport::protocol::smart::read_pkt_line;
 ///
 /// let mut bytes = Bytes::from_static(b"000Bexample");
 /// let (length, line) = read_pkt_line(&mut bytes);
@@ -557,7 +557,7 @@ pub mod test {
     use tempfile::TempDir;
     use tokio::{task, time::sleep};
 
-    use crate::protocol::{
+    use crate::transport::protocol::{
         Capability, ServiceType, SmartSession, TransportProtocol,
         import_refs::{CommandType, RefCommand},
         smart::{add_pkt_line_string, read_pkt_line, read_until_white_space},

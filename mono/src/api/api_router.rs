@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use axum::{
     Json,
     body::Body,
@@ -6,8 +6,7 @@ use axum::{
     response::{IntoResponse, Response},
     routing::get,
 };
-use ceres::{api_service::ApiHandler, model::git::TreeQuery};
-use common::errors::MegaError;
+use ceres::{application::api_service::ApiHandler, model::git::TreeQuery};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::{
@@ -73,19 +72,13 @@ pub async fn get_blob_file(
 ) -> Result<Response, ApiError> {
     let api_handler = state.monorepo();
 
-    let result = api_handler.get_raw_blob_by_hash(&oid).await;
+    let data = api_handler.get_raw_blob_by_hash(&oid).await?;
     let file_name = format!("inline; filename=\"{oid}\"");
-    match result {
-        Ok(data) => Ok(Response::builder()
-            .header("Content-Type", "application/octet-stream")
-            .header("Content-Disposition", file_name)
-            .body(Body::from(data))
-            .unwrap()),
-        Err(e) => match e {
-            MegaError::ObjStorageNotFound(_) => Err(ApiError::not_found(anyhow!("error={}", e))),
-            _ => Err(ApiError::internal(anyhow!("error={}", e))),
-        },
-    }
+    Ok(Response::builder()
+        .header("Content-Type", "application/octet-stream")
+        .header("Content-Disposition", file_name)
+        .body(Body::from(data))
+        .unwrap())
 }
 
 // Tree Objects Download

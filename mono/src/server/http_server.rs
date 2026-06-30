@@ -11,11 +11,10 @@ use axum::{
     routing::any,
 };
 use ceres::{
-    api_service::{cache::GitObjectCache, state::ProtocolApiState},
-    application::artifact::ArtifactApplicationService,
+    application::{api_service::cache::GitObjectCache, artifact::ArtifactApplicationService},
+    transport::ProtocolApiState,
 };
 use common::errors::ProtocolError;
-use context::AppContext;
 use http::{HeaderName, HeaderValue, Method};
 use orion_client::OrionBuildClient;
 use saturn::entitystore::EntityStore;
@@ -29,7 +28,7 @@ use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_swagger_ui::SwaggerUi;
 
-use super::super::notification::EmailDispatcher;
+use super::super::notification::{EmailDispatcher, EmailMailer};
 use crate::{
     api::{
         MonoApiServiceState,
@@ -42,7 +41,8 @@ use crate::{
         },
         router::lfs_router,
     },
-    email::{Mailer, NoopMailer, SmtpMailer},
+    bootstrap::AppContext,
+    email::{NoopMailer, SmtpMailer},
     git_protocol::InfoRefsParams,
     server::{CommonHttpOptions, trace_context},
 };
@@ -122,7 +122,7 @@ fn spawn_cleanup_task(ctx: AppContext, token: CancellationToken) -> Option<JoinH
 fn spawn_email_dispatcher_task(ctx: AppContext, token: CancellationToken) -> JoinHandle<()> {
     // Build a mailer (Default to NoopMailer if config missing or invalid)
     let cfg = ctx.storage.config();
-    let mailer: Arc<dyn Mailer> = if let Some(mail_cfg) = &cfg.mail {
+    let mailer: Arc<dyn EmailMailer> = if let Some(mail_cfg) = &cfg.mail {
         match SmtpMailer::new(mail_cfg) {
             Ok(m) => Arc::new(m),
             Err(e) => {
@@ -384,9 +384,10 @@ pub async fn app(ctx: AppContext, host: String, port: u16) -> Router {
         prefix: "git-object-rkyv:v1".to_string(),
     });
 
-    let api_state = MonoApiServiceState {
-        storage: storage.clone(),
-        session_store: Some(match oauth_config.api_store_backend {
+    let api_state = MonoApiServiceState::new(
+        storage.clone(),
+        git_object_cache,
+        Some(match oauth_config.api_store_backend {
             common::config::OauthApiStoreBackend::Campsite => {
                 OAuthApiStore::Campsite(CampsiteApiStore::new(oauth_config.campsite_api_domain))
             }
@@ -394,11 +395,10 @@ pub async fn app(ctx: AppContext, host: String, port: u16) -> Router {
                 OAuthApiStore::Tinyship(TinyshipApiStore::new(oauth_config.tinyship_api_domain))
             }
         }),
-        listen_addr: format!("http://{host}:{port}"),
-        entity_store: EntityStore::new(),
-        git_object_cache,
-        orion_client: Arc::new(OrionBuildClient::new(storage.config().build.clone())),
-    };
+        format!("http://{host}:{port}"),
+        EntityStore::new(),
+        Arc::new(OrionBuildClient::new(storage.config().build.clone())),
+    );
 
     let origins: Vec<HeaderValue> = oauth_config
         .allowed_cors_origins
@@ -432,8 +432,16 @@ pub async fn app(ctx: AppContext, host: String, port: u16) -> Router {
             "/{*path}",
             any({
                 let api_state = api_state.clone();
-                move |req: Request<Body>| {
-                    handle_smart_protocol(req, Arc::new(ProtocolApiState::from_ref(&api_state)))
+                move |req: Request<Body>| async move {
+                    match handle_smart_protocol(
+                        req,
+                        Arc::new(ProtocolApiState::from_ref(&api_state)),
+                    )
+                    .await
+                    {
+                        Ok(response) => response,
+                        Err(err) => crate::git_protocol::protocol_error::into_response(err),
+                    }
                 }
             }),
         )

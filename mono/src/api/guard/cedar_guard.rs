@@ -7,14 +7,13 @@ use axum::{
 };
 use cedar_policy::{Context, EntityId, EntityTypeName, EntityUid};
 use common::errors::MegaError;
-use http::StatusCode;
 use once_cell::sync::Lazy;
 use saturn::{ActionEnum, context::CedarContext, entitystore::EntityStore, util::SaturnEUid};
 
 use crate::api::{
     MonoApiServiceState,
     error::ApiError,
-    oauth::{BotIdentity, model::LoginUser},
+    oauth::{BotAuth, model::LoginUser},
 };
 
 // TODO: All users are temporary allowed during development stage
@@ -117,10 +116,7 @@ pub async fn cedar_guard(
 
     let (action, link) = resolve_cl_action(&request_path).map_err(|e| {
         tracing::error!("Failed to resolve CL action: {}", e);
-        ApiError::with_status(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            MegaError::Other("Failed to resolve CL action".to_string()),
-        )
+        ApiError::from(e)
     })?;
     tracing::debug!("Resolved action: {:?}, link: {}", action, link);
 
@@ -141,8 +137,8 @@ pub async fn cedar_guard(
     let (mut parts, body) = req.into_parts();
 
     let (principal_type, principal_id) =
-        if let Ok(bot) = BotIdentity::from_request_parts(&mut parts, &state).await {
-            ("Bot".to_string(), bot.bot.id.to_string())
+        if let Ok(bot) = BotAuth::from_request_parts(&mut parts, &state).await {
+            ("Bot".to_string(), bot.bot_id.to_string())
         } else if let Ok(user) = LoginUser::from_request_parts(&mut parts, &state).await {
             ("User".to_string(), user.username.clone())
         } else {
@@ -164,17 +160,16 @@ pub async fn cedar_guard(
                 &principal_id,
                 &action.to_string()
             );
-            ApiError::with_status(
-                StatusCode::UNAUTHORIZED,
-                MegaError::Other(format!("Guard Authorization failed: {}", e)),
-            )
+            ApiError::from(MegaError::forbidden(format!(
+                "Guard Authorization failed: {e}"
+            )))
         })?;
 
     let req = Request::from_parts(parts, body);
     let response = next.run(req).await;
 
     if response.status().is_client_error() {
-        tracing::error!(
+        tracing::warn!(
             status = %response.status(),
             path = %request_path,
             "Downstream returned a 4xx error"
@@ -211,7 +206,7 @@ async fn authorize(
 
     cedar_context
         .is_authorized(&principal, &action, &resource, context)
-        .map_err(|e| MegaError::Other(format!("Authorization failed: {}", e)))?;
+        .map_err(|e| MegaError::forbidden(format!("Authorization failed: {e}")))?;
 
     Ok(())
 }

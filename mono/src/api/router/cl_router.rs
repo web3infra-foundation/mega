@@ -12,7 +12,6 @@ use ceres::model::{
     issue::ItemRes,
     label::LabelUpdatePayload,
 };
-use common::errors::MegaError;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::{
@@ -150,14 +149,10 @@ async fn fetch_cl_list(
     state: State<MonoApiServiceState>,
     Json(json): Json<PageParams<ListPayload>>,
 ) -> Result<Json<CommonResult<CommonPage<ItemRes>>>, ApiError> {
-    let (items, total) = state
-        .cl_stg()
-        .get_cl_list(json.additional.into(), json.pagination)
+    let res = state
+        .monorepo()
+        .get_cl_list(json.additional, json.pagination)
         .await?;
-    let res = CommonPage {
-        items: items.into_iter().map(|m| m.into()).collect(),
-        total,
-    };
     Ok(Json(CommonResult::success(Some(res))))
 }
 
@@ -252,11 +247,7 @@ async fn cl_files_list(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<Vec<ClFilesRes>>>, ApiError> {
-    let cl = state
-        .cl_stg()
-        .get_cl(&link)
-        .await?
-        .ok_or(MegaError::Other("CL Not Found".to_string()))?;
+    let cl = state.monorepo().get_cl_model(&link).await?;
 
     let stg = state.monorepo();
     let old_files = stg.get_commit_blobs(&cl.from_hash).await?;

@@ -330,10 +330,11 @@ impl NotificationStorage {
 #[cfg(test)]
 mod tests {
     use callisto::notification_event_types;
+    use jupiter_migrate::apply_migrations;
     use sea_orm::{ActiveModelTrait, Set};
 
     use super::*;
-    use crate::{migration::apply_migrations, tests::test_db_connection};
+    use crate::tests::test_db_connection;
 
     #[tokio::test]
     async fn test_should_send_logic() {

@@ -15,7 +15,7 @@ use tokio::sync::RwLock;
 
 use crate::{
     bus::TransportRuntime,
-    pack::{RepoHandler, import_repo::ImportRepo, monorepo::MonoRepo},
+    transport::pack::{RepoHandler, import_repo::ImportRepo, monorepo::MonoRepo},
 };
 
 pub mod import_refs;
@@ -228,4 +228,37 @@ impl SmartSession {
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use std::str::FromStr;
+
+    use super::{Capability, ServiceType, SideBind};
+
+    #[test]
+    fn service_type_from_str_parses_known_services() {
+        assert_eq!(
+            ServiceType::from_str("git-upload-pack").unwrap(),
+            ServiceType::UploadPack
+        );
+        assert_eq!(
+            ServiceType::from_str("git-receive-pack").unwrap(),
+            ServiceType::ReceivePack
+        );
+        assert!(ServiceType::from_str("git-invalid").is_err());
+    }
+
+    #[test]
+    fn capability_from_str_parses_known_values() {
+        assert_eq!(
+            Capability::from_str("report-status-v2").unwrap(),
+            Capability::ReportStatusv2
+        );
+        assert!(Capability::from_str("unknown-cap").is_err());
+    }
+
+    #[test]
+    fn side_bind_values_match_git_sideband_codes() {
+        assert_eq!(SideBind::PackfileData.value(), 1);
+        assert_eq!(SideBind::ProgressInfo.value(), 2);
+        assert_eq!(SideBind::Error.value(), 3);
+    }
+}

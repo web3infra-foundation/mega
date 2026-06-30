@@ -45,12 +45,12 @@ async fn get_my_permission(
 ) -> Result<Json<CommonResult<UserEffectivePermissionResponse>>, ApiError> {
     let actor = user.username;
 
-    let (db_resource_type, resource_type_value, normalized_id) =
+    let (resource_type_value, normalized_id) =
         resolve_resource_context(&state, &resource_type, &resource_id).await?;
 
     let effective = state
         .monorepo()
-        .get_user_effective_permission(&actor, db_resource_type, &normalized_id)
+        .get_user_effective_permission(&actor, resource_type_value.into(), &normalized_id)
         .await?;
 
     let response = build_user_effective_permission_response(

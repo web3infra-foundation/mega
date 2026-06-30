@@ -204,13 +204,11 @@ mod tests {
     use api_model::common::Pagination;
     use chrono::Utc;
     use idgenerator::IdInstance;
+    use jupiter_migrate::apply_migrations;
     use tempfile::TempDir;
 
     use super::*;
-    use crate::{
-        migration::apply_migrations,
-        tests::{test_db_connection, test_storage},
-    };
+    use crate::tests::{test_db_connection, test_storage};
 
     #[test]
     fn test_normalize_event_types_dedupes() {

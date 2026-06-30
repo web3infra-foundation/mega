@@ -5,21 +5,20 @@ use std::{
 
 use axum::extract::FromRef;
 use ceres::{
-    api_service::{
-        ApiHandler, cache::GitObjectCache, import_api_service::ImportApiService,
-        mono::MonoApiService, state::ProtocolApiState,
+    application::{
+        api_service::{
+            ApiHandler,
+            cache::GitObjectCache,
+            import_api_service::ImportApiService,
+            mono::{MonoApiService, MonoAppServices},
+        },
+        artifact::ArtifactApplicationService,
+        build_trigger::service::BuildTriggerService,
     },
-    application::artifact::ArtifactApplicationService,
-    build_trigger::service::BuildTriggerService,
-    protocol::repo::Repo,
+    transport::{ProtocolApiState, protocol::repo::Repo},
 };
-use common::errors::ProtocolError;
-use jupiter::storage::{
-    NotificationStorage, Storage, cl_storage::ClStorage, conversation_storage::ConversationStorage,
-    dynamic_sidebar_storage::DynamicSidebarStorage, gpg_storage::GpgStorage,
-    issue_storage::IssueStorage, note_storage::NoteStorage, user_storage::UserStorage,
-    webhook_storage::WebhookStorage,
-};
+use common::errors::MegaError;
+use jupiter::storage::{Storage, user_storage::UserStorage};
 use orion_client::OrionBuildClient;
 use saturn::entitystore::EntityStore;
 use tower_sessions::MemoryStore;
@@ -36,12 +35,93 @@ pub mod router;
 
 #[derive(Clone)]
 pub struct MonoApiServiceState {
-    pub storage: Storage,
-    pub git_object_cache: Arc<GitObjectCache>,
-    pub session_store: Option<OAuthApiStore>,
-    pub listen_addr: String,
-    pub entity_store: EntityStore,
-    pub orion_client: Arc<OrionBuildClient>,
+    services: MonoAppServices,
+    storage: Storage,
+    git_object_cache: Arc<GitObjectCache>,
+    session_store: Option<OAuthApiStore>,
+    listen_addr: String,
+    entity_store: EntityStore,
+    orion_client: Arc<OrionBuildClient>,
+}
+
+impl MonoApiServiceState {
+    pub fn new(
+        storage: Storage,
+        git_object_cache: Arc<GitObjectCache>,
+        session_store: Option<OAuthApiStore>,
+        listen_addr: String,
+        entity_store: EntityStore,
+        orion_client: Arc<OrionBuildClient>,
+    ) -> Self {
+        Self {
+            services: MonoAppServices::new(storage.clone(), git_object_cache.clone()),
+            storage,
+            git_object_cache,
+            session_store,
+            listen_addr,
+            entity_store,
+            orion_client,
+        }
+    }
+
+    pub fn listen_addr(&self) -> &str {
+        &self.listen_addr
+    }
+
+    pub(crate) fn lfs_db_storage(&self) -> jupiter::storage::lfs_db_storage::LfsDbStorage {
+        self.storage.lfs_db_storage()
+    }
+
+    pub(crate) fn lfs_service(&self) -> jupiter::service::lfs_service::LfsService {
+        self.storage.lfs_service.clone()
+    }
+
+    pub fn monorepo(&self) -> MonoApiService {
+        self.services.monorepo().clone()
+    }
+
+    pub fn services(&self) -> &MonoAppServices {
+        &self.services
+    }
+
+    pub fn artifact_app_service(&self) -> ArtifactApplicationService {
+        ArtifactApplicationService::from_storage(&self.storage)
+    }
+
+    pub fn build_trigger_service(&self) -> BuildTriggerService {
+        BuildTriggerService::new(
+            self.storage.clone(),
+            self.git_object_cache.clone(),
+            self.orion_client.clone(),
+        )
+    }
+
+    pub(crate) async fn api_handler(&self, path: &Path) -> Result<Box<dyn ApiHandler>, MegaError> {
+        let path = if path.has_root() {
+            path.to_path_buf()
+        } else {
+            PathBuf::from("/").join(path)
+        };
+
+        let path_str = path
+            .to_str()
+            .ok_or_else(|| MegaError::bad_request("Invalid repository path"))?;
+
+        let import_dir = self.monorepo().import_dir();
+        if path.starts_with(&import_dir)
+            && path != import_dir
+            && let Some(model) = self.monorepo().find_git_repo_like_path(path_str).await?
+        {
+            let repo: Repo = model.into();
+            return Ok(Box::new(ImportApiService {
+                storage: self.storage.clone(),
+                repo,
+                git_object_cache: self.git_object_cache.clone(),
+            }));
+        }
+
+        Ok(Box::new(self.monorepo()) as Box<dyn ApiHandler>)
+    }
 }
 
 impl FromRef<MonoApiServiceState> for MemoryStore {
@@ -70,102 +150,12 @@ impl FromRef<MonoApiServiceState> for EntityStore {
 
 impl From<&MonoApiServiceState> for MonoApiService {
     fn from(state: &MonoApiServiceState) -> Self {
-        MonoApiService {
-            storage: state.storage.clone(),
-            git_object_cache: state.git_object_cache.clone(),
-        }
+        state.monorepo()
     }
 }
 
 impl FromRef<MonoApiServiceState> for ProtocolApiState {
     fn from_ref(state: &MonoApiServiceState) -> ProtocolApiState {
         ProtocolApiState::new(state.storage.clone(), state.git_object_cache.clone())
-    }
-}
-
-impl MonoApiServiceState {
-    fn monorepo(&self) -> MonoApiService {
-        self.into()
-    }
-
-    fn issue_stg(&self) -> IssueStorage {
-        self.storage.issue_storage()
-    }
-
-    fn gpg_stg(&self) -> GpgStorage {
-        self.storage.gpg_storage()
-    }
-
-    fn cl_stg(&self) -> ClStorage {
-        self.storage.cl_storage()
-    }
-
-    fn user_stg(&self) -> UserStorage {
-        self.storage.user_storage()
-    }
-
-    fn notification_stg(&self) -> NotificationStorage {
-        self.storage.notification_storage()
-    }
-
-    fn conv_stg(&self) -> ConversationStorage {
-        self.storage.conversation_storage()
-    }
-
-    fn note_stg(&self) -> NoteStorage {
-        self.storage.note_storage()
-    }
-
-    fn webhook_stg(&self) -> WebhookStorage {
-        self.storage.webhook_storage()
-    }
-
-    fn dynamic_sidebar_stg(&self) -> DynamicSidebarStorage {
-        self.storage.dynamic_sidebar_storage()
-    }
-
-    pub fn artifact_app_service(&self) -> ArtifactApplicationService {
-        ArtifactApplicationService::from_storage(&self.storage)
-    }
-
-    pub fn build_trigger_service(&self) -> BuildTriggerService {
-        BuildTriggerService::new(
-            self.storage.clone(),
-            self.git_object_cache.clone(),
-            self.orion_client.clone(),
-        )
-    }
-
-    async fn api_handler(&self, path: &Path) -> Result<Box<dyn ApiHandler>, ProtocolError> {
-        // Normalize path to ensure it has a root component
-        let path = if path.has_root() {
-            path.to_path_buf()
-        } else {
-            PathBuf::from("/").join(path)
-        };
-
-        let import_dir = self.storage.config().monorepo.import_dir.clone();
-        if path.starts_with(&import_dir)
-            && path != import_dir
-            && let Some(model) = self
-                .storage
-                .git_db_storage()
-                .find_git_repo_like_path(path.to_str().unwrap())
-                .await
-                .unwrap()
-        {
-            let repo: Repo = model.into();
-            return Ok(Box::new(ImportApiService {
-                storage: self.storage.clone(),
-                repo,
-                git_object_cache: self.git_object_cache.clone(),
-            }));
-        }
-        let ret: Box<dyn ApiHandler> = Box::<MonoApiService>::new(self.into());
-
-        // Rust-analyzer cannot infer the type of `ret` correctly and always reports an error.
-        // Use `.into()` to workaround this issue.
-        #[allow(clippy::useless_conversion)]
-        Ok(ret.into())
     }
 }

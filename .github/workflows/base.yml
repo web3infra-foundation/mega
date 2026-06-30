@@ -85,6 +85,45 @@ jobs:
         with:
           shared-key: base-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           cache-on-failure: true
+      - name: Enforce DTO boundary (mono must not import jupiter::model)
+        run: |
+          if rg -q 'jupiter::model' mono/; then
+            echo "mono must not depend on jupiter::model; use ceres::model and MonoApiService facades"
+            rg 'jupiter::model' mono/
+            exit 1
+          fi
+      - name: Enforce module dependency boundaries
+        run: |
+          if rg -q 'use callisto::' mono/src/; then
+            echo "mono/src must not import callisto directly; use ceres::model and MonoApiService facades"
+            rg 'use callisto::' mono/src/
+            exit 1
+          fi
+          if rg -q 'jupiter::service::' mono/src/; then
+            echo "mono/src must not import jupiter::service directly; use MonoApiService facades"
+            rg 'jupiter::service::' mono/src/
+            exit 1
+          fi
+          if rg -q 'api_service::mono::MonoApiService' ceres/src/transport/; then
+            echo "ceres transport must not depend on MonoApiService"
+            rg 'api_service::mono::MonoApiService' ceres/src/transport/
+            exit 1
+          fi
+          if rg -q 'use crate::(pack|transport)' ceres/src/application/; then
+            echo "ceres application must not import transport/pack directly"
+            rg 'use crate::(pack|transport)' ceres/src/application/
+            exit 1
+          fi
+          if rg --glob '!lfs_router.rs' -q '\.storage\.|_stg\(\)' mono/src/api/router/; then
+            echo "mono routers must use MonoApiService facades, not storage"
+            rg --glob '!lfs_router.rs' '\.storage\.|_stg\(\)' mono/src/api/router/
+            exit 1
+          fi
+          if rg -q 'ceres::(api_service|pack|protocol|build_trigger|code_edit)' mono/; then
+            echo "mono must use ceres::application::* and ceres::transport::* instead of legacy re-exports"
+            rg 'ceres::(api_service|pack|protocol|build_trigger|code_edit)' mono/
+            exit 1
+          fi
       - name: Run cargo clippy
         run: |
           sccache --start-server || true

@@ -1,15 +1,28 @@
-# Mega - Monorepo Engine for Enterprise and Individual
+# Mega Documentation
 
-# Contents
+## Getting started
 
-1. [Philosophy](philosophy.md)
-2. [Getting Started](getting-started.md)  
-3. [Deployment](deployment.md)
-4. [Troubleshooting](troubleshooting.md)
-5. [Development](development.md)
-6. [Database](database.md)
-7. [API](api.md)
-8. [Contributing](contributing.md)
-9. [Code of Conduct](code-of-conduct.md)
-10. [Security](security.md)
-11. [FAQ](faq.md)
+- [Getting Started](getting-started.md) — quick pointers
+- [Docker demo](../docker/README.md) — recommended first run
+- [Development](development.md) — native build and test
+- [Orion deployment](../orion/docs/deployment.md) — build runner setup
+
+## Architecture and APIs
+
+- [Architecture](architecture.md) — workspace layout, runtime, Swagger
+- [LFS API](lfs-api.md) — Git LFS endpoints
+- [Artifacts protocol](artifacts-protocol.md) (EN) · [Artifacts protocol (CN)](artifacts-protocol-CN.md)
+- [Orion ↔ Mega object access](orion-mega-object-access.md) (draft)
+
+## Contributing and community
+
+- [Contributing](contributing.md)
+- [Code of Conduct](code-of-conduct.md)
+- [Security](security.md)
+- [Agent harness](agent.md) — AI agent workflow notes (CN)
+- [Troubleshooting](troubleshooting.md)
+
+## Work in progress
+
+- [Philosophy](philosophy.md)
+- [FAQ](faq.md)

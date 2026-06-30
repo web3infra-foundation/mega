@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use api_model::common::{CommonPage, CommonResult, PageParams, Pagination};
+use api_model::common::{CommonPage, CommonResult, PageParams};
 use axum::{
     Json,
     extract::{Path, State},
@@ -9,9 +9,6 @@ use ceres::model::group::{
     EmptyListAdditional, GroupMemberResponse, GroupResponse, RemoveMemberResponse,
     ResourcePermissionResponse, SetPermissionsRequest, UpdateGroupRequest,
     UserEffectivePermissionResponse, UserGroupsResponse,
-};
-use jupiter::model::group_dto::{
-    CreateGroupPayload, ResourcePermissionBinding, UpdateGroupPayload,
 };
 use utoipa_axum::{router::OpenApiRouter, routes};
 
@@ -66,38 +63,7 @@ async fn create_group(
 ) -> Result<Json<CommonResult<GroupResponse>>, ApiError> {
     ensure_admin(&state, &user).await?;
 
-    let name = req.name.trim();
-    if name.is_empty() {
-        tracing::warn!(
-            actor = %user.username,
-            "group.create rejected: empty group name"
-        );
-        return Err(ApiError::bad_request(anyhow!(
-            "Group name must not be empty"
-        )));
-    }
-    if name.len() > 255 {
-        tracing::warn!(
-            actor = %user.username,
-            "group.create rejected: name too long"
-        );
-        return Err(ApiError::bad_request(anyhow!(
-            "Group name must not exceed 255 characters"
-        )));
-    }
-
-    let description = req
-        .description
-        .map(|item| item.trim().to_string())
-        .and_then(|item| if item.is_empty() { None } else { Some(item) });
-
-    let group = state
-        .monorepo()
-        .create_group(CreateGroupPayload {
-            name: name.to_string(),
-            description,
-        })
-        .await?;
+    let group = state.monorepo().create_group(req).await?;
 
     Ok(Json(CommonResult::success(Some(group.into()))))
 }
@@ -120,7 +86,6 @@ async fn list_groups(
     Json(json): Json<PageParams<EmptyListAdditional>>,
 ) -> Result<Json<CommonResult<CommonPage<GroupResponse>>>, ApiError> {
     ensure_admin(&state, &user).await?;
-    validate_pagination(&json.pagination)?;
 
     let (items, total) = state.monorepo().list_groups(json.pagination).await?;
     let items = items.into_iter().map(Into::into).collect();
@@ -193,40 +158,13 @@ async fn update_group(
 ) -> Result<Json<CommonResult<GroupResponse>>, ApiError> {
     ensure_admin(&state, &user).await?;
 
-    let name = req.name.trim();
-    if name.is_empty() {
-        tracing::warn!(
-            actor = %user.username,
-            group_id,
-            "group.update rejected: empty group name"
-        );
-        return Err(ApiError::bad_request(anyhow!(
-            "Group name must not be empty"
-        )));
-    }
-    if name.len() > 255 {
-        tracing::warn!(
-            actor = %user.username,
-            group_id,
-            "group.update rejected: name too long"
-        );
-        return Err(ApiError::bad_request(anyhow!(
-            "Group name must not exceed 255 characters"
-        )));
-    }
-
-    let description = req
-        .description
-        .map(|item| item.trim().to_string())
-        .and_then(|item| if item.is_empty() { None } else { Some(item) });
-
     let updated = state
         .monorepo()
         .update_group(
             group_id,
-            UpdateGroupPayload {
-                name: name.to_string(),
-                description,
+            UpdateGroupRequest {
+                name: req.name,
+                description: req.description,
             },
         )
         .await?;
@@ -288,16 +226,6 @@ async fn add_group_members(
     Json(req): Json<AddMembersRequest>,
 ) -> Result<Json<CommonResult<Vec<GroupMemberResponse>>>, ApiError> {
     ensure_admin(&state, &user).await?;
-    if req.usernames.is_empty() {
-        tracing::warn!(
-            actor = %user.username,
-            group_id,
-            "group.members.add rejected: empty usernames"
-        );
-        return Err(ApiError::bad_request(anyhow!(
-            "usernames must not be empty"
-        )));
-    }
 
     let members = state
         .monorepo()
@@ -364,7 +292,6 @@ async fn list_group_members(
     Json(json): Json<PageParams<EmptyListAdditional>>,
 ) -> Result<Json<CommonResult<CommonPage<GroupMemberResponse>>>, ApiError> {
     ensure_admin(&state, &user).await?;
-    validate_pagination(&json.pagination)?;
 
     let (items, total) = state
         .monorepo()
@@ -402,21 +329,12 @@ async fn set_resource_permissions(
     Json(req): Json<SetPermissionsRequest>,
 ) -> Result<Json<CommonResult<Vec<ResourcePermissionResponse>>>, ApiError> {
     ensure_admin(&state, &user).await?;
-    let (resource_type, _, resource_id) =
+    let (resource_type_value, resource_id) =
         resolve_resource_context(&state, resource_type.as_str(), &resource_id).await?;
-
-    let permissions = req
-        .permissions
-        .into_iter()
-        .map(|item| ResourcePermissionBinding {
-            group_id: item.group_id,
-            permission: item.permission.into(),
-        })
-        .collect();
 
     let saved = state
         .monorepo()
-        .set_resource_permission(resource_type, &resource_id, permissions)
+        .set_resource_permission(resource_type_value.into(), &resource_id, req.permissions)
         .await?;
     let saved = saved.into_iter().map(Into::into).collect();
 
@@ -445,12 +363,12 @@ async fn get_resource_permissions(
     Path((resource_type, resource_id)): Path<(String, String)>,
 ) -> Result<Json<CommonResult<Vec<ResourcePermissionResponse>>>, ApiError> {
     ensure_admin(&state, &user).await?;
-    let (resource_type, _, resource_id) =
+    let (resource_type_value, resource_id) =
         resolve_resource_context(&state, resource_type.as_str(), &resource_id).await?;
 
     let permissions = state
         .monorepo()
-        .get_resource_permissions(resource_type, &resource_id)
+        .get_resource_permissions(resource_type_value.into(), &resource_id)
         .await?;
     let permissions = permissions.into_iter().map(Into::into).collect();
 
@@ -481,21 +399,12 @@ async fn update_resource_permissions(
     Json(req): Json<SetPermissionsRequest>,
 ) -> Result<Json<CommonResult<Vec<ResourcePermissionResponse>>>, ApiError> {
     ensure_admin(&state, &user).await?;
-    let (resource_type, _, resource_id) =
+    let (resource_type_value, resource_id) =
         resolve_resource_context(&state, resource_type.as_str(), &resource_id).await?;
-
-    let permissions = req
-        .permissions
-        .into_iter()
-        .map(|item| ResourcePermissionBinding {
-            group_id: item.group_id,
-            permission: item.permission.into(),
-        })
-        .collect();
 
     let updated = state
         .monorepo()
-        .update_resource_permissions(resource_type, &resource_id, permissions)
+        .update_resource_permissions(resource_type_value.into(), &resource_id, req.permissions)
         .await?;
     let updated = updated.into_iter().map(Into::into).collect();
 
@@ -524,12 +433,12 @@ async fn delete_resource_permissions(
     Path((resource_type, resource_id)): Path<(String, String)>,
 ) -> Result<Json<CommonResult<DeletePermissionsResponse>>, ApiError> {
     ensure_admin(&state, &user).await?;
-    let (resource_type, resource_type_value, resource_id) =
+    let (resource_type_value, resource_id) =
         resolve_resource_context(&state, resource_type.as_str(), &resource_id).await?;
 
     let deleted_count = state
         .monorepo()
-        .delete_resource_permissions(resource_type, &resource_id)
+        .delete_resource_permissions(resource_type_value.into(), &resource_id)
         .await?;
 
     Ok(Json(CommonResult::success(Some(
@@ -593,12 +502,12 @@ async fn get_user_effective_permission(
     Path((username, resource_type, resource_id)): Path<(String, String, String)>,
 ) -> Result<Json<CommonResult<UserEffectivePermissionResponse>>, ApiError> {
     ensure_admin(&state, &user).await?;
-    let (resource_type, resource_type_value, resource_id) =
+    let (resource_type_value, resource_id) =
         resolve_resource_context(&state, resource_type.as_str(), &resource_id).await?;
 
     let effective = state
         .monorepo()
-        .get_user_effective_permission(&username, resource_type, &resource_id)
+        .get_user_effective_permission(&username, resource_type_value.into(), &resource_id)
         .await?;
     let response = build_user_effective_permission_response(
         username,
@@ -608,20 +517,4 @@ async fn get_user_effective_permission(
     );
 
     Ok(Json(CommonResult::success(Some(response))))
-}
-
-fn validate_pagination(pagination: &Pagination) -> Result<(), ApiError> {
-    if pagination.page == 0 {
-        tracing::warn!("invalid pagination.page: {}", pagination.page);
-        return Err(ApiError::bad_request(anyhow!(
-            "pagination.page must be >= 1"
-        )));
-    }
-    if pagination.per_page == 0 {
-        tracing::warn!("invalid pagination.per_page: {}", pagination.per_page);
-        return Err(ApiError::bad_request(anyhow!(
-            "pagination.per_page must be >= 1"
-        )));
-    }
-    Ok(())
 }

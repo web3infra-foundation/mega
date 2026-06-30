@@ -1,6 +1,5 @@
 use api_model::common::CommonResult;
 use axum::{Json, extract::State};
-use callisto::gpg_key::Model;
 use ceres::model::gpg::{GpgKey, NewGpgRequest, RemoveGpgRequest};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
@@ -31,7 +30,7 @@ async fn remove_gpg(
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     // let uid = "exampleid".to_string();
     let uid = user.campsite_user_id.clone();
-    state.gpg_stg().remove_gpg_key(uid, req.key_id).await?;
+    state.monorepo().remove_gpg_key(uid, req.key_id).await?;
     Ok(Json(CommonResult::success(None)))
 }
 
@@ -52,7 +51,7 @@ async fn add_gpg(
     // let uid = "exampleid".to_string();
     let uid = user.campsite_user_id.clone();
     println!("Adding GPG key for user: {}", req.gpg_content.clone());
-    state.gpg_stg().add_gpg_key(uid, req.gpg_content).await?;
+    state.monorepo().add_gpg_key(uid, req.gpg_content).await?;
 
     Ok(Json(CommonResult::success(None)))
 }
@@ -70,19 +69,7 @@ async fn list_gpg(
 ) -> Result<Json<CommonResult<Vec<GpgKey>>>, ApiError> {
     // let uid = "exampleid".to_string();
     let uid = user.campsite_user_id;
-    let raw_keys = state.gpg_stg().list_user_gpg(uid.clone()).await;
-
-    let res: Vec<GpgKey> = raw_keys
-        .into_iter()
-        .flatten()
-        .map(|k: Model| GpgKey {
-            user_id: uid.clone(),
-            key_id: k.key_id,
-            fingerprint: k.fingerprint,
-            created_at: k.created_at.and_utc(),
-            expires_at: k.expires_at.map(|dt| dt.and_utc()),
-        })
-        .collect();
+    let res = state.monorepo().list_user_gpg_keys(uid).await?;
 
     Ok(Json(CommonResult::success(Some(res))))
 }

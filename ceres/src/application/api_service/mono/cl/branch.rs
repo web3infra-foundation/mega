@@ -20,11 +20,13 @@ use jupiter::utils::converter::FromMegaModel;
 use tracing::debug;
 
 use crate::{
-    api_service::mono::{
-        MonoApiService,
-        types::{ApplyChangeContext, RefUpdate, TreeUpdateResult},
+    application::{
+        api_service::mono::{
+            MonoApiService,
+            types::{ApplyChangeContext, RefUpdate, TreeUpdateResult},
+        },
+        code_edit::utils as edit_utils,
     },
-    code_edit::utils as edit_utils,
     model::change_list::{ClDiffFile, UpdateBranchStatusRes},
 };
 
@@ -463,8 +465,10 @@ impl MonoApiService {
 
         let main_ref = match self.storage.mono_storage().get_main_ref(&cl.path).await? {
             Some(r) => r,
-            None if crate::api_service::mono::cl_merge::path_lacks_main_ref(self, &cl.path)
-                .await? =>
+            None if crate::application::api_service::mono::cl_merge::path_lacks_main_ref(
+                self, &cl.path,
+            )
+            .await? =>
             {
                 return Ok(UpdateBranchStatusRes {
                     base_commit: cl.from_hash.clone(),

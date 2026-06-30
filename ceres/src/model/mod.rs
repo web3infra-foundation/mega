@@ -1,3 +1,4 @@
+pub mod admin;
 pub mod blame;
 pub mod bots;
 pub mod buck;
@@ -12,7 +13,9 @@ pub mod group;
 pub mod issue;
 pub mod label;
 pub mod merge_queue;
+pub mod note;
 pub mod notification;
 pub mod tag;
 pub mod third_party;
 pub mod user;
+pub mod webhook;

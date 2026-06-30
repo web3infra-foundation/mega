@@ -20,7 +20,7 @@
 //! # Usage
 //!
 //! ```rust,ignore
-//! use jupiter::migrator::apply_migrations;
+//! use jupiter_migrate::apply_migrations;
 //!
 //! // Apply pending migrations
 //! apply_migrations(&db, false).await?;

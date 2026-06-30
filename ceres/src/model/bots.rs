@@ -2,6 +2,7 @@ use callisto::{
     bot_installations,
     sea_orm_active_enums::{InstallationBotStatusEnum, InstallationTargetTypeEnum},
 };
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -87,4 +88,50 @@ impl From<InstallationTargetType> for InstallationTargetTypeEnum {
             InstallationTargetType::Repository => InstallationTargetTypeEnum::Repository,
         }
     }
+}
+
+/// Authenticated bot principal resolved from a `bot_` bearer token.
+#[derive(Debug, Clone)]
+pub struct BotIdentity {
+    pub bot_id: i64,
+    pub token_id: i64,
+}
+
+impl BotIdentity {
+    pub fn from_models(bot: callisto::bots::Model, token: callisto::bot_tokens::Model) -> Self {
+        Self {
+            bot_id: bot.id,
+            token_id: token.id,
+        }
+    }
+}
+
+/// Request body for creating a new bot token.
+#[derive(Deserialize, ToSchema)]
+pub struct CreateBotTokenRequest {
+    /// Human-readable token name for identification.
+    pub token_name: String,
+    /// Optional relative expiry in seconds from now.
+    pub expires_in: Option<i64>,
+}
+
+/// Response body when a bot token is created.
+///
+/// Note: `token_plain` is only returned once and is never stored in plaintext.
+#[derive(Serialize, ToSchema)]
+pub struct CreateBotTokenResponse {
+    pub id: i64,
+    pub token_name: String,
+    pub expires_at: Option<DateTime<Utc>>,
+    pub token_plain: String,
+}
+
+/// Item in the list bot tokens response.
+#[derive(Serialize, ToSchema)]
+pub struct ListBotTokenItem {
+    pub id: i64,
+    pub token_name: String,
+    pub expires_at: Option<DateTime<Utc>>,
+    pub revoked: bool,
+    pub created_at: DateTime<Utc>,
 }

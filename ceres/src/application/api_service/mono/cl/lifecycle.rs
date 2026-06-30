@@ -7,8 +7,10 @@ use common::errors::MegaError;
 use jupiter::model::cl_dto::CLDetails;
 
 use crate::{
-    api_service::mono::MonoApiService,
-    application::webhook::{WebhookEvent, dispatch_cl_webhook},
+    application::{
+        api_service::mono::MonoApiService,
+        webhook::{WebhookEvent, dispatch_cl_webhook},
+    },
     model::change_list::{CLDetailRes, Condition, MergeBoxRes, UpdateClStatusPayload},
 };
 
@@ -24,7 +26,7 @@ impl MonoApiService {
         let (cl, labels) = cl_storage
             .get_cl_labels(link)
             .await?
-            .ok_or_else(|| MegaError::Other("CL not found".to_string()))?;
+            .ok_or_else(|| MegaError::NotFound("CL not found".to_string()))?;
 
         let conversations = conversation_storage
             .get_comments_with_reactions(link)
@@ -50,7 +52,7 @@ impl MonoApiService {
         let model = cl_storage
             .get_cl(link)
             .await?
-            .ok_or(MegaError::Other("Not Found".to_string()))?;
+            .ok_or_else(|| MegaError::NotFound(format!("CL not found: {link}")))?;
 
         if model.status != MergeStatusEnum::Closed {
             return Ok(());
@@ -79,7 +81,7 @@ impl MonoApiService {
         let model = cl_storage
             .get_cl(link)
             .await?
-            .ok_or(MegaError::Other("Not Found".to_string()))?;
+            .ok_or_else(|| MegaError::NotFound(format!("CL not found: {link}")))?;
 
         if !matches!(model.status, MergeStatusEnum::Open | MergeStatusEnum::Draft) {
             return Ok(());
@@ -108,10 +110,10 @@ impl MonoApiService {
         let model = cl_storage
             .get_cl(link)
             .await?
-            .ok_or(MegaError::Other("Not Found".to_string()))?;
+            .ok_or_else(|| MegaError::NotFound(format!("CL not found: {link}")))?;
 
         if model.status == MergeStatusEnum::Draft {
-            return Err(MegaError::Other("CL is not ready for review".to_owned()));
+            return Err(MegaError::bad_request("CL is not ready for review"));
         }
 
         if model.status == MergeStatusEnum::Open {
@@ -128,10 +130,10 @@ impl MonoApiService {
         let model = cl_storage
             .get_cl(link)
             .await?
-            .ok_or(MegaError::Other("CL Not Found".to_string()))?;
+            .ok_or_else(|| MegaError::NotFound(format!("CL not found: {link}")))?;
 
         if model.status != MergeStatusEnum::Open {
-            return Err(MegaError::Other(format!(
+            return Err(MegaError::bad_request(format!(
                 "CL is not in Open status, current status: {:?}",
                 model.status
             )));
@@ -149,7 +151,7 @@ impl MonoApiService {
         let cl = cl_storage
             .get_cl(link)
             .await?
-            .ok_or(MegaError::Other("CL Not Found".to_string()))?;
+            .ok_or_else(|| MegaError::NotFound(format!("CL not found: {link}")))?;
 
         let res = match cl.status {
             MergeStatusEnum::Open => {
@@ -220,14 +222,14 @@ impl MonoApiService {
         let model = cl_storage
             .get_cl(link)
             .await?
-            .ok_or(MegaError::Other("Not Found".to_string()))?;
+            .ok_or_else(|| MegaError::NotFound(format!("CL not found: {link}")))?;
 
         let new_status = match payload.status.to_lowercase().as_str() {
             "draft" => MergeStatusEnum::Draft,
             "open" => MergeStatusEnum::Open,
             _ => {
-                return Err(MegaError::Other(
-                    "Invalid status. Only 'draft' and 'open' are supported".to_string(),
+                return Err(MegaError::bad_request(
+                    "Invalid status. Only 'draft' and 'open' are supported",
                 ));
             }
         };
@@ -268,8 +270,8 @@ impl MonoApiService {
                 }
             }
             _ => {
-                return Err(MegaError::Other(
-                    "Invalid status transition. Only Draft ↔ Open is allowed".to_string(),
+                return Err(MegaError::bad_request(
+                    "Invalid status transition. Only Draft ↔ Open is allowed",
                 ));
             }
         }

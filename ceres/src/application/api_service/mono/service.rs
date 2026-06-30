@@ -23,9 +23,9 @@ use jupiter::{storage::Storage, utils::converter::FromMegaModel};
 
 use super::logic::MonoServiceLogic;
 use crate::{
-    api_service::{ApiHandler, cache::GitObjectCache, tree_ops},
+    application::api_service::{ApiHandler, cache::GitObjectCache, tree_ops},
+    infra::TransportContext,
     model::git::{CreateEntryInfo, CreateEntryResult, EditFilePayload, EditFileResult},
-    pack::{import_repo::ImportRepo, monorepo::MonoRepo},
 };
 
 #[derive(Clone)]
@@ -34,21 +34,18 @@ pub struct MonoApiService {
     pub git_object_cache: Arc<GitObjectCache>,
 }
 
-impl From<&MonoRepo> for MonoApiService {
-    fn from(mono_repo: &MonoRepo) -> Self {
-        MonoApiService {
-            storage: mono_repo.storage.clone(),
-            git_object_cache: mono_repo.git_object_cache.clone(),
+impl MonoApiService {
+    pub fn new(ctx: TransportContext) -> Self {
+        Self {
+            storage: ctx.storage,
+            git_object_cache: ctx.git_object_cache,
         }
     }
 }
 
-impl From<&ImportRepo> for MonoApiService {
-    fn from(import_repo: &ImportRepo) -> Self {
-        MonoApiService {
-            storage: import_repo.storage.clone(),
-            git_object_cache: import_repo.git_object_cache.clone(),
-        }
+impl From<TransportContext> for MonoApiService {
+    fn from(ctx: TransportContext) -> Self {
+        Self::new(ctx)
     }
 }
 

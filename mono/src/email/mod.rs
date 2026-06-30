@@ -6,6 +6,8 @@ use lettre::{
     transport::smtp::authentication::Credentials,
 };
 
+use crate::notification::EmailMailer;
+
 #[async_trait]
 pub trait Mailer: Send + Sync {
     async fn send_html(
@@ -29,6 +31,19 @@ impl Mailer for NoopMailer {
         _text: Option<&str>,
     ) -> Result<(), MegaError> {
         Ok(())
+    }
+}
+
+#[async_trait]
+impl EmailMailer for NoopMailer {
+    async fn send_html(
+        &self,
+        to: &str,
+        subject: &str,
+        html: &str,
+        text: Option<&str>,
+    ) -> Result<(), MegaError> {
+        Mailer::send_html(self, to, subject, html, text).await
     }
 }
 
@@ -130,6 +145,19 @@ impl Mailer for SmtpMailer {
             .await
             .map(|_| ())
             .map_err(|e| MegaError::Other(format!("smtp send error: {e}")))
+    }
+}
+
+#[async_trait]
+impl EmailMailer for SmtpMailer {
+    async fn send_html(
+        &self,
+        to: &str,
+        subject: &str,
+        html: &str,
+        text: Option<&str>,
+    ) -> Result<(), MegaError> {
+        Mailer::send_html(self, to, subject, html, text).await
     }
 }
 

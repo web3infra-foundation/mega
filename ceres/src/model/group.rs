@@ -42,7 +42,7 @@ pub struct GroupMemberResponse {
     pub joined_at: i64,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum PermissionValue {
     Read,
@@ -64,7 +64,7 @@ impl PermissionValue {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum ResourceTypeValue {
     Note,
@@ -213,5 +213,36 @@ impl From<ResourceTypeEnum> for ResourceTypeValue {
         match value {
             ResourceTypeEnum::Note => ResourceTypeValue::Note,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use callisto::sea_orm_active_enums::PermissionEnum;
+
+    use super::{PermissionValue, ResourceTypeValue};
+
+    #[test]
+    fn permission_value_satisfies_hierarchy() {
+        assert!(PermissionValue::Admin.satisfies(PermissionValue::Write));
+        assert!(PermissionValue::Write.satisfies(PermissionValue::Read));
+        assert!(!PermissionValue::Read.satisfies(PermissionValue::Write));
+    }
+
+    #[test]
+    fn resource_type_value_try_from_note() {
+        assert_eq!(
+            ResourceTypeValue::try_from("note").unwrap(),
+            ResourceTypeValue::Note
+        );
+        assert!(ResourceTypeValue::try_from("issue").is_err());
+    }
+
+    #[test]
+    fn permission_value_round_trips_with_permission_enum() {
+        let write = PermissionValue::Write;
+        let as_enum: PermissionEnum = write.into();
+        let back: PermissionValue = as_enum.into();
+        assert_eq!(back, write);
     }
 }

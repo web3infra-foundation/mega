@@ -17,7 +17,7 @@ use git_internal::{
 };
 
 use crate::{
-    api_service::ApiHandler,
+    application::api_service::ApiHandler,
     model::blame::{BlameBlock, BlameInfo, BlameQuery, BlameResult, Contributor},
 };
 
@@ -182,7 +182,8 @@ pub async fn get_file_blame<T: ApiHandler + ?Sized>(
 
     // Resolve starting commit from refs
     let start_commit =
-        crate::api_service::commit_ops::resolve_start_commit(handler, ref_name).await?;
+        crate::application::api_service::commit_ops::resolve_start_commit(handler, ref_name)
+            .await?;
 
     // Get file content and blob hash at start commit
     let (current_content, start_blob_hash) =

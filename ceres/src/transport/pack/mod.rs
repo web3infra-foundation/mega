@@ -1,6 +1,5 @@
 use std::{
     collections::{HashMap, HashSet},
-    pin::Pin,
     sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},
@@ -9,13 +8,12 @@ use std::{
 };
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use common::{
     config::PackConfig,
     errors::{MegaError, ProtocolError},
     utils::ZERO_ID,
 };
-use futures::{Stream, TryStreamExt, future::join_all};
+use futures::{TryStreamExt, future::join_all};
 use git_internal::{
     errors::GitError,
     hash::ObjectHash,
@@ -38,17 +36,7 @@ use crate::transport::protocol::import_refs::{RefCommand, Refs};
 pub mod import_repo;
 pub mod monorepo;
 
-/// Framework-neutral receive-pack body stream (decoupled from axum).
-pub type PackStreamError = Box<dyn std::error::Error + Send + Sync>;
-pub type PackByteStream = Pin<Box<dyn Stream<Item = Result<Bytes, PackStreamError>> + Send>>;
-
-pub fn into_pack_byte_stream<S, E>(stream: S) -> PackByteStream
-where
-    S: Stream<Item = Result<Bytes, E>> + Send + 'static,
-    E: std::error::Error + Send + Sync + 'static,
-{
-    Box::pin(stream.map_err(|e| Box::new(e) as PackStreamError))
-}
+pub use crate::infra::pack_stream::{PackByteStream, PackStreamError, into_pack_byte_stream};
 
 #[async_trait]
 pub trait RepoHandler: Send + Sync + 'static {
@@ -289,8 +277,7 @@ pub trait RepoHandler: Send + Sync + 'static {
             Some(pack_config.pack_decode_cache_path.clone()),
             pack_config.clean_cache_after_decode,
         );
-        let decode_stream =
-            stream.map_err(|e| axum::Error::new(std::io::Error::other(e.to_string())));
+        let decode_stream = stream.map_err(crate::infra::map_decode_stream_error);
         p.decode_stream(decode_stream, sender, Some(pack_id_sender))
             .await;
         Ok((receiver, pack_id_receiver))

@@ -11,14 +11,14 @@ use git_internal::{
 use jupiter::{redis::lock::RedLock, utils::converter::FromMegaModel};
 
 use crate::{
-    api_service::{
+    application::api_service::{
         mono::{MonoApiService, MonoServiceLogic},
-        state::ProtocolApiState,
         tree_ops,
     },
+    bus::TransportRuntime,
+    infra::pack_stream::into_pack_byte_stream,
     model::third_party::{ThirdPartyClient, ThirdPartyRepoTrait},
-    pack::into_pack_byte_stream,
-    protocol::{PushUserInfo, ServiceType, SmartSession, TransportProtocol},
+    transport::protocol::{PushUserInfo, ServiceType, SmartSession, TransportProtocol},
 };
 
 impl MonoApiService {
@@ -75,8 +75,10 @@ impl MonoApiService {
                 Ok(()) => {
                     txn.commit().await.map_err(MegaError::Db)?;
                     guard.unlock().await?;
-                    crate::api_service::mono::cl_merge::sync_path_prefix_main_refs(self, path)
-                        .await?;
+                    crate::application::api_service::mono::cl_merge::sync_path_prefix_main_refs(
+                        self, path,
+                    )
+                    .await?;
                     return Ok(());
                 }
                 Err(MegaError::StaleMonorepoRootRef) if attempt + 1 < MAX_ATTACH_ATTEMPTS => {
@@ -170,10 +172,7 @@ impl MonoApiService {
         let res = remote_client
             .fetch_packs(std::slice::from_ref(&ref_hash), fetch_depth)
             .await?;
-        let pack_data = remote_client
-            .process_pack_stream(res)
-            .await
-            .map_err(|e| MegaError::Other(format!("{e}")))?;
+        let pack_data = remote_client.process_pack_stream(res).await?;
         if pack_data.is_empty() {
             return Err(MegaError::Other(
                 "GitHub sync failed: remote returned no pack data".to_string(),
@@ -189,12 +188,12 @@ impl MonoApiService {
 
         let old_id = self.resolve_sync_old_id(&repo_path_str, &ref_name).await?;
 
-        let commands = vec![crate::protocol::import_refs::RefCommand::new(
+        let commands = vec![crate::transport::protocol::import_refs::RefCommand::new(
             old_id,
             ref_hash.clone(),
             ref_name.clone(),
         )];
-        let state = ProtocolApiState::new(self.storage.clone(), self.git_object_cache.clone());
+        let state = TransportRuntime::new(self.storage.clone(), self.git_object_cache.clone());
         let bytes = protocol
             .git_receive_pack_stream(
                 &state,

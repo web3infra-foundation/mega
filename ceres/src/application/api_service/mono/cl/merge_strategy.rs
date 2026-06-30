@@ -7,7 +7,7 @@ use common::{errors::MegaError, utils::ZERO_ID};
 use git_internal::{errors::GitError, internal::object::commit::Commit};
 use jupiter::utils::converter::FromMegaModel;
 
-use crate::api_service::{mono::MonoApiService, tree_ops};
+use crate::application::api_service::{mono::MonoApiService, tree_ops};
 
 /// How a CL should be applied onto monorepo main.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -73,7 +73,9 @@ pub async fn sync_path_prefix_main_refs(
     path: &str,
 ) -> Result<(), MegaError> {
     for prefix in path_prefixes(path) {
-        let hash = crate::code_edit::utils::create_repo_commit(&service.storage, &prefix).await?;
+        let hash =
+            crate::application::code_edit::utils::create_repo_commit(&service.storage, &prefix)
+                .await?;
         if hash == ZERO_ID {
             return Err(MegaError::Other(format!(
                 "Failed to sync main ref for prefix {prefix}"
@@ -106,7 +108,8 @@ pub async fn bootstrap_monorepo_path(
     service.attach_project_path_to_monorepo_root(path).await?;
     sync_path_prefix_main_refs(service, path).await?;
 
-    let baseline_hash = crate::code_edit::utils::create_repo_commit(&service.storage, path).await?;
+    let baseline_hash =
+        crate::application::code_edit::utils::create_repo_commit(&service.storage, path).await?;
     if baseline_hash == ZERO_ID {
         return Err(MegaError::Other(format!(
             "Failed to create main ref baseline for {path}"
@@ -258,12 +261,18 @@ pub async fn resolve_merge_leaf_tree_id(
 
 #[cfg(test)]
 mod tests {
-    use super::path_prefixes;
+    use super::{ClMergeStrategy, path_prefixes};
 
     #[test]
     fn path_prefixes_returns_strict_prefixes() {
         assert_eq!(path_prefixes("/project/mega"), vec!["/project".to_string()]);
         assert_eq!(path_prefixes("/project"), Vec::<String>::new());
         assert_eq!(path_prefixes("/"), Vec::<String>::new());
+    }
+
+    #[test]
+    fn cl_merge_strategy_as_str() {
+        assert_eq!(ClMergeStrategy::FileDiff.as_str(), "file_diff");
+        assert_eq!(ClMergeStrategy::SubtreeReplace.as_str(), "subtree_replace");
     }
 }

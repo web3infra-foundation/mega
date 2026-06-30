@@ -3,14 +3,12 @@ use axum::{
     Json,
     extract::{Path, Query, State},
 };
-use callisto::sea_orm_active_enums::ConvTypeEnum;
 use ceres::model::{
     change_list::{AssigneeUpdatePayload, ListPayload},
-    conversation::ContentPayload,
+    conversation::{ContentPayload, ConvType},
     issue::{IssueDetailRes, IssueSuggestions, ItemRes, NewIssue, QueryPayload},
     label::LabelUpdatePayload,
 };
-use jupiter::service::issue_service::IssueService;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::{
@@ -49,11 +47,11 @@ async fn fetch_issue_list(
     Json(json): Json<PageParams<ListPayload>>,
 ) -> Result<Json<CommonResult<CommonPage<ItemRes>>>, ApiError> {
     let (items, total) = state
-        .issue_stg()
-        .get_issue_list(json.additional.into(), json.pagination)
+        .monorepo()
+        .get_issue_list(json.additional, json.pagination)
         .await?;
     Ok(Json(CommonResult::success(Some(CommonPage {
-        items: items.into_iter().map(|m| m.into()).collect(),
+        items,
         total,
     }))))
 }
@@ -75,11 +73,10 @@ async fn issue_detail(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<IssueDetailRes>>, ApiError> {
-    let issue_service: IssueService = state.storage.issue_service.clone();
-    let issue_details: IssueDetailRes = issue_service
+    let issue_details = state
+        .monorepo()
         .get_issue_details(&link, user.username)
-        .await?
-        .into();
+        .await?;
     Ok(Json(CommonResult::success(Some(issue_details))))
 }
 
@@ -99,17 +96,16 @@ async fn new_issue(
     Json(json): Json<NewIssue>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     let res = state
-        .issue_stg()
+        .monorepo()
         .save_issue(&user.username, &json.title)
-        .await
-        .unwrap();
-    let _ = state
-        .conv_stg()
+        .await?;
+    state
+        .monorepo()
         .add_conversation(
             &res.link,
             &user.username,
             Some(json.description),
-            ConvTypeEnum::Comment,
+            ConvType::Comment,
         )
         .await?;
     Ok(Json(CommonResult::success(None)))
@@ -132,14 +128,14 @@ async fn close_issue(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    state.issue_stg().close_issue(&link).await?;
+    state.monorepo().close_issue(&link).await?;
     state
-        .conv_stg()
+        .monorepo()
         .add_conversation(
             &link,
             &user.username,
             Some(format!("{} closed this", user.username)),
-            ConvTypeEnum::Closed,
+            ConvType::Closed,
         )
         .await?;
     Ok(Json(CommonResult::success(None)))
@@ -162,14 +158,14 @@ async fn reopen_issue(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    state.issue_stg().reopen_issue(&link).await?;
+    state.monorepo().reopen_issue(&link).await?;
     state
-        .conv_stg()
+        .monorepo()
         .add_conversation(
             &link,
             &user.username,
             Some(format!("{} reopen this", user.username)),
-            ConvTypeEnum::Closed,
+            ConvType::Closed,
         )
         .await?;
     Ok(Json(CommonResult::success(None)))
@@ -195,12 +191,12 @@ async fn save_comment(
     Json(payload): Json<ContentPayload>,
 ) -> Result<Json<CommonResult<()>>, ApiError> {
     state
-        .conv_stg()
+        .monorepo()
         .add_conversation(
             &link,
             &user.username,
             Some(payload.content.clone()),
-            ConvTypeEnum::Comment,
+            ConvType::Comment,
         )
         .await?;
     api_common::comment::check_comment_ref(user, state, &payload.content, &link).await
@@ -262,8 +258,8 @@ async fn edit_title(
     Json(payload): Json<ContentPayload>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     state
-        .issue_stg()
-        .edit_title(&link, &payload.content)
+        .monorepo()
+        .edit_issue_title(&link, &payload.content)
         .await?;
     Ok(Json(CommonResult::success(None)))
 }
@@ -282,14 +278,9 @@ async fn issue_suggester(
     Query(payload): Query<QueryPayload>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<Vec<IssueSuggestions>>>, ApiError> {
-    let (issues, mrs) = state
-        .storage
-        .issue_service
-        .get_suggestions(&payload.query)
+    let res = state
+        .monorepo()
+        .get_issue_suggestions(&payload.query)
         .await?;
-    let mut res: Vec<IssueSuggestions> = issues.into_iter().map(|m| m.into()).collect();
-    let mut mr_list: Vec<IssueSuggestions> = mrs.into_iter().map(|m| m.into()).collect();
-    res.append(&mut mr_list);
-    res.sort();
     Ok(Json(CommonResult::success(Some(res))))
 }

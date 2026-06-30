@@ -2,14 +2,14 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct UpdateRequest {
+pub struct NoteUpdateRequest {
     pub description_html: String,
     pub description_state: String,
     pub description_schema_version: i32,
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct ShowResponse {
+pub struct NoteShowResponse {
     #[serde(rename = "id")]
     pub public_id: String,
 

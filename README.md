@@ -53,6 +53,12 @@ Mega is evolving toward deeper AI-native capabilities:
 
 To facilitate a rapid deployment and hands-on experience with the Mega service, the following instructions are derived from the project's [documentation](https://github.com/web3infra-foundation/mega/tree/main/docker).
 
+- **Docker demo (recommended):** [docker/README.md](docker/README.md)
+- **Native development:** [docs/development.md](docs/development.md)
+- **Architecture:** [docs/architecture.md](docs/architecture.md)
+
+Related projects: [Libra](https://github.com/web3infra-foundation/libra) (Git-compatible agent client), [ScorpioFS](https://github.com/web3infra-foundation/scorpiofs) (FUSE monorepo mount).
+
 ## Community
 
 Discord Channel - https://discord.gg/HMFuu6pJmQ

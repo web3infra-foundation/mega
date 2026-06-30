@@ -49,3 +49,9 @@ pub struct CommitFilesChangedPage {
 pub struct CommitBindingResponse {
     pub username: Option<String>,
 }
+
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
+pub struct UpdateCommitBindingRequest {
+    pub username: Option<String>,
+    pub is_anonymous: bool,
+}

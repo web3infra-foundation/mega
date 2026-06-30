@@ -7,7 +7,6 @@ use axum::{
 use ceres::model::{
     notification::{
         NotificationEventTypeInfo, UpdateUserNotificationConfig, UserNotificationConfig,
-        UserNotificationPreferenceItem,
     },
     user::{
         AddSSHKey, ClaContentRes, ClaSignStatusRes, ListSSHKey, ListToken, UpdateClaContentPayload,
@@ -79,7 +78,7 @@ async fn add_key(
         json.title
     };
     state
-        .user_stg()
+        .monorepo()
         .save_ssh_key(
             user.username,
             &title,
@@ -108,7 +107,7 @@ async fn remove_key(
     Path(key_id): Path<i64>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     state
-        .user_stg()
+        .monorepo()
         .delete_ssh_key(user.username, key_id)
         .await?;
     Ok(Json(CommonResult::success(None)))
@@ -127,10 +126,8 @@ async fn list_key(
     user: LoginUser,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<Vec<ListSSHKey>>>, ApiError> {
-    let res = state.user_stg().list_user_ssh(user.username).await?;
-    Ok(Json(CommonResult::success(Some(
-        res.into_iter().map(|x| x.into()).collect(),
-    ))))
+    let res = state.monorepo().list_user_ssh_keys(user.username).await?;
+    Ok(Json(CommonResult::success(Some(res))))
 }
 
 /// Generate Token For http push
@@ -146,7 +143,7 @@ async fn generate_token(
     user: LoginUser,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    let res = state.user_stg().generate_token(user.username).await?;
+    let res = state.monorepo().generate_user_token(user.username).await?;
     Ok(Json(CommonResult::success(Some(res))))
 }
 
@@ -167,7 +164,10 @@ async fn remove_token(
     state: State<MonoApiServiceState>,
     Path(key_id): Path<i64>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    state.user_stg().delete_token(user.username, key_id).await?;
+    state
+        .monorepo()
+        .delete_user_token(user.username, key_id)
+        .await?;
     Ok(Json(CommonResult::success(None)))
 }
 
@@ -184,9 +184,8 @@ async fn list_token(
     user: LoginUser,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<Vec<ListToken>>>, ApiError> {
-    let data = state.user_stg().list_token(user.username).await?;
-    let res = data.into_iter().map(|x| x.into()).collect();
-    Ok(Json(CommonResult::success(Some(res))))
+    let data = state.monorepo().list_user_tokens(user.username).await?;
+    Ok(Json(CommonResult::success(Some(data))))
 }
 
 /// List supported notification event types
@@ -200,19 +199,7 @@ async fn list_notification_types(
     _user: LoginUser,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<Vec<NotificationEventTypeInfo>>>, ApiError> {
-    let types = state
-        .notification_stg()
-        .list_event_types()
-        .await?
-        .into_iter()
-        .map(|t| NotificationEventTypeInfo {
-            code: t.code,
-            category: t.category,
-            description: t.description,
-            system_required: t.system_required,
-            default_enabled: t.default_enabled,
-        })
-        .collect();
+    let types = state.monorepo().list_notification_event_types().await?;
 
     Ok(Json(CommonResult::success(Some(types))))
 }
@@ -228,34 +215,12 @@ async fn get_notification_config(
     user: LoginUser,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<UserNotificationConfig>>, ApiError> {
-    state
-        .notification_stg()
-        .upsert_user_settings(&user.username, &user.email)
+    let config = state
+        .monorepo()
+        .get_user_notification_config(&user.username, &user.email)
         .await?;
 
-    let settings = state
-        .notification_stg()
-        .get_user_settings(&user.username)
-        .await?
-        .ok_or_else(|| MegaError::Other("user settings missing".to_string()))?;
-
-    let prefs = state
-        .notification_stg()
-        .list_user_preferences(&user.username)
-        .await?
-        .into_iter()
-        .map(|p| UserNotificationPreferenceItem {
-            event_type_code: p.event_type_code,
-            enabled: p.enabled,
-        })
-        .collect();
-
-    Ok(Json(CommonResult::success(Some(UserNotificationConfig {
-        enabled: settings.enabled,
-        delivery_mode: settings.delivery_mode,
-        email: settings.email,
-        preferences: prefs,
-    }))))
+    Ok(Json(CommonResult::success(Some(config))))
 }
 
 /// Update current user's notification config
@@ -272,30 +237,9 @@ async fn update_notification_config(
     Json(payload): Json<UpdateUserNotificationConfig>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     state
-        .notification_stg()
-        .upsert_user_settings(&user.username, &user.email)
+        .monorepo()
+        .update_user_notification_config(&user.username, &user.email, payload)
         .await?;
-
-    if let Some(enabled) = payload.enabled {
-        state
-            .notification_stg()
-            .set_global_enabled(&user.username, enabled)
-            .await?;
-    }
-    if let Some(mode) = payload.delivery_mode {
-        state
-            .notification_stg()
-            .set_delivery_mode(&user.username, &mode)
-            .await?;
-    }
-    if let Some(items) = payload.preferences {
-        for item in items {
-            state
-                .notification_stg()
-                .set_user_preference(&user.username, &item.event_type_code, item.enabled)
-                .await?;
-        }
-    }
 
     Ok(Json(CommonResult::success(None)))
 }

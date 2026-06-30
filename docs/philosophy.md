@@ -1,5 +1,7 @@
 # Philosophy
 
+> **Work in progress.** See the [README](../README.md) for project goals.
+
 ## Decentralized Version Control System VS Centralized Services
 
 ## Who Really Owns and Controls the Code and Data

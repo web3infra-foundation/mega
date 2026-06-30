@@ -10,24 +10,13 @@
 
 use api_model::common::CommonResult;
 use axum::{Json, extract::State};
-use serde::Serialize;
-use utoipa::ToSchema;
+use ceres::model::admin::{AdminListResponse, IsAdminResponse};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::{
     MonoApiServiceState, api_common::group_permission::ensure_admin, api_doc::USER_TAG,
     error::ApiError, oauth::model::LoginUser,
 };
-
-#[derive(Serialize, ToSchema)]
-pub struct IsAdminResponse {
-    pub is_admin: bool,
-}
-
-#[derive(Serialize, ToSchema)]
-pub struct AdminListResponse {
-    pub admins: Vec<String>,
-}
 
 /// Build the admin router.
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {

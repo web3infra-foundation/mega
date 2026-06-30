@@ -7,9 +7,11 @@ use git_internal::errors::GitError;
 use jupiter::storage::{Storage, mono_storage::MonoStorage};
 
 use crate::{
-    api_service::{cache::GitObjectCache, mono::MonoApiService},
-    build_trigger::{BuildTriggerService, TriggerContext},
-    code_edit::{model, utils as edit_utils},
+    application::{
+        api_service::{cache::GitObjectCache, mono::MonoApiService},
+        build_trigger::{BuildTriggerService, TriggerContext},
+        code_edit::{model, utils as edit_utils},
+    },
     model::git::EditCLMode,
 };
 

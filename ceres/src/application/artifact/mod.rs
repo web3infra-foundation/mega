@@ -26,6 +26,17 @@ impl ArtifactApplicationService {
             .gc_unreferenced_artifact_objects_once(grace, batch_limit)
             .await
     }
+
+    pub fn weak_etag_for_oid_size(oid: &str, size_bytes: i64) -> String {
+        ArtifactService::weak_etag_for_oid_size(oid, size_bytes)
+    }
+
+    pub fn parse_artifact_object_range(
+        range_header_value: Option<&str>,
+        len: u64,
+    ) -> Result<Option<(u64, u64)>, MegaError> {
+        ArtifactService::parse_artifact_object_range(range_header_value, len)
+    }
 }
 
 impl Deref for ArtifactApplicationService {

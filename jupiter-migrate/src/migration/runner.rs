@@ -23,11 +23,20 @@ mod tests {
         email_jobs, notification_event_types, user_notification_preferences,
         user_notification_settings,
     };
-    use sea_orm::{ActiveModelTrait, ConnectionTrait, DbBackend, Set, Statement};
+    use sea_orm::{
+        ActiveModelTrait, ConnectOptions, ConnectionTrait, Database, DbBackend, Set, Statement,
+    };
     use sea_orm_migration::prelude::MigratorTrait;
 
     use super::*;
-    use crate::tests::test_db_connection;
+
+    async fn test_db_connection(temp_dir: &std::path::Path) -> DatabaseConnection {
+        let db_url = format!("sqlite://{}/test.db", temp_dir.to_string_lossy());
+        std::fs::File::create(temp_dir.join("test.db")).expect("create test db file");
+        let mut opt = ConnectOptions::new(db_url);
+        opt.max_connections(5).min_connections(1);
+        Database::connect(opt).await.expect("connect test database")
+    }
 
     #[tokio::test]
     async fn test_apply_migrations() {

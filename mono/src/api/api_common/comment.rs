@@ -2,7 +2,6 @@ use std::collections::HashSet;
 
 use api_model::common::CommonResult;
 use axum::{Json, extract::State};
-use callisto::sea_orm_active_enums::{ConvTypeEnum, ReferenceTypeEnum};
 use regex::Regex;
 
 use crate::api::{MonoApiServiceState, error::ApiError, oauth::model::LoginUser};
@@ -26,17 +25,8 @@ pub async fn check_comment_ref(
     let username = user.username;
     for ref_link in links {
         state
-            .issue_stg()
-            .add_reference(source_link, &ref_link, ReferenceTypeEnum::Mention)
-            .await?;
-        state
-            .conv_stg()
-            .add_conversation(
-                &ref_link,
-                &username,
-                Some(format!("{username} mentioned this on")),
-                ConvTypeEnum::Mention,
-            )
+            .monorepo()
+            .add_issue_mention_reference(source_link, &ref_link, &username)
             .await?;
     }
 
