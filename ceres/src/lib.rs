@@ -27,8 +27,8 @@ pub mod protocol {
 }
 
 pub use application::api_service::{
-    ADMIN_FILE, EffectiveResourcePermission, MonoApiService, MonoServiceLogic, RefUpdate,
-    TreeUpdateResult, cl_merge,
+    ADMIN_FILE, EffectiveResourcePermission, MonoApiService, MonoAppServices, MonoServiceLogic,
+    RefUpdate, TreeUpdateResult, cl_merge,
 };
 pub use bus::{ApplicationEventHandler, TransportEvent, TransportRuntime};
 pub use transport::ProtocolApiState;

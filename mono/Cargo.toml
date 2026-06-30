@@ -19,7 +19,6 @@ path = "src/main.rs"
 api-model = { workspace = true }
 orion-client = { workspace = true }
 common = { workspace = true }
-callisto = { workspace = true }
 jupiter = { workspace = true, features = ["migrate"] }
 lettre = { workspace = true }
 ceres = { workspace = true }

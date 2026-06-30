@@ -2,16 +2,11 @@ use axum::{
     Json,
     extract::{Path, State},
 };
+use ceres::model::note::NoteUpdateRequest;
 use serde_json::Value;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use ceres::model::note::{NoteShowResponse, NoteUpdateRequest};
-
-use crate::api::{
-    MonoApiServiceState,
-    api_doc::SYNC_NOTES_STATE_TAG,
-    error::ApiError,
-};
+use crate::api::{MonoApiServiceState, api_doc::SYNC_NOTES_STATE_TAG, error::ApiError};
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new().nest(
@@ -26,34 +21,16 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     get,
     path = "/{org_slug}/notes/{id}/sync_state",
     responses(
-        (status = 200, body = NoteShowResponse, content_type = "application/json")
+        (status = 200, body = ceres::model::note::NoteShowResponse, content_type = "application/json")
     ),
     tag = SYNC_NOTES_STATE_TAG,
 )]
 async fn show_note(
     state: State<MonoApiServiceState>,
     Path(id): Path<i32>,
-) -> Result<Json<NoteShowResponse>, ApiError> {
-    let note = state.note_stg().get_note_by_id(id.into()).await?;
-    if note.is_none() {
-        return Err(ApiError::from(anyhow::anyhow!("Note not found")));
-    }
-    let note = note.unwrap();
-
+) -> Result<Json<ceres::model::note::NoteShowResponse>, ApiError> {
     // TODO: authorize(note, :show?)
-
-    let response = NoteShowResponse {
-        public_id: note.public_id,
-        description_schema_version: note.description_schema_version,
-        description_state: match &note.description_state {
-            Some(state) if !state.is_empty() => Some(state.clone()),
-            _ => None,
-        },
-        description_html: match &note.description_html {
-            Some(html) if !html.is_empty() => html.clone(),
-            _ => String::new(),
-        },
-    };
+    let response = state.monorepo().get_note_sync_state(id).await?;
     Ok(Json(response))
 }
 
@@ -71,31 +48,10 @@ async fn update_note(
     Path(id): Path<i32>,
     Json(json): Json<NoteUpdateRequest>,
 ) -> Result<Json<Value>, ApiError> {
-    // Get the note first
-    let note = state.note_stg().get_note_by_id(id.into()).await?;
-    if note.is_none() {
-        return Err(ApiError::from(anyhow::anyhow!(format!(
-            "Note with ID {} not found",
-            id
-        ))));
-    }
-    let note = note.unwrap();
-
     // TODO: authorize note access (like in show_note)
-
-    // Check schema version compatibility
-    if json.description_schema_version < note.description_schema_version {
-        return Err(ApiError::from(anyhow::anyhow!(
-            "Invalid schema version: provided ({}) is older than current ({})",
-            json.description_schema_version,
-            note.description_schema_version
-        )));
-    }
-
-    // Update the note
-    let _res_id = state
-        .note_stg()
-        .update_note(
+    state
+        .monorepo()
+        .update_note_sync_state(
             id,
             json.description_html.as_str(),
             json.description_state.as_str(),

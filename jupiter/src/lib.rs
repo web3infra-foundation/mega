@@ -1,10 +1,9 @@
 /// Shared ID generation used with DB / storage paths.
 pub use idgenerator;
-/// SeaORM — storage layer; dependents may use `jupiter::sea_orm` without a direct `sea-orm` dependency where appropriate.
-pub use sea_orm;
-
 #[cfg(feature = "migrate")]
 pub use jupiter_migrate;
+/// SeaORM — storage layer; dependents may use `jupiter::sea_orm` without a direct `sea-orm` dependency where appropriate.
+pub use sea_orm;
 
 pub mod model;
 pub mod redis;

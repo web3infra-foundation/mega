@@ -1,10 +1,12 @@
 use clap::{ArgMatches, Args, Command, FromArgMatches};
 use common::errors::MegaResult;
-use crate::bootstrap::AppContext;
 
-use crate::server::{
-    CommonHttpOptions,
-    http_server::{self},
+use crate::{
+    bootstrap::AppContext,
+    server::{
+        CommonHttpOptions,
+        http_server::{self},
+    },
 };
 
 pub fn cli() -> Command {

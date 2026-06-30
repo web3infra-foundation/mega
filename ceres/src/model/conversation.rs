@@ -122,3 +122,54 @@ impl From<ConvTypeEnum> for ConvType {
         }
     }
 }
+
+impl From<ConvType> for ConvTypeEnum {
+    fn from(value: ConvType) -> Self {
+        match value {
+            ConvType::Comment => ConvTypeEnum::Comment,
+            ConvType::Deploy => ConvTypeEnum::Deploy,
+            ConvType::Commit => ConvTypeEnum::Commit,
+            ConvType::ForcePush => ConvTypeEnum::ForcePush,
+            ConvType::Edit => ConvTypeEnum::Edit,
+            ConvType::Review => ConvTypeEnum::Review,
+            ConvType::Approve => ConvTypeEnum::Approve,
+            ConvType::MergeQueue => ConvTypeEnum::MergeQueue,
+            ConvType::Merged => ConvTypeEnum::Merged,
+            ConvType::Closed => ConvTypeEnum::Closed,
+            ConvType::Reopen => ConvTypeEnum::Reopen,
+            ConvType::Label => ConvTypeEnum::Label,
+            ConvType::Assignee => ConvTypeEnum::Assignee,
+            ConvType::Mention => ConvTypeEnum::Mention,
+            ConvType::Draft => ConvTypeEnum::Draft,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReferenceType {
+    Mention,
+    BuildRelates,
+    Blocks,
+}
+
+impl From<callisto::sea_orm_active_enums::ReferenceTypeEnum> for ReferenceType {
+    fn from(value: callisto::sea_orm_active_enums::ReferenceTypeEnum) -> Self {
+        use callisto::sea_orm_active_enums::ReferenceTypeEnum;
+        match value {
+            ReferenceTypeEnum::Mention => ReferenceType::Mention,
+            ReferenceTypeEnum::BuildRelates => ReferenceType::BuildRelates,
+            ReferenceTypeEnum::Blocks => ReferenceType::Blocks,
+        }
+    }
+}
+
+impl From<ReferenceType> for callisto::sea_orm_active_enums::ReferenceTypeEnum {
+    fn from(value: ReferenceType) -> Self {
+        use callisto::sea_orm_active_enums::ReferenceTypeEnum;
+        match value {
+            ReferenceType::Mention => ReferenceTypeEnum::Mention,
+            ReferenceType::BuildRelates => ReferenceTypeEnum::BuildRelates,
+            ReferenceType::Blocks => ReferenceTypeEnum::Blocks,
+        }
+    }
+}

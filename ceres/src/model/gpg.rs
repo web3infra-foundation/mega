@@ -1,3 +1,4 @@
+use callisto::gpg_key;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -19,4 +20,16 @@ pub struct GpgKey {
     pub fingerprint: String,
     pub created_at: DateTime<Utc>,
     pub expires_at: Option<DateTime<Utc>>,
+}
+
+impl GpgKey {
+    pub fn from_stored(user_id: String, key: gpg_key::Model) -> Self {
+        Self {
+            user_id,
+            key_id: key.key_id,
+            fingerprint: key.fingerprint,
+            created_at: key.created_at.and_utc(),
+            expires_at: key.expires_at.map(|dt| dt.and_utc()),
+        }
+    }
 }

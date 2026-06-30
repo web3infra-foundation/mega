@@ -14,7 +14,7 @@ use saturn::{ActionEnum, context::CedarContext, entitystore::EntityStore, util::
 use crate::api::{
     MonoApiServiceState,
     error::ApiError,
-    oauth::{BotIdentity, model::LoginUser},
+    oauth::{BotAuth, model::LoginUser},
 };
 
 // TODO: All users are temporary allowed during development stage
@@ -141,8 +141,8 @@ pub async fn cedar_guard(
     let (mut parts, body) = req.into_parts();
 
     let (principal_type, principal_id) =
-        if let Ok(bot) = BotIdentity::from_request_parts(&mut parts, &state).await {
-            ("Bot".to_string(), bot.bot.id.to_string())
+        if let Ok(bot) = BotAuth::from_request_parts(&mut parts, &state).await {
+            ("Bot".to_string(), bot.bot_id.to_string())
         } else if let Ok(user) = LoginUser::from_request_parts(&mut parts, &state).await {
             ("User".to_string(), user.username.clone())
         } else {

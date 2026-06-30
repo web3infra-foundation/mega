@@ -9,7 +9,8 @@ use jupiter::model::group_dto::{DeleteGroupStats, ResourcePermissionBinding};
 use crate::{
     api_service::mono::MonoApiService,
     model::group::{
-        CreateGroupRequest, PermissionBindingRequest, ResourceTypeValue, UpdateGroupRequest,
+        CreateGroupRequest, PermissionBindingRequest, PermissionValue, ResourceTypeValue,
+        UpdateGroupRequest,
     },
 };
 
@@ -274,17 +275,13 @@ impl MonoApiService {
         &self,
         resource_type: &str,
         resource_id: &str,
-    ) -> Result<(ResourceTypeEnum, ResourceTypeValue, String), MegaError> {
+    ) -> Result<(ResourceTypeValue, String), MegaError> {
         let resource_type_value = ResourceTypeValue::try_from(resource_type)
             .map_err(|err| MegaError::Other(err.to_string()))?;
         let validated_resource_id = self
             .resolve_resource_id(resource_type_value, resource_id)
             .await?;
-        Ok((
-            resource_type_value.into(),
-            resource_type_value,
-            validated_resource_id,
-        ))
+        Ok((resource_type_value, validated_resource_id))
     }
 
     /// Reserved for future business-route authorization integration.
@@ -308,6 +305,22 @@ impl MonoApiService {
             None => false,
         })
     }
+
+    pub async fn check_resource_permission_value(
+        &self,
+        username: &str,
+        resource_type: ResourceTypeValue,
+        resource_id: &str,
+        required_permission: PermissionValue,
+    ) -> Result<bool, MegaError> {
+        self.check_resource_permission(
+            username,
+            resource_type.into(),
+            resource_id,
+            required_permission.into(),
+        )
+        .await
+    }
 }
 
 fn permission_level(permission: &PermissionEnum) -> u8 {
@@ -326,9 +339,7 @@ fn permission_satisfies(current: &PermissionEnum, required: &PermissionEnum) -> 
 mod tests {
     use callisto::sea_orm_active_enums::PermissionEnum;
 
-    use super::{
-        create_group_payload, permission_bindings, update_group_payload,
-    };
+    use super::{create_group_payload, permission_bindings, update_group_payload};
     use crate::model::group::{
         CreateGroupRequest, PermissionBindingRequest, PermissionValue, UpdateGroupRequest,
     };

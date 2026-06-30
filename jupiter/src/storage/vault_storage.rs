@@ -2,8 +2,7 @@ use std::ops::Deref;
 
 use callisto::vault::*;
 use common::errors::MegaError;
-use sea_orm::*;
-use sea_orm::sea_query::OnConflict;
+use sea_orm::{sea_query::OnConflict, *};
 
 use crate::storage::base_storage::{BaseStorage, StorageConnector};
 

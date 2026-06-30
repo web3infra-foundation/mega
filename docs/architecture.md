@@ -37,7 +37,7 @@ mono CLI
 
 ## DTO and module boundaries
 
-HTTP/OpenAPI types live in `ceres/model`. `mono` routers must not import `jupiter::model` directly — use `ceres::model` and `MonoApiService` facades. Full rules: [ceres/README.md#model-boundary](../ceres/README.md#model-boundary).
+HTTP/OpenAPI types live in `ceres/model`. `mono` routers must not import `jupiter::model`, `callisto`, or `jupiter::service` directly — use `ceres::model` and `MonoApiService` facades. `ceres/src/transport` must not depend on `MonoApiService`. CI enforces these rules in [`.github/workflows/base.yml`](../.github/workflows/base.yml). Full rules: [ceres/README.md#model-boundary](../ceres/README.md#model-boundary).
 
 ## HTTP API discovery
 

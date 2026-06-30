@@ -258,7 +258,7 @@ pub async fn resolve_merge_leaf_tree_id(
 
 #[cfg(test)]
 mod tests {
-    use super::{path_prefixes, ClMergeStrategy};
+    use super::{ClMergeStrategy, path_prefixes};
 
     #[test]
     fn path_prefixes_returns_strict_prefixes() {

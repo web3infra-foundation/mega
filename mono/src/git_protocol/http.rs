@@ -8,9 +8,9 @@ use axum::{
 use base64::Engine;
 use bytes::{Bytes, BytesMut};
 use ceres::{
-    api_service::state::ProtocolApiState,
-    pack::into_pack_byte_stream,
+    infra::pack_stream::into_pack_byte_stream,
     protocol::{PushUserInfo, ServiceType, SmartSession, TransportProtocol, smart},
+    transport::ProtocolApiState,
 };
 use common::errors::ProtocolError;
 use futures::{TryStreamExt, stream};

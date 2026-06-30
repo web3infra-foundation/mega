@@ -35,9 +35,8 @@ use tokio::sync::{RwLock, mpsc};
 use tokio_stream::wrappers::ReceiverStream;
 
 use crate::{
-    api_service::{cache::GitObjectCache, mono::MonoApiService},
     bus::{ApplicationEventHandler, TransportEvent},
-    model::change_list::ClDiffFile,
+    infra::cache::GitObjectCache,
     pack::RepoHandler,
     protocol::import_refs::{RefCommand, Refs},
 };
@@ -615,22 +614,5 @@ impl MonoRepo {
 
     pub fn username(&self) -> String {
         self.username.clone().unwrap_or(String::from("Anonymous"))
-    }
-
-    pub async fn get_commit_blobs(
-        &self,
-        commit_hash: &str,
-    ) -> Result<Vec<(PathBuf, ObjectHash)>, MegaError> {
-        let api_service: MonoApiService = self.into();
-        api_service.get_commit_blobs(commit_hash).await
-    }
-
-    pub async fn cl_files_list(
-        &self,
-        old_files: Vec<(PathBuf, ObjectHash)>,
-        new_files: Vec<(PathBuf, ObjectHash)>,
-    ) -> Result<Vec<ClDiffFile>, MegaError> {
-        let api_service: MonoApiService = self.into();
-        api_service.cl_files_list(old_files, new_files).await
     }
 }

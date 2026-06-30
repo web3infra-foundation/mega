@@ -4,7 +4,6 @@ use std::{
     str::from_utf8,
 };
 
-use axum::Error as AxumError;
 use bytes::{BufMut, Bytes, BytesMut};
 use common::errors::MegaError;
 use futures::{Stream, StreamExt};
@@ -216,7 +215,7 @@ impl ThirdPartyClient {
     pub async fn process_pack_stream(
         &self,
         res: impl Stream<Item = Result<Bytes, reqwest::Error>> + Unpin,
-    ) -> Result<Vec<u8>, AxumError> {
+    ) -> Result<Vec<u8>, MegaError> {
         let stream = res.map(|r| r.map_err(|e| io::Error::other(format!("reqwest error: {e}"))));
 
         let mut reader = StreamReader::new(stream);

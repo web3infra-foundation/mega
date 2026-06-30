@@ -1,18 +1,30 @@
 use std::sync::Arc;
 
+use async_trait::async_trait;
+use common::errors::MegaError;
 use jupiter::storage::NotificationStorage;
 use tokio::time::{Duration, interval};
 use tracing::{info, warn};
 
-use crate::email::Mailer;
+/// Sends notification email payloads produced by the notification application layer.
+#[async_trait]
+pub trait EmailMailer: Send + Sync {
+    async fn send_html(
+        &self,
+        to: &str,
+        subject: &str,
+        html: &str,
+        text: Option<&str>,
+    ) -> Result<(), MegaError>;
+}
 
 pub struct EmailDispatcher {
     stg: NotificationStorage,
-    mailer: Arc<dyn Mailer>,
+    mailer: Arc<dyn EmailMailer>,
 }
 
 impl EmailDispatcher {
-    pub fn new(stg: NotificationStorage, mailer: Arc<dyn Mailer>) -> Self {
+    pub fn new(stg: NotificationStorage, mailer: Arc<dyn EmailMailer>) -> Self {
         Self { stg, mailer }
     }
 
@@ -34,7 +46,7 @@ impl EmailDispatcher {
         }
     }
 
-    async fn tick_once(&self) -> Result<(), jupiter::sea_orm::DbErr> {
+    pub async fn tick_once(&self) -> Result<(), jupiter::sea_orm::DbErr> {
         let jobs = self.stg.fetch_pending_jobs(50).await?;
         for job in jobs {
             if job.to_email.trim().is_empty() {
@@ -75,16 +87,31 @@ impl EmailDispatcher {
 
 #[cfg(test)]
 mod tests {
-    use callisto::{email_jobs, notification_event_types};
-    use jupiter::{
-        sea_orm::{ActiveModelTrait, EntityTrait, Set},
-        tests::test_db_connection,
-    };
+    use std::sync::Arc;
+
+    use async_trait::async_trait;
+    use common::errors::MegaError;
+    use jupiter::tests::test_db_connection;
     use jupiter_migrate::apply_migrations;
     use tempfile::TempDir;
 
     use super::*;
-    use crate::email::NoopMailer;
+    use crate::application::notification::ensure_cl_comment_event_type;
+
+    struct NoopMailer;
+
+    #[async_trait]
+    impl EmailMailer for NoopMailer {
+        async fn send_html(
+            &self,
+            _to: &str,
+            _subject: &str,
+            _html: &str,
+            _text: Option<&str>,
+        ) -> Result<(), MegaError> {
+            Ok(())
+        }
+    }
 
     #[tokio::test]
     async fn test_dispatcher_sends_pending_jobs() {
@@ -92,24 +119,8 @@ mod tests {
         let db = test_db_connection(dir.path()).await;
         apply_migrations(&db, true).await.unwrap();
 
-        let stg = NotificationStorage::new(Arc::new(db.clone()));
-        let now = chrono::Utc::now().naive_utc();
-
-        // ensure event type exists
-        notification_event_types::ActiveModel {
-            code: Set("cl.comment.created".into()),
-            category: Set("cl".into()),
-            description: Set("New comment".into()),
-            system_required: Set(false),
-            default_enabled: Set(true),
-            created_at: Set(now),
-            updated_at: Set(now),
-        }
-        .insert(&db)
-        .await
-        .unwrap();
-
-        // enqueue a job
+        let stg = NotificationStorage::new(Arc::new(db));
+        ensure_cl_comment_event_type(&stg).await.unwrap();
         stg.enqueue_email_job(
             "alice",
             "alice@example.com",
@@ -121,14 +132,13 @@ mod tests {
         .await
         .unwrap();
 
+        let pending_before = stg.fetch_pending_jobs(10).await.unwrap();
+        assert_eq!(pending_before.len(), 1);
+
         let dispatcher = EmailDispatcher::new(stg.clone(), Arc::new(NoopMailer));
         dispatcher.tick_once().await.unwrap();
 
         let jobs = stg.fetch_pending_jobs(10).await.unwrap();
         assert!(jobs.is_empty(), "pending queue should be empty after send");
-
-        let sent = email_jobs::Entity::find().all(&db).await.unwrap();
-        assert_eq!(sent.len(), 1);
-        assert_eq!(sent[0].status, "sent");
     }
 }

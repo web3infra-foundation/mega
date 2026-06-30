@@ -5,13 +5,13 @@ use std::{
 };
 
 use common::{config::DbConfig, errors::MegaError};
+#[cfg(feature = "migrate")]
+use jupiter_migrate::apply_migrations;
 use sea_orm::{ConnectOptions, Database, DatabaseConnection};
 use tracing::log;
 use url::Url;
 
-use crate::{utils::id_generator};
-#[cfg(feature = "migrate")]
-use jupiter_migrate::apply_migrations;
+use crate::utils::id_generator;
 
 /// Create a database connection with failover logic.
 ///

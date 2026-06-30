@@ -26,10 +26,10 @@ COPY Cargo.lock ./
 COPY api-model/Cargo.toml api-model/
 COPY ceres/Cargo.toml ceres/
 COPY common/Cargo.toml common/
-COPY context/Cargo.toml context/
 COPY io-orbit/Cargo.toml io-orbit/
 COPY jupiter/Cargo.toml jupiter/
 COPY jupiter/callisto/Cargo.toml jupiter/callisto/
+COPY jupiter-migrate/Cargo.toml jupiter-migrate/
 COPY mono/Cargo.toml mono/
 COPY orion/Cargo.toml orion/
 COPY orion/audit/Cargo.toml orion/audit/

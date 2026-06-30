@@ -3,10 +3,12 @@ use axum::{
     Json,
     extract::{Path, State},
 };
-use callisto::sea_orm_active_enums::{ConvTypeEnum, MergeStatusEnum};
-use ceres::model::change_list::{
-    ChangeReviewStatePayload, ChangeReviewerStatePayload, ReviewerInfo, ReviewerPayload,
-    ReviewersResponse,
+use ceres::model::{
+    change_list::{
+        ChangeReviewStatePayload, ChangeReviewerStatePayload, MergeStatus, ReviewerPayload,
+        ReviewersResponse,
+    },
+    conversation::ConvType,
 };
 use common::errors::MegaError;
 use utoipa_axum::{router::OpenApiRouter, routes};
@@ -46,8 +48,7 @@ async fn add_reviewers(
     Json(payload): Json<ReviewerPayload>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     state
-        .storage
-        .reviewer_storage()
+        .monorepo()
         .add_reviewers(&link, payload.reviewer_usernames.clone())
         .await?;
 
@@ -61,7 +62,7 @@ async fn add_reviewers(
 
     for reviewer in payload.reviewer_usernames {
         state
-            .conv_stg()
+            .monorepo()
             .add_conversation(
                 &link,
                 &user.username,
@@ -69,7 +70,7 @@ async fn add_reviewers(
                     "{} assigned a new reviewer {}",
                     user.username, reviewer
                 )),
-                ConvTypeEnum::Comment,
+                ConvType::Comment,
             )
             .await?;
     }
@@ -96,8 +97,7 @@ async fn remove_reviewers(
     Json(payload): Json<ReviewerPayload>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     state
-        .storage
-        .reviewer_storage()
+        .monorepo()
         .remove_reviewers(&link, &payload.reviewer_usernames)
         .await?;
 
@@ -111,12 +111,12 @@ async fn remove_reviewers(
 
     for reviewer in &payload.reviewer_usernames {
         state
-            .conv_stg()
+            .monorepo()
             .add_conversation(
                 &link,
                 &user.username,
                 Some(format!("{} removed reviewer {}", user.username, reviewer)),
-                ConvTypeEnum::Comment,
+                ConvType::Comment,
             )
             .await?;
     }
@@ -139,22 +139,9 @@ async fn list_reviewers(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<ReviewersResponse>>, ApiError> {
-    let reviewers = state
-        .storage
-        .reviewer_storage()
-        .list_reviewers(&link)
-        .await?
-        .into_iter()
-        .map(|r| ReviewerInfo {
-            username: r.username,
-            approved: r.approved,
-            system_required: r.system_required,
-        })
-        .collect();
+    let reviewers = state.monorepo().list_reviewers(&link).await?;
 
-    Ok(Json(CommonResult::success(Some(ReviewersResponse {
-        result: reviewers,
-    }))))
+    Ok(Json(CommonResult::success(Some(reviewers))))
 }
 
 /// Change the reviewer approval state
@@ -176,28 +163,24 @@ async fn reviewer_approve(
     state: State<MonoApiServiceState>,
     Json(payload): Json<ChangeReviewerStatePayload>,
 ) -> Result<Json<CommonResult<()>>, ApiError> {
-    let res = state.cl_stg().get_cl(&link).await?;
-    let model = res.ok_or(MegaError::Other("CL Not Found".to_string()))?;
-
-    if model.status == MergeStatusEnum::Draft {
+    if state.monorepo().cl_merge_status(&link).await? == MergeStatus::Draft {
         return Err(ApiError::from(MegaError::Other(
             ERR_CL_NOT_READY_FOR_REVIEW.to_owned(),
         )));
     }
 
     state
-        .storage
-        .reviewer_storage()
+        .monorepo()
         .reviewer_change_state(&link, &user.username, payload.approved)
         .await?;
 
     state
-        .conv_stg()
+        .monorepo()
         .add_conversation(
             &link,
             &user.username,
             Some(format!("{} approved the CL", user.username)),
-            ConvTypeEnum::Approve,
+            ConvType::Approve,
         )
         .await?;
 
@@ -224,11 +207,7 @@ async fn review_resolve(
     Path(link): Path<String>,
     Json(payload): Json<ChangeReviewStatePayload>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    let res = state
-        .storage
-        .reviewer_storage()
-        .is_reviewer(&link, &user.username)
-        .await?;
+    let res = state.monorepo().is_reviewer(&link, &user.username).await?;
 
     if !res {
         return Err(ApiError::from(MegaError::Other(
@@ -237,18 +216,17 @@ async fn review_resolve(
     }
 
     state
-        .storage
-        .conversation_storage()
+        .monorepo()
         .change_review_state(&link, &payload.conversation_id, payload.resolved)
         .await?;
 
     state
-        .conv_stg()
+        .monorepo()
         .add_conversation(
             &link,
             &user.username,
             Some(format!("{} resolved a review", user.username)),
-            ConvTypeEnum::Comment,
+            ConvType::Comment,
         )
         .await?;
 

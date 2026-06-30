@@ -5,11 +5,10 @@ use std::{
 
 use common::config::Config;
 use io_orbit::factory::MegaObjectStorageWrapper;
-use sea_orm::{ConnectOptions, Database, DatabaseConnection};
-use tracing::log;
-
 #[cfg(feature = "migrate")]
 use jupiter_migrate::apply_migrations;
+use sea_orm::{ConnectOptions, Database, DatabaseConnection};
+use tracing::log;
 
 use crate::{
     service::{

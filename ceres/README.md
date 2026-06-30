@@ -8,7 +8,7 @@ Monorepo domain library for Mega: Git transport, REST application logic, and sha
 ceres/src/
 ├── lib.rs
 ├── bus/                    # Transport ↔ application event bus
-├── infra/                  # Shared infrastructure (GitObjectCache)
+├── infra/                  # Shared infrastructure (GitObjectCache, pack streams, decode errors)
 ├── transport/
 │   ├── protocol/           # Smart HTTP/SSH Git protocol
 │   └── pack/               # receive-pack / upload-pack handlers
@@ -20,7 +20,9 @@ ceres/src/
 ├── diff/, merge_checker/, lfs/
 ```
 
-Legacy paths (`ceres::protocol`, `ceres::pack`, `ceres::api_service`, etc.) remain as re-exports in `lib.rs` for compatibility with `mono`.
+Legacy paths (`ceres::protocol`, `ceres::pack`, `ceres::api_service`, etc.) remain as re-exports in `lib.rs` for compatibility with `mono`. Prefer `ceres::application::*` and `ceres::transport::*` in new code.
+
+`axum-core` is confined to `ceres/infra/pack_decode.rs` for `git-internal` pack decode stream errors until upstream accepts `std::io::Error`.
 
 ## Dependency rules
 
@@ -44,6 +46,8 @@ Three DTO layers; keep imports aligned with this table:
 Rules:
 
 - `mono` routers must **not** `use jupiter::model` — map via `ceres::model` and `MonoApiService` facades.
+- `mono/src` must **not** `use callisto::` or `jupiter::service::` — storage entities and service calls stay in `ceres` application layer.
+- `ceres/src/transport` must **not** reference `MonoApiService` (transport ↔ application boundary).
 - `api-model` is **not** mono HTTP schema (except shared wrappers like `CommonPage` / `Pagination`).
 - `ceres/model` is the mapping hub: `impl From<jupiter::model::*>` and `impl From<callisto::*>` live here.
 - `application/build_trigger/model` is a ceres subdomain API schema (build triggers); same HTTP rules as `ceres/model`, kept alongside orchestration until a later consolidation.

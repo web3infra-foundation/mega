@@ -34,13 +34,7 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
 async fn sidebar_menu_list(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<SidebarMenuListRes>>, ApiError> {
-    let items: SidebarMenuListRes = state
-        .dynamic_sidebar_stg()
-        .get_sidebars()
-        .await?
-        .into_iter()
-        .map(|m| m.into())
-        .collect();
+    let items = state.monorepo().list_sidebars().await?;
     Ok(Json(CommonResult::success(Some(items))))
 }
 
@@ -59,7 +53,7 @@ async fn new_sidebar(
     Json(json): Json<CreateSidebarPayload>,
 ) -> Result<Json<CommonResult<SidebarRes>>, ApiError> {
     let res = state
-        .dynamic_sidebar_stg()
+        .monorepo()
         .new_sidebar(
             json.public_id,
             json.label,
@@ -68,7 +62,7 @@ async fn new_sidebar(
             json.order_index,
         )
         .await?;
-    Ok(Json(CommonResult::success(Some(res.into()))))
+    Ok(Json(CommonResult::success(Some(res))))
 }
 
 /// Update sidebar menu
@@ -90,7 +84,7 @@ async fn update_sidebar_by_id(
     Json(json): Json<UpdateSidebarPayload>,
 ) -> Result<Json<CommonResult<SidebarRes>>, ApiError> {
     let res = state
-        .dynamic_sidebar_stg()
+        .monorepo()
         .update_sidebar(
             id,
             json.public_id,
@@ -101,7 +95,7 @@ async fn update_sidebar_by_id(
         )
         .await?;
 
-    Ok(Json(CommonResult::success(Some(res.into()))))
+    Ok(Json(CommonResult::success(Some(res))))
 }
 
 /// Sync sidebar menus
@@ -126,14 +120,9 @@ async fn sync_sidebar(
     state: State<MonoApiServiceState>,
     Json(payloads): Json<Vec<SidebarSyncPayload>>,
 ) -> Result<Json<CommonResult<Vec<SidebarRes>>>, ApiError> {
-    let res = state
-        .dynamic_sidebar_stg()
-        .sync_sidebar(payloads.into_iter().map(|item| item.into()).collect())
-        .await?;
+    let res = state.monorepo().sync_sidebars(payloads).await?;
 
-    Ok(Json(CommonResult::success(Some(
-        res.into_iter().map(|item| item.into()).collect(),
-    ))))
+    Ok(Json(CommonResult::success(Some(res))))
 }
 
 /// Delete sidebar menu
@@ -152,6 +141,6 @@ async fn delete_sidebar_by_id(
     state: State<MonoApiServiceState>,
     Path(id): Path<i32>,
 ) -> Result<Json<CommonResult<SidebarRes>>, ApiError> {
-    let res = state.dynamic_sidebar_stg().delete_sidebar(id).await?;
-    Ok(Json(CommonResult::success(Some(res.into()))))
+    let res = state.monorepo().delete_sidebar(id).await?;
+    Ok(Json(CommonResult::success(Some(res))))
 }

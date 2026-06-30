@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use ceres::application::notification::EmailMailer;
 use common::{config::MailConfig, errors::MegaError};
 use lettre::{
     AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
@@ -29,6 +30,19 @@ impl Mailer for NoopMailer {
         _text: Option<&str>,
     ) -> Result<(), MegaError> {
         Ok(())
+    }
+}
+
+#[async_trait]
+impl EmailMailer for NoopMailer {
+    async fn send_html(
+        &self,
+        to: &str,
+        subject: &str,
+        html: &str,
+        text: Option<&str>,
+    ) -> Result<(), MegaError> {
+        Mailer::send_html(self, to, subject, html, text).await
     }
 }
 
@@ -130,6 +144,19 @@ impl Mailer for SmtpMailer {
             .await
             .map(|_| ())
             .map_err(|e| MegaError::Other(format!("smtp send error: {e}")))
+    }
+}
+
+#[async_trait]
+impl EmailMailer for SmtpMailer {
+    async fn send_html(
+        &self,
+        to: &str,
+        subject: &str,
+        html: &str,
+        text: Option<&str>,
+    ) -> Result<(), MegaError> {
+        Mailer::send_html(self, to, subject, html, text).await
     }
 }
 

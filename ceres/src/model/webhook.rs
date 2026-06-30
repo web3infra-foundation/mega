@@ -49,13 +49,10 @@ impl From<WebhookWithEventTypes> for WebhookResponse {
     }
 }
 
-pub fn parse_webhook_event_types(
-    raw: Vec<String>,
-) -> Result<Vec<WebhookEventTypeEnum>, String> {
+pub fn parse_webhook_event_types(raw: Vec<String>) -> Result<Vec<WebhookEventTypeEnum>, String> {
     raw.into_iter()
         .map(|s| {
-            WebhookEventTypeEnum::try_from_value(&s)
-                .map_err(|_| format!("invalid event type: {s}"))
+            WebhookEventTypeEnum::try_from_value(&s).map_err(|_| format!("invalid event type: {s}"))
         })
         .collect()
 }
@@ -64,17 +61,13 @@ pub fn parse_webhook_event_types(
 mod tests {
     use callisto::sea_orm_active_enums::WebhookEventTypeEnum;
     use chrono::NaiveDateTime;
-    use jupiter::sea_orm::ActiveEnum;
 
     use super::*;
 
     #[test]
     fn parse_webhook_event_types_accepts_known_values() {
-        let parsed = parse_webhook_event_types(vec![
-            "cl.created".to_string(),
-            "all".to_string(),
-        ])
-        .expect("valid event types");
+        let parsed = parse_webhook_event_types(vec!["cl.created".to_string(), "all".to_string()])
+            .expect("valid event types");
         assert_eq!(parsed.len(), 2);
         assert_eq!(parsed[0], WebhookEventTypeEnum::ClCreated);
         assert_eq!(parsed[1], WebhookEventTypeEnum::All);
@@ -91,8 +84,8 @@ mod tests {
     fn webhook_response_from_maps_fields() {
         use jupiter::storage::webhook_storage::WebhookWithEventTypes;
 
-        let now = NaiveDateTime::parse_from_str("2025-01-01 00:00:00", "%Y-%m-%d %H:%M:%S")
-            .unwrap();
+        let now =
+            NaiveDateTime::parse_from_str("2025-01-01 00:00:00", "%Y-%m-%d %H:%M:%S").unwrap();
         let webhook = callisto::mega_webhook::Model {
             id: 42,
             target_url: "https://example.com/hook".to_string(),

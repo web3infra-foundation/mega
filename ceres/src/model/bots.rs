@@ -90,6 +90,22 @@ impl From<InstallationTargetType> for InstallationTargetTypeEnum {
     }
 }
 
+/// Authenticated bot principal resolved from a `bot_` bearer token.
+#[derive(Debug, Clone)]
+pub struct BotIdentity {
+    pub bot_id: i64,
+    pub token_id: i64,
+}
+
+impl BotIdentity {
+    pub fn from_models(bot: callisto::bots::Model, token: callisto::bot_tokens::Model) -> Self {
+        Self {
+            bot_id: bot.id,
+            token_id: token.id,
+        }
+    }
+}
+
 /// Request body for creating a new bot token.
 #[derive(Deserialize, ToSchema)]
 pub struct CreateBotTokenRequest {

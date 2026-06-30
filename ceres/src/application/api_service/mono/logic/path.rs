@@ -143,7 +143,10 @@ mod tests {
     use std::path::{Path, PathBuf};
 
     use bytes::Bytes;
-    use common::{errors::{BuckError, MegaError}, utils::ZERO_ID};
+    use common::{
+        errors::{BuckError, MegaError},
+        utils::ZERO_ID,
+    };
 
     use super::MonoServiceLogic;
 

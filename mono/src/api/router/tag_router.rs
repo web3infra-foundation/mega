@@ -1,5 +1,3 @@
-use std::path::Path as StdPath;
-
 use anyhow::anyhow;
 use api_model::common::{CommonResult, PageParams};
 use axum::{
@@ -34,60 +32,11 @@ async fn resolve_target_commit_id(
     path_context: Option<&str>,
     target_opt: Option<&str>,
 ) -> Result<String, ApiError> {
-    // if caller provided a specific non-"HEAD" target, use it directly
-    if let Some(t) = target_opt
-        && t != "HEAD"
-        && !t.is_empty()
-    {
-        return Ok(t.to_string());
-    }
-
-    let import_dir = state.storage.config().monorepo.import_dir.clone();
-    if let Some(path) = path_context {
-        let std_path = StdPath::new(path);
-        if std_path.starts_with(&import_dir) && std_path != StdPath::new(&import_dir) {
-            // find repo model (longest-prefix match)
-            if let Some(repo_model) = state
-                .storage
-                .git_db_storage()
-                .find_git_repo_like_path(path)
-                .await
-                .map_err(|e| ApiError::from(anyhow!("Database error: {}", e)))?
-            {
-                let git = state.storage.git_db_storage();
-                // try default branch ref
-                if let Ok(Some(r)) = git.get_default_ref(repo_model.id).await {
-                    return Ok(r.ref_git_id);
-                }
-                // fallback: any import ref for repo
-                if let Ok(refs) = git.get_ref(repo_model.id).await
-                    && let Some(r) = refs.into_iter().next()
-                {
-                    return Ok(r.ref_git_id);
-                }
-                return Ok("HEAD".to_string());
-            }
-            // If db lookup did not find a repo despite prefix, fall through to mono logic
-        } else {
-            // path is outside import_dir → mono
-            let mono = state.storage.mono_storage();
-            let resolved_path = path_context.unwrap_or("/");
-            if let Ok(Some(r)) = mono.get_main_ref(resolved_path).await {
-                return Ok(r.ref_commit_hash);
-            }
-            if let Ok(Some(root_ref)) = mono.get_main_ref("/").await {
-                return Ok(root_ref.ref_commit_hash);
-            }
-            return Ok("HEAD".to_string());
-        }
-    }
-
-    // Default fallback: try mono root ref
-    let mono = state.storage.mono_storage();
-    if let Ok(Some(root_ref)) = mono.get_main_ref("/").await {
-        return Ok(root_ref.ref_commit_hash);
-    }
-    Ok("HEAD".to_string())
+    state
+        .monorepo()
+        .resolve_target_commit_id(path_context, target_opt)
+        .await
+        .map_err(Into::into)
 }
 
 // Validate tag name against a conservative subset of Git ref rules.

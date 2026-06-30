@@ -1265,6 +1265,7 @@ dependencies = [
  "async-recursion",
  "async-trait",
  "axum",
+ "axum-core",
  "bytes",
  "callisto",
  "chrono",
@@ -1274,6 +1275,7 @@ dependencies = [
  "hex",
  "io-orbit",
  "jupiter",
+ "jupiter-migrate",
  "orion-client",
  "pgp",
  "rand 0.10.1",
@@ -1495,7 +1497,6 @@ name = "common"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "api-model",
  "cedar-policy",
  "clap",
  "config",
@@ -4965,7 +4966,6 @@ dependencies = [
  "axum-extra",
  "base64",
  "bytes",
- "callisto",
  "cedar-policy",
  "ceres",
  "chrono",

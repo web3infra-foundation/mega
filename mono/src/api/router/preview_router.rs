@@ -32,11 +32,10 @@ async fn upsert_commit_binding(
         }
     });
     state
-        .storage
-        .commit_binding_storage()
-        .upsert_binding(commit_id, final_username.clone(), final_username.is_none())
-        .await
-        .map_err(|e| ApiError::from(anyhow::anyhow!("Failed to save commit binding: {}", e)))
+        .monorepo()
+        .upsert_commit_binding(commit_id, final_username.clone(), final_username.is_none())
+        .await?;
+    Ok(())
 }
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
@@ -297,15 +296,13 @@ async fn path_can_be_cloned(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<bool>>, ApiError> {
     let path: PathBuf = query.path.clone().into();
-    let import_dir = state.storage.config().monorepo.import_dir.clone();
+    let import_dir = state.monorepo().import_dir();
+    let path_str = path.to_str().unwrap();
     let res = if path.starts_with(&import_dir) {
-        state
-            .storage
-            .git_db_storage()
-            .find_git_repo_exact_match(path.to_str().unwrap())
-            .await
-            .unwrap()
-            .is_some()
+        match state.monorepo().find_git_repo_like_path(path_str).await? {
+            Some(model) => model.repo_path == path_str,
+            None => false,
+        }
     } else {
         // any path under monorepo can be cloned
         true

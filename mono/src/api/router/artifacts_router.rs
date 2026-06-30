@@ -15,11 +15,11 @@ use axum::{
     http::{HeaderMap, Request, StatusCode},
     response::{IntoResponse, Response},
 };
+use ceres::application::artifact::ArtifactApplicationService;
 use chrono::Utc;
 use common::errors::MegaError;
 use futures::{StreamExt, TryStreamExt};
 use http::header;
-use jupiter::service::artifact_service::ArtifactService;
 use percent_encoding::percent_decode_str;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
@@ -100,8 +100,7 @@ pub async fn list_artifact_sets(
 ) -> Result<Json<ArtifactListSetsResponse>, ApiError> {
     let repo = decode_path_segment(&repo);
     let body = state
-        .storage
-        .artifact_service
+        .artifact_app_service()
         .list_artifact_sets(&repo, &q)
         .await
         .map_err(mega_to_api)?;
@@ -133,8 +132,7 @@ pub async fn get_artifact_set(
     let repo = decode_path_segment(&repo);
     let artifact_set_id = decode_path_segment(&artifact_set_id);
     let body = state
-        .storage
-        .artifact_service
+        .artifact_app_service()
         .get_artifact_set_detail(&repo, &artifact_set_id, &q)
         .await
         .map_err(mega_to_api)?;
@@ -167,8 +165,7 @@ pub async fn resolve_artifact_file(
 ) -> Result<Json<ArtifactResolveFileResponse>, ApiError> {
     let repo = decode_path_segment(&repo);
     let body = state
-        .storage
-        .artifact_service
+        .artifact_app_service()
         .resolve_artifact_file(&repo, &q)
         .await
         .map_err(mega_to_api)?;
@@ -212,7 +209,7 @@ pub async fn download_object(
         .await
         .map_err(mega_to_api)?;
 
-    let etag = ArtifactService::weak_etag_for_oid_size(&model.oid, model.size_bytes);
+    let etag = ArtifactApplicationService::weak_etag_for_oid_size(&model.oid, model.size_bytes);
     let range_hdr = headers.get(header::RANGE).and_then(|v| v.to_str().ok());
 
     if range_hdr.is_none()
@@ -262,7 +259,8 @@ pub async fn download_object(
     }
 
     let len = model.size_bytes.max(0) as u64;
-    let range_parsed = match ArtifactService::parse_artifact_object_range(range_hdr, len) {
+    let range_parsed = match ArtifactApplicationService::parse_artifact_object_range(range_hdr, len)
+    {
         Ok(v) => v,
         Err(e) => {
             let msg = e.to_string();
@@ -344,7 +342,7 @@ pub async fn head_artifact_object(
         .artifact_object_model_for_committed_repo_download(&repo, &oid)
         .await
         .map_err(mega_to_api)?;
-    let etag = ArtifactService::weak_etag_for_oid_size(&model.oid, model.size_bytes);
+    let etag = ArtifactApplicationService::weak_etag_for_oid_size(&model.oid, model.size_bytes);
     let content_type = model
         .content_type
         .as_deref()
@@ -379,8 +377,7 @@ pub async fn batch(
     Json(req): Json<ArtifactBatchRequest>,
 ) -> Result<Json<ArtifactBatchResponse>, ApiError> {
     let body = state
-        .storage
-        .artifact_service
+        .artifact_app_service()
         .batch_artifacts(&req)
         .await
         .map_err(mega_to_api)?;
@@ -410,8 +407,7 @@ pub async fn commit(
 ) -> Result<Json<ArtifactCommitResponse>, ApiError> {
     let repo = decode_path_segment(&repo);
     let body = state
-        .storage
-        .artifact_service
+        .artifact_app_service()
         .commit_artifacts(&repo, &req)
         .await
         .map_err(mega_to_api)?;
@@ -467,8 +463,7 @@ pub async fn upload_object_fallback(
     }
 
     state
-        .storage
-        .artifact_service
+        .artifact_app_service()
         .upload_artifact_object_bytes(&oid, body_bytes)
         .await
         .map_err(mega_to_api)?;

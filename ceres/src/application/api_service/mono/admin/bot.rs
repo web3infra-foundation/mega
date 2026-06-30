@@ -1,20 +1,133 @@
 use callisto::sea_orm_active_enums::{
     InstallationBotStatusEnum, PermissionEnum, PermissionScopeEnum,
 };
+use chrono::Utc;
 use common::errors::MegaError;
+use jupiter::sea_orm::prelude::DateTimeWithTimeZone;
 
-use crate::api_service::mono::MonoApiService;
+use crate::{
+    api_service::mono::MonoApiService,
+    model::bots::{
+        BotRes, ChangeInstallationStatus, CreateBotTokenResponse, InstallBotReq,
+        InstallationTargetType, ListBotTokenItem,
+    },
+};
 
 impl MonoApiService {
+    pub async fn get_bot_by_id(
+        &self,
+        bot_id: i64,
+    ) -> Result<Option<callisto::bots::Model>, MegaError> {
+        self.storage.bots_storage().get_bot_by_id(bot_id).await
+    }
+
+    pub async fn install_bot(&self, bot_id: i64, req: InstallBotReq) -> Result<BotRes, MegaError> {
+        let bot = self
+            .storage
+            .bots_storage()
+            .install_bot(
+                bot_id,
+                req.target_type.into(),
+                req.target_id,
+                req.installed_by,
+            )
+            .await?;
+        Ok(bot.into())
+    }
+
+    pub async fn list_installed_bots(&self, bot_id: i64) -> Result<Vec<BotRes>, MegaError> {
+        Ok(self
+            .storage
+            .bots_storage()
+            .get_installed_bot_by_id(bot_id)
+            .await?
+            .into_iter()
+            .map(|m| m.into())
+            .collect())
+    }
+
+    pub async fn change_bot_installation_status(
+        &self,
+        bot_id: i64,
+        installation_id: i64,
+        payload: ChangeInstallationStatus,
+    ) -> Result<BotRes, MegaError> {
+        let model = self
+            .storage
+            .bots_storage()
+            .change_installed_bot_status(
+                bot_id,
+                payload.target_type.into(),
+                installation_id,
+                payload.status.into(),
+            )
+            .await?;
+        Ok(model.into())
+    }
+
+    pub async fn uninstall_bot(
+        &self,
+        bot_id: i64,
+        target_type: InstallationTargetType,
+        installation_id: i64,
+    ) -> Result<(), MegaError> {
+        self.storage
+            .bots_storage()
+            .uninstall_bot(bot_id, target_type.into(), installation_id)
+            .await
+    }
+
+    pub async fn generate_bot_token(
+        &self,
+        bot_id: i64,
+        token_name: &str,
+        expires_at: Option<DateTimeWithTimeZone>,
+    ) -> Result<CreateBotTokenResponse, MegaError> {
+        let (model, token_plain) = self
+            .storage
+            .bots_storage()
+            .generate_bot_token(bot_id, token_name, expires_at)
+            .await?;
+        Ok(CreateBotTokenResponse {
+            id: model.id,
+            token_name: model.token_name,
+            expires_at: model.expires_at.map(|dt| dt.with_timezone(&Utc)),
+            token_plain,
+        })
+    }
+
+    pub async fn list_bot_tokens(&self, bot_id: i64) -> Result<Vec<ListBotTokenItem>, MegaError> {
+        Ok(self
+            .storage
+            .bots_storage()
+            .list_bot_tokens(bot_id)
+            .await?
+            .into_iter()
+            .map(|t| ListBotTokenItem {
+                id: t.id,
+                token_name: t.token_name,
+                expires_at: t.expires_at.map(|dt| dt.with_timezone(&Utc)),
+                revoked: t.revoked,
+                created_at: t.created_at.with_timezone(&Utc),
+            })
+            .collect())
+    }
+
+    pub async fn revoke_bot_token(&self, bot_id: i64, token_id: i64) -> Result<(), MegaError> {
+        self.storage
+            .bots_storage()
+            .revoke_bot_token(bot_id, token_id)
+            .await
+    }
+
+    pub async fn revoke_all_bot_tokens(&self, bot_id: i64) -> Result<(), MegaError> {
+        self.storage
+            .bots_storage()
+            .revoke_bot_tokens_by_bot(bot_id)
+            .await
+    }
+
     /// Check whether a bot has sufficient permission on a given resource.
-    ///
-    /// The decision is based on:
-    /// - Bot status (must be enabled).
-    /// - Whether the bot has at least one enabled installation record.
-    /// - The bot-level `permission_scope` compared against `required_permission`.
-    ///
-    /// Installation scope is currently checked in an aggregated way (any enabled installation
-    /// is sufficient) and can be refined later to be resource-type aware.
     pub async fn check_bot_permission(
         &self,
         bot_id: i64,
@@ -24,7 +137,6 @@ impl MonoApiService {
     ) -> Result<bool, MegaError> {
         let bots_storage = self.storage.bots_storage();
 
-        // 1. Load bot and ensure it is enabled.
         let bot = match bots_storage.get_bot_by_id(bot_id).await? {
             Some(b) => b,
             None => return Ok(false),
@@ -34,7 +146,6 @@ impl MonoApiService {
             return Ok(false);
         }
 
-        // 2. Ensure the bot has at least one enabled installation.
         let installations = bots_storage.get_installed_bot_by_id(bot_id).await?;
         let has_enabled_installation = installations
             .iter()
@@ -44,7 +155,6 @@ impl MonoApiService {
             return Ok(false);
         }
 
-        // 3. Compare bot-level permission scope with the required permission.
         Ok(scope_satisfies_permission(
             &bot.permission_scope,
             &required_permission,

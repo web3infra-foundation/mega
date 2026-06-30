@@ -1,11 +1,13 @@
 use clap::{ArgMatches, Args, Command, FromArgMatches, ValueEnum};
 use common::errors::MegaResult;
-use crate::bootstrap::AppContext;
 
-use crate::server::{
-    CommonHttpOptions,
-    http_server::{self},
-    ssh_server::{self, SshCustom, SshOptions},
+use crate::{
+    bootstrap::AppContext,
+    server::{
+        CommonHttpOptions,
+        http_server::{self},
+        ssh_server::{self, SshCustom, SshOptions},
+    },
 };
 
 #[derive(Debug, PartialEq, Clone, ValueEnum)]

@@ -399,12 +399,12 @@ async fn set_resource_permissions(
     Json(req): Json<SetPermissionsRequest>,
 ) -> Result<Json<CommonResult<Vec<ResourcePermissionResponse>>>, ApiError> {
     ensure_admin(&state, &user).await?;
-    let (resource_type, _, resource_id) =
+    let (resource_type_value, resource_id) =
         resolve_resource_context(&state, resource_type.as_str(), &resource_id).await?;
 
     let saved = state
         .monorepo()
-        .set_resource_permission(resource_type, &resource_id, req.permissions)
+        .set_resource_permission(resource_type_value.into(), &resource_id, req.permissions)
         .await?;
     let saved = saved.into_iter().map(Into::into).collect();
 
@@ -433,12 +433,12 @@ async fn get_resource_permissions(
     Path((resource_type, resource_id)): Path<(String, String)>,
 ) -> Result<Json<CommonResult<Vec<ResourcePermissionResponse>>>, ApiError> {
     ensure_admin(&state, &user).await?;
-    let (resource_type, _, resource_id) =
+    let (resource_type_value, resource_id) =
         resolve_resource_context(&state, resource_type.as_str(), &resource_id).await?;
 
     let permissions = state
         .monorepo()
-        .get_resource_permissions(resource_type, &resource_id)
+        .get_resource_permissions(resource_type_value.into(), &resource_id)
         .await?;
     let permissions = permissions.into_iter().map(Into::into).collect();
 
@@ -469,12 +469,12 @@ async fn update_resource_permissions(
     Json(req): Json<SetPermissionsRequest>,
 ) -> Result<Json<CommonResult<Vec<ResourcePermissionResponse>>>, ApiError> {
     ensure_admin(&state, &user).await?;
-    let (resource_type, _, resource_id) =
+    let (resource_type_value, resource_id) =
         resolve_resource_context(&state, resource_type.as_str(), &resource_id).await?;
 
     let updated = state
         .monorepo()
-        .update_resource_permissions(resource_type, &resource_id, req.permissions)
+        .update_resource_permissions(resource_type_value.into(), &resource_id, req.permissions)
         .await?;
     let updated = updated.into_iter().map(Into::into).collect();
 
@@ -503,12 +503,12 @@ async fn delete_resource_permissions(
     Path((resource_type, resource_id)): Path<(String, String)>,
 ) -> Result<Json<CommonResult<DeletePermissionsResponse>>, ApiError> {
     ensure_admin(&state, &user).await?;
-    let (resource_type, resource_type_value, resource_id) =
+    let (resource_type_value, resource_id) =
         resolve_resource_context(&state, resource_type.as_str(), &resource_id).await?;
 
     let deleted_count = state
         .monorepo()
-        .delete_resource_permissions(resource_type, &resource_id)
+        .delete_resource_permissions(resource_type_value.into(), &resource_id)
         .await?;
 
     Ok(Json(CommonResult::success(Some(
@@ -572,12 +572,12 @@ async fn get_user_effective_permission(
     Path((username, resource_type, resource_id)): Path<(String, String, String)>,
 ) -> Result<Json<CommonResult<UserEffectivePermissionResponse>>, ApiError> {
     ensure_admin(&state, &user).await?;
-    let (resource_type, resource_type_value, resource_id) =
+    let (resource_type_value, resource_id) =
         resolve_resource_context(&state, resource_type.as_str(), &resource_id).await?;
 
     let effective = state
         .monorepo()
-        .get_user_effective_permission(&username, resource_type, &resource_id)
+        .get_user_effective_permission(&username, resource_type_value.into(), &resource_id)
         .await?;
     let response = build_user_effective_permission_response(
         username,

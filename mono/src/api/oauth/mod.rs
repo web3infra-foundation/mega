@@ -5,6 +5,8 @@
 //! validation as [`AccessTokenUser`], call [`bearer_token_from_authorization_value`] and
 //! [`login_user_from_mono_access_token`] from that code path instead of the extractor.
 
+use std::ops::Deref;
+
 use axum::{
     RequestPartsExt,
     extract::{FromRef, FromRequestParts},
@@ -15,7 +17,7 @@ use axum_extra::{
     TypedHeader,
     headers::{self, Authorization, authorization::Bearer},
 };
-use callisto::{bot_tokens, bots};
+pub use ceres::model::bots::BotIdentity;
 use common::errors::MegaError;
 use http::request::Parts;
 use jupiter::storage::user_storage::UserStorage;
@@ -35,12 +37,6 @@ impl IntoResponse for AuthRedirect {
         (StatusCode::UNAUTHORIZED, "Login first").into_response()
     }
 }
-
-pub struct BotIdentity {
-    pub bot: bots::Model,
-    pub token: bot_tokens::Model,
-}
-
 pub struct AccessTokenUser(pub LoginUser);
 
 /// Authenticated user resolved from a **browser session cookie** (Campsite or Tinyship),
@@ -74,7 +70,18 @@ pub async fn login_user_from_mono_access_token(
     }))
 }
 
-impl<S> FromRequestParts<S> for BotIdentity
+/// Axum extractor for bot bearer tokens (`bot_` prefix).
+pub struct BotAuth(pub BotIdentity);
+
+impl Deref for BotAuth {
+    type Target = BotIdentity;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<S> FromRequestParts<S> for BotAuth
 where
     MonoApiServiceState: FromRef<S>,
     S: Send + Sync,
@@ -104,12 +111,9 @@ where
 
         // Delegate token validation to Jupiter storage (BotsStorage)
         let state_ref = MonoApiServiceState::from_ref(state);
-        let bots_storage = state_ref.storage.bots_storage();
 
-        // BotsStorage::find_bot_by_token is tolerant to presence/absence of the prefix,
-        // but we pass the original token string here for clarity.
-        match bots_storage.find_bot_by_token(raw_token).await {
-            Ok(Some((bot, token))) => Ok(BotIdentity { bot, token }),
+        match state_ref.monorepo().find_bot_by_token(raw_token).await {
+            Ok(Some((bot, token))) => Ok(BotAuth(BotIdentity::from_models(bot, token))),
             Ok(None) => {
                 tracing::warn!("BotIdentity: bot token not found, revoked, or expired");
                 Err(AuthRedirect)
