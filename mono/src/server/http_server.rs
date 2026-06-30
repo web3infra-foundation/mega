@@ -11,8 +11,7 @@ use axum::{
     routing::any,
 };
 use ceres::{
-    api_service::cache::GitObjectCache,
-    application::{artifact::ArtifactApplicationService, notification::EmailMailer},
+    application::{api_service::cache::GitObjectCache, artifact::ArtifactApplicationService},
     transport::ProtocolApiState,
 };
 use common::errors::ProtocolError;
@@ -29,7 +28,7 @@ use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_swagger_ui::SwaggerUi;
 
-use super::super::notification::EmailDispatcher;
+use super::super::notification::{EmailDispatcher, EmailMailer};
 use crate::{
     api::{
         MonoApiServiceState,

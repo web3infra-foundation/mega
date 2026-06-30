@@ -55,6 +55,21 @@ pub enum MegaError {
     #[error("Not Found error: {0}")]
     NotFound(String),
 
+    #[error("Bad request: {0}")]
+    BadRequest(String),
+
+    #[error("Conflict: {0}")]
+    Conflict(String),
+
+    #[error("Forbidden: {0}")]
+    Forbidden(String),
+
+    #[error("Unauthorized: {0}")]
+    Unauthorized(String),
+
+    #[error("Service unavailable: {0}")]
+    Unavailable(String),
+
     #[error("ObjStorage error: {0}")]
     ObjStorage(String),
 
@@ -76,6 +91,47 @@ pub enum MegaError {
     Other(String),
 }
 
+impl MegaError {
+    pub fn bad_request(msg: impl Into<String>) -> Self {
+        Self::BadRequest(msg.into())
+    }
+
+    pub fn conflict(msg: impl Into<String>) -> Self {
+        Self::Conflict(msg.into())
+    }
+
+    pub fn forbidden(msg: impl Into<String>) -> Self {
+        Self::Forbidden(msg.into())
+    }
+
+    pub fn unauthorized(msg: impl Into<String>) -> Self {
+        Self::Unauthorized(msg.into())
+    }
+
+    pub fn unavailable(msg: impl Into<String>) -> Self {
+        Self::Unavailable(msg.into())
+    }
+
+    /// Parse legacy `[code:xxx] message` strings into typed variants.
+    pub fn from_legacy_message(msg: impl Into<String>) -> Self {
+        let msg = msg.into();
+        if let Some((code, clean)) = parse_legacy_http_code(&msg) {
+            return match code {
+                400 => Self::BadRequest(clean.to_string()),
+                401 => Self::Unauthorized(clean.to_string()),
+                403 => Self::Forbidden(clean.to_string()),
+                404 => Self::NotFound(clean.to_string()),
+                409 => Self::Conflict(clean.to_string()),
+                413 => Self::BadRequest(clean.to_string()),
+                416 => Self::BadRequest(clean.to_string()),
+                503 => Self::Unavailable(clean.to_string()),
+                _ => Self::Other(msg),
+            };
+        }
+        Self::Other(msg)
+    }
+}
+
 impl From<Infallible> for MegaError {
     fn from(err: Infallible) -> MegaError {
         match err {}
@@ -88,13 +144,129 @@ impl From<ParseErrors> for MegaError {
     }
 }
 
+/// Parse `[code:xxx]` anywhere in a message. Returns (status_code, clean_message).
+pub fn parse_legacy_http_code(err_str: &str) -> Option<(u16, &str)> {
+    let start = err_str.find("[code:")?;
+    let code_start = start + 6;
+    let remaining = &err_str[start..];
+    let code_end_relative = remaining.find(']')?;
+    if code_end_relative <= 6 {
+        return None;
+    }
+    let code_end = start + code_end_relative;
+    let code = &err_str[code_start..code_end];
+    if code.is_empty() || !code.chars().all(|c| c.is_ascii_digit()) {
+        return None;
+    }
+    let status: u16 = code.parse().ok()?;
+    let msg_start = code_end + 1;
+    let msg = err_str.get(msg_start..).unwrap_or("").trim_start();
+    Some((status, msg))
+}
+
+pub fn buck_error_http_status(err: &BuckError) -> u16 {
+    match err {
+        BuckError::SessionNotFound(_) | BuckError::FileNotInManifest(_) => 404,
+        BuckError::SessionExpired => 410,
+        BuckError::RateLimitExceeded => 429,
+        BuckError::FileSizeExceedsLimit(_, _) => 413,
+        BuckError::FileAlreadyUploaded(_) => 409,
+        BuckError::Forbidden(_) => 403,
+        BuckError::HashMismatch { .. }
+        | BuckError::ValidationError(_)
+        | BuckError::InvalidSessionStatus { .. }
+        | BuckError::FilesNotFullyUploaded { .. } => 400,
+    }
+}
+
+pub fn git_error_http_status(err: &GitError) -> u16 {
+    match err {
+        GitError::ObjectNotFound(_) | GitError::RepoNotFound | GitError::NotFoundHashValue(_) => {
+            404
+        }
+        GitError::UnAuthorized(_) => 401,
+        GitError::InvalidObjectType(_)
+        | GitError::InvalidBlobObject(_)
+        | GitError::InvalidTreeObject
+        | GitError::InvalidTreeItem(_)
+        | GitError::EmptyTreeItems(_)
+        | GitError::InvalidSignatureType(_)
+        | GitError::InvalidCommitObject
+        | GitError::InvalidCommit(_)
+        | GitError::InvalidTagObject(_)
+        | GitError::InvalidNoteObject(_)
+        | GitError::InvalidPathError(_)
+        | GitError::ConversionError(_) => 400,
+        GitError::CustomError(msg) => parse_legacy_http_code(msg)
+            .map(|(code, _)| code)
+            .unwrap_or_else(|| git_custom_error_http_status(msg)),
+        _ => 500,
+    }
+}
+
+fn git_custom_error_http_status(msg: &str) -> u16 {
+    let lower = msg.to_ascii_lowercase();
+    if lower.contains("not found") || lower.contains("doesn't exist") {
+        404
+    } else if lower.contains("duplicate")
+        || lower.contains("invalid")
+        || lower.contains("required")
+        || lower.contains("conflict")
+    {
+        400
+    } else if lower.contains("forbidden") || lower.contains("denied") {
+        403
+    } else {
+        500
+    }
+}
+
+/// Suggested HTTP status code for a [`MegaError`].
+pub fn mega_error_http_status(err: &MegaError) -> u16 {
+    match err {
+        MegaError::NotFound(_) | MegaError::ObjStorageNotFound(_) => 404,
+        MegaError::BadRequest(_) => 400,
+        MegaError::Conflict(_)
+        | MegaError::StaleMonorepoRootRef
+        | MegaError::ObjStorageInconsistent(_) => 409,
+        MegaError::Forbidden(_) => 403,
+        MegaError::Unauthorized(_) => 401,
+        MegaError::Unavailable(_) => 503,
+        MegaError::Buck(buck_err) => buck_error_http_status(buck_err),
+        MegaError::Git(git_err) => git_error_http_status(git_err),
+        MegaError::Other(msg) => parse_legacy_http_code(msg)
+            .map(|(code, _)| code)
+            .unwrap_or(500),
+        MegaError::Db(_)
+        | MegaError::Redis(_)
+        | MegaError::Io(_)
+        | MegaError::Config(_)
+        | MegaError::EncodeError(_)
+        | MegaError::SerdeJson(_)
+        | MegaError::Pgp(_)
+        | MegaError::Clap(_)
+        | MegaError::Anyhow(_)
+        | MegaError::ObjStorage(_) => 500,
+    }
+}
+
+/// Whether the error message is safe to expose to API clients.
+pub fn mega_error_is_client_safe(err: &MegaError) -> bool {
+    let status = mega_error_http_status(err);
+    status < 500 || status == 503
+}
+
 impl From<MegaError> for GitError {
     fn from(val: MegaError) -> Self {
         match val {
-            // Preserve HTTP semantics across crates: ApiError can parse [code:404].
-            MegaError::NotFound(msg) => GitError::CustomError(format!("[code:404] {msg}")),
+            MegaError::NotFound(msg) => GitError::CustomError(msg),
+            MegaError::BadRequest(msg) => GitError::CustomError(msg),
+            MegaError::Conflict(msg) => GitError::CustomError(msg),
+            MegaError::Forbidden(msg) => GitError::CustomError(msg),
+            MegaError::Unauthorized(msg) => GitError::CustomError(msg),
+            MegaError::Unavailable(msg) => GitError::CustomError(msg),
             MegaError::ObjStorageNotFound(msg) => {
-                GitError::CustomError(format!("[code:404] ObjStorage not found: {msg}"))
+                GitError::CustomError(format!("ObjStorage not found: {msg}"))
             }
             other => GitError::CustomError(other.to_string()),
         }
@@ -160,11 +332,86 @@ pub enum ProtocolError {
     Disabled,
 }
 
-impl From<MegaError> for ProtocolError {
-    fn from(err: MegaError) -> ProtocolError {
-        ProtocolError::InvalidInput(err.to_string())
+pub fn protocol_error_http_status(err: &ProtocolError) -> u16 {
+    match err {
+        ProtocolError::NotFound(_) => 404,
+        ProtocolError::InvalidInput(_) => 400,
+        ProtocolError::Deny(_) => 401,
+        ProtocolError::TooLarge(_) => 413,
+        ProtocolError::Disabled => 403,
+        ProtocolError::IO(_) => 500,
+    }
+}
+
+/// Whether the protocol error message is safe to expose to clients.
+pub fn protocol_error_is_client_safe(err: &ProtocolError) -> bool {
+    protocol_error_http_status(err) < 500
+}
+
+/// Explicit transport-boundary mapping from domain errors to protocol errors.
+pub fn mega_to_protocol_error(err: MegaError) -> ProtocolError {
+    match err {
+        MegaError::NotFound(msg) => ProtocolError::NotFound(msg),
+        MegaError::BadRequest(msg) => ProtocolError::InvalidInput(msg),
+        MegaError::Unauthorized(msg) => ProtocolError::Deny(msg),
+        MegaError::Forbidden(msg) => ProtocolError::InvalidInput(msg),
+        MegaError::Unavailable(msg) => ProtocolError::InvalidInput(msg),
+        MegaError::Conflict(msg) => ProtocolError::InvalidInput(msg),
+        MegaError::Io(e) => ProtocolError::IO(e),
+        other => ProtocolError::InvalidInput(other.to_string()),
     }
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_legacy_http_code_extracts_status_and_message() {
+        let (code, msg) = parse_legacy_http_code("[code:404] CL not found: abc").unwrap();
+        assert_eq!(code, 404);
+        assert_eq!(msg, "CL not found: abc");
+    }
+
+    #[test]
+    fn mega_error_from_legacy_message_maps_typed_variants() {
+        let err = MegaError::from_legacy_message("[code:503] Build system is not enabled");
+        assert!(matches!(err, MegaError::Unavailable(_)));
+        assert_eq!(mega_error_http_status(&err), 503);
+    }
+
+    #[test]
+    fn mega_error_http_status_maps_not_found() {
+        assert_eq!(
+            mega_error_http_status(&MegaError::NotFound("CL not found".into())),
+            404
+        );
+    }
+
+    #[test]
+    fn git_error_http_status_maps_custom_not_found() {
+        assert_eq!(
+            git_error_http_status(&GitError::CustomError("File not found".into())),
+            404
+        );
+    }
+
+    #[test]
+    fn protocol_error_http_status_maps_not_found() {
+        assert_eq!(
+            protocol_error_http_status(&ProtocolError::NotFound("repo missing".into())),
+            404
+        );
+    }
+
+    #[test]
+    fn protocol_error_http_status_maps_disabled() {
+        assert_eq!(protocol_error_http_status(&ProtocolError::Disabled), 403);
+    }
+
+    #[test]
+    fn mega_to_protocol_error_preserves_not_found() {
+        let err = mega_to_protocol_error(MegaError::NotFound("repo".into()));
+        assert!(matches!(err, ProtocolError::NotFound(_)));
+    }
+}

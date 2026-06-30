@@ -20,7 +20,7 @@ ceres/src/
 ├── diff/, merge_checker/, lfs/
 ```
 
-Legacy paths (`ceres::protocol`, `ceres::pack`, `ceres::api_service`, etc.) remain as re-exports in `lib.rs` for compatibility with `mono`. Prefer `ceres::application::*` and `ceres::transport::*` in new code.
+`mono` uses `ceres::application::*` and `ceres::transport::*` for domain logic and Git transport.
 
 `axum-core` is confined to `ceres/infra/pack_decode.rs` for `git-internal` pack decode stream errors until upstream accepts `std::io::Error`.
 
@@ -51,6 +51,21 @@ Rules:
 - `api-model` is **not** mono HTTP schema (except shared wrappers like `CommonPage` / `Pagination`).
 - `ceres/model` is the mapping hub: `impl From<jupiter::model::*>` and `impl From<callisto::*>` live here.
 - `application/build_trigger/model` is a ceres subdomain API schema (build triggers); same HTTP rules as `ceres/model`, kept alongside orchestration until a later consolidation.
+
+## Error type boundaries
+
+| Layer | Error type | HTTP adapter (mono) |
+|-------|------------|---------------------|
+| `ceres/application`, `jupiter` | `MegaError` | `ApiError` (`mono/src/api/error.rs`) |
+| `ceres/transport`, Git Smart HTTP/SSH | `ProtocolError` | `protocol_error::into_response` |
+| Buck upload | `BuckError` (via `MegaError::Buck`) | `ApiError` |
+| Git LFS | `GitLFSError` | `map_lfs_error` in `lfs_router` |
+
+Rules:
+
+- REST routers and `MonoApiService` use `MegaError` only; `api_handler` resolves import vs mono handlers and returns `MegaError`.
+- `ProtocolError` is confined to Git client protocol paths; use `mega_to_protocol_error` at transport boundaries when mapping domain failures.
+- Do not use `ProtocolError` in REST handlers.
 
 Long term: extract `ceres/model` → `mega-api-types` only if a non-mono consumer needs HTTP DTOs without ceres domain code.
 

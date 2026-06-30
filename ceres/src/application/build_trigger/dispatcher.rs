@@ -5,7 +5,7 @@ use common::errors::MegaError;
 use jupiter::storage::Storage;
 use orion_client::OrionBuildClient;
 
-use crate::build_trigger::{BuildTrigger, BuildTriggerPayload};
+use crate::application::build_trigger::{BuildTrigger, BuildTriggerPayload};
 
 /// Handles dispatching build triggers to the build execution layer (Orion).
 pub struct BuildDispatcher {
@@ -107,7 +107,7 @@ mod tests {
     use tokio::{net::TcpListener, sync::mpsc};
 
     use super::*;
-    use crate::build_trigger::{BuildTriggerType, TriggerSource, WebEditPayload};
+    use crate::application::build_trigger::{BuildTriggerType, TriggerSource, WebEditPayload};
 
     #[derive(Clone)]
     struct MockOrionState {

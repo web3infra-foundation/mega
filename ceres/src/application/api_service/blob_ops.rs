@@ -14,7 +14,7 @@ use git_internal::{
 use sha1::{Digest, Sha1};
 
 use crate::{
-    api_service::{ApiHandler, tree_ops},
+    application::api_service::{ApiHandler, tree_ops},
     model::git::DiffPreviewPayload,
 };
 

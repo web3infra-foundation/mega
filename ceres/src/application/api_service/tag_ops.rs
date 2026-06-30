@@ -2,6 +2,7 @@
 
 use std::str::FromStr;
 
+use common::errors::MegaError;
 use git_internal::{
     errors::GitError,
     hash::ObjectHash,
@@ -31,16 +32,57 @@ pub fn tags_full_ref(name: &str) -> String {
     format!("refs/tags/{name}")
 }
 
-pub fn tag_already_exists(name: &str) -> GitError {
-    GitError::CustomError(format!("[code:400] Tag '{name}' already exists"))
+pub fn tag_already_exists(name: &str) -> MegaError {
+    MegaError::bad_request(format!("Tag '{name}' already exists"))
 }
 
-pub fn commit_not_found(commit_id: &str) -> GitError {
-    GitError::CustomError(format!("[code:404] Target commit '{commit_id}' not found"))
+pub fn commit_not_found(commit_id: &str) -> MegaError {
+    MegaError::NotFound(format!("Target commit '{commit_id}' not found"))
 }
 
-pub fn db_error() -> GitError {
-    GitError::CustomError("[code:500] DB error".to_string())
+pub fn db_error() -> MegaError {
+    MegaError::Other("DB error".to_string())
+}
+
+/// Validate tag name against a conservative subset of Git ref rules.
+pub fn validate_tag_name(name: &str) -> Result<(), MegaError> {
+    if name.is_empty() {
+        return Err(MegaError::bad_request("Tag name must not be empty"));
+    }
+
+    if name.len() > 255 {
+        return Err(MegaError::bad_request("Tag name is too long"));
+    }
+
+    if name.contains("..") || name.contains("@{") {
+        return Err(MegaError::bad_request(
+            "Tag name contains reserved sequence '..' or '@{'",
+        ));
+    }
+
+    if name.contains("//") {
+        return Err(MegaError::bad_request("Tag name must not contain '//'"));
+    }
+
+    if name.ends_with(".lock") {
+        return Err(MegaError::bad_request("Tag name must not end with '.lock'"));
+    }
+
+    let forbidden = [' ', '~', '^', ':', '?', '*', '[', '\\'];
+    for c in name.chars() {
+        if forbidden.contains(&c) {
+            return Err(MegaError::bad_request(format!(
+                "Tag name '{name}' contains forbidden character '{c}'"
+            )));
+        }
+        if c == '\0' || c.is_control() {
+            return Err(MegaError::bad_request(
+                "Tag name contains invalid control characters",
+            ));
+        }
+    }
+
+    Ok(())
 }
 
 /// Build git-internal tag id and resolved object id from create-tag inputs.
@@ -122,6 +164,14 @@ mod tests {
         assert!(!is_annotated_tag(&None));
         assert!(!is_annotated_tag(&Some(String::new())));
         assert!(is_annotated_tag(&Some("release".into())));
+    }
+
+    #[test]
+    fn validate_tag_name_rejects_empty() {
+        assert!(matches!(
+            validate_tag_name(""),
+            Err(MegaError::BadRequest(_))
+        ));
     }
 
     #[test]

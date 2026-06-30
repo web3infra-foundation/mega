@@ -18,7 +18,7 @@ use git_internal::{
 use jupiter::storage::Storage;
 
 use crate::{
-    api_service::cache::GitObjectCache,
+    application::api_service::cache::GitObjectCache,
     model::{
         blame::{BlameQuery, BlameResult},
         change_list::MuiTreeNode,

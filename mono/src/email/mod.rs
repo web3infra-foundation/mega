@@ -1,11 +1,12 @@
 use async_trait::async_trait;
-use ceres::application::notification::EmailMailer;
 use common::{config::MailConfig, errors::MegaError};
 use lettre::{
     AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
     message::{MultiPart, SinglePart, header::ContentType},
     transport::smtp::authentication::Credentials,
 };
+
+use crate::notification::EmailMailer;
 
 #[async_trait]
 pub trait Mailer: Send + Sync {

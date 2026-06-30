@@ -6,7 +6,7 @@ use git_internal::hash::ObjectHash;
 
 use super::changes_port::ChangesPort;
 use crate::{
-    api_service::mono::MonoApiService, build_trigger::TriggerContext,
+    application::{api_service::mono::MonoApiService, build_trigger::TriggerContext},
     model::change_list::ClDiffFile,
 };
 

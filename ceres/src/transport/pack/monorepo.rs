@@ -37,8 +37,10 @@ use tokio_stream::wrappers::ReceiverStream;
 use crate::{
     bus::{ApplicationEventHandler, TransportEvent},
     infra::cache::GitObjectCache,
-    pack::RepoHandler,
-    protocol::import_refs::{RefCommand, Refs},
+    transport::{
+        pack::RepoHandler,
+        protocol::import_refs::{RefCommand, Refs},
+    },
 };
 
 pub struct MonoRepo {
@@ -54,7 +56,7 @@ pub struct MonoRepo {
     pub cl_link: Arc<RwLock<Option<String>>>,
     pub application: Arc<dyn ApplicationEventHandler>,
     pub username: Option<String>,
-    /// Ref commands for this push (same role as on [`ImportRepo`](crate::pack::import_repo::ImportRepo)).
+    /// Ref commands for this push (same role as on [`ImportRepo`](crate::transport::pack::import_repo::ImportRepo)).
     pub command_list: Mutex<Vec<RefCommand>>,
 }
 

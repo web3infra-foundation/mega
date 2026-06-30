@@ -6,7 +6,7 @@ use common::errors::MegaError;
 use jupiter::storage::Storage;
 
 use super::changes_calculator::MonoChangesCalculator;
-use crate::{
+use crate::application::{
     api_service::{cache::GitObjectCache, mono::MonoApiService},
     build_trigger::{
         BuildTrigger, BuildTriggerPayload, BuildTriggerType, RetryPayload, TriggerContext,

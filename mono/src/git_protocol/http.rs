@@ -9,10 +9,12 @@ use base64::Engine;
 use bytes::{Bytes, BytesMut};
 use ceres::{
     infra::pack_stream::into_pack_byte_stream,
-    protocol::{PushUserInfo, ServiceType, SmartSession, TransportProtocol, smart},
-    transport::ProtocolApiState,
+    transport::{
+        ProtocolApiState,
+        protocol::{PushUserInfo, ServiceType, SmartSession, TransportProtocol, smart},
+    },
 };
-use common::errors::ProtocolError;
+use common::errors::{ProtocolError, mega_to_protocol_error};
 use futures::{TryStreamExt, stream};
 use http::header::AUTHORIZATION;
 use tokio::io::AsyncReadExt;
@@ -96,9 +98,10 @@ async fn git_receive_pack_auth(
         return Ok(false);
     };
 
-    let Some(user) =
-        login_user_from_mono_access_token(&state.storage.user_storage(), &token).await?
-    else {
+    let user = login_user_from_mono_access_token(&state.storage.user_storage(), &token)
+        .await
+        .map_err(mega_to_protocol_error)?;
+    let Some(user) = user else {
         return Ok(false);
     };
 

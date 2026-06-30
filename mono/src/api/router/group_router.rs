@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use api_model::common::{CommonPage, CommonResult, PageParams, Pagination};
+use api_model::common::{CommonPage, CommonResult, PageParams};
 use axum::{
     Json,
     extract::{Path, State},
@@ -63,38 +63,7 @@ async fn create_group(
 ) -> Result<Json<CommonResult<GroupResponse>>, ApiError> {
     ensure_admin(&state, &user).await?;
 
-    let name = req.name.trim();
-    if name.is_empty() {
-        tracing::warn!(
-            actor = %user.username,
-            "group.create rejected: empty group name"
-        );
-        return Err(ApiError::bad_request(anyhow!(
-            "Group name must not be empty"
-        )));
-    }
-    if name.len() > 255 {
-        tracing::warn!(
-            actor = %user.username,
-            "group.create rejected: name too long"
-        );
-        return Err(ApiError::bad_request(anyhow!(
-            "Group name must not exceed 255 characters"
-        )));
-    }
-
-    let description = req
-        .description
-        .map(|item| item.trim().to_string())
-        .and_then(|item| if item.is_empty() { None } else { Some(item) });
-
-    let group = state
-        .monorepo()
-        .create_group(CreateGroupRequest {
-            name: name.to_string(),
-            description,
-        })
-        .await?;
+    let group = state.monorepo().create_group(req).await?;
 
     Ok(Json(CommonResult::success(Some(group.into()))))
 }
@@ -117,7 +86,6 @@ async fn list_groups(
     Json(json): Json<PageParams<EmptyListAdditional>>,
 ) -> Result<Json<CommonResult<CommonPage<GroupResponse>>>, ApiError> {
     ensure_admin(&state, &user).await?;
-    validate_pagination(&json.pagination)?;
 
     let (items, total) = state.monorepo().list_groups(json.pagination).await?;
     let items = items.into_iter().map(Into::into).collect();
@@ -190,40 +158,13 @@ async fn update_group(
 ) -> Result<Json<CommonResult<GroupResponse>>, ApiError> {
     ensure_admin(&state, &user).await?;
 
-    let name = req.name.trim();
-    if name.is_empty() {
-        tracing::warn!(
-            actor = %user.username,
-            group_id,
-            "group.update rejected: empty group name"
-        );
-        return Err(ApiError::bad_request(anyhow!(
-            "Group name must not be empty"
-        )));
-    }
-    if name.len() > 255 {
-        tracing::warn!(
-            actor = %user.username,
-            group_id,
-            "group.update rejected: name too long"
-        );
-        return Err(ApiError::bad_request(anyhow!(
-            "Group name must not exceed 255 characters"
-        )));
-    }
-
-    let description = req
-        .description
-        .map(|item| item.trim().to_string())
-        .and_then(|item| if item.is_empty() { None } else { Some(item) });
-
     let updated = state
         .monorepo()
         .update_group(
             group_id,
             UpdateGroupRequest {
-                name: name.to_string(),
-                description,
+                name: req.name,
+                description: req.description,
             },
         )
         .await?;
@@ -285,16 +226,6 @@ async fn add_group_members(
     Json(req): Json<AddMembersRequest>,
 ) -> Result<Json<CommonResult<Vec<GroupMemberResponse>>>, ApiError> {
     ensure_admin(&state, &user).await?;
-    if req.usernames.is_empty() {
-        tracing::warn!(
-            actor = %user.username,
-            group_id,
-            "group.members.add rejected: empty usernames"
-        );
-        return Err(ApiError::bad_request(anyhow!(
-            "usernames must not be empty"
-        )));
-    }
 
     let members = state
         .monorepo()
@@ -361,7 +292,6 @@ async fn list_group_members(
     Json(json): Json<PageParams<EmptyListAdditional>>,
 ) -> Result<Json<CommonResult<CommonPage<GroupMemberResponse>>>, ApiError> {
     ensure_admin(&state, &user).await?;
-    validate_pagination(&json.pagination)?;
 
     let (items, total) = state
         .monorepo()
@@ -587,20 +517,4 @@ async fn get_user_effective_permission(
     );
 
     Ok(Json(CommonResult::success(Some(response))))
-}
-
-fn validate_pagination(pagination: &Pagination) -> Result<(), ApiError> {
-    if pagination.page == 0 {
-        tracing::warn!("invalid pagination.page: {}", pagination.page);
-        return Err(ApiError::bad_request(anyhow!(
-            "pagination.page must be >= 1"
-        )));
-    }
-    if pagination.per_page == 0 {
-        tracing::warn!("invalid pagination.per_page: {}", pagination.per_page);
-        return Err(ApiError::bad_request(anyhow!(
-            "pagination.per_page must be >= 1"
-        )));
-    }
-    Ok(())
 }

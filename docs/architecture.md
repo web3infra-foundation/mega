@@ -35,6 +35,10 @@ mono CLI
 
 `mono` constructs a `TransportRuntime` with storage, `GitObjectCache`, and `RuntimeApplicationHandler`, then wires it to Git protocol handlers and REST routes. Push flow details: [ceres/README.md](../ceres/README.md#git-push-event-flow).
 
+## Error handling boundaries
+
+REST and application logic use `MegaError` (`common::errors`), mapped to HTTP by `ApiError` in `mono`. Git Smart HTTP/SSH transport uses `ProtocolError` with `protocol_error::into_response`. See [ceres/README.md#error-type-boundaries](../ceres/README.md#error-type-boundaries).
+
 ## DTO and module boundaries
 
 HTTP/OpenAPI types live in `ceres/model`. `mono` routers must not import `jupiter::model`, `callisto`, or `jupiter::service` directly — use `ceres::model` and `MonoApiService` facades. `ceres/src/transport` must not depend on `MonoApiService`. CI enforces these rules in [`.github/workflows/base.yml`](../.github/workflows/base.yml). Full rules: [ceres/README.md#model-boundary](../ceres/README.md#model-boundary).

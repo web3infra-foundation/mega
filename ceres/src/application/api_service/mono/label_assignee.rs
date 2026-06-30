@@ -4,7 +4,7 @@ use callisto::sea_orm_active_enums::ConvTypeEnum;
 use common::errors::MegaError;
 use jupiter::model::common::LabelAssigneeParams;
 
-use crate::api_service::mono::MonoApiService;
+use crate::application::api_service::mono::MonoApiService;
 
 impl MonoApiService {
     pub async fn update_item_labels(

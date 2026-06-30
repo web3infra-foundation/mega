@@ -35,7 +35,7 @@ use orion_client::OrionBuildClient;
 use super::model::{
     BuildParams, GitPushEvent, ListTriggersParams, TriggerContext, TriggerRecord, TriggerResponse,
 };
-use crate::{
+use crate::application::{
     api_service::cache::GitObjectCache,
     build_trigger::{RefResolver, TriggerRegistry},
     code_edit::utils as edit_utils,
@@ -79,9 +79,7 @@ impl BuildTriggerService {
 
     fn check_build_enabled(&self) -> Result<(), MegaError> {
         if !self.is_enabled() {
-            return Err(MegaError::Other(
-                "[code:503] Build system is not enabled".to_string(),
-            ));
+            return Err(MegaError::unavailable("Build system is not enabled"));
         }
         Ok(())
     }
@@ -133,7 +131,7 @@ impl BuildTriggerService {
             .cl_storage()
             .get_cl(cl_link)
             .await?
-            .ok_or_else(|| MegaError::Other(format!("[code:404] CL not found: {}", cl_link)))?;
+            .ok_or_else(|| MegaError::NotFound(format!("CL not found: {cl_link}")))?;
         let context = Self::context_from_cl(&self.storage, cl).await?;
         let id = self.registry.trigger_build(context).await?;
         Ok(Some(id))
@@ -168,7 +166,7 @@ impl BuildTriggerService {
             .await
             .map_err(|_| {
                 let ref_str = ref_name.unwrap_or_else(|| "main".to_string());
-                MegaError::Other(format!("[code:404] Reference not found: {}", ref_str))
+                MegaError::NotFound(format!("Reference not found: {ref_str}"))
             })?;
 
         let mut context = TriggerContext::from_manual(
@@ -198,10 +196,7 @@ impl BuildTriggerService {
             .get_by_id(original_trigger_id)
             .await?
             .ok_or_else(|| {
-                MegaError::Other(format!(
-                    "[code:404] Trigger not found: {}",
-                    original_trigger_id
-                ))
+                MegaError::NotFound(format!("Trigger not found: {original_trigger_id}"))
             })?;
 
         let trigger_record = TriggerRecord::from_db_model(original_trigger);
@@ -271,9 +266,7 @@ impl BuildTriggerService {
             .build_trigger_storage()
             .get_by_id(trigger_id)
             .await?
-            .ok_or_else(|| {
-                MegaError::Other(format!("[code:404] Trigger not found: {}", trigger_id))
-            })?;
+            .ok_or_else(|| MegaError::NotFound(format!("Trigger not found: {trigger_id}")))?;
 
         let record = TriggerRecord::from_db_model(model);
         TriggerResponse::from_trigger_record(&record)
@@ -286,7 +279,7 @@ mod tests {
     use tempfile::tempdir;
 
     use super::*;
-    use crate::build_trigger::BuildTriggerType;
+    use crate::application::build_trigger::BuildTriggerType;
 
     #[tokio::test]
     async fn test_context_from_cl_resolves_repo_root_from_registered_repo_path() {

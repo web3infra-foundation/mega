@@ -13,8 +13,8 @@ use git_internal::{hash::ObjectHash, internal::object::commit::Commit};
 use jupiter::{redis::lock::RedLock, storage::Storage, utils::converter::FromGitModel};
 
 use crate::{
-    api_service::{cache::GitObjectCache, mono::MonoApiService, tree_ops},
-    protocol::import_refs::{CommandType, RefCommand},
+    application::api_service::{cache::GitObjectCache, mono::MonoApiService, tree_ops},
+    transport::protocol::import_refs::{CommandType, RefCommand},
 };
 
 pub async fn dispatch_import_receive_pack_finalized(

@@ -13,7 +13,7 @@ use git_internal::{
     },
 };
 
-use crate::api_service::ApiHandler;
+use crate::application::api_service::ApiHandler;
 
 const MAX_ITERATIONS: usize = 10_000;
 
@@ -67,7 +67,8 @@ pub async fn item_to_commit_map<T: ApiHandler + ?Sized>(
 ) -> Result<HashMap<TreeItem, Option<Commit>>, GitError> {
     // Resolve the starting commit
     let start_commit_arc =
-        crate::api_service::commit_ops::resolve_start_commit(handler, reference).await?;
+        crate::application::api_service::commit_ops::resolve_start_commit(handler, reference)
+            .await?;
 
     // Get the tree at the specified path from the resolved start commit
     let start_tree = handler

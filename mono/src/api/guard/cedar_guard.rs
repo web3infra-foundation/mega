@@ -7,7 +7,6 @@ use axum::{
 };
 use cedar_policy::{Context, EntityId, EntityTypeName, EntityUid};
 use common::errors::MegaError;
-use http::StatusCode;
 use once_cell::sync::Lazy;
 use saturn::{ActionEnum, context::CedarContext, entitystore::EntityStore, util::SaturnEUid};
 
@@ -117,10 +116,7 @@ pub async fn cedar_guard(
 
     let (action, link) = resolve_cl_action(&request_path).map_err(|e| {
         tracing::error!("Failed to resolve CL action: {}", e);
-        ApiError::with_status(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            MegaError::Other("Failed to resolve CL action".to_string()),
-        )
+        ApiError::from(e)
     })?;
     tracing::debug!("Resolved action: {:?}, link: {}", action, link);
 
@@ -164,17 +160,16 @@ pub async fn cedar_guard(
                 &principal_id,
                 &action.to_string()
             );
-            ApiError::with_status(
-                StatusCode::UNAUTHORIZED,
-                MegaError::Other(format!("Guard Authorization failed: {}", e)),
-            )
+            ApiError::from(MegaError::forbidden(format!(
+                "Guard Authorization failed: {e}"
+            )))
         })?;
 
     let req = Request::from_parts(parts, body);
     let response = next.run(req).await;
 
     if response.status().is_client_error() {
-        tracing::error!(
+        tracing::warn!(
             status = %response.status(),
             path = %request_path,
             "Downstream returned a 4xx error"
@@ -211,7 +206,7 @@ async fn authorize(
 
     cedar_context
         .is_authorized(&principal, &action, &resource, context)
-        .map_err(|e| MegaError::Other(format!("Authorization failed: {}", e)))?;
+        .map_err(|e| MegaError::forbidden(format!("Authorization failed: {e}")))?;
 
     Ok(())
 }

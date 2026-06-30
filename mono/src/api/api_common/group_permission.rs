@@ -1,6 +1,6 @@
 use anyhow::anyhow;
 use ceres::{
-    api_service::mono::EffectiveResourcePermission,
+    application::api_service::mono::EffectiveResourcePermission,
     model::group::{PermissionValue, ResourceTypeValue, UserEffectivePermissionResponse},
 };
 use http::StatusCode;

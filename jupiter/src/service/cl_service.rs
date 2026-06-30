@@ -1,12 +1,9 @@
 use common::errors::MegaError;
 
-use crate::{
-    model::cl_dto::CLDetails,
-    storage::{
-        base_storage::{BaseStorage, StorageConnector},
-        cl_storage::ClStorage,
-        conversation_storage::ConversationStorage,
-    },
+use crate::storage::{
+    base_storage::{BaseStorage, StorageConnector},
+    cl_storage::ClStorage,
+    conversation_storage::ConversationStorage,
 };
 
 #[derive(Clone)]
@@ -33,39 +30,6 @@ impl CLService {
             cl_storage: ClStorage { base: mock.clone() },
             conversation_storage: ConversationStorage { base: mock.clone() },
         }
-    }
-
-    #[deprecated(note = "use ceres::MonoApiService::get_cl_details instead")]
-    pub async fn get_cl_details(
-        &self,
-        link: &str,
-        username: String,
-    ) -> Result<CLDetails, MegaError> {
-        let (cl, labels) = self
-            .cl_storage
-            .get_cl_labels(link)
-            .await?
-            .ok_or_else(|| MegaError::Other("CL not found".to_string()))?;
-
-        let conversations = self
-            .conversation_storage
-            .get_comments_with_reactions(link)
-            .await?;
-
-        let (_, assignees) = self
-            .cl_storage
-            .get_cl_assignees(link)
-            .await?
-            .unwrap_or((cl.clone(), vec![]));
-
-        let res = CLDetails {
-            cl,
-            labels,
-            conversations,
-            assignees,
-            username,
-        };
-        Ok(res)
     }
 
     /// Create a new Draft CL

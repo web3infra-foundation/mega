@@ -25,16 +25,18 @@ use jupiter::{
 };
 
 use crate::{
-    api_service::{
-        ApiHandler,
-        mono::{
-            MonoApiService,
-            logic::{MonoServiceLogic, path_not_exist_re},
-            types::{CreateEntryUpdate, TreeUpdateResult},
+    application::{
+        api_service::{
+            ApiHandler,
+            mono::{
+                MonoApiService,
+                logic::{MonoServiceLogic, path_not_exist_re},
+                types::{CreateEntryUpdate, TreeUpdateResult},
+            },
+            tree_ops,
         },
-        tree_ops,
+        code_edit::{on_edit::OneditCodeEdit, utils as edit_utils},
     },
-    code_edit::{on_edit::OneditCodeEdit, utils as edit_utils},
     model::git::{CreateEntryInfo, CreateEntryResult, EditFilePayload, EditFileResult},
 };
 
@@ -610,7 +612,7 @@ mod tests {
 
     use git_internal::hash::ObjectHash;
 
-    use crate::api_service::mono::{
+    use crate::application::api_service::mono::{
         MonoApiService,
         types::{RefUpdate, TreeUpdateResult},
     };

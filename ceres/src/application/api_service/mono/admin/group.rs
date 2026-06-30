@@ -7,12 +7,41 @@ use common::errors::MegaError;
 use jupiter::model::group_dto::{DeleteGroupStats, ResourcePermissionBinding};
 
 use crate::{
-    api_service::mono::MonoApiService,
+    application::api_service::mono::MonoApiService,
     model::group::{
         CreateGroupRequest, PermissionBindingRequest, PermissionValue, ResourceTypeValue,
         UpdateGroupRequest,
     },
 };
+
+fn normalize_optional_description(description: Option<String>) -> Option<String> {
+    description
+        .map(|item| item.trim().to_string())
+        .and_then(|item| if item.is_empty() { None } else { Some(item) })
+}
+
+fn validate_group_name(name: &str) -> Result<String, MegaError> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Err(MegaError::bad_request("Group name must not be empty"));
+    }
+    if name.len() > 255 {
+        return Err(MegaError::bad_request(
+            "Group name must not exceed 255 characters",
+        ));
+    }
+    Ok(name.to_string())
+}
+
+fn validate_pagination(pagination: &Pagination) -> Result<(), MegaError> {
+    if pagination.page == 0 {
+        return Err(MegaError::bad_request("pagination.page must be >= 1"));
+    }
+    if pagination.per_page == 0 {
+        return Err(MegaError::bad_request("pagination.per_page must be >= 1"));
+    }
+    Ok(())
+}
 
 fn create_group_payload(req: CreateGroupRequest) -> jupiter::model::group_dto::CreateGroupPayload {
     jupiter::model::group_dto::CreateGroupPayload {
@@ -51,9 +80,15 @@ impl MonoApiService {
         &self,
         payload: CreateGroupRequest,
     ) -> Result<mega_group::Model, MegaError> {
+        let name = validate_group_name(&payload.name)?;
+        let description = normalize_optional_description(payload.description);
+
         self.storage
             .group_storage()
-            .create_group(create_group_payload(payload))
+            .create_group(create_group_payload(CreateGroupRequest {
+                name,
+                description,
+            }))
             .await
     }
 
@@ -61,6 +96,7 @@ impl MonoApiService {
         &self,
         page: Pagination,
     ) -> Result<(Vec<mega_group::Model>, u64), MegaError> {
+        validate_pagination(&page)?;
         self.storage.group_storage().list_groups(page).await
     }
 
@@ -76,9 +112,14 @@ impl MonoApiService {
         group_id: i64,
         payload: UpdateGroupRequest,
     ) -> Result<mega_group::Model, MegaError> {
+        let name = validate_group_name(&payload.name)?;
+        let description = normalize_optional_description(payload.description);
         self.storage
             .group_storage()
-            .update_group(group_id, update_group_payload(payload))
+            .update_group(
+                group_id,
+                update_group_payload(UpdateGroupRequest { name, description }),
+            )
             .await
     }
 
@@ -104,6 +145,9 @@ impl MonoApiService {
         group_id: i64,
         usernames: Vec<String>,
     ) -> Result<Vec<mega_group_member::Model>, MegaError> {
+        if usernames.is_empty() {
+            return Err(MegaError::bad_request("usernames must not be empty"));
+        }
         let group_storage = self.storage.group_storage();
         group_storage.add_group_members(group_id, &usernames).await
     }
@@ -128,6 +172,7 @@ impl MonoApiService {
         group_id: i64,
         page: Pagination,
     ) -> Result<(Vec<mega_group_member::Model>, u64), MegaError> {
+        validate_pagination(&page)?;
         let group_storage = self.storage.group_storage();
         if group_storage.get_group_by_id(group_id).await?.is_none() {
             return Err(MegaError::NotFound(format!(

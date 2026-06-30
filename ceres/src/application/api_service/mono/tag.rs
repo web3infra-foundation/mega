@@ -6,11 +6,12 @@ use git_internal::errors::GitError;
 use tracing;
 
 use crate::{
-    api_service::{
+    application::api_service::{
         mono::MonoApiService,
         tag_ops::{
             self, build_git_internal_tag, db_error, format_tagger_info, is_annotated_tag,
             lightweight_commit_tag, merge_paginated_tags, tag_already_exists, tags_full_ref,
+            validate_tag_name,
         },
     },
     model::tag::TagInfo,
@@ -38,6 +39,7 @@ impl MonoApiService {
         tagger_email: Option<String>,
         message: Option<String>,
     ) -> Result<TagInfo, GitError> {
+        validate_tag_name(&name)?;
         let mono_storage = self.storage.mono_storage();
         let tagger_info = format_tagger_info(tagger_name, tagger_email);
 
@@ -46,16 +48,16 @@ impl MonoApiService {
         let full_ref = tags_full_ref(&name);
 
         match mono_storage.get_tag_by_name(&name).await {
-            Ok(Some(_)) => return Err(tag_already_exists(&name)),
+            Ok(Some(_)) => return Err(tag_already_exists(&name).into()),
             Ok(None) => {}
             Err(e) => {
                 tracing::error!("DB error while checking tag existence: {}", e);
-                return Err(db_error());
+                return Err(db_error().into());
             }
         }
 
         if let Ok(Some(_)) = mono_storage.get_ref_by_name(&full_ref).await {
-            return Err(tag_already_exists(&name));
+            return Err(tag_already_exists(&name).into());
         }
 
         if is_annotated_tag(&message) {
@@ -79,7 +81,7 @@ impl MonoApiService {
                 Ok(v) => v,
                 Err(e) => {
                     tracing::error!("DB error while listing tags: {}", e);
-                    return Err(db_error());
+                    return Err(db_error().into());
                 }
             };
 
@@ -126,7 +128,7 @@ impl MonoApiService {
             Ok(None) => {}
             Err(e) => {
                 tracing::error!("DB error while getting tag: {}", e);
-                return Err(db_error());
+                return Err(db_error().into());
             }
         }
 
@@ -182,7 +184,7 @@ impl MonoApiService {
             }
             Err(e) => {
                 tracing::error!("DB error while deleting tag: {}", e);
-                Err(db_error())
+                Err(db_error().into())
             }
         }
     }
@@ -291,7 +293,7 @@ impl MonoApiService {
                     "Target commit '{}' not found while resolving tree hash",
                     commit_id
                 );
-                Err(tag_ops::commit_not_found(commit_id))
+                Err(tag_ops::commit_not_found(commit_id).into())
             }
             Err(e) => {
                 tracing::error!(
@@ -299,7 +301,7 @@ impl MonoApiService {
                     commit_id,
                     e
                 );
-                Err(db_error())
+                Err(db_error().into())
             }
         }
     }
@@ -310,12 +312,12 @@ impl MonoApiService {
             match mono_storage.get_commit_by_hash(t).await {
                 Ok(commit_opt) => {
                     if commit_opt.is_none() {
-                        return Err(tag_ops::commit_not_found(t));
+                        return Err(tag_ops::commit_not_found(t).into());
                     }
                 }
                 Err(e) => {
                     tracing::error!("DB error while fetching commit by hash: {}", e);
-                    return Err(db_error());
+                    return Err(db_error().into());
                 }
             }
         }

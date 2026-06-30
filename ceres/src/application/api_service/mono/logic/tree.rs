@@ -13,7 +13,7 @@ use git_internal::{
 use jupiter::storage::mono_storage::RefUpdateData;
 
 use super::MonoServiceLogic;
-use crate::api_service::mono::types::{RefUpdate, TreeUpdateResult};
+use crate::application::api_service::mono::types::{RefUpdate, TreeUpdateResult};
 
 impl MonoServiceLogic {
     pub fn update_tree_hash(

@@ -6,7 +6,7 @@ use common::errors::MegaError;
 use jupiter::storage::Storage;
 
 use super::changes_calculator::MonoChangesCalculator;
-use crate::{
+use crate::application::{
     api_service::{cache::GitObjectCache, mono::MonoApiService},
     build_trigger::{
         BuildTrigger, BuildTriggerPayload, BuildTriggerType, TriggerContext, TriggerHandler,
@@ -88,7 +88,7 @@ mod tests {
     use api_model::buck2::{status::Status, types::ProjectRelativePath};
 
     use super::*;
-    use crate::build_trigger::{BuildTriggerType, TriggerSource};
+    use crate::application::build_trigger::{BuildTriggerType, TriggerSource};
 
     #[test]
     fn test_resolve_cl_link_prefers_existing_cl_link() {

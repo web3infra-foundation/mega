@@ -16,7 +16,7 @@ pub struct MonoAppServices {
 impl MonoAppServices {
     pub fn new(
         storage: Storage,
-        git_object_cache: Arc<crate::api_service::cache::GitObjectCache>,
+        git_object_cache: Arc<crate::application::api_service::cache::GitObjectCache>,
     ) -> Self {
         Self {
             inner: MonoApiService::new(TransportContext::new(storage, git_object_cache)),

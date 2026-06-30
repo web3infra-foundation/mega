@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use common::errors::MegaError;
 use git_internal::hash::ObjectHash;
 
-use crate::{api_service::mono::MonoApiService, model::change_list::ClDiffFile};
+use crate::{application::api_service::mono::MonoApiService, model::change_list::ClDiffFile};
 
 /// Port for computing CL file diffs used by build trigger handlers.
 #[async_trait]

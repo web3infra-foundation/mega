@@ -17,11 +17,13 @@ use orion_client::OrionBuildClient;
 use tracing::debug;
 
 use crate::{
-    api_service::{
-        ApiHandler,
-        mono::{MonoApiService, logic::MonoServiceLogic, types::TreeUpdateResult},
+    application::{
+        api_service::{
+            ApiHandler,
+            mono::{MonoApiService, logic::MonoServiceLogic, types::TreeUpdateResult},
+        },
+        code_edit::on_edit::OneditCodeEdit,
     },
-    code_edit::on_edit::OneditCodeEdit,
     merge_checker::CheckerRegistry,
 };
 
@@ -113,7 +115,7 @@ impl MonoApiService {
         Ok(())
     }
     pub async fn merge_cl(&self, username: &str, mut cl: mega_cl::Model) -> Result<(), GitError> {
-        crate::api_service::mono::cl_merge::prepare_cl_path_for_merge(self, &mut cl)
+        crate::application::api_service::mono::cl_merge::prepare_cl_path_for_merge(self, &mut cl)
             .await
             .map_err(|e| GitError::CustomError(e.to_string()))?;
 
@@ -147,9 +149,10 @@ impl MonoApiService {
     ) -> Result<(), GitError> {
         let storage = self.storage.mono_storage();
 
-        let strategy = crate::api_service::mono::cl_merge::resolve_merge_strategy(self, &cl)
-            .await
-            .map_err(|e| GitError::CustomError(e.to_string()))?;
+        let strategy =
+            crate::application::api_service::mono::cl_merge::resolve_merge_strategy(self, &cl)
+                .await
+                .map_err(|e| GitError::CustomError(e.to_string()))?;
         tracing::info!(
             cl_link = %cl.link,
             cl_path = %cl.path,
@@ -165,14 +168,14 @@ impl MonoApiService {
             let parent = path.parent().ok_or_else(|| {
                 GitError::CustomError(format!("Invalid CL path: {}", normalized_path))
             })?;
-            if crate::api_service::mono::cl_merge::needs_path_tree_attach(self, &path)
+            if crate::application::api_service::mono::cl_merge::needs_path_tree_attach(self, &path)
                 .await
                 .map_err(|e| GitError::CustomError(e.to_string()))?
             {
                 self.attach_project_path_to_monorepo_root(&normalized_path)
                     .await
                     .map_err(|e| GitError::CustomError(e.to_string()))?;
-                crate::api_service::mono::cl_merge::sync_path_prefix_main_refs(
+                crate::application::api_service::mono::cl_merge::sync_path_prefix_main_refs(
                     self,
                     &normalized_path,
                 )
@@ -184,8 +187,10 @@ impl MonoApiService {
         };
 
         let leaf_tree_id =
-            crate::api_service::mono::cl_merge::resolve_merge_leaf_tree_id(self, &cl, strategy)
-                .await?;
+            crate::application::api_service::mono::cl_merge::resolve_merge_leaf_tree_id(
+                self, &cl, strategy,
+            )
+            .await?;
         let result = MonoServiceLogic::build_result_by_chain(path, update_chain, leaf_tree_id)?;
         self.apply_update_result(&result, "cl merge generated commit", Some(cl.link.as_str()))
             .await?;
@@ -214,7 +219,7 @@ impl MonoApiService {
         if let Ok(files) = self.get_sorted_changed_file_list(&cl.link, None).await {
             let admin_file_modified = files.iter().any(|file| {
                 let normalized = file.replace('\\', "/");
-                normalized.ends_with(crate::api_service::mono::ADMIN_FILE)
+                normalized.ends_with(crate::application::api_service::mono::ADMIN_FILE)
             });
             if admin_file_modified {
                 self.invalidate_admin_cache().await;

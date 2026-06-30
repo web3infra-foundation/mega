@@ -6,7 +6,7 @@ use common::errors::MegaError;
 use jupiter::sea_orm::prelude::DateTimeWithTimeZone;
 
 use crate::{
-    api_service::mono::MonoApiService,
+    application::api_service::mono::MonoApiService,
     model::bots::{
         BotRes, ChangeInstallationStatus, CreateBotTokenResponse, InstallBotReq,
         InstallationTargetType, ListBotTokenItem,

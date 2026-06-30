@@ -59,7 +59,7 @@ impl GroupStorage {
             .await
             .map_err(|e| match e {
                 DbErr::RecordNotInserted => {
-                    MegaError::Other(format!("[code:409] Group already exists: {name}"))
+                    MegaError::Conflict(format!("Group already exists: {name}"))
                 }
                 _ => e.into(),
             })?;
@@ -466,7 +466,7 @@ fn is_unique_constraint_error(err: &DbErr) -> bool {
 
 fn map_unique_to_conflict(err: DbErr, group_name: String) -> MegaError {
     if is_unique_constraint_error(&err) {
-        MegaError::Other(format!("[code:409] Group already exists: {group_name}"))
+        MegaError::Conflict(format!("Group already exists: {group_name}"))
     } else {
         err.into()
     }
@@ -503,7 +503,7 @@ mod tests {
         for result in [res_a, res_b] {
             match result {
                 Ok(_) => success_count += 1,
-                Err(MegaError::Other(msg)) if msg.contains("[code:409]") => conflict_count += 1,
+                Err(MegaError::Conflict(_)) => conflict_count += 1,
                 Err(e) => panic!("unexpected error: {e}"),
             }
         }
@@ -582,7 +582,7 @@ mod tests {
             .await;
 
         match result {
-            Err(MegaError::Other(msg)) if msg.contains("[code:409]") => {}
+            Err(MegaError::Conflict(_)) => {}
             other => panic!("unexpected result: {other:?}"),
         }
     }

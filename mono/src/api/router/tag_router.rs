@@ -1,17 +1,13 @@
-use anyhow::anyhow;
 use api_model::common::{CommonResult, PageParams};
 use axum::{
     Json,
     extract::{Path, State},
 };
 use ceres::model::tag::{CreateTagRequest, DeleteTagResponse, TagListResponse, TagResponse};
+use common::errors::MegaError;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::api::{
-    MonoApiServiceState,
-    api_doc::TAG_MANAGE,
-    error::{ApiError, map_ceres_error},
-};
+use crate::api::{MonoApiServiceState, api_doc::TAG_MANAGE, error::ApiError};
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     OpenApiRouter::new()
@@ -21,70 +17,16 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
         .routes(routes!(delete_tag))
 }
 
-// Note: query-based path_context is intentionally removed for tag APIs; repo selection is
-// resolved from router context (MonoApiServiceState) or request body for create if needed.
-
 /// Resolve a target string (possibly "HEAD" or a commit hash) to an actual commit SHA.
-/// If target_opt is Some and not "HEAD", return it directly. If it's None or "HEAD",
-/// resolve to the repository's current HEAD/default branch commit.
 async fn resolve_target_commit_id(
     state: &MonoApiServiceState,
     path_context: Option<&str>,
     target_opt: Option<&str>,
 ) -> Result<String, ApiError> {
-    state
+    Ok(state
         .monorepo()
         .resolve_target_commit_id(path_context, target_opt)
-        .await
-        .map_err(Into::into)
-}
-
-// Validate tag name against a conservative subset of Git ref rules.
-fn validate_tag_name(name: &str) -> Result<(), ApiError> {
-    // Basic checks that don't require iterating characters
-    if name.is_empty() {
-        return Err(ApiError::bad_request(anyhow!("Tag name must not be empty")));
-    }
-
-    if name.len() > 255 {
-        return Err(ApiError::bad_request(anyhow!("Tag name is too long")));
-    }
-
-    if name.contains("..") || name.contains("@{") {
-        return Err(ApiError::bad_request(anyhow!(
-            "Tag name contains reserved sequence '..' or '@{{'"
-        )));
-    }
-
-    if name.contains("//") {
-        return Err(ApiError::bad_request(anyhow!(
-            "Tag name must not contain '//'"
-        )));
-    }
-
-    if name.ends_with(".lock") {
-        return Err(ApiError::bad_request(anyhow!(
-            "Tag name must not end with '.lock'"
-        )));
-    }
-
-    // Single-pass character validation: forbidden chars, NUL, control chars
-    let forbidden = [' ', '~', '^', ':', '?', '*', '[', '\\'];
-    for c in name.chars() {
-        if forbidden.contains(&c) {
-            return Err(ApiError::bad_request(anyhow!(format!(
-                "Tag name '{}' contains forbidden character '{}'",
-                name, c
-            ))));
-        }
-        if c == '\0' || c.is_control() {
-            return Err(ApiError::bad_request(anyhow!(
-                "Tag name contains invalid control characters"
-            )));
-        }
-    }
-
-    Ok(())
+        .await?)
 }
 
 /// Create Tag
@@ -96,7 +38,9 @@ fn validate_tag_name(name: &str) -> Result<(), ApiError> {
         content_type = "application/json"
     ),
     responses(
-        (status = 201, body = CommonResult<TagResponse>, content_type = "application/json")
+        (status = 201, body = CommonResult<TagResponse>, content_type = "application/json"),
+        (status = 400, description = "Invalid tag name or request", content_type = "application/json"),
+        (status = 404, description = "Target commit not found", content_type = "application/json"),
     ),
     tag = TAG_MANAGE
 )]
@@ -104,26 +48,20 @@ async fn create_tag(
     State(state): State<MonoApiServiceState>,
     Json(req): Json<CreateTagRequest>,
 ) -> Result<Json<CommonResult<TagResponse>>, ApiError> {
-    // We ignore query path_context for tag creation; use request target commit directly.
-    validate_tag_name(&req.name)?;
-    // Resolve target commit: if caller provided a target, use it; otherwise resolve using optional path_context.
     let resolved_target = if let Some(t) = req.target.as_deref() {
         if t != "HEAD" && !t.is_empty() {
             t.to_string()
         } else {
-            // fallback: resolve using provided path_context if any
             resolve_target_commit_id(&state, req.path_context.as_deref(), None).await?
         }
     } else {
         resolve_target_commit_id(&state, req.path_context.as_deref(), None).await?
     };
 
-    // dispatch to repo-specific handler via ApiHandler using path_context if provided
     let repo_path_ref = req.path_context.as_deref().unwrap_or("/");
     let api = state
         .api_handler(std::path::Path::new(repo_path_ref))
-        .await
-        .map_err(|e| map_ceres_error(e, "Failed to resolve api handler"))?;
+        .await?;
 
     let tag_info = api
         .create_tag(
@@ -135,7 +73,7 @@ async fn create_tag(
             req.message.clone(),
         )
         .await
-        .map_err(|e| map_ceres_error(e, "Failed to create tag"))?;
+        .map_err(MegaError::from)?;
 
     let response = TagResponse {
         name: tag_info.name,
@@ -159,7 +97,6 @@ async fn create_tag(
     ),
     tag = TAG_MANAGE
 )]
-
 async fn list_tags(
     State(state): State<MonoApiServiceState>,
     Json(json): Json<PageParams<String>>,
@@ -172,12 +109,11 @@ async fn list_tags(
     };
     let api = state
         .api_handler(std::path::Path::new(repo_path_ref))
-        .await
-        .map_err(|e| map_ceres_error(e, "Failed to resolve api handler"))?;
+        .await?;
     let (tags, total) = api
         .list_tags(Some(repo_path_ref.to_string()), pagination)
         .await
-        .map_err(|e| map_ceres_error(e, "Failed to list tags"))?;
+        .map_err(MegaError::from)?;
     let tag_responses: Vec<TagResponse> = tags
         .into_iter()
         .map(|t| TagResponse {
@@ -213,15 +149,12 @@ async fn get_tag(
     Path(name): Path<String>,
 ) -> Result<Json<CommonResult<TagResponse>>, ApiError> {
     let repo_path = "/".to_string();
-    let api = state
-        .api_handler(std::path::Path::new(&repo_path))
-        .await
-        .map_err(|e| map_ceres_error(e, "Failed to resolve api handler"))?;
+    let api = state.api_handler(std::path::Path::new(&repo_path)).await?;
 
     match api
         .get_tag(Some(repo_path.clone()), name.clone())
         .await
-        .map_err(|e| map_ceres_error(e, "Failed to get tag"))?
+        .map_err(MegaError::from)?
     {
         Some(t) => {
             let response = TagResponse {
@@ -235,10 +168,7 @@ async fn get_tag(
             };
             Ok(Json(CommonResult::success(Some(response))))
         }
-        None => Err(ApiError::not_found(anyhow!(format!(
-            "Tag '{}' not found",
-            name
-        )))),
+        None => Err(MegaError::NotFound(format!("Tag '{name}' not found")).into()),
     }
 }
 
@@ -256,14 +186,11 @@ async fn delete_tag(
     State(state): State<MonoApiServiceState>,
     Path(name): Path<String>,
 ) -> Result<Json<CommonResult<DeleteTagResponse>>, ApiError> {
-    let repo_path = "/".to_string(); // use root for delete operations by default
-    let api = state
-        .api_handler(std::path::Path::new(&repo_path))
-        .await
-        .map_err(|e| map_ceres_error(e, "Failed to resolve api handler"))?;
+    let repo_path = "/".to_string();
+    let api = state.api_handler(std::path::Path::new(&repo_path)).await?;
     api.delete_tag(Some(repo_path.clone()), name.clone())
         .await
-        .map_err(|e| map_ceres_error(e, "Failed to delete tag"))?;
+        .map_err(MegaError::from)?;
 
     let response = DeleteTagResponse {
         deleted_tag: name.clone(),

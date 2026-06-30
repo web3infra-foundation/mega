@@ -6,7 +6,7 @@ use common::errors::MegaError;
 use jupiter::storage::Storage;
 
 use super::changes_calculator::MonoChangesCalculator;
-use crate::{
+use crate::application::{
     api_service::{cache::GitObjectCache, mono::MonoApiService},
     build_trigger::{
         BuildTrigger, BuildTriggerPayload, BuildTriggerType, ManualPayload, TriggerContext,
@@ -39,9 +39,7 @@ impl ManualHandler {
             .mono_storage()
             .get_commit_by_hash(commit_hash)
             .await?
-            .ok_or_else(|| {
-                MegaError::Other(format!("[code:404] Commit not found: {}", commit_hash))
-            })?;
+            .ok_or_else(|| MegaError::NotFound(format!("Commit not found: {commit_hash}")))?;
 
         // Parse parents_id JSON array
         let parent_ids: Vec<String> =

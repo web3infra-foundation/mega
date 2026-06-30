@@ -5,18 +5,19 @@ use std::{
 
 use axum::extract::FromRef;
 use ceres::{
-    api_service::{
-        ApiHandler,
-        cache::GitObjectCache,
-        import_api_service::ImportApiService,
-        mono::{MonoApiService, MonoAppServices},
+    application::{
+        api_service::{
+            ApiHandler,
+            cache::GitObjectCache,
+            import_api_service::ImportApiService,
+            mono::{MonoApiService, MonoAppServices},
+        },
+        artifact::ArtifactApplicationService,
+        build_trigger::service::BuildTriggerService,
     },
-    application::artifact::ArtifactApplicationService,
-    build_trigger::service::BuildTriggerService,
-    protocol::repo::Repo,
-    transport::ProtocolApiState,
+    transport::{ProtocolApiState, protocol::repo::Repo},
 };
-use common::errors::ProtocolError;
+use common::errors::MegaError;
 use jupiter::storage::{Storage, user_storage::UserStorage};
 use orion_client::OrionBuildClient;
 use saturn::entitystore::EntityStore;
@@ -95,24 +96,21 @@ impl MonoApiServiceState {
         )
     }
 
-    pub(crate) async fn api_handler(
-        &self,
-        path: &Path,
-    ) -> Result<Box<dyn ApiHandler>, ProtocolError> {
+    pub(crate) async fn api_handler(&self, path: &Path) -> Result<Box<dyn ApiHandler>, MegaError> {
         let path = if path.has_root() {
             path.to_path_buf()
         } else {
             PathBuf::from("/").join(path)
         };
 
+        let path_str = path
+            .to_str()
+            .ok_or_else(|| MegaError::bad_request("Invalid repository path"))?;
+
         let import_dir = self.monorepo().import_dir();
         if path.starts_with(&import_dir)
             && path != import_dir
-            && let Some(model) = self
-                .monorepo()
-                .find_git_repo_like_path(path.to_str().unwrap())
-                .await
-                .unwrap()
+            && let Some(model) = self.monorepo().find_git_repo_like_path(path_str).await?
         {
             let repo: Repo = model.into();
             return Ok(Box::new(ImportApiService {
@@ -121,10 +119,8 @@ impl MonoApiServiceState {
                 git_object_cache: self.git_object_cache.clone(),
             }));
         }
-        let ret: Box<dyn ApiHandler> = Box::<MonoApiService>::new(self.monorepo());
 
-        #[allow(clippy::useless_conversion)]
-        Ok(ret.into())
+        Ok(Box::new(self.monorepo()) as Box<dyn ApiHandler>)
     }
 }
 

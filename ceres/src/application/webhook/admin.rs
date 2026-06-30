@@ -9,7 +9,7 @@ use jupiter::{
 };
 
 use crate::{
-    api_service::mono::MonoApiService,
+    application::api_service::mono::MonoApiService,
     model::webhook::{CreateWebhookRequest, WebhookResponse, parse_webhook_event_types},
 };
 

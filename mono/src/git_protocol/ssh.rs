@@ -4,13 +4,16 @@ use bytes::{Bytes, BytesMut};
 use ceres::{
     infra::pack_stream::into_pack_byte_stream,
     lfs::lfs_structs::Link,
-    protocol::{
-        ServiceType, SmartSession, TransportProtocol,
-        smart::{self},
+    transport::{
+        ProtocolApiState,
+        protocol::{
+            ServiceType, SmartSession, TransportProtocol,
+            smart::{self},
+        },
     },
-    transport::ProtocolApiState,
 };
 use chrono::{DateTime, Duration, Utc};
+use common::errors::ProtocolError;
 use futures::{StreamExt, stream};
 use russh::{
     Channel, ChannelId,
@@ -19,7 +22,10 @@ use russh::{
 };
 use tokio::{io::AsyncReadExt, sync::Mutex};
 
-use crate::git_protocol::http::search_subsequence;
+use crate::git_protocol::{
+    http::search_subsequence,
+    protocol_error::{ssh_error_message, ssh_exit_status},
+};
 
 type ClientMap = HashMap<(usize, ChannelId), Channel<Msg>>;
 
@@ -88,11 +94,16 @@ impl server::Handler for SshServer {
             SmartSession::new(PathBuf::from(&path), service_type, TransportProtocol::Ssh);
         match command[0] {
             "git-upload-pack" | "git-receive-pack" => {
-                // TODO handler ProtocolError
-                let res = smart_protocol.git_info_refs(&self.state).await.unwrap();
-                self.smart_protocol = Some(smart_protocol);
-                session.data(channel, res.to_vec())?;
-                session.channel_success(channel)?;
+                match smart_protocol.git_info_refs(&self.state).await {
+                    Ok(res) => {
+                        self.smart_protocol = Some(smart_protocol);
+                        session.data(channel, res.to_vec())?;
+                        session.channel_success(channel)?;
+                    }
+                    Err(err) => {
+                        Self::send_protocol_error(session, channel, err)?;
+                    }
+                }
             }
             //Note that currently mega does not support pure ssh to transfer files, still relay on the https server.
             //see https://github.com/git-lfs/git-lfs/blob/main/docs/proposals/ssh_adapter.md for more details about pure ssh file transfer.
@@ -164,7 +175,7 @@ impl server::Handler for SshServer {
         let service_type = smart_protocol.service_type;
         match service_type {
             ServiceType::UploadPack => {
-                self.handle_upload_pack(channel, data, session).await;
+                self.handle_upload_pack(channel, data, session).await?;
             }
             ServiceType::ReceivePack => {
                 self.data_combined.extend_from_slice(data);
@@ -182,7 +193,7 @@ impl server::Handler for SshServer {
         if let Some(smart_protocol) = self.smart_protocol.as_mut()
             && smart_protocol.service_type == ServiceType::ReceivePack
         {
-            self.handle_receive_pack(channel, session).await;
+            self.handle_receive_pack(channel, session).await?;
         };
 
         {
@@ -196,38 +207,62 @@ impl server::Handler for SshServer {
 }
 
 impl SshServer {
-    async fn handle_upload_pack(&mut self, channel: ChannelId, data: &[u8], session: &mut Session) {
+    fn send_protocol_error(
+        session: &mut Session,
+        channel: ChannelId,
+        err: ProtocolError,
+    ) -> Result<(), anyhow::Error> {
+        session.data(channel, ssh_error_message(&err).into_bytes())?;
+        session.exit_status_request(channel, ssh_exit_status(&err))?;
+        Ok(())
+    }
+
+    async fn handle_upload_pack(
+        &mut self,
+        channel: ChannelId,
+        data: &[u8],
+        session: &mut Session,
+    ) -> Result<(), anyhow::Error> {
         let smart_protocol = self.smart_protocol.as_mut().unwrap();
 
-        let (mut send_pack_data, buf) = smart_protocol
+        let (mut send_pack_data, buf) = match smart_protocol
             .git_upload_pack(&self.state, &mut Bytes::copy_from_slice(data))
             .await
-            .unwrap();
+        {
+            Ok(v) => v,
+            Err(err) => {
+                Self::send_protocol_error(session, channel, err)?;
+                return Ok(());
+            }
+        };
 
         tracing::info!("buf is {:?}", buf);
         session
-            .data(channel, String::from_utf8(buf.to_vec()).unwrap())
-            .unwrap();
+            .data(channel, String::from_utf8(buf.to_vec())?)
+            .map_err(anyhow::Error::from)?;
 
         while let Some(chunk) = send_pack_data.next().await {
             let mut reader = chunk.as_slice();
             loop {
                 let mut temp = BytesMut::new();
                 temp.reserve(65500);
-                let length = reader.read_buf(&mut temp).await.unwrap();
+                let length = reader.read_buf(&mut temp).await?;
                 if length == 0 {
                     break;
                 }
                 let bytes_out = smart_protocol.build_side_band_format(temp, length);
-                session.data(channel, bytes_out.to_vec()).unwrap();
+                session.data(channel, bytes_out.to_vec())?;
             }
         }
-        session
-            .data(channel, smart::PKT_LINE_END_MARKER.to_vec())
-            .unwrap();
+        session.data(channel, smart::PKT_LINE_END_MARKER.to_vec())?;
+        Ok(())
     }
 
-    async fn handle_receive_pack(&mut self, channel: ChannelId, session: &mut Session) {
+    async fn handle_receive_pack(
+        &mut self,
+        channel: ChannelId,
+        session: &mut Session,
+    ) -> Result<(), anyhow::Error> {
         let smart_protocol = self.smart_protocol.as_mut().unwrap();
         let data = self.data_combined.split().freeze();
         let mut data_stream = Box::pin(stream::once(async move {
@@ -244,19 +279,26 @@ impl SshServer {
                 let remaining_bytes = Bytes::copy_from_slice(&chunk[pos..]);
                 let remaining_stream =
                     stream::once(async { Ok(remaining_bytes) }).chain(data_stream);
-                report_status = smart_protocol
+                report_status = match smart_protocol
                     .git_receive_pack_stream(
                         &self.state,
                         commands,
                         into_pack_byte_stream(remaining_stream),
                     )
                     .await
-                    .unwrap();
+                {
+                    Ok(status) => status,
+                    Err(err) => {
+                        Self::send_protocol_error(session, channel, err)?;
+                        return Ok(());
+                    }
+                };
                 break;
             }
         }
 
         tracing::info!("report status: {:?}", report_status);
-        session.data(channel, report_status.to_vec()).unwrap();
+        session.data(channel, report_status.to_vec())?;
+        Ok(())
     }
 }

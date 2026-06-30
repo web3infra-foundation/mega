@@ -8,7 +8,9 @@ use axum::{
     Json,
     extract::{Path, State},
 };
-use ceres::build_trigger::{CreateTriggerRequest, ListTriggersParams, TriggerResponse};
+use ceres::application::build_trigger::{
+    CreateTriggerRequest, ListTriggersParams, TriggerResponse,
+};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::{
