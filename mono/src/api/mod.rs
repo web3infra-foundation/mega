@@ -7,20 +7,18 @@ use axum::extract::FromRef;
 use ceres::{
     api_service::{
         ApiHandler, cache::GitObjectCache, import_api_service::ImportApiService,
-        mono_api_service::MonoApiService, state::ProtocolApiState,
+        mono::MonoApiService, state::ProtocolApiState,
     },
+    application::artifact::ArtifactApplicationService,
     build_trigger::service::BuildTriggerService,
     protocol::repo::Repo,
 };
 use common::errors::ProtocolError;
-use jupiter::{
-    service::webhook_service::WebhookService,
-    storage::{
-        NotificationStorage, Storage, cl_storage::ClStorage,
-        conversation_storage::ConversationStorage, dynamic_sidebar_storage::DynamicSidebarStorage,
-        gpg_storage::GpgStorage, issue_storage::IssueStorage, note_storage::NoteStorage,
-        user_storage::UserStorage, webhook_storage::WebhookStorage,
-    },
+use jupiter::storage::{
+    NotificationStorage, Storage, cl_storage::ClStorage, conversation_storage::ConversationStorage,
+    dynamic_sidebar_storage::DynamicSidebarStorage, gpg_storage::GpgStorage,
+    issue_storage::IssueStorage, note_storage::NoteStorage, user_storage::UserStorage,
+    webhook_storage::WebhookStorage,
 };
 use orion_client::OrionBuildClient;
 use saturn::entitystore::EntityStore;
@@ -81,10 +79,7 @@ impl From<&MonoApiServiceState> for MonoApiService {
 
 impl FromRef<MonoApiServiceState> for ProtocolApiState {
     fn from_ref(state: &MonoApiServiceState) -> ProtocolApiState {
-        ProtocolApiState {
-            storage: state.storage.clone(),
-            git_object_cache: state.git_object_cache.clone(),
-        }
+        ProtocolApiState::new(state.storage.clone(), state.git_object_cache.clone())
     }
 }
 
@@ -125,12 +120,12 @@ impl MonoApiServiceState {
         self.storage.webhook_storage()
     }
 
-    fn webhook_svc(&self) -> WebhookService {
-        self.storage.webhook_service.clone()
-    }
-
     fn dynamic_sidebar_stg(&self) -> DynamicSidebarStorage {
         self.storage.dynamic_sidebar_storage()
+    }
+
+    pub fn artifact_app_service(&self) -> ArtifactApplicationService {
+        ArtifactApplicationService::from_storage(&self.storage)
     }
 
     pub fn build_trigger_service(&self) -> BuildTriggerService {

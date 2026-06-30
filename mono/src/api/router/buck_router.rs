@@ -144,7 +144,7 @@ async fn upload_file(
         })?;
 
     // Get max_file_size from BuckService
-    let max_size = state.storage.buck_service.max_file_size();
+    let max_size = state.monorepo().buck_max_file_size();
     if file_size > max_size {
         return Err(ApiError::with_status(
             StatusCode::PAYLOAD_TOO_LARGE,
@@ -154,9 +154,8 @@ async fn upload_file(
 
     // Acquire permits through BuckService
     let (_global_permit, _large_file_permit) = state
-        .storage
-        .buck_service
-        .try_acquire_upload_permits(file_size)
+        .monorepo()
+        .buck_try_acquire_upload_permits(file_size)
         .map_err(|e| {
             tracing::warn!(
                 "Buck upload rate limited: cl_link={}, file_size={}, user={}, error={}",
@@ -209,9 +208,8 @@ async fn upload_file(
         .map_err(|e| ApiError::bad_request(anyhow::anyhow!("Failed to read body: {}", e)))?;
 
     let svc_resp = state
-        .storage
-        .buck_service
-        .upload_file(
+        .monorepo()
+        .upload_buck_file(
             &user.username,
             &cl_link,
             &file_path,

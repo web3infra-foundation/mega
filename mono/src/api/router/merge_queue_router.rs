@@ -4,8 +4,8 @@ use axum::{
     extract::{Path, State},
 };
 use ceres::model::merge_queue::{
-    AddToQueueRequest, AddToQueueResponse, QueueItem, QueueListResponse, QueueStatsResponse,
-    QueueStatus, QueueStatusResponse,
+    AddToQueueRequest, AddToQueueResponse, QueueListResponse, QueueStatsResponse,
+    QueueStatusResponse,
 };
 use serde_json::{Value, json};
 use utoipa_axum::{router::OpenApiRouter, routes};
@@ -27,7 +27,6 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
     )
 }
 
-/// Adds a CL to the merge queue
 #[utoipa::path(
     post,
     path = "/add",
@@ -41,41 +40,16 @@ async fn add_to_queue(
     state: State<MonoApiServiceState>,
     Json(request): Json<AddToQueueRequest>,
 ) -> Result<Json<CommonResult<AddToQueueResponse>>, ApiError> {
-    // Use MonoApiService to add to queue AND start the background processor
     match state
         .monorepo()
-        .add_to_merge_queue(request.cl_link.clone())
+        .add_to_merge_queue_response(request.cl_link)
         .await
     {
-        Ok(position) => {
-            let display_position = state
-                .storage
-                .merge_queue_service
-                .get_display_position_by_position(position)
-                .await
-                .map(Some)
-                .unwrap_or_else(|e| {
-                    tracing::warn!(
-                        "Failed to get display position after add for {}: {}",
-                        request.cl_link,
-                        e
-                    );
-                    None
-                });
-
-            let response = AddToQueueResponse {
-                success: true,
-                position,
-                display_position,
-                message: "Added to queue".to_string(),
-            };
-            Ok(Json(CommonResult::success(Some(response))))
-        }
+        Ok(response) => Ok(Json(CommonResult::success(Some(response)))),
         Err(e) => Ok(Json(CommonResult::failed(&e.to_string()))),
     }
 }
 
-/// Removes a CL from the merge queue
 #[utoipa::path(
     delete,
     path = "/remove/{cl_link}",
@@ -91,28 +65,16 @@ async fn remove_from_queue(
     state: State<MonoApiServiceState>,
     Path(cl_link): Path<String>,
 ) -> Result<Json<CommonResult<Value>>, ApiError> {
-    match state
-        .storage
-        .merge_queue_service
-        .remove_from_queue(&cl_link)
-        .await
-    {
-        Ok(removed) => {
-            if removed {
-                let response = json!({
-                    "success": true,
-                    "message": "Removed from queue"
-                });
-                Ok(Json(CommonResult::success(Some(response))))
-            } else {
-                Ok(Json(CommonResult::failed("CL not found in queue")))
-            }
-        }
+    match state.monorepo().remove_from_merge_queue(&cl_link).await {
+        Ok(true) => Ok(Json(CommonResult::success(Some(json!({
+            "success": true,
+            "message": "Removed from queue"
+        }))))),
+        Ok(false) => Ok(Json(CommonResult::failed("CL not found in queue"))),
         Err(e) => Ok(Json(CommonResult::failed(&e.to_string()))),
     }
 }
 
-/// Gets the current merge queue list
 #[utoipa::path(
     get,
     path = "/list",
@@ -124,12 +86,10 @@ async fn remove_from_queue(
 async fn get_queue_list(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<QueueListResponse>>, ApiError> {
-    let items = state.storage.merge_queue_service.get_queue_list().await?;
-    let response = QueueListResponse::from(items);
+    let response = state.monorepo().get_merge_queue_list().await?;
     Ok(Json(CommonResult::success(Some(response))))
 }
 
-/// Gets the status of a specific CL in the queue
 #[utoipa::path(
     get,
     path = "/status/{cl_link}",
@@ -145,50 +105,10 @@ async fn get_cl_queue_status(
     state: State<MonoApiServiceState>,
     Path(cl_link): Path<String>,
 ) -> Result<Json<CommonResult<QueueStatusResponse>>, ApiError> {
-    let item_model = state
-        .storage
-        .merge_queue_service
-        .get_cl_queue_status(&cl_link)
-        .await?;
-
-    let mut item_opt: Option<QueueItem> = item_model.map(|m| m.into());
-
-    if let Some(ref mut item) = item_opt {
-        match item.status {
-            QueueStatus::Waiting | QueueStatus::Testing | QueueStatus::Merging => {
-                let index_result = state
-                    .storage
-                    .merge_queue_service
-                    .get_display_position(&item.cl_link)
-                    .await;
-
-                match index_result {
-                    Ok(index) => {
-                        item.display_position = index;
-                    }
-                    Err(e) => {
-                        tracing::warn!(
-                            "Failed to get display position for {}: {}",
-                            item.cl_link,
-                            e
-                        );
-                        item.display_position = None;
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-
-    let response = QueueStatusResponse {
-        in_queue: item_opt.is_some(),
-        item: item_opt,
-    };
-
+    let response = state.monorepo().get_cl_queue_status(&cl_link).await?;
     Ok(Json(CommonResult::success(Some(response))))
 }
 
-/// Retries a failed queue item
 #[utoipa::path(
     post,
     path = "/retry/{cl_link}",
@@ -206,27 +126,19 @@ async fn retry_queue_item(
     state: State<MonoApiServiceState>,
     Path(cl_link): Path<String>,
 ) -> Result<Json<CommonResult<Value>>, ApiError> {
-    // Use MonoApiService to retry AND start the background processor
     match state.monorepo().retry_merge_queue_item(&cl_link).await {
-        Ok(success) => {
-            let response = if success {
-                json!({
-                    "success": true,
-                    "message": "Item retried"
-                })
-            } else {
-                json!({
-                    "success": false,
-                    "message": "Item not found or cannot be retried"
-                })
-            };
-            Ok(Json(CommonResult::success(Some(response))))
-        }
+        Ok(true) => Ok(Json(CommonResult::success(Some(json!({
+            "success": true,
+            "message": "Item retried"
+        }))))),
+        Ok(false) => Ok(Json(CommonResult::success(Some(json!({
+            "success": false,
+            "message": "Item not found or cannot be retried"
+        }))))),
         Err(e) => Ok(Json(CommonResult::failed(&e.to_string()))),
     }
 }
 
-/// Gets queue statistics
 #[utoipa::path(
     get,
     path = "/stats",
@@ -238,12 +150,10 @@ async fn retry_queue_item(
 async fn get_queue_stats(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<QueueStatsResponse>>, ApiError> {
-    let stats = state.storage.merge_queue_service.get_queue_stats().await?;
-    let response = QueueStatsResponse::from(stats);
+    let response = state.monorepo().get_merge_queue_stats().await?;
     Ok(Json(CommonResult::success(Some(response))))
 }
 
-/// Cancels all pending queue items
 #[utoipa::path(
     post,
     path = "/cancel-all",
@@ -255,14 +165,9 @@ async fn get_queue_stats(
 async fn cancel_all_pending(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<Value>>, ApiError> {
-    state
-        .storage
-        .merge_queue_service
-        .cancel_all_pending()
-        .await?;
-    let response = json!({
+    state.monorepo().cancel_all_pending_merge_queue().await?;
+    Ok(Json(CommonResult::success(Some(json!({
         "success": true,
         "message": "All pending items cancelled"
-    });
-    Ok(Json(CommonResult::success(Some(response))))
+    })))))
 }

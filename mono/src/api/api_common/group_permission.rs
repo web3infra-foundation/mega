@@ -1,7 +1,7 @@
 use anyhow::anyhow;
 use callisto::sea_orm_active_enums::ResourceTypeEnum;
 use ceres::{
-    api_service::group_ops::EffectiveResourcePermission,
+    api_service::mono::EffectiveResourcePermission,
     model::group::{PermissionValue, ResourceTypeValue, UserEffectivePermissionResponse},
 };
 use http::StatusCode;
@@ -29,19 +29,11 @@ pub async fn resolve_resource_context(
     resource_type: &str,
     resource_id: &str,
 ) -> Result<(ResourceTypeEnum, ResourceTypeValue, String), ApiError> {
-    let resource_type_value = ResourceTypeValue::try_from(resource_type).map_err(|err| {
-        tracing::warn!("invalid resource_type in request path");
-        ApiError::bad_request(anyhow!(err))
-    })?;
-
-    let validated_resource_id =
-        resolve_resource_id(state, resource_type_value, resource_id).await?;
-
-    Ok((
-        resource_type_value.into(),
-        resource_type_value,
-        validated_resource_id,
-    ))
+    state
+        .monorepo()
+        .resolve_resource_context(resource_type, resource_id)
+        .await
+        .map_err(ApiError::from)
 }
 
 pub fn build_user_effective_permission_response(
@@ -61,40 +53,6 @@ pub fn build_user_effective_permission_response(
         has_read: effective.is_admin || has_permission(permission, PermissionValue::Read),
         has_write: effective.is_admin || has_permission(permission, PermissionValue::Write),
         has_admin: effective.is_admin || has_permission(permission, PermissionValue::Admin),
-    }
-}
-
-async fn resolve_resource_id(
-    state: &MonoApiServiceState,
-    resource_type: ResourceTypeValue,
-    resource_id: &str,
-) -> Result<String, ApiError> {
-    let normalized_resource_id = resource_id.trim();
-    if normalized_resource_id.is_empty() {
-        tracing::warn!("empty resource_id in request path");
-        return Err(ApiError::bad_request(anyhow!(
-            "resource_id must not be empty"
-        )));
-    }
-
-    match resource_type {
-        ResourceTypeValue::Note => {
-            let note = state
-                .note_stg()
-                .get_note_by_public_id(normalized_resource_id)
-                .await?;
-            match note {
-                Some(note) => Ok(note.public_id),
-                None => {
-                    tracing::warn!(
-                        resource_id = normalized_resource_id,
-                        "note resource missing in mono notes table; falling back to raw public_id"
-                    );
-                    // TODO: Remove this fallback when note resources are fully migrated into mono notes.
-                    Ok(normalized_resource_id.to_string())
-                }
-            }
-        }
     }
 }
 

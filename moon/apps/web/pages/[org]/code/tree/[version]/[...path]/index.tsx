@@ -16,6 +16,7 @@ import BreadCrumb from '@/components/CodeView/TreeView/BreadCrumb'
 import CloneTabs from '@/components/CodeView/TreeView/CloneTabs'
 import RepoTree from '@/components/CodeView/TreeView/RepoTree'
 import SyncRepoButton from '@/components/CodeView/TreeView/SyncRepoButton'
+import { canShowGitHubSync } from '@/components/CodeView/TreeView/syncUtils'
 import { AppLayout } from '@/components/Layout/AppLayout'
 import AuthAppProviders from '@/components/Providers/AuthAppProviders'
 import { useGetBlob } from '@/hooks/useGetBlob'
@@ -144,7 +145,7 @@ function TreeDetailPage() {
                   <Button onClick={() => handleNewClick('folder')}>New Folder</Button>
                 )}
                 {canClone?.data && <CloneTabs />}
-                {path[0] === 'third-party' && version == 'main' && <SyncRepoButton currentPath={newPath} />}
+                {canShowGitHubSync(path, version) && <SyncRepoButton currentPath={newPath} />}
               </div>
             </>
           ) : (

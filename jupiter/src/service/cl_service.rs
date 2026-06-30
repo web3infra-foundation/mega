@@ -35,6 +35,7 @@ impl CLService {
         }
     }
 
+    #[deprecated(note = "use ceres::MonoApiService::get_cl_details instead")]
     pub async fn get_cl_details(
         &self,
         link: &str,

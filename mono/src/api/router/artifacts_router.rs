@@ -70,7 +70,7 @@ pub async fn discovery(
     State(state): State<MonoApiServiceState>,
     Path(_repo): Path<String>,
 ) -> Result<Json<ArtifactDiscoveryResponse>, ApiError> {
-    Ok(Json(state.storage.artifact_service.discovery_response()))
+    Ok(Json(state.artifact_app_service().discovery_response()))
 }
 
 /// List committed artifact sets for a repo (paginated).
@@ -205,7 +205,7 @@ pub async fn download_object(
 ) -> Result<Response, ApiError> {
     let repo = decode_path_segment(&repo);
     let oid = decode_path_segment(&oid);
-    let svc = &state.storage.artifact_service;
+    let svc = &state.artifact_app_service();
 
     let model = svc
         .artifact_object_model_for_committed_repo_download(&repo, &oid)
@@ -339,7 +339,7 @@ pub async fn head_artifact_object(
 ) -> Result<Response, ApiError> {
     let repo = decode_path_segment(&repo);
     let oid = decode_path_segment(&oid);
-    let svc = &state.storage.artifact_service;
+    let svc = &state.artifact_app_service();
     let model = svc
         .artifact_object_model_for_committed_repo_download(&repo, &oid)
         .await
