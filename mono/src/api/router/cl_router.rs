@@ -3,29 +3,24 @@ use axum::{
     Json,
     extract::{Path, State},
 };
-use callisto::sea_orm_active_enums::{ConvTypeEnum, MergeStatusEnum};
 use ceres::model::{
     change_list::{
-        AssigneeUpdatePayload, CLDetailRes, ClFilesRes, Condition, FilesChangedPage, ListPayload,
-        MergeBoxRes, MuiTreeNode, UpdateBranchStatusRes, UpdateClStatusPayload,
+        AssigneeUpdatePayload, CLDetailRes, ClFilesRes, FilesChangedPage, ListPayload, MergeBoxRes,
+        MuiTreeNode, UpdateBranchStatusRes, UpdateClStatusPayload,
     },
     conversation::ContentPayload,
     issue::ItemRes,
     label::LabelUpdatePayload,
 };
 use common::errors::MegaError;
-use jupiter::service::{cl_service::CLService, webhook_service::WebhookEvent};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::{
-    api::{
-        MonoApiServiceState,
-        api_common::{self},
-        api_doc::CL_TAG,
-        error::ApiError,
-        oauth::model::LoginUser,
-    },
-    notification::triggers,
+use crate::api::{
+    MonoApiServiceState,
+    api_common::{self},
+    api_doc::CL_TAG,
+    error::ApiError,
+    oauth::model::LoginUser,
 };
 
 pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
@@ -69,31 +64,7 @@ async fn reopen_cl(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    let res = state.cl_stg().get_cl(&link).await?;
-    let model = res.ok_or(MegaError::Other("Not Found".to_string()))?;
-
-    if model.status == MergeStatusEnum::Closed {
-        let link = model.link.clone();
-        state.cl_stg().reopen_cl(model.clone()).await?;
-        state
-            .conv_stg()
-            .add_conversation(
-                &link,
-                &user.username,
-                Some(format!("{} reopen this", user.username)),
-                ConvTypeEnum::Reopen,
-            )
-            .await
-            .unwrap();
-        let updated_model = state
-            .cl_stg()
-            .get_cl(&link)
-            .await?
-            .ok_or(MegaError::Other("Not Found".to_string()))?;
-        state
-            .webhook_svc()
-            .dispatch(WebhookEvent::ClReopened, &updated_model);
-    }
+    state.monorepo().reopen_cl(&link, &user.username).await?;
     Ok(Json(CommonResult::success(None)))
 }
 
@@ -114,30 +85,7 @@ async fn close_cl(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    let res = state.cl_stg().get_cl(&link).await?;
-    let model = res.ok_or(MegaError::Other("Not Found".to_string()))?;
-
-    if matches!(model.status, MergeStatusEnum::Open | MergeStatusEnum::Draft) {
-        let link = model.link.clone();
-        state.cl_stg().close_cl(model.clone()).await?;
-        state
-            .conv_stg()
-            .add_conversation(
-                &link,
-                &user.username,
-                Some(format!("{} closed this", user.username)),
-                ConvTypeEnum::Closed,
-            )
-            .await?;
-        let updated_model = state
-            .cl_stg()
-            .get_cl(&link)
-            .await?
-            .ok_or(MegaError::Other("Not Found".to_string()))?;
-        state
-            .webhook_svc()
-            .dispatch(WebhookEvent::ClClosed, &updated_model);
-    }
+    state.monorepo().close_cl(&link, &user.username).await?;
     Ok(Json(CommonResult::success(None)))
 }
 
@@ -158,29 +106,10 @@ async fn merge(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    let res = state.cl_stg().get_cl(&link).await?;
-    let model = res.ok_or(MegaError::Other("Not Found".to_string()))?;
-
-    if model.status == MergeStatusEnum::Draft {
-        return Err(ApiError::from(MegaError::Other(
-            "CL is not ready for review".to_owned(),
-        )));
-    }
-
-    if model.status == MergeStatusEnum::Open {
-        state
-            .monorepo()
-            .merge_cl(&user.username, model.clone())
-            .await?;
-        let updated_model = state
-            .cl_stg()
-            .get_cl(&link)
-            .await?
-            .ok_or(MegaError::Other("Not Found".to_string()))?;
-        state
-            .webhook_svc()
-            .dispatch(WebhookEvent::ClMerged, &updated_model);
-    }
+    state
+        .monorepo()
+        .merge_open_cl(&user.username, &link)
+        .await?;
     Ok(Json(CommonResult::success(None)))
 }
 
@@ -201,31 +130,7 @@ async fn merge_no_auth(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    let res = state.cl_stg().get_cl(&link).await?;
-    let model = res.ok_or(MegaError::Other("CL Not Found".to_string()))?;
-
-    if model.status != MergeStatusEnum::Open {
-        return Err(ApiError::from(MegaError::Other(format!(
-            "CL is not in Open status, current status: {:?}",
-            model.status
-        ))));
-    }
-
-    // No authentication required - using default system user
-    let default_username = "system";
-    state
-        .monorepo()
-        .merge_cl(default_username, model.clone())
-        .await?;
-    let updated_model = state
-        .cl_stg()
-        .get_cl(&link)
-        .await?
-        .ok_or(MegaError::Other("CL Not Found".to_string()))?;
-    state
-        .webhook_svc()
-        .dispatch(WebhookEvent::ClMerged, &updated_model);
-
+    state.monorepo().merge_open_cl_no_auth(&link).await?;
     Ok(Json(CommonResult::success(Some(
         "Merge completed successfully".to_string(),
     ))))
@@ -273,11 +178,10 @@ async fn cl_detail(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<CLDetailRes>>, ApiError> {
-    let cl_service: CLService = state.storage.cl_service.clone();
-    let cl_details: CLDetailRes = cl_service
+    let cl_details = state
+        .monorepo()
         .get_cl_details(&link, user.username)
-        .await?
-        .into();
+        .await?;
     Ok(Json(CommonResult::success(Some(cl_details))))
 }
 
@@ -408,13 +312,8 @@ async fn update_branch(
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     let new_head = state
         .monorepo()
-        .update_branch(&user.username, &link)
+        .update_branch_with_webhook(&user.username, &link)
         .await?;
-    if let Ok(Some(cl_model)) = state.cl_stg().get_cl(&link).await {
-        state
-            .webhook_svc()
-            .dispatch(WebhookEvent::ClUpdated, &cl_model);
-    }
     Ok(Json(CommonResult::success(Some(new_head))))
 }
 
@@ -434,27 +333,7 @@ async fn merge_box(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<MergeBoxRes>>, ApiError> {
-    let cl = state
-        .cl_stg()
-        .get_cl(&link)
-        .await?
-        .ok_or(MegaError::Other("CL Not Found".to_string()))?;
-
-    let res = match cl.status {
-        MergeStatusEnum::Open => {
-            let check_res: Vec<Condition> = state
-                .cl_stg()
-                .get_check_result(&link)
-                .await?
-                .into_iter()
-                .map(|m| m.into())
-                .collect();
-            MergeBoxRes::from_condition(check_res)
-        }
-        MergeStatusEnum::Draft | MergeStatusEnum::Merged | MergeStatusEnum::Closed => MergeBoxRes {
-            merge_requirements: None,
-        },
-    };
+    let res = state.monorepo().get_merge_box(&link).await?;
     Ok(Json(CommonResult::success(Some(res))))
 }
 
@@ -477,47 +356,10 @@ async fn save_comment(
     state: State<MonoApiServiceState>,
     Json(payload): Json<ContentPayload>,
 ) -> Result<Json<CommonResult<()>>, ApiError> {
-    let conv_type = if state
-        .storage
-        .reviewer_storage()
-        .is_reviewer(&link, &user.username)
-        .await?
-    {
-        // If user is the reviewer for this cl, then the comment if of type review
-        ConvTypeEnum::Review
-    } else {
-        ConvTypeEnum::Comment
-    };
-
     state
-        .conv_stg()
-        .add_conversation(
-            &link,
-            &user.username,
-            Some(payload.content.clone()),
-            conv_type,
-        )
+        .monorepo()
+        .save_cl_comment(&link, &user.username, &payload.content)
         .await?;
-    // Fire notification trigger
-    if let Err(e) = triggers::on_cl_comment_created(
-        &state.notification_stg(),
-        &state.cl_stg(),
-        &state.storage.reviewer_storage(),
-        &user.username,
-        &link,
-        &payload.content,
-    )
-    .await
-    {
-        tracing::warn!("failed to enqueue cl comment notifications: {e}");
-    }
-
-    if let Ok(Some(cl_model)) = state.cl_stg().get_cl(&link).await {
-        state
-            .webhook_svc()
-            .dispatch(WebhookEvent::ClCommentCreated, &cl_model);
-    }
-
     api_common::comment::check_comment_ref(user, state, &payload.content, &link).await
 }
 
@@ -540,12 +382,10 @@ async fn edit_title(
     state: State<MonoApiServiceState>,
     Json(payload): Json<ContentPayload>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    state.cl_stg().edit_title(&link, &payload.content).await?;
-    if let Ok(Some(cl_model)) = state.cl_stg().get_cl(&link).await {
-        state
-            .webhook_svc()
-            .dispatch(WebhookEvent::ClUpdated, &cl_model);
-    }
+    state
+        .monorepo()
+        .edit_cl_title(&link, &payload.content)
+        .await?;
     Ok(Json(CommonResult::success(None)))
 }
 
@@ -604,74 +444,10 @@ async fn update_cl_status(
     state: State<MonoApiServiceState>,
     Json(payload): Json<UpdateClStatusPayload>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    let res = state.cl_stg().get_cl(&link).await?;
-    let model = res.ok_or(MegaError::Other("Not Found".to_string()))?;
-
-    let new_status = match payload.status.to_lowercase().as_str() {
-        "draft" => MergeStatusEnum::Draft,
-        "open" => MergeStatusEnum::Open,
-        _ => {
-            return Err(ApiError::from(MegaError::Other(
-                "Invalid status. Only 'draft' and 'open' are supported".to_string(),
-            )));
-        }
-    };
-
-    // Only allow Draft ↔ Open transitions
-    match (&model.status, &new_status) {
-        (MergeStatusEnum::Draft, MergeStatusEnum::Open) => {
-            state
-                .cl_stg()
-                .update_cl_status(model.clone(), new_status.clone())
-                .await?;
-            state
-                .conv_stg()
-                .add_conversation(
-                    &link,
-                    &user.username,
-                    Some(format!("{} marked this as ready for review", user.username)),
-                    ConvTypeEnum::Review,
-                )
-                .await?;
-            let updated_model = state
-                .cl_stg()
-                .get_cl(&link)
-                .await?
-                .ok_or(MegaError::Other("Not Found".to_string()))?;
-            state
-                .webhook_svc()
-                .dispatch(WebhookEvent::ClCreated, &updated_model);
-        }
-        (MergeStatusEnum::Open, MergeStatusEnum::Draft) => {
-            state
-                .cl_stg()
-                .update_cl_status(model.clone(), new_status.clone())
-                .await?;
-            state
-                .conv_stg()
-                .add_conversation(
-                    &link,
-                    &user.username,
-                    Some(format!("{} marked this as draft", user.username)),
-                    ConvTypeEnum::Draft,
-                )
-                .await?;
-            let updated_model = state
-                .cl_stg()
-                .get_cl(&link)
-                .await?
-                .ok_or(MegaError::Other("Not Found".to_string()))?;
-            state
-                .webhook_svc()
-                .dispatch(WebhookEvent::ClUpdated, &updated_model);
-        }
-        _ => {
-            return Err(ApiError::from(MegaError::Other(
-                "Invalid status transition. Only Draft ↔ Open is allowed".to_string(),
-            )));
-        }
-    }
-
+    state
+        .monorepo()
+        .update_cl_status(&link, &user.username, &payload)
+        .await?;
     Ok(Json(CommonResult::success(None)))
 }
 

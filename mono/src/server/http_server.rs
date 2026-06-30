@@ -10,11 +10,13 @@ use axum::{
     response::Response,
     routing::any,
 };
-use ceres::api_service::{cache::GitObjectCache, state::ProtocolApiState};
+use ceres::{
+    api_service::{cache::GitObjectCache, state::ProtocolApiState},
+    application::artifact::ArtifactApplicationService,
+};
 use common::errors::ProtocolError;
 use context::AppContext;
 use http::{HeaderName, HeaderValue, Method};
-use jupiter::service::artifact_service::ArtifactService;
 use orion_client::OrionBuildClient;
 use saturn::entitystore::EntityStore;
 use time::Duration;
@@ -150,7 +152,7 @@ fn spawn_artifact_gc_task(ctx: AppContext, token: CancellationToken) -> Option<J
     let interval_secs = cfg.interval_secs.max(1);
     let grace_secs = cfg.grace_secs;
     let batch_limit = cfg.batch_limit.max(1);
-    let service: ArtifactService = ctx.storage.artifact_service.clone();
+    let service = ArtifactApplicationService::from_storage(&ctx.storage);
 
     Some(tokio::spawn(async move {
         let mut ticker = tokio::time::interval(std::time::Duration::from_secs(interval_secs));
@@ -166,7 +168,7 @@ fn spawn_artifact_gc_task(ctx: AppContext, token: CancellationToken) -> Option<J
             tokio::select! {
                 _ = ticker.tick() => {
                     match service
-                        .gc_unreferenced_artifact_objects_once(grace, batch_limit)
+                        .gc_unreferenced_once(grace, batch_limit)
                         .await
                     {
                         Ok(s) if s.deleted > 0 || s.candidates > 0 => {

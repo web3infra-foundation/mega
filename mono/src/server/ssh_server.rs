@@ -52,13 +52,13 @@ pub async fn start_server(ctx: AppContext, command: &SshOptions) {
         custom: SshCustom { ssh_port },
     } = command;
 
-    let state = ProtocolApiState {
-        storage: ctx.storage.clone(),
-        git_object_cache: Arc::new(GitObjectCache {
+    let state = ProtocolApiState::new(
+        ctx.storage.clone(),
+        Arc::new(GitObjectCache {
             connection: ctx.connection.clone(),
             prefix: "git-object-rkyv:v1".to_string(),
         }),
-    };
+    );
     let mut ssh_server = SshServer {
         clients: Arc::new(Mutex::new(HashMap::new())),
         state,

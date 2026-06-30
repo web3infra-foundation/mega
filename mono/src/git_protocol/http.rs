@@ -9,6 +9,7 @@ use base64::Engine;
 use bytes::{Bytes, BytesMut};
 use ceres::{
     api_service::state::ProtocolApiState,
+    pack::into_pack_byte_stream,
     protocol::{PushUserInfo, ServiceType, SmartSession, TransportProtocol, smart},
 };
 use common::errors::ProtocolError;
@@ -221,7 +222,7 @@ pub async fn git_receive_pack(
             let left_chunk_bytes = Bytes::copy_from_slice(&chunk[pos..]);
             let pack_stream = stream::once(async { Ok(left_chunk_bytes) }).chain(data_stream);
             report_status = pack_protocol
-                .git_receive_pack_stream(state, commands, Box::pin(pack_stream))
+                .git_receive_pack_stream(state, commands, into_pack_byte_stream(pack_stream))
                 .await?;
             break;
         } else {

@@ -4,6 +4,7 @@ use bytes::{Bytes, BytesMut};
 use ceres::{
     api_service::state::ProtocolApiState,
     lfs::lfs_structs::Link,
+    pack::into_pack_byte_stream,
     protocol::{
         ServiceType, SmartSession, TransportProtocol,
         smart::{self},
@@ -229,7 +230,9 @@ impl SshServer {
     async fn handle_receive_pack(&mut self, channel: ChannelId, session: &mut Session) {
         let smart_protocol = self.smart_protocol.as_mut().unwrap();
         let data = self.data_combined.split().freeze();
-        let mut data_stream = Box::pin(stream::once(async move { Ok(data) }));
+        let mut data_stream = Box::pin(stream::once(async move {
+            Ok::<Bytes, std::convert::Infallible>(data)
+        }));
         let mut report_status = Bytes::new();
 
         while let Some(chunk) = data_stream.next().await {
@@ -242,7 +245,11 @@ impl SshServer {
                 let remaining_stream =
                     stream::once(async { Ok(remaining_bytes) }).chain(data_stream);
                 report_status = smart_protocol
-                    .git_receive_pack_stream(&self.state, commands, Box::pin(remaining_stream))
+                    .git_receive_pack_stream(
+                        &self.state,
+                        commands,
+                        into_pack_byte_stream(remaining_stream),
+                    )
                     .await
                     .unwrap();
                 break;
