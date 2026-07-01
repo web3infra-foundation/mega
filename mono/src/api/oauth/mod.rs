@@ -112,7 +112,12 @@ where
         // Delegate token validation to Jupiter storage (BotsStorage)
         let state_ref = MonoApiServiceState::from_ref(state);
 
-        match state_ref.monorepo().find_bot_by_token(raw_token).await {
+        match state_ref
+            .services()
+            .user()
+            .find_bot_by_token(raw_token)
+            .await
+        {
             Ok(Some((bot, token))) => Ok(BotAuth(BotIdentity::from_models(bot, token))),
             Ok(None) => {
                 tracing::warn!("BotIdentity: bot token not found, revoked, or expired");

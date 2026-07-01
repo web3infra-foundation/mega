@@ -40,7 +40,7 @@ impl MonoApiService {
         message: Option<String>,
     ) -> Result<TagInfo, GitError> {
         validate_tag_name(&name)?;
-        let mono_storage = self.storage.mono_storage();
+        let mono_storage = self.storage().mono_storage();
         let tagger_info = format_tagger_info(tagger_name, tagger_email);
 
         self.validate_target_commit_mono(target.as_ref()).await?;
@@ -75,7 +75,7 @@ impl MonoApiService {
         repo_path: Option<String>,
         pagination: Pagination,
     ) -> Result<(Vec<TagInfo>, u64), GitError> {
-        let mono_storage = self.storage.mono_storage();
+        let mono_storage = self.storage().mono_storage();
         let (annotated_page, annotated_total) =
             match mono_storage.get_tags_by_page(pagination.clone()).await {
                 Ok(v) => v,
@@ -122,7 +122,7 @@ impl MonoApiService {
         _repo_path: Option<String>,
         name: String,
     ) -> Result<Option<TagInfo>, GitError> {
-        let mono_storage = self.storage.mono_storage();
+        let mono_storage = self.storage().mono_storage();
         match mono_storage.get_tag_by_name(&name).await {
             Ok(Some(tag)) => return Ok(Some(self.tag_model_to_info(tag))),
             Ok(None) => {}
@@ -149,7 +149,7 @@ impl MonoApiService {
         _repo_path: Option<String>,
         name: String,
     ) -> Result<(), GitError> {
-        let mono_storage = self.storage.mono_storage();
+        let mono_storage = self.storage().mono_storage();
         match mono_storage.get_tag_by_name(&name).await {
             Ok(Some(_tag)) => {
                 let full_ref = tags_full_ref(&name);
@@ -198,7 +198,7 @@ impl MonoApiService {
         message: Option<String>,
         full_ref: String,
     ) -> Result<TagInfo, GitError> {
-        let mono_storage = self.storage.mono_storage();
+        let mono_storage = self.storage().mono_storage();
 
         let (tag_id_hex, object_id) =
             build_git_internal_tag(name.clone(), target, tagger_info.clone(), message.clone())?;
@@ -247,7 +247,7 @@ impl MonoApiService {
         tagger_info: String,
         full_ref: String,
     ) -> Result<TagInfo, GitError> {
-        let mono_storage = self.storage.mono_storage();
+        let mono_storage = self.storage().mono_storage();
 
         let path_str = repo_path.unwrap_or_else(|| "/".to_string());
         let object_id = target.unwrap_or_default();
@@ -285,7 +285,7 @@ impl MonoApiService {
     }
 
     async fn resolve_tree_hash_for_commit(&self, commit_id: &str) -> Result<String, GitError> {
-        let mono_storage = self.storage.mono_storage();
+        let mono_storage = self.storage().mono_storage();
         match mono_storage.get_commit_by_hash(commit_id).await {
             Ok(Some(commit_model)) => Ok(commit_model.tree.clone()),
             Ok(None) => {
@@ -307,7 +307,7 @@ impl MonoApiService {
     }
 
     async fn validate_target_commit_mono(&self, target: Option<&String>) -> Result<(), GitError> {
-        let mono_storage = self.storage.mono_storage();
+        let mono_storage = self.storage().mono_storage();
         if let Some(t) = target {
             match mono_storage.get_commit_by_hash(t).await {
                 Ok(commit_opt) => {

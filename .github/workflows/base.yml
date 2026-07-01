@@ -26,7 +26,7 @@ concurrency:
 
 jobs:
   format:
-    if: ${{ !(github.repository == 'web3infra-foundation/mega' && github.event_name == 'push') }}
+    if: ${{ !(github.repository == 'gitmono-dev/mega' && github.event_name == 'push') }}
     name: Rustfmt Check
     runs-on: ubuntu-latest
     steps:
@@ -45,7 +45,7 @@ jobs:
 
   #
   clippy:
-    if: ${{ !(github.repository == 'web3infra-foundation/mega' && github.event_name == 'push') }}
+    if: ${{ !(github.repository == 'gitmono-dev/mega' && github.event_name == 'push') }}
     name: Clippy Check
     runs-on: ubuntu-latest
     env:
@@ -114,11 +114,77 @@ jobs:
             rg 'use crate::(pack|transport)' ceres/src/application/
             exit 1
           fi
-          if rg --glob '!lfs_router.rs' -q '\.storage\.|_stg\(\)' mono/src/api/router/; then
-            echo "mono routers must use MonoApiService facades, not storage"
-            rg --glob '!lfs_router.rs' '\.storage\.|_stg\(\)' mono/src/api/router/
+          if rg -q 'application::' ceres/src/transport/; then
+            echo "ceres transport must not import application modules"
+            rg 'application::' ceres/src/transport/
             exit 1
           fi
+          if rg -q '\.storage\.|_stg\(\)' mono/src/api/router/; then
+            echo "mono routers must use MonoApiService facades, not storage"
+            rg '\.storage\.|_stg\(\)' mono/src/api/router/
+            exit 1
+          fi
+          MONO_MONOREPO_WHITELIST=(
+            mono/src/api/api_router.rs
+            mono/src/api/router/commit_router.rs
+            mono/src/api/router/preview_router.rs
+            mono/src/api/router/repo_router.rs
+            mono/src/api/router/tag_router.rs
+            mono/src/api/router/buck_router.rs
+          )
+          for f in mono/src/api/router/*.rs; do
+            skip=false
+            for w in "${MONO_MONOREPO_WHITELIST[@]}"; do
+              if [ "$f" = "$w" ]; then
+                skip=true
+                break
+              fi
+            done
+            if $skip; then
+              continue
+            fi
+            if rg -q 'monorepo\(\)' "$f"; then
+              echo "mono router $f must use state.services().<domain>() or state.git() instead of monorepo()"
+              rg 'monorepo\(\)' "$f"
+              exit 1
+            fi
+          done
+          if rg -q 'artifact_app_service|build_trigger_service' mono/; then
+            echo "mono must use state.services().artifact() / build_trigger() instead of state factories"
+            rg 'artifact_app_service|build_trigger_service' mono/
+            exit 1
+          fi
+          if rg -q 'ProtocolApiState' ceres/ mono/; then
+            echo "ProtocolApiState alias removed; use TransportRuntime"
+            rg 'ProtocolApiState' ceres/ mono/
+            exit 1
+          fi
+          MONO_STORAGE_ALLOWLIST=(
+            ceres/src/application/api_service/mono/admin/group.rs
+            ceres/src/application/api_service/mono/admin/bot.rs
+            ceres/src/application/api_service/mono/commit.rs
+            ceres/src/application/api_service/mono/edit/entry.rs
+            ceres/src/application/api_service/mono/sync.rs
+            ceres/src/application/api_service/mono/tag.rs
+            ceres/src/application/api_service/mono/buck/upload.rs
+          )
+          for f in $(find ceres/src/application/api_service/mono ceres/src/application/webhook -name '*.rs'); do
+            skip=false
+            for w in "${MONO_STORAGE_ALLOWLIST[@]}"; do
+              if [ "$f" = "$w" ]; then
+                skip=true
+                break
+              fi
+            done
+            if $skip; then
+              continue
+            fi
+            if rg -q '\.(issue_storage|cl_storage|conversation_storage)(\(\)|\b)' "$f"; then
+              echo "ceres mono modules must use jupiter services, not *_storage in $f"
+              rg '\.(issue_storage|cl_storage|conversation_storage)(\(\)|\b)' "$f"
+              exit 1
+            fi
+          done
           if rg -q 'ceres::(api_service|pack|protocol|build_trigger|code_edit)' mono/; then
             echo "mono must use ceres::application::* and ceres::transport::* instead of legacy re-exports"
             rg 'ceres::(api_service|pack|protocol|build_trigger|code_edit)' mono/
@@ -131,13 +197,13 @@ jobs:
           sccache --show-stats || true
 
   test:
-    if: ${{ !(github.repository == 'web3infra-foundation/mega' && github.event_name == 'push') }}
+    if: ${{ !(github.repository == 'gitmono-dev/mega' && github.event_name == 'push') }}
     name: Full Test
-    runs-on: ${{ fromJson(github.repository == 'web3infra-foundation/mega' && '["self-hosted","Linux","X64"]' || '"ubuntu-latest"') }}
+    runs-on: ${{ fromJson(github.repository == 'gitmono-dev/mega' && '["self-hosted","Linux","X64"]' || '"ubuntu-latest"') }}
     env:
       CARGO_TERM_COLOR: always
       RUSTUP_TOOLCHAIN: stable
-      HOME: ${{ github.repository == 'web3infra-foundation/mega' && '/home/github' || '/home/runner' }}
+      HOME: ${{ github.repository == 'gitmono-dev/mega' && '/home/github' || '/home/runner' }}
       RUSTC_WRAPPER: sccache
       SCCACHE_DIR: ${{ github.workspace }}/.sccache
     steps:
@@ -156,7 +222,7 @@ jobs:
         with:
           cache-key: sysdeps
           platform: ubuntu
-          self-hosted: ${{ github.repository == 'web3infra-foundation/mega' }}
+          self-hosted: ${{ github.repository == 'gitmono-dev/mega' }}
           use-gtk: false
       - name: Install sccache
         run: |
@@ -199,4 +265,4 @@ jobs:
           sccache --show-stats || true
 
   # Note: The fuse/scorpio job has been removed as scorpio has been moved
-  # to its own repository: https://github.com/web3infra-foundation/scorpiofs
+  # to its own repository: https://github.com/gitmono-dev/scorpiofs

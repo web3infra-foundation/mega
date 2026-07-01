@@ -49,7 +49,7 @@ async fn create_session(
     Json(payload): Json<CreateSessionPayload>,
 ) -> Result<Json<CommonResult<SessionResponse>>, ApiError> {
     let service_resp = state
-        .monorepo()
+        .git()
         .create_buck_session(&user.username, &payload.path)
         .await?;
 
@@ -89,7 +89,7 @@ async fn upload_manifest(
     Json(payload): Json<ManifestPayload>,
 ) -> Result<Json<CommonResult<ManifestResponse>>, ApiError> {
     let response = state
-        .monorepo()
+        .git()
         .process_buck_manifest(&user.username, &cl_link, payload)
         .await
         .map_err(ApiError::from)?;
@@ -135,7 +135,7 @@ async fn upload_file(
         })?;
 
     // Get max_file_size from BuckService
-    let max_size = state.monorepo().buck_max_file_size();
+    let max_size = state.git().buck_max_file_size();
     if file_size > max_size {
         return Err(ApiError::with_status(
             StatusCode::PAYLOAD_TOO_LARGE,
@@ -145,7 +145,7 @@ async fn upload_file(
 
     // Acquire permits through BuckService
     let (_global_permit, _large_file_permit) = state
-        .monorepo()
+        .git()
         .buck_try_acquire_upload_permits(file_size)
         .map_err(|e| {
             tracing::warn!(
@@ -199,7 +199,7 @@ async fn upload_file(
         .map_err(|e| ApiError::bad_request(anyhow::anyhow!("Failed to read body: {}", e)))?;
 
     let svc_resp = state
-        .monorepo()
+        .git()
         .upload_buck_file(
             &user.username,
             &cl_link,
@@ -251,7 +251,7 @@ async fn complete_upload(
 ) -> Result<Json<CommonResult<CompleteResponse>>, ApiError> {
     let payload = payload.map(|p| p.0).unwrap_or(CompletePayload {});
     let response = state
-        .monorepo()
+        .git()
         .complete_buck_upload(&user.username, &cl_link, payload)
         .await
         .map_err(ApiError::from)?;

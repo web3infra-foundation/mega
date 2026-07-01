@@ -34,8 +34,8 @@ use tokio::sync::mpsc::{self, Sender};
 use tokio_stream::wrappers::ReceiverStream;
 
 use crate::{
-    application::api_service::cache::GitObjectCache,
     bus::{ApplicationEventHandler, TransportEvent},
+    infra::cache::GitObjectCache,
     transport::{
         pack::RepoHandler,
         protocol::{

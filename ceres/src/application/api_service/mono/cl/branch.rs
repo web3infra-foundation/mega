@@ -1,4 +1,4 @@
-//! Branch update / rebase operations for [`MonoApiService`](super::service::MonoApiService).
+//! Branch update / rebase operations for [`ClApplicationService`](super::service::ClApplicationService).
 
 use std::{
     collections::HashMap,
@@ -22,7 +22,7 @@ use tracing::debug;
 use crate::{
     application::{
         api_service::mono::{
-            MonoApiService,
+            ClApplicationService,
             types::{ApplyChangeContext, RefUpdate, TreeUpdateResult},
         },
         code_edit::utils as edit_utils,
@@ -30,14 +30,14 @@ use crate::{
     model::change_list::{ClDiffFile, UpdateBranchStatusRes},
 };
 
-impl MonoApiService {
+impl ClApplicationService {
     pub(crate) async fn apply_changes_as_single_commit(
         &self,
         cl: &mega_cl::Model,
         changes: &[ClDiffFile],
         target_head: &str,
     ) -> Result<String, GitError> {
-        let mono_storage = self.storage.mono_storage();
+        let mono_storage = self.storage().mono_storage();
 
         // Load base commit and its root tree
         let base_commit = mono_storage
@@ -457,16 +457,17 @@ impl MonoApiService {
         &self,
         cl_link: &str,
     ) -> Result<UpdateBranchStatusRes, MegaError> {
-        let stg = self.storage.cl_storage();
+        let stg = self.storage().cl_service.cl_store();
         let cl = stg
             .get_cl(cl_link)
             .await?
             .ok_or_else(|| MegaError::Other("CL Not Found".to_string()))?;
 
-        let main_ref = match self.storage.mono_storage().get_main_ref(&cl.path).await? {
+        let main_ref = match self.storage().mono_storage().get_main_ref(&cl.path).await? {
             Some(r) => r,
             None if crate::application::api_service::mono::cl_merge::path_lacks_main_ref(
-                self, &cl.path,
+                self.git_ops(),
+                &cl.path,
             )
             .await? =>
             {
@@ -490,8 +491,8 @@ impl MonoApiService {
     /// Update Branch (rebase-like) for Open CL: applies CL file changes onto latest target head
     /// and updates CL's base/head commits. Returns new head commit id on success.
     pub async fn update_branch(&self, username: &str, cl_link: &str) -> Result<String, GitError> {
-        let stg = self.storage.cl_storage();
-        let conv_stg = self.storage.conversation_storage();
+        let stg = self.storage().cl_service.cl_store();
+        let conv_stg = self.storage().cl_service.conversation_store();
 
         let cl = stg
             .get_cl(cl_link)
@@ -506,7 +507,7 @@ impl MonoApiService {
         }
 
         let main_ref = self
-            .storage
+            .storage()
             .mono_storage()
             .get_main_ref(&cl.path)
             .await

@@ -1,18 +1,20 @@
 use common::errors::MegaError;
 
-use super::service::MonoApiService;
+use super::context::UserApplicationService;
 use crate::model::gpg::GpgKey;
 
-impl MonoApiService {
+impl UserApplicationService {
     pub async fn add_gpg_key(&self, user_id: String, gpg_content: String) -> Result<(), MegaError> {
-        self.storage
+        self.ctx
+            .storage()
             .gpg_storage()
             .add_gpg_key(user_id, gpg_content)
             .await
     }
 
     pub async fn remove_gpg_key(&self, user_id: String, key_id: String) -> Result<(), MegaError> {
-        self.storage
+        self.ctx
+            .storage()
             .gpg_storage()
             .remove_gpg_key(user_id, key_id)
             .await
@@ -20,7 +22,8 @@ impl MonoApiService {
 
     pub async fn list_user_gpg_keys(&self, user_id: String) -> Result<Vec<GpgKey>, MegaError> {
         let raw_keys = self
-            .storage
+            .ctx
+            .storage()
             .gpg_storage()
             .list_user_gpg(user_id.clone())
             .await;

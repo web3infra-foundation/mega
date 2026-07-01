@@ -302,7 +302,7 @@ orion-scheduler-vX.Y.Z-linux-amd64/
 ```bash
 VERSION=v0.1.0
 BUNDLE=orion-scheduler-${VERSION}-linux-amd64
-REPO=web3infra-foundation/mega
+REPO=gitmono-dev/mega
 
 curl -LO https://github.com/${REPO}/releases/download/orion-scheduler-${VERSION}/${BUNDLE}.tar.gz
 curl -LO https://github.com/${REPO}/releases/download/orion-scheduler-${VERSION}/${BUNDLE}.tar.gz.sha256

@@ -34,7 +34,7 @@ pub fn routers() -> OpenApiRouter<MonoApiServiceState> {
 async fn sidebar_menu_list(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<SidebarMenuListRes>>, ApiError> {
-    let items = state.monorepo().list_sidebars().await?;
+    let items = state.services().sidebar().list_sidebars().await?;
     Ok(Json(CommonResult::success(Some(items))))
 }
 
@@ -53,7 +53,8 @@ async fn new_sidebar(
     Json(json): Json<CreateSidebarPayload>,
 ) -> Result<Json<CommonResult<SidebarRes>>, ApiError> {
     let res = state
-        .monorepo()
+        .services()
+        .sidebar()
         .new_sidebar(
             json.public_id,
             json.label,
@@ -84,7 +85,8 @@ async fn update_sidebar_by_id(
     Json(json): Json<UpdateSidebarPayload>,
 ) -> Result<Json<CommonResult<SidebarRes>>, ApiError> {
     let res = state
-        .monorepo()
+        .services()
+        .sidebar()
         .update_sidebar(
             id,
             json.public_id,
@@ -120,7 +122,7 @@ async fn sync_sidebar(
     state: State<MonoApiServiceState>,
     Json(payloads): Json<Vec<SidebarSyncPayload>>,
 ) -> Result<Json<CommonResult<Vec<SidebarRes>>>, ApiError> {
-    let res = state.monorepo().sync_sidebars(payloads).await?;
+    let res = state.services().sidebar().sync_sidebars(payloads).await?;
 
     Ok(Json(CommonResult::success(Some(res))))
 }
@@ -141,6 +143,6 @@ async fn delete_sidebar_by_id(
     state: State<MonoApiServiceState>,
     Path(id): Path<i32>,
 ) -> Result<Json<CommonResult<SidebarRes>>, ApiError> {
-    let res = state.monorepo().delete_sidebar(id).await?;
+    let res = state.services().sidebar().delete_sidebar(id).await?;
     Ok(Json(CommonResult::success(Some(res))))
 }

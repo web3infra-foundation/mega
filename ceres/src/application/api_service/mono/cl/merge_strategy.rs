@@ -7,7 +7,10 @@ use common::{errors::MegaError, utils::ZERO_ID};
 use git_internal::{errors::GitError, internal::object::commit::Commit};
 use jupiter::utils::converter::FromMegaModel;
 
-use crate::application::api_service::{mono::MonoApiService, tree_ops};
+use crate::application::api_service::{
+    mono::{ClApplicationService, GitOpsPort},
+    tree_ops,
+};
 
 /// How a CL should be applied onto monorepo main.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -28,9 +31,9 @@ impl ClMergeStrategy {
 }
 
 /// Returns true when the path has no `refs/heads/main` row yet.
-pub async fn path_lacks_main_ref(service: &MonoApiService, path: &str) -> Result<bool, MegaError> {
-    Ok(service
-        .storage
+pub async fn path_lacks_main_ref(git: &dyn GitOpsPort, path: &str) -> Result<bool, MegaError> {
+    Ok(git
+        .storage()
         .mono_storage()
         .get_main_ref(path)
         .await?
@@ -68,14 +71,10 @@ pub fn path_prefixes(path: &str) -> Vec<String> {
 }
 
 /// Sync path-level main refs for each strict prefix after the root tree changed.
-pub async fn sync_path_prefix_main_refs(
-    service: &MonoApiService,
-    path: &str,
-) -> Result<(), MegaError> {
+pub async fn sync_path_prefix_main_refs(git: &dyn GitOpsPort, path: &str) -> Result<(), MegaError> {
     for prefix in path_prefixes(path) {
-        let hash =
-            crate::application::code_edit::utils::create_repo_commit(&service.storage, &prefix)
-                .await?;
+        let hash = crate::application::code_edit::utils::create_repo_commit(git.storage(), &prefix)
+            .await?;
         if hash == ZERO_ID {
             return Err(MegaError::Other(format!(
                 "Failed to sync main ref for prefix {prefix}"
@@ -87,29 +86,29 @@ pub async fn sync_path_prefix_main_refs(
 
 /// Bootstrap a new monorepo path: attach under `/`, sync prefix refs, create path main baseline.
 pub async fn bootstrap_monorepo_path(
-    service: &MonoApiService,
+    git: &dyn GitOpsPort,
     path: &str,
     cl: Option<&mega_cl::Model>,
 ) -> Result<String, MegaError> {
-    let mono_storage = service.storage.mono_storage();
+    let mono_storage = git.storage().mono_storage();
     if let Some(existing) = mono_storage.get_main_ref(path).await? {
         if let Some(cl) = cl
             && cl.from_hash == ZERO_ID
         {
-            service
-                .storage
-                .cl_storage()
+            git.storage()
+                .cl_service
+                .cl_store()
                 .update_cl_hash(cl.clone(), &existing.ref_commit_hash, &cl.to_hash)
                 .await?;
         }
         return Ok(existing.ref_commit_hash);
     }
 
-    service.attach_project_path_to_monorepo_root(path).await?;
-    sync_path_prefix_main_refs(service, path).await?;
+    git.attach_project_path_to_monorepo_root(path).await?;
+    sync_path_prefix_main_refs(git, path).await?;
 
     let baseline_hash =
-        crate::application::code_edit::utils::create_repo_commit(&service.storage, path).await?;
+        crate::application::code_edit::utils::create_repo_commit(git.storage(), path).await?;
     if baseline_hash == ZERO_ID {
         return Err(MegaError::Other(format!(
             "Failed to create main ref baseline for {path}"
@@ -119,9 +118,9 @@ pub async fn bootstrap_monorepo_path(
     if let Some(cl) = cl
         && cl.from_hash == ZERO_ID
     {
-        service
-            .storage
-            .cl_storage()
+        git.storage()
+            .cl_service
+            .cl_store()
             .update_cl_hash(cl.clone(), &baseline_hash, &cl.to_hash)
             .await?;
     }
@@ -131,34 +130,35 @@ pub async fn bootstrap_monorepo_path(
 
 /// Prepare a CL path for merge (bootstrap new `/project/*` directories).
 pub async fn prepare_cl_path_for_merge(
-    service: &MonoApiService,
+    git: &dyn GitOpsPort,
     cl: &mut mega_cl::Model,
 ) -> Result<(), MegaError> {
     if !cl.path.starts_with("/project/") {
         return Ok(());
     }
 
-    bootstrap_monorepo_path(service, &cl.path, Some(cl)).await?;
+    bootstrap_monorepo_path(git, &cl.path, Some(cl)).await?;
 
-    if let Some(fresh) = service.storage.cl_storage().get_cl(&cl.link).await? {
+    if let Some(fresh) = git.storage().cl_service.cl_store().get_cl(&cl.link).await? {
         *cl = fresh;
     }
     Ok(())
 }
 
 pub async fn resolve_merge_strategy(
-    service: &MonoApiService,
+    cl_svc: &ClApplicationService,
     cl: &mega_cl::Model,
 ) -> Result<ClMergeStrategy, MegaError> {
+    let git = cl_svc.git_ops();
     if cl.from_hash == ZERO_ID {
         return Ok(ClMergeStrategy::SubtreeReplace);
     }
 
-    if path_lacks_main_ref(service, &cl.path).await? {
+    if path_lacks_main_ref(git, &cl.path).await? {
         return Ok(ClMergeStrategy::SubtreeReplace);
     }
 
-    if is_gitkeep_baseline(service, &cl.from_hash).await? {
+    if is_gitkeep_baseline(cl_svc, &cl.from_hash).await? {
         return Ok(ClMergeStrategy::SubtreeReplace);
     }
 
@@ -166,10 +166,10 @@ pub async fn resolve_merge_strategy(
 }
 
 async fn is_gitkeep_baseline(
-    service: &MonoApiService,
+    cl_svc: &ClApplicationService,
     commit_hash: &str,
 ) -> Result<bool, MegaError> {
-    let blobs = service.get_commit_blobs(commit_hash).await?;
+    let blobs = cl_svc.get_commit_blobs(commit_hash).await?;
     if blobs.is_empty() {
         return Ok(true);
     }
@@ -181,10 +181,7 @@ async fn is_gitkeep_baseline(
 }
 
 /// Returns true when the final path segment is not yet present in the monorepo tree.
-pub async fn needs_path_tree_attach(
-    service: &MonoApiService,
-    path: &Path,
-) -> Result<bool, MegaError> {
+pub async fn needs_path_tree_attach(git: &dyn GitOpsPort, path: &Path) -> Result<bool, MegaError> {
     let parent = match path.parent() {
         Some(p) if p.as_os_str().is_empty() || p == Path::new("/") => Path::new("/"),
         Some(p) => p,
@@ -193,7 +190,7 @@ pub async fn needs_path_tree_attach(
     let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
         return Ok(false);
     };
-    let parent_tree = match tree_ops::search_tree_by_path(service, parent, None).await? {
+    let parent_tree = match tree_ops::search_tree_by_path(git, parent, None).await? {
         Some(tree) => tree,
         None => return Ok(true),
     };
@@ -205,11 +202,11 @@ pub async fn needs_path_tree_attach(
 
 /// Leaf tree hash to mount at `cl.path` for merge.
 pub async fn resolve_merge_leaf_tree_id(
-    service: &MonoApiService,
+    cl_svc: &ClApplicationService,
     cl: &mega_cl::Model,
     strategy: ClMergeStrategy,
 ) -> Result<git_internal::hash::ObjectHash, GitError> {
-    let storage = service.storage.mono_storage();
+    let storage = cl_svc.storage().mono_storage();
 
     match strategy {
         ClMergeStrategy::SubtreeReplace => {
@@ -230,20 +227,20 @@ pub async fn resolve_merge_leaf_tree_id(
                 .map_err(|e| GitError::CustomError(e.to_string()))?
                 .ok_or_else(|| GitError::CustomError("Main ref not found".to_string()))?;
 
-            let old_blobs = service
+            let old_blobs = cl_svc
                 .get_commit_blobs(&cl.from_hash)
                 .await
                 .map_err(|e| GitError::CustomError(e.to_string()))?;
-            let new_blobs = service
+            let new_blobs = cl_svc
                 .get_commit_blobs(&cl.to_hash)
                 .await
                 .map_err(|e| GitError::CustomError(e.to_string()))?;
-            let cl_changed = service
+            let cl_changed = cl_svc
                 .cl_files_list(old_blobs, new_blobs)
                 .await
                 .map_err(|e| GitError::CustomError(e.to_string()))?;
 
-            let merged_commit_hash = service
+            let merged_commit_hash = cl_svc
                 .apply_changes_as_single_commit(cl, &cl_changed, &main_ref.ref_commit_hash)
                 .await?;
 

@@ -44,7 +44,11 @@ async fn code_review_comment_list(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<CodeReviewResponse>>, ApiError> {
-    let comments = state.monorepo().get_code_review_comments(&link).await?;
+    let comments = state
+        .services()
+        .code_review()
+        .get_code_review_comments(&link)
+        .await?;
 
     Ok(Json(CommonResult::success(Some(comments))))
 }
@@ -68,7 +72,8 @@ async fn initialize_code_review_comment(
     Json(paload): Json<InitializeCommentRequest>,
 ) -> Result<Json<CommonResult<ThreadReviewResponse>>, ApiError> {
     let thread = state
-        .monorepo()
+        .services()
+        .code_review()
         .create_code_review_comment(&link, user.username, paload)
         .await?;
 
@@ -94,7 +99,8 @@ async fn reply_code_review_comment(
     Json(payload): Json<CommentReplyRequest>,
 ) -> Result<Json<CommonResult<CommentReviewResponse>>, ApiError> {
     let comment = state
-        .monorepo()
+        .services()
+        .code_review()
         .reply_code_review_comment(thread_id, user.username, payload)
         .await?;
 
@@ -120,7 +126,8 @@ async fn update_code_review_comment(
     Json(payload): Json<UpdateCommentRequest>,
 ) -> Result<Json<CommonResult<CommentReviewResponse>>, ApiError> {
     let comment = state
-        .monorepo()
+        .services()
+        .code_review()
         .update_code_review_comment(comment_id, &user.username, payload)
         .await?;
 
@@ -144,7 +151,8 @@ async fn resolve_code_review_thread(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<ThreadStatusResponse>>, ApiError> {
     let thread = state
-        .monorepo()
+        .services()
+        .code_review()
         .resolve_code_review_thread(thread_id)
         .await?;
 
@@ -168,7 +176,8 @@ async fn reopen_code_review_thread(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<ThreadStatusResponse>>, ApiError> {
     let thread = state
-        .monorepo()
+        .services()
+        .code_review()
         .reopen_code_review_thread(thread_id)
         .await?;
 
@@ -192,7 +201,8 @@ async fn delete_code_review_thread(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     state
-        .monorepo()
+        .services()
+        .code_review()
         .delete_code_review_thread(thread_id)
         .await?;
 
@@ -217,7 +227,8 @@ async fn delete_code_review_comment(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     state
-        .monorepo()
+        .services()
+        .code_review()
         .delete_code_review_comment(comment_id, &user.username)
         .await?;
 

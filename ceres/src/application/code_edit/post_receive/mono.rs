@@ -10,24 +10,27 @@ use callisto::{mega_cl, mega_code_review_anchor};
 use common::{errors::MegaError, utils::ZERO_ID};
 use futures::{StreamExt, stream};
 use jupiter::storage::Storage;
-use orion_client::OrionBuildClient;
 
 use crate::{
     application::{
         api_service::{
             ApiHandler,
-            cache::GitObjectCache,
-            mono::{MonoApiService, cl_merge},
+            mono::{ClApplicationService, MonoApiService, cl_merge},
         },
+        build_trigger::SharedBuildDispatch,
         code_edit::{on_push::OnpushCodeEdit, utils::get_changed_files},
     },
     bus::{ApplicationEventHandler, TransportEvent},
 };
 
 /// Handles CL creation, bootstrap, build triggers, and code-review reanchoring after mono push.
+#[allow(clippy::too_many_arguments)]
 pub async fn dispatch_mono_receive_pack_finalized(
     storage: Storage,
-    git_object_cache: Arc<GitObjectCache>,
+    git_object_cache: Arc<crate::application::api_service::cache::GitObjectCache>,
+    build_dispatch: Option<SharedBuildDispatch>,
+    git: &MonoApiService,
+    cl: &ClApplicationService,
     repo_path: PathBuf,
     base_branch: String,
     from_hash: String,
@@ -35,47 +38,45 @@ pub async fn dispatch_mono_receive_pack_finalized(
     username: Option<String>,
 ) -> Result<(), MegaError> {
     let username = username.unwrap_or_else(|| String::from("Anonymous"));
-    let mono_api_service = MonoApiService {
-        storage: storage.clone(),
-        git_object_cache: git_object_cache.clone(),
-    };
     let repo_path_str = repo_path
         .to_str()
         .ok_or_else(|| MegaError::Other("invalid repo path".to_string()))?;
 
-    let editor = OnpushCodeEdit::from(repo_path_str, &base_branch, &from_hash, &mono_api_service);
-    let cl = editor
+    let editor = OnpushCodeEdit::from(repo_path_str, &base_branch, &from_hash, git);
+    let cl_model = editor
         .update_or_create_cl(&storage, &from_hash, &to_hash, &username)
         .await?;
 
     if from_hash == ZERO_ID && repo_path_str.starts_with("/project/") {
-        cl_merge::bootstrap_monorepo_path(&mono_api_service, repo_path_str, Some(&cl)).await?;
+        cl_merge::bootstrap_monorepo_path(git, repo_path_str, Some(&cl_model)).await?;
     }
 
-    let orion_client = Arc::new(OrionBuildClient::new(storage.config().build.clone()));
-    if orion_client.enable_build() {
+    if let Some(build_dispatch) = build_dispatch
+        && build_dispatch.enable_build()
+    {
         editor
             .trigger_build_and_check(
                 storage.clone(),
-                git_object_cache.clone(),
-                orion_client,
-                &cl,
+                git_object_cache,
+                build_dispatch,
+                &cl_model,
                 &username,
             )
             .await?;
     }
 
-    reanchor_code_review_threads(&storage, &mono_api_service, &cl, &to_hash).await
+    reanchor_code_review_threads(&storage, git, cl, &cl_model, &to_hash).await
 }
 
 async fn reanchor_code_review_threads(
     storage: &Storage,
-    mono_api_service: &MonoApiService,
+    git: &MonoApiService,
+    cl_svc: &ClApplicationService,
     cl: &mega_cl::Model,
     to_hash: &str,
 ) -> Result<(), MegaError> {
     let cl_link = cl.link.clone();
-    let changed_files = get_changed_files(mono_api_service, cl).await?;
+    let changed_files = get_changed_files(git, cl).await?;
     let files_with_threads = storage
         .code_review_thread_storage()
         .get_files_with_threads_by_link(&cl_link)
@@ -117,7 +118,8 @@ async fn reanchor_code_review_threads(
         .get_anchors_by_thread_ids(&pending_reanchor_thread_ids)
         .await?;
 
-    let mono_api_service = Arc::new(mono_api_service.clone());
+    let git = Arc::new(git.clone());
+    let cl_svc = Arc::new(cl_svc.clone());
     let mut anchors_map: HashMap<i64, Vec<mega_code_review_anchor::Model>> = HashMap::new();
     for anchor in anchors {
         anchors_map
@@ -130,7 +132,8 @@ async fn reanchor_code_review_threads(
         .into_iter()
         .map(|thread| {
             let cl_link = cl_link.clone();
-            let mono_api_service = Arc::clone(&mono_api_service);
+            let git = Arc::clone(&git);
+            let cl_svc = Arc::clone(&cl_svc);
             let anchors_map = anchors_map.clone();
             let to_hash = to_hash.to_string();
             let storage = storage.clone();
@@ -149,7 +152,7 @@ async fn reanchor_code_review_threads(
                     }
                 };
 
-                let (diff_content, _) = mono_api_service
+                let (diff_content, _) = cl_svc
                     .paged_content_diff(&cl_link, Pagination::default())
                     .await?;
 
@@ -161,7 +164,7 @@ async fn reanchor_code_review_threads(
                     let latest_blob = if let Some(blob) = blob_cache.get(&file_path) {
                         blob.clone()
                     } else {
-                        let blob = mono_api_service
+                        let blob = git
                             .get_blob_as_string(PathBuf::from(&file_path), Some(&to_hash))
                             .await?
                             .expect("latest blob must exist");
@@ -198,18 +201,15 @@ async fn reanchor_code_review_threads(
     Ok(())
 }
 
-/// Application handler that dispatches transport events using storage + cache context.
+/// Application handler that dispatches transport events using injected git + CL services.
 pub struct RuntimeApplicationHandler {
-    storage: Storage,
-    git_object_cache: Arc<GitObjectCache>,
+    git: MonoApiService,
+    cl: ClApplicationService,
 }
 
 impl RuntimeApplicationHandler {
-    pub fn new(storage: Storage, git_object_cache: Arc<GitObjectCache>) -> Self {
-        Self {
-            storage,
-            git_object_cache,
-        }
+    pub fn new(git: MonoApiService, cl: ClApplicationService) -> Self {
+        Self { git, cl }
     }
 }
 
@@ -225,8 +225,11 @@ impl ApplicationEventHandler for RuntimeApplicationHandler {
                 username,
             } => {
                 dispatch_mono_receive_pack_finalized(
-                    self.storage.clone(),
-                    self.git_object_cache.clone(),
+                    self.git.storage().clone(),
+                    self.git.git_object_cache(),
+                    self.git.build_dispatch(),
+                    &self.git,
+                    &self.cl,
                     repo_path,
                     base_branch,
                     from_hash,
@@ -243,8 +246,9 @@ impl ApplicationEventHandler for RuntimeApplicationHandler {
                 extra_timings,
             } => {
                 super::import::dispatch_import_receive_pack_finalized(
-                    self.storage.clone(),
-                    self.git_object_cache.clone(),
+                    self.git.storage().clone(),
+                    self.git.git_object_cache(),
+                    &self.git,
                     repo_path,
                     repo_id,
                     commands,

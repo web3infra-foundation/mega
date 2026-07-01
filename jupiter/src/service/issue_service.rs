@@ -85,4 +85,12 @@ impl IssueService {
         let cls = self.cl_storage.get_cl_suggestions_by_query(query).await?;
         Ok((issues, cls))
     }
+
+    pub fn issue_store(&self) -> IssueStorage {
+        self.issue_storage.clone()
+    }
+
+    pub fn conversation_store(&self) -> ConversationStorage {
+        self.conversation_storage.clone()
+    }
 }

@@ -7,7 +7,7 @@ use common::errors::MegaError;
 use jupiter::model::group_dto::{DeleteGroupStats, ResourcePermissionBinding};
 
 use crate::{
-    application::api_service::mono::MonoApiService,
+    application::api_service::mono::context::AdminApplicationService,
     model::group::{
         CreateGroupRequest, PermissionBindingRequest, PermissionValue, ResourceTypeValue,
         UpdateGroupRequest,
@@ -75,7 +75,7 @@ pub struct EffectiveResourcePermission {
     pub permission: Option<PermissionEnum>,
 }
 
-impl MonoApiService {
+impl AdminApplicationService {
     pub async fn create_group(
         &self,
         payload: CreateGroupRequest,
@@ -83,7 +83,8 @@ impl MonoApiService {
         let name = validate_group_name(&payload.name)?;
         let description = normalize_optional_description(payload.description);
 
-        self.storage
+        self.ctx
+            .storage()
             .group_storage()
             .create_group(create_group_payload(CreateGroupRequest {
                 name,
@@ -97,14 +98,18 @@ impl MonoApiService {
         page: Pagination,
     ) -> Result<(Vec<mega_group::Model>, u64), MegaError> {
         validate_pagination(&page)?;
-        self.storage.group_storage().list_groups(page).await
+        self.ctx.storage().group_storage().list_groups(page).await
     }
 
     pub async fn get_group_by_id(
         &self,
         group_id: i64,
     ) -> Result<Option<mega_group::Model>, MegaError> {
-        self.storage.group_storage().get_group_by_id(group_id).await
+        self.ctx
+            .storage()
+            .group_storage()
+            .get_group_by_id(group_id)
+            .await
     }
 
     pub async fn update_group(
@@ -114,7 +119,8 @@ impl MonoApiService {
     ) -> Result<mega_group::Model, MegaError> {
         let name = validate_group_name(&payload.name)?;
         let description = normalize_optional_description(payload.description);
-        self.storage
+        self.ctx
+            .storage()
             .group_storage()
             .update_group(
                 group_id,
@@ -125,7 +131,8 @@ impl MonoApiService {
 
     pub async fn delete_group(&self, group_id: i64) -> Result<DeleteGroupStats, MegaError> {
         let stats = self
-            .storage
+            .ctx
+            .storage()
             .group_storage()
             .delete_group_with_relations(group_id)
             .await?;
@@ -148,7 +155,7 @@ impl MonoApiService {
         if usernames.is_empty() {
             return Err(MegaError::bad_request("usernames must not be empty"));
         }
-        let group_storage = self.storage.group_storage();
+        let group_storage = self.ctx.storage().group_storage();
         group_storage.add_group_members(group_id, &usernames).await
     }
 
@@ -157,7 +164,7 @@ impl MonoApiService {
         group_id: i64,
         username: &str,
     ) -> Result<bool, MegaError> {
-        let group_storage = self.storage.group_storage();
+        let group_storage = self.ctx.storage().group_storage();
         if group_storage.get_group_by_id(group_id).await?.is_none() {
             return Err(MegaError::NotFound(format!(
                 "Group not found: {}",
@@ -173,7 +180,7 @@ impl MonoApiService {
         page: Pagination,
     ) -> Result<(Vec<mega_group_member::Model>, u64), MegaError> {
         validate_pagination(&page)?;
-        let group_storage = self.storage.group_storage();
+        let group_storage = self.ctx.storage().group_storage();
         if group_storage.get_group_by_id(group_id).await?.is_none() {
             return Err(MegaError::NotFound(format!(
                 "Group not found: {}",
@@ -190,7 +197,8 @@ impl MonoApiService {
         permissions: Vec<PermissionBindingRequest>,
     ) -> Result<Vec<mega_resource_permission::Model>, MegaError> {
         let bindings = permission_bindings(permissions);
-        self.storage
+        self.ctx
+            .storage()
             .group_storage()
             .replace_resource_permissions(resource_type, resource_id, &bindings)
             .await
@@ -201,7 +209,8 @@ impl MonoApiService {
         resource_type: ResourceTypeEnum,
         resource_id: &str,
     ) -> Result<Vec<mega_resource_permission::Model>, MegaError> {
-        self.storage
+        self.ctx
+            .storage()
             .group_storage()
             .list_resource_permissions(resource_type, resource_id)
             .await
@@ -214,7 +223,8 @@ impl MonoApiService {
         permissions: Vec<PermissionBindingRequest>,
     ) -> Result<Vec<mega_resource_permission::Model>, MegaError> {
         let bindings = permission_bindings(permissions);
-        self.storage
+        self.ctx
+            .storage()
             .group_storage()
             .upsert_resource_permissions(resource_type, resource_id, &bindings)
             .await
@@ -225,7 +235,8 @@ impl MonoApiService {
         resource_type: ResourceTypeEnum,
         resource_id: &str,
     ) -> Result<u64, MegaError> {
-        self.storage
+        self.ctx
+            .storage()
             .group_storage()
             .delete_resource_permissions(resource_type, resource_id)
             .await
@@ -235,7 +246,8 @@ impl MonoApiService {
         &self,
         username: &str,
     ) -> Result<Vec<mega_group::Model>, MegaError> {
-        self.storage
+        self.ctx
+            .storage()
             .group_storage()
             .find_groups_by_username(username)
             .await
@@ -254,7 +266,7 @@ impl MonoApiService {
             });
         }
 
-        let group_storage = self.storage.group_storage();
+        let group_storage = self.ctx.storage().group_storage();
         let group_ids = group_storage
             .find_group_ids_by_username(username)
             .await
@@ -297,7 +309,8 @@ impl MonoApiService {
         match resource_type {
             ResourceTypeValue::Note => {
                 let note = self
-                    .storage
+                    .ctx
+                    .storage()
                     .note_storage()
                     .get_note_by_public_id(normalized_resource_id)
                     .await?;

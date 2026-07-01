@@ -38,8 +38,15 @@ async fn clone_third_party_repo(
     let path = MonoServiceLogic::validate_github_sync_path(&payload.path)?;
     let path = PathBuf::from(path);
     state
-        .monorepo()
-        .sync_third_party_repo(&payload.owner, &payload.repo, path, &user.username)
+        .services()
+        .git()
+        .sync_third_party_repo(
+            state.services().transport_runtime(),
+            &payload.owner,
+            &payload.repo,
+            path,
+            &user.username,
+        )
         .await?;
 
     Ok(Json(CommonResult::success(None)))

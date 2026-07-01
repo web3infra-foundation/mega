@@ -9,9 +9,11 @@ pub mod merge_checker;
 pub mod model;
 pub mod transport;
 
-pub use application::api_service::{
-    ADMIN_FILE, EffectiveResourcePermission, MonoApiService, MonoAppServices, MonoServiceLogic,
-    RefUpdate, TreeUpdateResult, cl_merge,
+pub use application::{
+    api_service::{
+        ADMIN_FILE, EffectiveResourcePermission, MonoApiService, MonoAppServices, MonoServiceLogic,
+        RefUpdate, TreeUpdateResult, cl_merge,
+    },
+    build_trigger::{BuildDispatchPort, SharedBuildDispatch},
 };
 pub use bus::{ApplicationEventHandler, TransportEvent, TransportRuntime};
-pub use transport::ProtocolApiState;

@@ -1,16 +1,13 @@
-use std::sync::Arc;
-
 use api_model::buck2::{api::TaskBuildRequest, status::Status, types::ProjectRelativePath};
 use common::errors::MegaError;
 use jupiter::storage::Storage;
-use orion_client::OrionBuildClient;
 
-use crate::application::build_trigger::{BuildTrigger, BuildTriggerPayload};
+use crate::application::build_trigger::{BuildTrigger, BuildTriggerPayload, SharedBuildDispatch};
 
-/// Handles dispatching build triggers to the build execution layer (Orion).
+/// Handles dispatching build triggers to the build execution layer.
 pub struct BuildDispatcher {
     storage: Storage,
-    orion_client: Arc<OrionBuildClient>,
+    build_dispatch: SharedBuildDispatch,
 }
 
 fn payload_to_task_request(payload: &BuildTriggerPayload) -> Result<TaskBuildRequest, MegaError> {
@@ -40,10 +37,10 @@ fn payload_to_task_request(payload: &BuildTriggerPayload) -> Result<TaskBuildReq
 }
 
 impl BuildDispatcher {
-    pub fn new(storage: Storage, orion_client: Arc<OrionBuildClient>) -> Self {
+    pub fn new(storage: Storage, build_dispatch: SharedBuildDispatch) -> Self {
         Self {
             storage,
-            orion_client,
+            build_dispatch,
         }
     }
 
@@ -54,12 +51,12 @@ impl BuildDispatcher {
         })?;
 
         // Determine task_id based on whether build system is enabled
-        let task_id: Option<uuid::Uuid> = if self.orion_client.enable_build() {
+        let task_id: Option<uuid::Uuid> = if self.build_dispatch.enable_build() {
             let req = payload_to_task_request(&trigger.payload)?;
 
-            let task_id_str = self.orion_client.on_post_receive(req).await.map_err(|e| {
-                tracing::error!("Failed to dispatch build to Orion: {}", e);
-                MegaError::Other(format!("Failed to dispatch build to Orion: {}", e))
+            let task_id_str = self.build_dispatch.dispatch_build(req).await.map_err(|e| {
+                tracing::error!("Failed to dispatch build: {}", e);
+                e
             })?;
 
             let task_uuid = uuid::Uuid::parse_str(&task_id_str).map_err(|e| {
@@ -69,7 +66,7 @@ impl BuildDispatcher {
 
             Some(task_uuid)
         } else {
-            tracing::info!("BuildDispatcher: Build system disabled, skipping Orion call");
+            tracing::info!("BuildDispatcher: Build system disabled, skipping dispatch");
             None
         };
 
@@ -100,14 +97,38 @@ mod tests {
     use std::{sync::Arc, time::Duration};
 
     use api_model::buck2::ws::WSMessage;
+    use async_trait::async_trait;
     use axum::{Json, Router, extract::State, routing::post};
     use chrono::Utc;
     use common::config::BuildConfig;
+    use orion_client::OrionBuildClient;
     use tempfile::tempdir;
     use tokio::{net::TcpListener, sync::mpsc};
 
     use super::*;
-    use crate::application::build_trigger::{BuildTriggerType, TriggerSource, WebEditPayload};
+    use crate::application::build_trigger::{
+        BuildDispatchPort, BuildTriggerType, TriggerSource, WebEditPayload,
+    };
+
+    struct TestOrionDispatch(Arc<OrionBuildClient>);
+
+    #[async_trait]
+    impl BuildDispatchPort for TestOrionDispatch {
+        fn enable_build(&self) -> bool {
+            self.0.enable_build()
+        }
+
+        async fn dispatch_build(&self, req: TaskBuildRequest) -> Result<String, MegaError> {
+            self.0
+                .on_post_receive(req)
+                .await
+                .map_err(|e| MegaError::Other(e.to_string()))
+        }
+    }
+
+    fn test_dispatch(client: Arc<OrionBuildClient>) -> SharedBuildDispatch {
+        Arc::new(TestOrionDispatch(client))
+    }
 
     #[derive(Clone)]
     struct MockOrionState {
@@ -187,7 +208,7 @@ mod tests {
             orion_server: orion_base,
             ..Default::default()
         }));
-        let dispatcher = BuildDispatcher::new(storage.clone(), orion_client);
+        let dispatcher = BuildDispatcher::new(storage.clone(), test_dispatch(orion_client));
         let trigger = web_edit_trigger(repo, cl_link, changes.clone());
 
         let trigger_id = dispatcher
@@ -262,7 +283,7 @@ mod tests {
             orion_server: "http://127.0.0.1:0".to_string(),
             ..Default::default()
         }));
-        let dispatcher = BuildDispatcher::new(storage.clone(), orion_client);
+        let dispatcher = BuildDispatcher::new(storage.clone(), test_dispatch(orion_client));
 
         let trigger = web_edit_trigger(
             "/project/buck2_test",

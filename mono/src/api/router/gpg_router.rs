@@ -30,7 +30,11 @@ async fn remove_gpg(
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     // let uid = "exampleid".to_string();
     let uid = user.campsite_user_id.clone();
-    state.monorepo().remove_gpg_key(uid, req.key_id).await?;
+    state
+        .services()
+        .user()
+        .remove_gpg_key(uid, req.key_id)
+        .await?;
     Ok(Json(CommonResult::success(None)))
 }
 
@@ -51,7 +55,11 @@ async fn add_gpg(
     // let uid = "exampleid".to_string();
     let uid = user.campsite_user_id.clone();
     println!("Adding GPG key for user: {}", req.gpg_content.clone());
-    state.monorepo().add_gpg_key(uid, req.gpg_content).await?;
+    state
+        .services()
+        .user()
+        .add_gpg_key(uid, req.gpg_content)
+        .await?;
 
     Ok(Json(CommonResult::success(None)))
 }
@@ -69,7 +77,7 @@ async fn list_gpg(
 ) -> Result<Json<CommonResult<Vec<GpgKey>>>, ApiError> {
     // let uid = "exampleid".to_string();
     let uid = user.campsite_user_id;
-    let res = state.monorepo().list_user_gpg_keys(uid).await?;
+    let res = state.services().user().list_user_gpg_keys(uid).await?;
 
     Ok(Json(CommonResult::success(Some(res))))
 }

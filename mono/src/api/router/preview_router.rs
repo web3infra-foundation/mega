@@ -32,7 +32,7 @@ async fn upsert_commit_binding(
         }
     });
     state
-        .monorepo()
+        .git()
         .upsert_commit_binding(commit_id, final_username.clone(), final_username.is_none())
         .await?;
     Ok(())
@@ -296,10 +296,10 @@ async fn path_can_be_cloned(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<bool>>, ApiError> {
     let path: PathBuf = query.path.clone().into();
-    let import_dir = state.monorepo().import_dir();
+    let import_dir = state.git().import_dir();
     let path_str = path.to_str().unwrap();
     let res = if path.starts_with(&import_dir) {
-        match state.monorepo().find_git_repo_like_path(path_str).await? {
+        match state.git().find_git_repo_like_path(path_str).await? {
             Some(model) => model.repo_path == path_str,
             None => false,
         }

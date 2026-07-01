@@ -1,18 +1,19 @@
 use api_model::common::{CommonPage, Pagination};
 use common::errors::MegaError;
 
-use super::service::MonoApiService;
+use super::context::ClApplicationService;
 use crate::model::{change_list::ListPayload, issue::ItemRes};
 
-impl MonoApiService {
+impl ClApplicationService {
     pub async fn get_cl_list(
         &self,
         filter: ListPayload,
         pagination: Pagination,
     ) -> Result<CommonPage<ItemRes>, MegaError> {
         let (items, total) = self
-            .storage
-            .cl_storage()
+            .storage()
+            .cl_service
+            .cl_store()
             .get_cl_list(filter.into(), pagination)
             .await?;
         Ok(CommonPage {
@@ -22,8 +23,9 @@ impl MonoApiService {
     }
 
     pub async fn get_cl_model(&self, link: &str) -> Result<callisto::mega_cl::Model, MegaError> {
-        self.storage
-            .cl_storage()
+        self.storage()
+            .cl_service
+            .cl_store()
             .get_cl(link)
             .await?
             .ok_or_else(|| MegaError::NotFound(format!("CL {link} not found")))

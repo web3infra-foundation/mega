@@ -1,18 +1,19 @@
 use common::errors::MegaError;
 
-use super::service::MonoApiService;
+use super::context::CodeReviewApplicationService;
 use crate::model::code_review::{
     CodeReviewResponse, CommentReplyRequest, CommentReviewResponse, InitializeCommentRequest,
     ThreadReviewResponse, ThreadStatusResponse, UpdateCommentRequest,
 };
 
-impl MonoApiService {
+impl CodeReviewApplicationService {
     pub async fn get_code_review_comments(
         &self,
         link: &str,
     ) -> Result<CodeReviewResponse, MegaError> {
         let comments = self
-            .storage
+            .ctx
+            .storage()
             .code_review_service
             .get_all_comments_by_link(link)
             .await?;
@@ -26,7 +27,8 @@ impl MonoApiService {
         payload: InitializeCommentRequest,
     ) -> Result<ThreadReviewResponse, MegaError> {
         let thread = self
-            .storage
+            .ctx
+            .storage()
             .code_review_service
             .create_inline_comment(
                 link,
@@ -51,7 +53,8 @@ impl MonoApiService {
         payload: CommentReplyRequest,
     ) -> Result<CommentReviewResponse, MegaError> {
         let comment = self
-            .storage
+            .ctx
+            .storage()
             .code_review_service
             .reply_to_comment(
                 thread_id,
@@ -70,7 +73,8 @@ impl MonoApiService {
         payload: UpdateCommentRequest,
     ) -> Result<CommentReviewResponse, MegaError> {
         let comment = self
-            .storage
+            .ctx
+            .storage()
             .code_review_comment_storage()
             .find_comment_by_id(comment_id)
             .await?
@@ -83,7 +87,8 @@ impl MonoApiService {
         }
 
         let updated = self
-            .storage
+            .ctx
+            .storage()
             .code_review_service
             .update_comment(comment_id, payload.content)
             .await?;
@@ -95,7 +100,8 @@ impl MonoApiService {
         thread_id: i64,
     ) -> Result<ThreadStatusResponse, MegaError> {
         let thread = self
-            .storage
+            .ctx
+            .storage()
             .code_review_service
             .resolve_thread(thread_id)
             .await?;
@@ -107,7 +113,8 @@ impl MonoApiService {
         thread_id: i64,
     ) -> Result<ThreadStatusResponse, MegaError> {
         let thread = self
-            .storage
+            .ctx
+            .storage()
             .code_review_service
             .reopen_thread(thread_id)
             .await?;
@@ -115,7 +122,8 @@ impl MonoApiService {
     }
 
     pub async fn delete_code_review_thread(&self, thread_id: i64) -> Result<(), MegaError> {
-        self.storage
+        self.ctx
+            .storage()
             .code_review_service
             .delete_thread(thread_id)
             .await?;
@@ -128,7 +136,8 @@ impl MonoApiService {
         username: &str,
     ) -> Result<(), MegaError> {
         let comment = self
-            .storage
+            .ctx
+            .storage()
             .code_review_comment_storage()
             .find_comment_by_id(comment_id)
             .await?
@@ -140,7 +149,8 @@ impl MonoApiService {
             ));
         }
 
-        self.storage
+        self.ctx
+            .storage()
             .code_review_service
             .delete_comment(comment_id)
             .await?;

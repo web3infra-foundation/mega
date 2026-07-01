@@ -60,7 +60,7 @@ Download and verify:
 ```bash
 VERSION=v0.1.1
 BUNDLE=orion-${VERSION}-linux-amd64
-REPO=web3infra-foundation/mega
+REPO=gitmono-dev/mega
 
 curl -LO https://github.com/${REPO}/releases/download/orion-${VERSION}/${BUNDLE}.tar.gz
 curl -LO https://github.com/${REPO}/releases/download/orion-${VERSION}/${BUNDLE}.tar.gz.sha256

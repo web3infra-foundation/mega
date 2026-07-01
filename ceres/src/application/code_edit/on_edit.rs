@@ -86,7 +86,7 @@ impl model::TriggerContextBuilder for OneditTrigerBuilder {
         &self,
         storage: Storage,
         git_cache: std::sync::Arc<GitObjectCache>,
-        orion_client: std::sync::Arc<orion_client::OrionBuildClient>,
+        build_dispatch: std::sync::Arc<dyn crate::application::build_trigger::BuildDispatchPort>,
         cl: &mega_cl::Model,
         username: &str,
     ) -> Result<(), MegaError> {
@@ -114,7 +114,7 @@ impl model::TriggerContextBuilder for OneditTrigerBuilder {
                 Some(cl_model.id),
                 Some(username),
             );
-            BuildTriggerService::build_by_context(storage, git_cache, orion_client, context).await
+            BuildTriggerService::build_by_context(storage, git_cache, build_dispatch, context).await
         });
         Ok(())
     }

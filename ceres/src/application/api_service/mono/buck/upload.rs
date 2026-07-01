@@ -1,6 +1,6 @@
 //! Buck upload operations for [`MonoApiService`](super::service::MonoApiService).
 
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, path::PathBuf};
 
 use callisto;
 use common::errors::{BuckError, MegaError};
@@ -12,7 +12,6 @@ use jupiter::{
     storage::buck_storage::{session_status, upload_status},
     utils::converter::IntoMegaModel,
 };
-use orion_client::OrionBuildClient;
 
 use crate::{
     application::{
@@ -31,13 +30,14 @@ use crate::{
 impl MonoApiService {
     /// Triggers a build for Buck upload completion
     fn trigger_build_for_buck_upload(&self, response: &CompleteResponse, username: &str) {
-        let config = self.storage.config();
-        let orion_client = Arc::new(OrionBuildClient::new(config.build.clone()));
-        if !orion_client.enable_build() {
+        let Some(build_dispatch) = self.build_dispatch() else {
+            return;
+        };
+        if !build_dispatch.enable_build() {
             return;
         }
-        let storage = self.storage.clone();
-        let git_cache = self.git_object_cache.clone();
+        let storage = self.storage().clone();
+        let git_cache = self.git_object_cache().clone();
         let mut context = TriggerContext::from_buck_upload(
             response.repo_path.clone(),
             response.from_hash.clone(),
@@ -50,7 +50,7 @@ impl MonoApiService {
         context.ref_type = Some("branch".to_string());
         tokio::spawn(async move {
             if let Err(e) =
-                BuildTriggerService::build_by_context(storage, git_cache, orion_client, context)
+                BuildTriggerService::build_by_context(storage, git_cache, build_dispatch, context)
                     .await
             {
                 tracing::error!("Failed to create build trigger for buck upload: {}", e);
@@ -68,7 +68,7 @@ impl MonoApiService {
         }
         let normalized_path = MonoServiceLogic::normalize_repo_path(path)?;
         let refs = self
-            .storage
+            .storage()
             .mono_storage()
             .get_main_ref(&normalized_path)
             .await?
@@ -81,7 +81,7 @@ impl MonoApiService {
         // Use canonical path from mega_refs as the single source of truth for repository path
         let canonical_path = refs.path.clone();
         let response = self
-            .storage
+            .storage()
             .buck_service
             .create_session(
                 username,
@@ -110,7 +110,7 @@ impl MonoApiService {
         payload: ManifestPayload,
     ) -> Result<ManifestResponse, MegaError> {
         let session = self
-            .storage
+            .storage()
             .buck_storage()
             .get_session(cl_link)
             .await?
@@ -159,7 +159,7 @@ impl MonoApiService {
         };
 
         let svc_resp = self
-            .storage
+            .storage()
             .buck_service
             .process_manifest(
                 username,
@@ -190,7 +190,7 @@ impl MonoApiService {
     }
 
     pub fn buck_max_file_size(&self) -> u64 {
-        self.storage.buck_service.max_file_size()
+        self.storage().buck_service.max_file_size()
     }
 
     pub fn buck_try_acquire_upload_permits(
@@ -203,7 +203,7 @@ impl MonoApiService {
         ),
         MegaError,
     > {
-        self.storage
+        self.storage()
             .buck_service
             .try_acquire_upload_permits(file_size)
     }
@@ -217,7 +217,7 @@ impl MonoApiService {
         file_hash: Option<&str>,
         file_content: bytes::Bytes,
     ) -> Result<jupiter::service::buck_service::FileUploadResponse, MegaError> {
-        self.storage
+        self.storage()
             .buck_service
             .upload_file(
                 username,
@@ -250,7 +250,7 @@ impl MonoApiService {
         _payload: CompletePayload,
     ) -> Result<CompleteResponse, MegaError> {
         let session = self
-            .storage
+            .storage()
             .buck_storage()
             .get_session(cl_link)
             .await?
@@ -276,7 +276,7 @@ impl MonoApiService {
         }
 
         let pending = self
-            .storage
+            .storage()
             .buck_storage()
             .count_pending_files(cl_link)
             .await?;
@@ -286,7 +286,7 @@ impl MonoApiService {
             }));
         }
 
-        let all_files = self.storage.buck_storage().get_all_files(cl_link).await?;
+        let all_files = self.storage().buck_storage().get_all_files(cl_link).await?;
         for file in &all_files {
             if file.blob_id.is_none() {
                 return Err(MegaError::Buck(BuckError::ValidationError(format!(
@@ -323,7 +323,7 @@ impl MonoApiService {
         let commit_result = if file_changes.is_empty() {
             None
         } else {
-            let builder = BuckCommitBuilder::new(self.storage.mono_storage());
+            let builder = BuckCommitBuilder::new(self.storage().mono_storage());
             let result = builder
                 .build_commit(
                     session.from_hash.as_deref().unwrap_or_default(),
@@ -352,7 +352,7 @@ impl MonoApiService {
         });
 
         let svc_resp: SvcCompleteResponse = self
-            .storage
+            .storage()
             .buck_service
             .complete_upload(username, cl_link, SvcCompletePayload {}, artifacts)
             .await?;

@@ -1,6 +1,6 @@
-//! CL merge operations for [`MonoApiService`](super::service::MonoApiService).
+//! CL merge operations for [`ClApplicationService`](super::service::ClApplicationService).
 
-use std::{path::PathBuf, sync::Arc};
+use std::path::PathBuf;
 
 use callisto::{mega_cl, mega_tree, sea_orm_active_enums::ConvTypeEnum};
 use common::{errors::MegaError, utils::MEGA_BRANCH_NAME};
@@ -13,29 +13,26 @@ use jupiter::{
     storage::{base_storage::StorageConnector, mono_storage::RefUpdateData},
     utils::converter::IntoMegaModel,
 };
-use orion_client::OrionBuildClient;
 use tracing::debug;
 
 use crate::{
-    application::{
-        api_service::{
-            ApiHandler,
-            mono::{MonoApiService, logic::MonoServiceLogic, types::TreeUpdateResult},
-        },
-        code_edit::on_edit::OneditCodeEdit,
+    application::api_service::{
+        ApiHandler,
+        mono::{ClApplicationService, logic::MonoServiceLogic, types::TreeUpdateResult},
     },
     merge_checker::CheckerRegistry,
 };
 
-impl MonoApiService {
+impl ClApplicationService {
     // This function is intended to be called before merging a CL to ensure it meets all required checks.
     pub(crate) async fn ensure_cl_mergeable(&self, cl: &mega_cl::Model) -> Result<(), MegaError> {
-        let check_reg = CheckerRegistry::new(self.storage.clone().into(), cl.username.clone());
+        let check_reg = CheckerRegistry::new(self.storage().clone().into(), cl.username.clone());
         check_reg.run_checks(cl.clone().into()).await?;
 
         let required_check_types = self
-            .storage
-            .cl_storage()
+            .storage()
+            .cl_service
+            .cl_store()
             .get_checks_config_by_path(&cl.path)
             .await?
             .into_iter()
@@ -44,8 +41,9 @@ impl MonoApiService {
             .collect::<Vec<_>>();
 
         let failed_checks = self
-            .storage
-            .cl_storage()
+            .storage()
+            .cl_service
+            .cl_store()
             .get_check_result(&cl.link)
             .await?
             .into_iter()
@@ -73,7 +71,7 @@ impl MonoApiService {
         cl: &mega_cl::Model,
     ) -> Result<(), GitError> {
         let main_ref = self
-            .storage
+            .storage()
             .mono_storage()
             .get_main_ref(&cl.path)
             .await
@@ -93,37 +91,19 @@ impl MonoApiService {
         }
     }
 
-    pub(crate) async fn trigger_build_for_cl(
-        &self,
-        editor: &OneditCodeEdit,
-        cl: &mega_cl::Model,
-        username: &str,
-    ) -> Result<(), GitError> {
-        let config = self.storage.config();
-        let orion_client = OrionBuildClient::new(config.build.clone());
-        let git_cache = self.git_object_cache.clone();
-        editor
-            .trigger_build_and_check(
-                self.storage.clone(),
-                git_cache,
-                Arc::new(orion_client),
-                cl,
-                username,
-            )
-            .await?;
-
-        Ok(())
-    }
     pub async fn merge_cl(&self, username: &str, mut cl: mega_cl::Model) -> Result<(), GitError> {
-        crate::application::api_service::mono::cl_merge::prepare_cl_path_for_merge(self, &mut cl)
-            .await
-            .map_err(|e| GitError::CustomError(e.to_string()))?;
+        crate::application::api_service::mono::cl_merge::prepare_cl_path_for_merge(
+            self.git_ops(),
+            &mut cl,
+        )
+        .await
+        .map_err(|e| GitError::CustomError(e.to_string()))?;
 
         self.ensure_cl_mergeable(&cl)
             .await
             .map_err(|e| GitError::CustomError(e.to_string()))?;
 
-        let storage = self.storage.mono_storage();
+        let storage = self.storage().mono_storage();
         let refs = storage
             .get_main_ref(&cl.path)
             .await
@@ -147,7 +127,7 @@ impl MonoApiService {
         username: &str,
         cl: mega_cl::Model,
     ) -> Result<(), GitError> {
-        let storage = self.storage.mono_storage();
+        let storage = self.storage().mono_storage();
 
         let strategy =
             crate::application::api_service::mono::cl_merge::resolve_merge_strategy(self, &cl)
@@ -168,21 +148,25 @@ impl MonoApiService {
             let parent = path.parent().ok_or_else(|| {
                 GitError::CustomError(format!("Invalid CL path: {}", normalized_path))
             })?;
-            if crate::application::api_service::mono::cl_merge::needs_path_tree_attach(self, &path)
-                .await
-                .map_err(|e| GitError::CustomError(e.to_string()))?
+            if crate::application::api_service::mono::cl_merge::needs_path_tree_attach(
+                self.git_ops(),
+                &path,
+            )
+            .await
+            .map_err(|e| GitError::CustomError(e.to_string()))?
             {
-                self.attach_project_path_to_monorepo_root(&normalized_path)
+                self.git()
+                    .attach_project_path_to_monorepo_root(&normalized_path)
                     .await
                     .map_err(|e| GitError::CustomError(e.to_string()))?;
                 crate::application::api_service::mono::cl_merge::sync_path_prefix_main_refs(
-                    self,
+                    self.git_ops(),
                     &normalized_path,
                 )
                 .await
                 .map_err(|e| GitError::CustomError(e.to_string()))?;
             }
-            let update_chain = self.search_tree_for_update(parent).await?;
+            let update_chain = self.git().search_tree_for_update(parent).await?;
             (path, update_chain)
         };
 
@@ -203,14 +187,16 @@ impl MonoApiService {
             // TODO: self.clean_dangling_commits().await;
         }
         // add conversation
-        self.storage
-            .conversation_storage()
+        self.storage()
+            .cl_service
+            .conversation_store()
             .add_conversation(&cl.link, username, None, ConvTypeEnum::Merged)
             .await
             .map_err(|e| GitError::CustomError(format!("Failed to add conversation: {}", e)))?;
         // update cl status last
-        self.storage
-            .cl_storage()
+        self.storage()
+            .cl_service
+            .cl_store()
             .merge_cl(cl.clone())
             .await
             .map_err(|e| GitError::CustomError(format!("Failed to update CL status: {}", e)))?;
@@ -222,7 +208,7 @@ impl MonoApiService {
                 normalized.ends_with(crate::application::api_service::mono::ADMIN_FILE)
             });
             if admin_file_modified {
-                self.invalidate_admin_cache().await;
+                self.admin().invalidate_admin_cache().await;
             }
         }
 
@@ -235,7 +221,7 @@ impl MonoApiService {
         commit_msg: &str,
         cl_link: Option<&str>,
     ) -> Result<String, GitError> {
-        let storage = self.storage.mono_storage();
+        let storage = self.storage().mono_storage();
         let mut new_commit_id = String::new();
         let mut commits: Vec<Commit> = Vec::new();
 
@@ -268,7 +254,7 @@ impl MonoApiService {
         }
 
         let txn = self
-            .storage
+            .storage()
             .begin_db_transaction()
             .await
             .map_err(|e| GitError::CustomError(e.to_string()))?;
@@ -315,7 +301,7 @@ impl MonoApiService {
         cl_link: &str,
         parent_override: Option<ObjectHash>,
     ) -> Result<String, GitError> {
-        let storage = self.storage.mono_storage();
+        let storage = self.storage().mono_storage();
         let mut new_commit_id = String::new();
         let mut commits: Vec<Commit> = Vec::new();
 

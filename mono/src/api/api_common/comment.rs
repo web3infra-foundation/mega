@@ -25,7 +25,8 @@ pub async fn check_comment_ref(
     let username = user.username;
     for ref_link in links {
         state
-            .monorepo()
+            .services()
+            .conversation()
             .add_issue_mention_reference(source_link, &ref_link, &username)
             .await?;
     }

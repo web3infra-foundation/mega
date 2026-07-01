@@ -3,11 +3,10 @@ use std::sync::Arc;
 use callisto::{mega_cl, mega_refs};
 use common::errors::MegaError;
 use jupiter::storage::Storage;
-use orion_client::OrionBuildClient;
 
 use crate::application::{
     api_service::{cache::GitObjectCache, mono::MonoApiService},
-    build_trigger::{BuildTriggerService, TriggerContext},
+    build_trigger::{BuildTriggerService, SharedBuildDispatch, TriggerContext},
     code_edit::{
         model::{self, CLRefUpdateVisitor},
         utils as edit_utils,
@@ -62,7 +61,7 @@ impl model::TriggerContextBuilder for OnpushTrigerBuilder {
         &self,
         storage: Storage,
         git_cache: Arc<GitObjectCache>,
-        orion_client: Arc<OrionBuildClient>,
+        build_dispatch: SharedBuildDispatch,
         cl: &mega_cl::Model,
         username: &str,
     ) -> Result<(), MegaError> {
@@ -92,7 +91,7 @@ impl model::TriggerContextBuilder for OnpushTrigerBuilder {
                 Some(cl_model.id),
                 Some(username),
             );
-            BuildTriggerService::build_by_context(storage, git_cache, orion_client, context).await
+            BuildTriggerService::build_by_context(storage, git_cache, build_dispatch, context).await
         });
 
         Ok(())

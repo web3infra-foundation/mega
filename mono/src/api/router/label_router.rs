@@ -35,7 +35,8 @@ async fn fetch_label_list(
     Json(json): Json<PageParams<String>>,
 ) -> Result<Json<CommonResult<CommonPage<LabelItem>>>, ApiError> {
     let (items, total) = state
-        .monorepo()
+        .services()
+        .issue()
         .list_labels_by_page(json.pagination, &json.additional)
         .await?;
     Ok(Json(CommonResult::success(Some(CommonPage {
@@ -60,7 +61,8 @@ async fn new_label(
     Json(json): Json<NewLabel>,
 ) -> Result<Json<CommonResult<LabelItem>>, ApiError> {
     let res = state
-        .monorepo()
+        .services()
+        .issue()
         .new_label(&json.name, &json.color, &json.description)
         .await?;
     Ok(Json(CommonResult::success(Some(res))))
@@ -82,6 +84,6 @@ async fn fetch_label(
     state: State<MonoApiServiceState>,
     Path(id): Path<i64>,
 ) -> Result<Json<CommonResult<LabelItem>>, ApiError> {
-    let label = state.monorepo().get_label_by_id(id).await?;
+    let label = state.services().issue().get_label_by_id(id).await?;
     Ok(Json(CommonResult::success(label)))
 }

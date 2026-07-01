@@ -70,7 +70,7 @@ pub async fn get_blob_file(
     state: State<MonoApiServiceState>,
     Path(oid): Path<String>,
 ) -> Result<Response, ApiError> {
-    let api_handler = state.monorepo();
+    let api_handler = state.git();
 
     let data = api_handler.get_raw_blob_by_hash(&oid).await?;
     let file_name = format!("inline; filename=\"{oid}\"");

@@ -47,7 +47,8 @@ async fn fetch_issue_list(
     Json(json): Json<PageParams<ListPayload>>,
 ) -> Result<Json<CommonResult<CommonPage<ItemRes>>>, ApiError> {
     let (items, total) = state
-        .monorepo()
+        .services()
+        .issue()
         .get_issue_list(json.additional, json.pagination)
         .await?;
     Ok(Json(CommonResult::success(Some(CommonPage {
@@ -74,7 +75,8 @@ async fn issue_detail(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<IssueDetailRes>>, ApiError> {
     let issue_details = state
-        .monorepo()
+        .services()
+        .issue()
         .get_issue_details(&link, user.username)
         .await?;
     Ok(Json(CommonResult::success(Some(issue_details))))
@@ -96,11 +98,13 @@ async fn new_issue(
     Json(json): Json<NewIssue>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     let res = state
-        .monorepo()
+        .services()
+        .issue()
         .save_issue(&user.username, &json.title)
         .await?;
     state
-        .monorepo()
+        .services()
+        .conversation()
         .add_conversation(
             &res.link,
             &user.username,
@@ -128,9 +132,10 @@ async fn close_issue(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    state.monorepo().close_issue(&link).await?;
+    state.services().issue().close_issue(&link).await?;
     state
-        .monorepo()
+        .services()
+        .conversation()
         .add_conversation(
             &link,
             &user.username,
@@ -158,9 +163,10 @@ async fn reopen_issue(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    state.monorepo().reopen_issue(&link).await?;
+    state.services().issue().reopen_issue(&link).await?;
     state
-        .monorepo()
+        .services()
+        .conversation()
         .add_conversation(
             &link,
             &user.username,
@@ -191,7 +197,8 @@ async fn save_comment(
     Json(payload): Json<ContentPayload>,
 ) -> Result<Json<CommonResult<()>>, ApiError> {
     state
-        .monorepo()
+        .services()
+        .conversation()
         .add_conversation(
             &link,
             &user.username,
@@ -258,7 +265,8 @@ async fn edit_title(
     Json(payload): Json<ContentPayload>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     state
-        .monorepo()
+        .services()
+        .issue()
         .edit_issue_title(&link, &payload.content)
         .await?;
     Ok(Json(CommonResult::success(None)))
@@ -279,7 +287,8 @@ async fn issue_suggester(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<Vec<IssueSuggestions>>>, ApiError> {
     let res = state
-        .monorepo()
+        .services()
+        .issue()
         .get_issue_suggestions(&payload.query)
         .await?;
     Ok(Json(CommonResult::success(Some(res))))

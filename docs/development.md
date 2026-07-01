@@ -10,7 +10,7 @@
 ## Clone and build
 
 ```bash
-git clone https://github.com/web3infra-foundation/mega.git
+git clone https://github.com/gitmono-dev/mega.git
 cd mega
 git submodule update --init --recursive
 cargo build -p mono

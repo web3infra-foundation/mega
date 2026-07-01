@@ -8,15 +8,15 @@ Version: ${VERSION}
 
 ### mono-engine
 
-docker pull ghcr.io/web3infra-foundation/mono-engine:${VERSION}
+docker pull ghcr.io/gitmono-dev/mono-engine:${VERSION}
 
 ### ui
 
-docker pull ghcr.io/web3infra-foundation/ui:${VERSION}
+docker pull ghcr.io/gitmono-dev/ui:${VERSION}
 
 ### orion-server
 
-docker pull ghcr.io/web3infra-foundation/orion-server:${VERSION}
+docker pull ghcr.io/gitmono-dev/orion-server:${VERSION}
 
 ---
 

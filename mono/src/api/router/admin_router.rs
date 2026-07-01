@@ -44,7 +44,11 @@ async fn is_admin_me(
     user: LoginUser,
     State(state): State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<IsAdminResponse>>, ApiError> {
-    let is_admin = state.monorepo().check_is_admin(&user.username).await?;
+    let is_admin = state
+        .services()
+        .admin()
+        .check_is_admin(&user.username)
+        .await?;
 
     Ok(Json(CommonResult::success(Some(IsAdminResponse {
         is_admin,
@@ -71,7 +75,7 @@ async fn admin_list(
 ) -> Result<Json<CommonResult<AdminListResponse>>, ApiError> {
     ensure_admin(&state, &user).await?;
 
-    let admins = state.monorepo().get_all_admins().await?;
+    let admins = state.services().admin().get_all_admins().await?;
 
     Ok(Json(CommonResult::success(Some(AdminListResponse {
         admins,

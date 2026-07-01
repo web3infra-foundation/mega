@@ -8,12 +8,11 @@ use jupiter::{
     storage::{Storage, mono_storage::MonoStorage},
     utils::converter::FromMegaModel,
 };
-use orion_client::OrionBuildClient;
 
 use crate::{
     application::{
         api_service::{ApiHandler, cache::GitObjectCache},
-        build_trigger::{BuildTriggerService, TriggerContext},
+        build_trigger::{BuildTriggerService, SharedBuildDispatch, TriggerContext},
         code_edit::{model, utils as edit_utils},
         webhook::{WebhookEvent, dispatch_cl_webhook},
     },
@@ -76,7 +75,7 @@ pub(crate) trait TriggerContextBuilder {
         &self,
         storage: Storage,
         git_cache: Arc<GitObjectCache>,
-        orion_client: Arc<OrionBuildClient>,
+        build_dispatch: SharedBuildDispatch,
         cl: &mega_cl::Model,
         username: &str,
     ) -> Result<(), MegaError> {
@@ -84,7 +83,7 @@ pub(crate) trait TriggerContextBuilder {
         let username = username.to_string();
         let context = self.get_context(&cl_model, &username).await?;
         tokio::spawn(async move {
-            BuildTriggerService::build_by_context(storage, git_cache, orion_client, context).await
+            BuildTriggerService::build_by_context(storage, git_cache, build_dispatch, context).await
         });
         Ok(())
     }
@@ -365,12 +364,12 @@ impl<
         &self,
         storage: Storage,
         git_cache: Arc<GitObjectCache>,
-        orion_client: Arc<OrionBuildClient>,
+        build_dispatch: SharedBuildDispatch,
         cl: &mega_cl::Model,
         username: &str,
     ) -> Result<(), MegaError> {
         self.builder
-            .trigger_build(storage, git_cache, orion_client, cl, username)
+            .trigger_build(storage, git_cache, build_dispatch, cl, username)
             .await
     }
 
@@ -395,11 +394,11 @@ impl<
         &self,
         storage: Storage,
         git_cache: Arc<GitObjectCache>,
-        orion_client: Arc<OrionBuildClient>,
+        build_dispatch: SharedBuildDispatch,
         cl: &mega_cl::Model,
         username: &str,
     ) -> Result<(), MegaError> {
-        self.trigger_build(storage.clone(), git_cache, orion_client, cl, username)
+        self.trigger_build(storage.clone(), git_cache, build_dispatch, cl, username)
             .await?;
         self.trigger_check(storage, username, cl).await?;
         Ok(())

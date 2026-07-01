@@ -6,12 +6,9 @@ use common::errors::MegaError;
 use jupiter::storage::Storage;
 
 use super::changes_calculator::MonoChangesCalculator;
-use crate::application::{
-    api_service::{cache::GitObjectCache, mono::MonoApiService},
-    build_trigger::{
-        BuildTrigger, BuildTriggerPayload, BuildTriggerType, ManualPayload, TriggerContext,
-        TriggerHandler,
-    },
+use crate::application::build_trigger::{
+    BuildTrigger, BuildTriggerPayload, BuildTriggerType, ChangesPort, ManualPayload,
+    TriggerContext, TriggerHandler,
 };
 
 /// Handler for manual build triggers.
@@ -21,13 +18,10 @@ pub struct ManualHandler {
 }
 
 impl ManualHandler {
-    pub fn new(storage: Storage, git_object_cache: Arc<GitObjectCache>) -> Self {
+    pub fn new(storage: Storage, changes_port: Arc<dyn ChangesPort>) -> Self {
         Self {
             storage: storage.clone(),
-            changes_calculator: MonoChangesCalculator::new(MonoApiService {
-                storage: storage.clone(),
-                git_object_cache,
-            }),
+            changes_calculator: MonoChangesCalculator::new(changes_port),
         }
     }
 

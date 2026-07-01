@@ -3,9 +3,6 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use common::errors::MegaError;
 use jupiter::storage::Storage;
-use orion_client::OrionBuildClient;
-
-use crate::application::api_service::cache::GitObjectCache;
 
 mod buck_upload_handler;
 mod changes_calculator;
@@ -14,12 +11,15 @@ mod dispatcher;
 mod git_push_handler;
 mod manual_handler;
 mod model;
+mod port;
 mod ref_resolver;
 mod retry_handler;
 mod web_edit_handler;
 
 // Export all models from the single model file
+pub use changes_port::ChangesPort;
 pub use model::*;
+pub use port::{BuildDispatchPort, SharedBuildDispatch};
 pub use ref_resolver::{RefResolver, RefType, ResolvedRef};
 pub mod service;
 use buck_upload_handler::BuckFileUploadHandler;
@@ -50,38 +50,25 @@ impl TriggerRegistry {
     /// Create a new TriggerRegistry with all handlers registered.
     pub fn new(
         storage: Storage,
-        git_object_cache: Arc<GitObjectCache>,
-        orion_client: Arc<OrionBuildClient>,
+        build_dispatch: SharedBuildDispatch,
+        changes_port: Arc<dyn ChangesPort>,
     ) -> Self {
         let mut registry = Self {
             handlers: HashMap::new(),
-            dispatcher: Arc::new(BuildDispatcher::new(storage.clone(), orion_client)),
+            dispatcher: Arc::new(BuildDispatcher::new(
+                storage.clone(),
+                build_dispatch.clone(),
+            )),
         };
 
-        // Register core handlers (Git Push, Manual, Retry)
-        registry.register(Box::new(GitPushHandler::new(
-            storage.clone(),
-            git_object_cache.clone(),
-        )));
+        registry.register(Box::new(GitPushHandler::new(changes_port.clone())));
         registry.register(Box::new(ManualHandler::new(
             storage.clone(),
-            git_object_cache.clone(),
+            changes_port.clone(),
         )));
-        registry.register(Box::new(RetryHandler::new(
-            storage.clone(),
-            git_object_cache.clone(),
-        )));
-        registry.register(Box::new(WebEditHandler::new(
-            storage.clone(),
-            git_object_cache.clone(),
-        )));
-        registry.register(Box::new(BuckFileUploadHandler::new(
-            storage.clone(),
-            git_object_cache.clone(),
-        )));
-
-        // Note: Webhook and Schedule handlers are reserved for future implementation
-        // but not registered yet as they are not part of the current requirements
+        registry.register(Box::new(RetryHandler::new(changes_port.clone())));
+        registry.register(Box::new(WebEditHandler::new(changes_port.clone())));
+        registry.register(Box::new(BuckFileUploadHandler::new(changes_port)));
 
         registry
     }
@@ -104,7 +91,6 @@ impl TriggerRegistry {
             &context.commit_hash[..8.min(context.commit_hash.len())]
         );
 
-        // Find the appropriate handler
         let handler = self.handlers.get(&context.trigger_type).ok_or_else(|| {
             MegaError::Other(format!(
                 "No handler for trigger type: {:?}",
@@ -112,10 +98,8 @@ impl TriggerRegistry {
             ))
         })?;
 
-        // Handle the trigger
         let trigger = handler.handle(&context).await?;
 
-        // Dispatch the build and return the trigger ID
         let trigger_id = self.dispatcher.dispatch(trigger).await?;
 
         tracing::info!(

@@ -30,14 +30,13 @@ use std::sync::Arc;
 use api_model::common::Pagination;
 use common::errors::MegaError;
 use jupiter::storage::Storage;
-use orion_client::OrionBuildClient;
 
 use super::model::{
     BuildParams, GitPushEvent, ListTriggersParams, TriggerContext, TriggerRecord, TriggerResponse,
 };
 use crate::application::{
     api_service::cache::GitObjectCache,
-    build_trigger::{RefResolver, TriggerRegistry},
+    build_trigger::{ChangesPort, RefResolver, SharedBuildDispatch, TriggerRegistry},
     code_edit::utils as edit_utils,
 };
 
@@ -45,7 +44,7 @@ use crate::application::{
 pub struct BuildTriggerService {
     storage: Storage,
     registry: TriggerRegistry,
-    orion_client: Arc<OrionBuildClient>,
+    build_dispatch: SharedBuildDispatch,
 }
 
 impl BuildTriggerService {
@@ -61,20 +60,19 @@ impl BuildTriggerService {
 
     pub fn new(
         storage: Storage,
-        git_object_cache: Arc<GitObjectCache>,
-        orion_client: Arc<OrionBuildClient>,
+        build_dispatch: SharedBuildDispatch,
+        changes_port: Arc<dyn ChangesPort>,
     ) -> Self {
-        let registry =
-            TriggerRegistry::new(storage.clone(), git_object_cache, orion_client.clone());
+        let registry = TriggerRegistry::new(storage.clone(), build_dispatch.clone(), changes_port);
         Self {
             storage,
             registry,
-            orion_client,
+            build_dispatch,
         }
     }
 
     pub fn is_enabled(&self) -> bool {
-        self.orion_client.enable_build()
+        self.build_dispatch.enable_build()
     }
 
     fn check_build_enabled(&self) -> Result<(), MegaError> {
@@ -108,14 +106,23 @@ impl BuildTriggerService {
 
     pub async fn build_by_context(
         storage: Storage,
-        git_cache: Arc<GitObjectCache>,
-        orion_client: Arc<OrionBuildClient>,
+        git_object_cache: Arc<GitObjectCache>,
+        build_dispatch: SharedBuildDispatch,
         context: TriggerContext,
     ) -> Result<Option<i64>, MegaError> {
-        if !orion_client.enable_build() {
+        if !build_dispatch.enable_build() {
             return Ok(None);
         }
-        let registry = TriggerRegistry::new(storage, git_cache, orion_client);
+        let (_, cl, _) = crate::application::api_service::mono::stack::build_mono_stack(
+            storage.clone(),
+            git_object_cache,
+            Some(build_dispatch.clone()),
+        );
+        let registry = TriggerRegistry::new(
+            storage,
+            build_dispatch,
+            Arc::new(cl) as Arc<dyn ChangesPort>,
+        );
 
         let id = registry.trigger_build(context).await?;
         Ok(Some(id))

@@ -23,7 +23,7 @@ const MAX_EXPIRES_IN_SECS: i64 = 365 * 24 * 3600 * 10;
 const MIN_EXPIRES_IN_SECS: i64 = 1;
 
 async fn ensure_bot_exists(state: &MonoApiServiceState, bot_id: i64) -> Result<(), ApiError> {
-    let bot = state.monorepo().get_bot_by_id(bot_id).await?;
+    let bot = state.services().admin().get_bot_by_id(bot_id).await?;
     if bot.is_none() {
         return Err(ApiError::not_found(anyhow!("Bot not found")));
     }
@@ -62,7 +62,7 @@ async fn install_bot(
     Path(id): Path<i64>,
     Json(json): Json<InstallBotReq>,
 ) -> Result<Json<CommonResult<BotRes>>, ApiError> {
-    let bot = state.monorepo().install_bot(id, json).await?;
+    let bot = state.services().admin().install_bot(id, json).await?;
 
     Ok(Json(CommonResult::success(Some(bot))))
 }
@@ -83,7 +83,7 @@ async fn list_installed_bot(
     state: State<MonoApiServiceState>,
     Path(id): Path<i64>,
 ) -> Result<Json<CommonResult<Vec<BotRes>>>, ApiError> {
-    let models = state.monorepo().list_installed_bots(id).await?;
+    let models = state.services().admin().list_installed_bots(id).await?;
 
     Ok(Json(CommonResult::success(Some(models))))
 }
@@ -106,7 +106,8 @@ async fn change_installation_status(
     Json(json): Json<ChangeInstallationStatus>,
 ) -> Result<Json<CommonResult<BotRes>>, ApiError> {
     let model = state
-        .monorepo()
+        .services()
+        .admin()
         .change_bot_installation_status(id, installation_id, json)
         .await?;
 
@@ -131,7 +132,8 @@ async fn uninstall_bot(
     Json(target_type): Json<InstallationTargetType>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     state
-        .monorepo()
+        .services()
+        .admin()
         .uninstall_bot(id, target_type, installation_id)
         .await?;
 
@@ -184,7 +186,8 @@ async fn create_bot_token(
     };
 
     let resp = state
-        .monorepo()
+        .services()
+        .admin()
         .generate_bot_token(bot_id, &req.token_name, expires_at)
         .await?;
 
@@ -216,7 +219,7 @@ async fn list_bot_tokens(
     ensure_admin(&state, &user).await?;
     ensure_bot_exists(&state, bot_id).await?;
 
-    let items = state.monorepo().list_bot_tokens(bot_id).await?;
+    let items = state.services().admin().list_bot_tokens(bot_id).await?;
 
     Ok(Json(CommonResult::success(Some(items))))
 }
@@ -247,7 +250,11 @@ async fn revoke_bot_token(
     ensure_admin(&state, &user).await?;
     ensure_bot_exists(&state, bot_id).await?;
 
-    state.monorepo().revoke_bot_token(bot_id, token_id).await?;
+    state
+        .services()
+        .admin()
+        .revoke_bot_token(bot_id, token_id)
+        .await?;
 
     Ok(Json(CommonResult::success(None)))
 }
@@ -277,7 +284,11 @@ async fn revoke_all_bot_tokens(
     ensure_admin(&state, &user).await?;
     ensure_bot_exists(&state, bot_id).await?;
 
-    state.monorepo().revoke_all_bot_tokens(bot_id).await?;
+    state
+        .services()
+        .admin()
+        .revoke_all_bot_tokens(bot_id)
+        .await?;
 
     Ok(Json(CommonResult::success(None)))
 }

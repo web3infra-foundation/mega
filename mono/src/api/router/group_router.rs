@@ -63,7 +63,7 @@ async fn create_group(
 ) -> Result<Json<CommonResult<GroupResponse>>, ApiError> {
     ensure_admin(&state, &user).await?;
 
-    let group = state.monorepo().create_group(req).await?;
+    let group = state.services().admin().create_group(req).await?;
 
     Ok(Json(CommonResult::success(Some(group.into()))))
 }
@@ -87,7 +87,11 @@ async fn list_groups(
 ) -> Result<Json<CommonResult<CommonPage<GroupResponse>>>, ApiError> {
     ensure_admin(&state, &user).await?;
 
-    let (items, total) = state.monorepo().list_groups(json.pagination).await?;
+    let (items, total) = state
+        .services()
+        .admin()
+        .list_groups(json.pagination)
+        .await?;
     let items = items.into_iter().map(Into::into).collect();
 
     Ok(Json(CommonResult::success(Some(CommonPage {
@@ -118,7 +122,8 @@ async fn get_group(
     ensure_admin(&state, &user).await?;
 
     let group = state
-        .monorepo()
+        .services()
+        .admin()
         .get_group_by_id(group_id)
         .await?
         .ok_or_else(|| {
@@ -159,7 +164,8 @@ async fn update_group(
     ensure_admin(&state, &user).await?;
 
     let updated = state
-        .monorepo()
+        .services()
+        .admin()
         .update_group(
             group_id,
             UpdateGroupRequest {
@@ -193,7 +199,7 @@ async fn delete_group(
 ) -> Result<Json<CommonResult<DeleteGroupResponse>>, ApiError> {
     ensure_admin(&state, &user).await?;
 
-    let stats = state.monorepo().delete_group(group_id).await?;
+    let stats = state.services().admin().delete_group(group_id).await?;
 
     Ok(Json(CommonResult::success(Some(DeleteGroupResponse {
         group_id,
@@ -228,7 +234,8 @@ async fn add_group_members(
     ensure_admin(&state, &user).await?;
 
     let members = state
-        .monorepo()
+        .services()
+        .admin()
         .add_group_members(group_id, req.usernames)
         .await?;
     let members = members.into_iter().map(Into::into).collect();
@@ -258,7 +265,8 @@ async fn remove_group_member(
 ) -> Result<Json<CommonResult<RemoveMemberResponse>>, ApiError> {
     ensure_admin(&state, &user).await?;
     let removed = state
-        .monorepo()
+        .services()
+        .admin()
         .remove_group_member(group_id, &username)
         .await?;
 
@@ -294,7 +302,8 @@ async fn list_group_members(
     ensure_admin(&state, &user).await?;
 
     let (items, total) = state
-        .monorepo()
+        .services()
+        .admin()
         .list_group_members(group_id, json.pagination)
         .await?;
     let items = items.into_iter().map(Into::into).collect();
@@ -333,7 +342,8 @@ async fn set_resource_permissions(
         resolve_resource_context(&state, resource_type.as_str(), &resource_id).await?;
 
     let saved = state
-        .monorepo()
+        .services()
+        .admin()
         .set_resource_permission(resource_type_value.into(), &resource_id, req.permissions)
         .await?;
     let saved = saved.into_iter().map(Into::into).collect();
@@ -367,7 +377,8 @@ async fn get_resource_permissions(
         resolve_resource_context(&state, resource_type.as_str(), &resource_id).await?;
 
     let permissions = state
-        .monorepo()
+        .services()
+        .admin()
         .get_resource_permissions(resource_type_value.into(), &resource_id)
         .await?;
     let permissions = permissions.into_iter().map(Into::into).collect();
@@ -403,7 +414,8 @@ async fn update_resource_permissions(
         resolve_resource_context(&state, resource_type.as_str(), &resource_id).await?;
 
     let updated = state
-        .monorepo()
+        .services()
+        .admin()
         .update_resource_permissions(resource_type_value.into(), &resource_id, req.permissions)
         .await?;
     let updated = updated.into_iter().map(Into::into).collect();
@@ -437,7 +449,8 @@ async fn delete_resource_permissions(
         resolve_resource_context(&state, resource_type.as_str(), &resource_id).await?;
 
     let deleted_count = state
-        .monorepo()
+        .services()
+        .admin()
         .delete_resource_permissions(resource_type_value.into(), &resource_id)
         .await?;
 
@@ -470,7 +483,7 @@ async fn get_user_groups(
 ) -> Result<Json<CommonResult<UserGroupsResponse>>, ApiError> {
     ensure_admin(&state, &user).await?;
 
-    let groups = state.monorepo().get_user_groups(&username).await?;
+    let groups = state.services().admin().get_user_groups(&username).await?;
     let groups = groups.into_iter().map(Into::into).collect();
 
     Ok(Json(CommonResult::success(Some(UserGroupsResponse {
@@ -506,7 +519,8 @@ async fn get_user_effective_permission(
         resolve_resource_context(&state, resource_type.as_str(), &resource_id).await?;
 
     let effective = state
-        .monorepo()
+        .services()
+        .admin()
         .get_user_effective_permission(&username, resource_type_value.into(), &resource_id)
         .await?;
     let response = build_user_effective_permission_response(

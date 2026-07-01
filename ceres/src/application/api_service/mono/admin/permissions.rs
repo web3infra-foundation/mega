@@ -13,7 +13,7 @@ use common::errors::MegaError;
 use git_internal::internal::object::tree::Tree;
 use jupiter::{redis::AsyncCommands, utils::converter::FromMegaModel};
 
-use crate::application::api_service::mono::MonoApiService;
+use crate::application::api_service::mono::context::AdminApplicationService;
 
 /// Cache TTL for admin list (10 minutes).
 pub const ADMIN_CACHE_TTL: u64 = 600;
@@ -24,7 +24,7 @@ pub const ADMIN_FILE: &str = ".mega_cedar.json";
 /// Redis cache key suffix for admin list.
 const ADMIN_CACHE_KEY_SUFFIX: &str = "admin:list";
 
-impl MonoApiService {
+impl AdminApplicationService {
     /// Check if a user is an admin.
     pub async fn check_is_admin(&self, username: &str) -> Result<bool, MegaError> {
         let admins = self.get_effective_admins().await?;
@@ -59,10 +59,11 @@ impl MonoApiService {
     /// Invalidate the admin list cache.
     /// This should be called when the `.mega_cedar.json` file is modified.
     pub async fn invalidate_admin_cache(&self) {
-        let mut conn = self.git_object_cache.connection.clone();
+        let mut conn = self.ctx.git_object_cache().connection.clone();
         let key = format!(
             "{}:{}",
-            self.git_object_cache.prefix, ADMIN_CACHE_KEY_SUFFIX
+            self.ctx.git_object_cache().prefix,
+            ADMIN_CACHE_KEY_SUFFIX
         );
         if let Err(e) = conn.del::<_, ()>(&key).await {
             tracing::warn!("Failed to invalidate admin cache: {}", e);
@@ -71,7 +72,7 @@ impl MonoApiService {
 
     /// Load EntityStore from `/.mega_cedar.json`.
     async fn load_admin_entity_store(&self) -> Result<saturn::entitystore::EntityStore, MegaError> {
-        let mono_storage = self.storage.mono_storage();
+        let mono_storage = self.ctx.storage().mono_storage();
 
         let root_ref = mono_storage
             .get_main_ref("/")
@@ -95,7 +96,8 @@ impl MonoApiService {
 
         let blob_hash = blob_item.id.to_string();
         let content_bytes = match self
-            .storage
+            .ctx
+            .storage()
             .git_service
             .get_object_as_bytes(&blob_hash)
             .await
@@ -104,7 +106,8 @@ impl MonoApiService {
             Err(e) => {
                 // Best-effort classification/logging for ObjStorageNotFound cases.
                 let e = self
-                    .storage
+                    .ctx
+                    .storage()
                     .classify_blob_objstorage_not_found(&blob_hash, e)
                     .await;
                 return Err(e);
@@ -119,10 +122,11 @@ impl MonoApiService {
     }
 
     async fn get_admins_from_cache(&self) -> Result<Vec<String>, MegaError> {
-        let mut conn = self.git_object_cache.connection.clone();
+        let mut conn = self.ctx.git_object_cache().connection.clone();
         let key = format!(
             "{}:{}",
-            self.git_object_cache.prefix, ADMIN_CACHE_KEY_SUFFIX
+            self.ctx.git_object_cache().prefix,
+            ADMIN_CACHE_KEY_SUFFIX
         );
         let data: Option<String> = conn.get(&key).await?;
 
@@ -134,13 +138,14 @@ impl MonoApiService {
     }
 
     async fn cache_admins(&self, admins: &[String]) -> Result<(), MegaError> {
-        let mut conn = self.git_object_cache.connection.clone();
+        let mut conn = self.ctx.git_object_cache().connection.clone();
         let json = serde_json::to_string(admins)
             .map_err(|e| MegaError::Other(format!("Serialize failed: {}", e)))?;
 
         let key = format!(
             "{}:{}",
-            self.git_object_cache.prefix, ADMIN_CACHE_KEY_SUFFIX
+            self.ctx.git_object_cache().prefix,
+            ADMIN_CACHE_KEY_SUFFIX
         );
         conn.set_ex::<_, _, ()>(&key, json, ADMIN_CACHE_TTL).await?;
         Ok(())

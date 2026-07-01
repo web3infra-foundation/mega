@@ -1,7 +1,7 @@
 use std::{collections::HashMap, net::SocketAddr, str::FromStr, sync::Arc};
 
 use bytes::BytesMut;
-use ceres::{application::api_service::cache::GitObjectCache, transport::ProtocolApiState};
+use ceres::{TransportRuntime, application::api_service::cache::GitObjectCache};
 use clap::Args;
 use ed25519_dalek::pkcs8::spki::der::pem::LineEnding;
 use russh::{
@@ -12,7 +12,10 @@ use russh::{
 use tokio::sync::Mutex;
 use vault::integration::vault_core::VaultCoreInterface;
 
-use crate::{bootstrap::AppContext, git_protocol::ssh::SshServer, server::CommonHttpOptions};
+use crate::{
+    bootstrap::AppContext, git_protocol::ssh::SshServer, orion_build_dispatch::OrionBuildDispatch,
+    server::CommonHttpOptions,
+};
 
 #[derive(Args, Clone, Debug)]
 pub struct SshOptions {
@@ -51,13 +54,21 @@ pub async fn start_server(ctx: AppContext, command: &SshOptions) {
         custom: SshCustom { ssh_port },
     } = command;
 
-    let state = ProtocolApiState::new(
+    let orion_client = Arc::new(orion_client::OrionBuildClient::new(
+        ctx.storage.config().build.clone(),
+    ));
+    let build_dispatch = OrionBuildDispatch::new(orion_client).into_arc();
+
+    let git_cache = Arc::new(GitObjectCache {
+        connection: ctx.connection.clone(),
+        prefix: "git-object-rkyv:v1".to_string(),
+    });
+    let (git, cl, _) = ceres::application::api_service::mono::build_mono_stack(
         ctx.storage.clone(),
-        Arc::new(GitObjectCache {
-            connection: ctx.connection.clone(),
-            prefix: "git-object-rkyv:v1".to_string(),
-        }),
+        git_cache.clone(),
+        Some(build_dispatch.clone()),
     );
+    let state = TransportRuntime::new(ctx.storage.clone(), git_cache, git, cl);
     let mut ssh_server = SshServer {
         clients: Arc::new(Mutex::new(HashMap::new())),
         state,

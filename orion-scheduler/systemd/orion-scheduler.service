@@ -1,6 +1,6 @@
 [Unit]
 Description=Orion Scheduler (qlean-based KVM micro-VM controller)
-Documentation=https://github.com/web3infra-foundation/mega/tree/main/orion-scheduler
+Documentation=https://github.com/gitmono-dev/mega/tree/main/orion-scheduler
 After=network-online.target
 Wants=network-online.target
 

@@ -68,7 +68,7 @@ jobs:
 
   deploy-aws:
     needs: build-and-push
-    if: ${{ github.repository == 'web3infra-foundation/mega' }}
+    if: ${{ github.repository == 'gitmono-dev/mega' }}
     runs-on: ubuntu-latest
     strategy:
       matrix:

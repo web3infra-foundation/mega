@@ -118,7 +118,7 @@ jobs:
 
   deploy-aws:
     needs: manifest
-    if: ${{ github.repository == 'web3infra-foundation/mega' }}
+    if: ${{ github.repository == 'gitmono-dev/mega' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read

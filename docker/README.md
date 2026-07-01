@@ -55,7 +55,7 @@ docker compose version
 ### 1  Clone the repo
 
 ```bash
-git clone https://github.com/web3infra-foundation/mega.git
+git clone https://github.com/gitmono-dev/mega.git
 cd mega
 ```
 

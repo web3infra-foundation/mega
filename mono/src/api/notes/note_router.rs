@@ -30,7 +30,7 @@ async fn show_note(
     Path(id): Path<i32>,
 ) -> Result<Json<ceres::model::note::NoteShowResponse>, ApiError> {
     // TODO: authorize(note, :show?)
-    let response = state.monorepo().get_note_sync_state(id).await?;
+    let response = state.services().note().get_note_sync_state(id).await?;
     Ok(Json(response))
 }
 
@@ -50,7 +50,8 @@ async fn update_note(
 ) -> Result<Json<Value>, ApiError> {
     // TODO: authorize note access (like in show_note)
     state
-        .monorepo()
+        .services()
+        .note()
         .update_note_sync_state(
             id,
             json.description_html.as_str(),

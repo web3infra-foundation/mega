@@ -4,9 +4,9 @@ use callisto::sea_orm_active_enums::ConvTypeEnum;
 use common::errors::MegaError;
 use jupiter::model::common::LabelAssigneeParams;
 
-use crate::application::api_service::mono::MonoApiService;
+use super::context::IssueApplicationService;
 
-impl MonoApiService {
+impl IssueApplicationService {
     pub async fn update_item_labels(
         &self,
         username: &str,
@@ -15,7 +15,7 @@ impl MonoApiService {
         label_ids: Vec<i64>,
         link: &str,
     ) -> Result<(), MegaError> {
-        let issue_storage = self.storage.issue_storage();
+        let issue_storage = self.ctx.storage().issue_service.issue_store();
 
         let old_labels = issue_storage.find_item_exist_labels(item_id).await?;
         let old_ids: HashSet<i64> = old_labels.iter().map(|l| l.label_id).collect();
@@ -34,8 +34,10 @@ impl MonoApiService {
             .await?;
 
         if !to_remove.is_empty() {
-            self.storage
-                .conversation_storage()
+            self.ctx
+                .storage()
+                .issue_service
+                .conversation_store()
                 .add_conversation(
                     link,
                     username,
@@ -46,8 +48,10 @@ impl MonoApiService {
         }
 
         if !to_add.is_empty() {
-            self.storage
-                .conversation_storage()
+            self.ctx
+                .storage()
+                .issue_service
+                .conversation_store()
                 .add_conversation(
                     link,
                     username,
@@ -68,7 +72,7 @@ impl MonoApiService {
         assignees: Vec<String>,
         link: &str,
     ) -> Result<(), MegaError> {
-        let issue_storage = self.storage.issue_storage();
+        let issue_storage = self.ctx.storage().issue_service.issue_store();
 
         let old_models = issue_storage.find_item_exist_assignees(item_id).await?;
         let old_ids: HashSet<String> = old_models.iter().map(|m| m.assignnee_id.clone()).collect();
@@ -87,8 +91,10 @@ impl MonoApiService {
             .await?;
 
         if !to_remove.is_empty() {
-            self.storage
-                .conversation_storage()
+            self.ctx
+                .storage()
+                .issue_service
+                .conversation_store()
                 .add_conversation(
                     link,
                     username,
@@ -99,8 +105,10 @@ impl MonoApiService {
         }
 
         if !to_add.is_empty() {
-            self.storage
-                .conversation_storage()
+            self.ctx
+                .storage()
+                .issue_service
+                .conversation_store()
                 .add_conversation(
                     link,
                     username,

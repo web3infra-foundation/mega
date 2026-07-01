@@ -4,15 +4,11 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use chrono::Utc;
 use common::errors::MegaError;
-use jupiter::storage::Storage;
 
 use super::changes_calculator::MonoChangesCalculator;
-use crate::application::{
-    api_service::{cache::GitObjectCache, mono::MonoApiService},
-    build_trigger::{
-        BuckFileUploadPayload, BuildTrigger, BuildTriggerPayload, BuildTriggerType, TriggerContext,
-        TriggerHandler,
-    },
+use crate::application::build_trigger::{
+    BuckFileUploadPayload, BuildTrigger, BuildTriggerPayload, BuildTriggerType, ChangesPort,
+    TriggerContext, TriggerHandler,
 };
 
 /// Handler for Buck file upload triggers.
@@ -21,12 +17,9 @@ pub struct BuckFileUploadHandler {
 }
 
 impl BuckFileUploadHandler {
-    pub fn new(storage: Storage, git_object_cache: Arc<GitObjectCache>) -> Self {
+    pub fn new(changes_port: Arc<dyn ChangesPort>) -> Self {
         Self {
-            changes_calculator: MonoChangesCalculator::new(MonoApiService {
-                storage,
-                git_object_cache,
-            }),
+            changes_calculator: MonoChangesCalculator::new(changes_port),
         }
     }
 }

@@ -29,9 +29,9 @@ impl MonoApiService {
         const ROOT_LOCK_TTL_MS: u64 = 30_000;
 
         let path_buf = PathBuf::from(path);
-        let storage = self.storage.mono_storage();
+        let storage = self.storage().mono_storage();
         let redlock = Arc::new(RedLock::new(
-            self.git_object_cache.connection.clone(),
+            self.git_object_cache().connection.clone(),
             ROOT_LOCK_KEY.to_string(),
             ROOT_LOCK_TTL_MS,
         ));
@@ -60,7 +60,7 @@ impl MonoApiService {
                 &commit_msg,
             );
 
-            let txn = self.storage.begin_db_transaction().await?;
+            let txn = self.storage().begin_db_transaction().await?;
             match storage
                 .attach_to_monorepo_parent_in_txn(
                     &txn,
@@ -109,9 +109,9 @@ impl MonoApiService {
         repo_path_str: &str,
         ref_name: &str,
     ) -> Result<String, MegaError> {
-        let import_dir = self.storage.config().monorepo.import_dir.clone();
+        let import_dir = self.storage().config().monorepo.import_dir.clone();
         if PathBuf::from(repo_path_str).starts_with(&import_dir) {
-            let storage = self.storage.git_db_storage();
+            let storage = self.storage().git_db_storage();
             match storage.find_git_repo_exact_match(repo_path_str).await? {
                 Some(repo_model) => Ok(storage
                     .get_ref(repo_model.id)
@@ -123,7 +123,7 @@ impl MonoApiService {
                 None => Ok(ZERO_ID.to_string()),
             }
         } else {
-            let mono_storage = self.storage.mono_storage();
+            let mono_storage = self.storage().mono_storage();
             if let Some(r) = mono_storage
                 .get_ref_at_path(repo_path_str, ref_name)
                 .await?
@@ -145,6 +145,7 @@ impl MonoApiService {
 
     pub async fn sync_third_party_repo(
         &self,
+        transport: &TransportRuntime,
         owner: &str,
         repo: &str,
         mega_path: PathBuf,
@@ -159,7 +160,7 @@ impl MonoApiService {
         let url = format!("https://github.com/{owner}/{repo}.git");
         let remote_client = ThirdPartyClient::new(&url);
 
-        let import_dir = self.storage.config().monorepo.import_dir.clone();
+        let import_dir = self.storage().config().monorepo.import_dir.clone();
         let fetch_depth = if mega_path.starts_with(&import_dir) {
             None
         } else {
@@ -193,7 +194,7 @@ impl MonoApiService {
             ref_hash.clone(),
             ref_name.clone(),
         )];
-        let state = TransportRuntime::new(self.storage.clone(), self.git_object_cache.clone());
+        let state = transport.clone();
         let bytes = protocol
             .git_receive_pack_stream(
                 &state,
@@ -227,7 +228,7 @@ impl MonoApiService {
                 let path = base_path.join(&item.name);
                 if item.is_tree() {
                     let child = self
-                        .storage
+                        .storage()
                         .mono_storage()
                         .get_tree_by_hash(&item.id.to_string())
                         .await?

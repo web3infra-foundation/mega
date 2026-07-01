@@ -17,7 +17,8 @@ pub async fn label_update(
     } = payload;
 
     state
-        .monorepo()
+        .services()
+        .issue()
         .update_item_labels(&user.username, item_id, &item_type, label_ids, &link)
         .await?;
 
@@ -37,7 +38,8 @@ pub async fn assignees_update(
     } = payload;
 
     state
-        .monorepo()
+        .services()
+        .issue()
         .update_item_assignees(&user.username, item_id, &item_type, assignees, &link)
         .await?;
 
