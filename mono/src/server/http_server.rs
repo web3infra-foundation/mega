@@ -11,8 +11,8 @@ use axum::{
     routing::any,
 };
 use ceres::{
+    TransportRuntime,
     application::{api_service::cache::GitObjectCache, artifact::ArtifactApplicationService},
-    transport::ProtocolApiState,
 };
 use common::errors::ProtocolError;
 use http::{HeaderName, HeaderValue, Method};
@@ -44,6 +44,7 @@ use crate::{
     bootstrap::AppContext,
     email::{NoopMailer, SmtpMailer},
     git_protocol::InfoRefsParams,
+    orion_build_dispatch::OrionBuildDispatch,
     server::{CommonHttpOptions, trace_context},
 };
 
@@ -384,9 +385,13 @@ pub async fn app(ctx: AppContext, host: String, port: u16) -> Router {
         prefix: "git-object-rkyv:v1".to_string(),
     });
 
+    let orion_client = Arc::new(OrionBuildClient::new(storage.config().build.clone()));
+    let build_dispatch = OrionBuildDispatch::new(orion_client.clone()).into_arc();
+
     let api_state = MonoApiServiceState::new(
         storage.clone(),
         git_object_cache,
+        build_dispatch,
         Some(match oauth_config.api_store_backend {
             common::config::OauthApiStoreBackend::Campsite => {
                 OAuthApiStore::Campsite(CampsiteApiStore::new(oauth_config.campsite_api_domain))
@@ -397,7 +402,6 @@ pub async fn app(ctx: AppContext, host: String, port: u16) -> Router {
         }),
         format!("http://{host}:{port}"),
         EntityStore::new(),
-        Arc::new(OrionBuildClient::new(storage.config().build.clone())),
     );
 
     let origins: Vec<HeaderValue> = oauth_config
@@ -435,7 +439,7 @@ pub async fn app(ctx: AppContext, host: String, port: u16) -> Router {
                 move |req: Request<Body>| async move {
                     match handle_smart_protocol(
                         req,
-                        Arc::new(ProtocolApiState::from_ref(&api_state)),
+                        Arc::new(TransportRuntime::from_ref(&api_state)),
                     )
                     .await
                     {
@@ -517,7 +521,7 @@ fn rewrite_lfs_request_uri<B>(mut req: Request<B>) -> Request<B> {
 
 async fn handle_smart_protocol(
     req: Request<Body>,
-    state: Arc<ProtocolApiState>,
+    state: Arc<TransportRuntime>,
 ) -> Result<Response, ProtocolError> {
     let full_path = req.uri().path();
     if is_disallowed_root_repo_path(full_path) {

@@ -2,14 +2,12 @@ use std::{collections::HashMap, path::PathBuf, str::FromStr, sync::Arc};
 
 use bytes::{Bytes, BytesMut};
 use ceres::{
+    TransportRuntime,
     infra::pack_stream::into_pack_byte_stream,
     lfs::lfs_structs::Link,
-    transport::{
-        ProtocolApiState,
-        protocol::{
-            ServiceType, SmartSession, TransportProtocol,
-            smart::{self},
-        },
+    transport::protocol::{
+        ServiceType, SmartSession, TransportProtocol,
+        smart::{self},
     },
 };
 use chrono::{DateTime, Duration, Utc};
@@ -34,7 +32,7 @@ pub struct SshServer {
     pub clients: Arc<Mutex<ClientMap>>,
     pub id: usize,
     pub smart_protocol: Option<SmartSession>,
-    pub state: ProtocolApiState,
+    pub state: TransportRuntime,
     pub data_combined: BytesMut,
 }
 

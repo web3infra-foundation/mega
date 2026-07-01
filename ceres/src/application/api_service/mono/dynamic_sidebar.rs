@@ -1,12 +1,13 @@
 use common::errors::MegaError;
 
-use super::service::MonoApiService;
+use super::context::SidebarApplicationService;
 use crate::model::dynamic_sidebar::{SidebarMenuListRes, SidebarRes, SidebarSyncPayload};
 
-impl MonoApiService {
+impl SidebarApplicationService {
     pub async fn list_sidebars(&self) -> Result<SidebarMenuListRes, MegaError> {
         Ok(self
-            .storage
+            .ctx
+            .storage()
             .dynamic_sidebar_storage()
             .get_sidebars()
             .await?
@@ -24,7 +25,8 @@ impl MonoApiService {
         order_index: i32,
     ) -> Result<SidebarRes, MegaError> {
         let res = self
-            .storage
+            .ctx
+            .storage()
             .dynamic_sidebar_storage()
             .new_sidebar(public_id, label, href, visible, order_index)
             .await?;
@@ -41,7 +43,8 @@ impl MonoApiService {
         order_index: Option<i32>,
     ) -> Result<SidebarRes, MegaError> {
         let res = self
-            .storage
+            .ctx
+            .storage()
             .dynamic_sidebar_storage()
             .update_sidebar(id, public_id, label, href, visible, order_index)
             .await?;
@@ -53,7 +56,8 @@ impl MonoApiService {
         payloads: Vec<SidebarSyncPayload>,
     ) -> Result<Vec<SidebarRes>, MegaError> {
         let res = self
-            .storage
+            .ctx
+            .storage()
             .dynamic_sidebar_storage()
             .sync_sidebar(payloads.into_iter().map(|item| item.into()).collect())
             .await?;
@@ -62,7 +66,8 @@ impl MonoApiService {
 
     pub async fn delete_sidebar(&self, id: i32) -> Result<SidebarRes, MegaError> {
         let res = self
-            .storage
+            .ctx
+            .storage()
             .dynamic_sidebar_storage()
             .delete_sidebar(id)
             .await?;

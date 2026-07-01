@@ -89,7 +89,7 @@ In a temporary directory, it performs:
 Also in a temporary directory:
 
 1. Clone `libra`:
-  - `git clone https://github.com/web3infra-foundation/libra.git .`
+  - `git clone https://github.com/gitmono-dev/libra.git .`
 2. Use `third-party/` in the temporary directory as the scan root, and call the existing in-repo import script:
   - `python3 scripts/import-buck2-deps/import-buck2-deps.py --scan-root <temp>/third-party --git-base-url {base_url} ...`
 

@@ -48,12 +48,9 @@ use axum::{
     http::{Request, StatusCode},
     response::Response,
 };
-use ceres::lfs::{
-    handler,
-    lfs_structs::{
-        BatchRequest, BatchResponse, LockList, LockListQuery, LockRequest, LockResponse,
-        RequestObject, UnlockRequest, UnlockResponse, VerifiableLockList, VerifiableLockRequest,
-    },
+use ceres::lfs::lfs_structs::{
+    BatchRequest, BatchResponse, LockList, LockListQuery, LockRequest, LockResponse, RequestObject,
+    UnlockRequest, UnlockResponse, VerifiableLockList, VerifiableLockRequest,
 };
 use common::errors::GitLFSError;
 use futures::TryStreamExt;
@@ -150,7 +147,7 @@ pub async fn list_locks(
     Query(query): Query<LockListQuery>,
 ) -> Result<Response<Body>, (StatusCode, String)> {
     let result: Result<LockList, GitLFSError> =
-        handler::lfs_retrieve_lock(state.lfs_db_storage(), query).await;
+        state.services().lfs().lfs_retrieve_lock(query).await;
     match result {
         Ok(lock_list) => {
             let body = serde_json::to_string(&lock_list).unwrap_or_default();
@@ -191,7 +188,7 @@ pub async fn list_locks_for_verification(
     state: State<MonoApiServiceState>,
     Json(json): Json<VerifiableLockRequest>,
 ) -> Result<Response<Body>, (StatusCode, String)> {
-    let result = handler::lfs_verify_lock(state.lfs_db_storage(), json).await;
+    let result = state.services().lfs().lfs_verify_lock(json).await;
     match result {
         Ok(lock_list) => {
             let body = serde_json::to_string(&lock_list).unwrap_or_default();
@@ -227,7 +224,7 @@ pub async fn create_lock(
     state: State<MonoApiServiceState>,
     Json(json): Json<LockRequest>,
 ) -> Result<Response<Body>, (StatusCode, String)> {
-    let result = handler::lfs_create_lock(state.lfs_db_storage(), json).await;
+    let result = state.services().lfs().lfs_create_lock(json).await;
     match result {
         Ok(lock) => {
             let lock_response = LockResponse {
@@ -272,7 +269,7 @@ pub async fn delete_lock(
     Path(id): Path<String>,
     Json(json): Json<UnlockRequest>,
 ) -> Result<Response, (StatusCode, String)> {
-    let result = handler::lfs_delete_lock(state.lfs_db_storage(), &id, json).await;
+    let result = state.services().lfs().lfs_delete_lock(&id, json).await;
 
     match result {
         Ok(lock) => {
@@ -314,7 +311,11 @@ pub async fn lfs_process_batch(
     state: State<MonoApiServiceState>,
     Json(json): Json<BatchRequest>,
 ) -> Result<Response<Body>, (StatusCode, String)> {
-    let result = handler::lfs_process_batch(&state.lfs_service(), json, state.listen_addr()).await;
+    let result = state
+        .services()
+        .lfs()
+        .lfs_process_batch(json, state.listen_addr())
+        .await;
 
     match result {
         Ok(res) => {
@@ -354,7 +355,11 @@ pub async fn lfs_download_object(
     state: State<MonoApiServiceState>,
     Path(oid): Path<String>,
 ) -> Result<Response, (StatusCode, String)> {
-    let result = handler::lfs_download_object(state.lfs_service(), oid.clone()).await;
+    let result = state
+        .services()
+        .lfs()
+        .lfs_download_object(oid.clone())
+        .await;
     match result {
         Ok(byte_stream) => Ok(Response::builder()
             .header("Content-Type", LFS_STREAM_CONTENT_TYPE)
@@ -407,7 +412,11 @@ pub async fn lfs_upload_object(
         .await
         .unwrap();
 
-    let result = handler::lfs_upload_object(&state.lfs_service(), &req_obj, body_bytes).await;
+    let result = state
+        .services()
+        .lfs()
+        .lfs_upload_object(&req_obj, body_bytes)
+        .await;
     match result {
         Ok(_) => Ok(Response::builder()
             .header("Content-Type", LFS_CONTENT_TYPE)

@@ -29,7 +29,7 @@ async fn create_webhook(
     state: State<MonoApiServiceState>,
     Json(payload): Json<CreateWebhookRequest>,
 ) -> Result<Json<CommonResult<WebhookResponse>>, ApiError> {
-    let created = state.monorepo().create_webhook(payload).await?;
+    let created = state.services().webhook().create_webhook(payload).await?;
     Ok(Json(CommonResult::success(Some(created))))
 }
 
@@ -51,7 +51,7 @@ async fn list_webhooks(
     Query(query): Query<ListWebhooksQuery>,
 ) -> Result<Json<CommonResult<CommonPage<WebhookResponse>>>, ApiError> {
     let pagination = build_webhook_pagination(query)?;
-    let (items, total) = state.monorepo().list_webhooks(pagination).await?;
+    let (items, total) = state.services().webhook().list_webhooks(pagination).await?;
     Ok(Json(CommonResult::success(Some(CommonPage {
         total,
         items,
@@ -73,7 +73,7 @@ async fn delete_webhook(
     state: State<MonoApiServiceState>,
     Path(id): Path<i64>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    state.monorepo().delete_webhook(id).await?;
+    state.services().webhook().delete_webhook(id).await?;
     Ok(Json(CommonResult::success(None)))
 }
 

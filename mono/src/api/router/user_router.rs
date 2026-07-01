@@ -78,7 +78,8 @@ async fn add_key(
         json.title
     };
     state
-        .monorepo()
+        .services()
+        .user()
         .save_ssh_key(
             user.username,
             &title,
@@ -107,7 +108,8 @@ async fn remove_key(
     Path(key_id): Path<i64>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     state
-        .monorepo()
+        .services()
+        .user()
         .delete_ssh_key(user.username, key_id)
         .await?;
     Ok(Json(CommonResult::success(None)))
@@ -126,7 +128,11 @@ async fn list_key(
     user: LoginUser,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<Vec<ListSSHKey>>>, ApiError> {
-    let res = state.monorepo().list_user_ssh_keys(user.username).await?;
+    let res = state
+        .services()
+        .user()
+        .list_user_ssh_keys(user.username)
+        .await?;
     Ok(Json(CommonResult::success(Some(res))))
 }
 
@@ -143,7 +149,11 @@ async fn generate_token(
     user: LoginUser,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    let res = state.monorepo().generate_user_token(user.username).await?;
+    let res = state
+        .services()
+        .user()
+        .generate_user_token(user.username)
+        .await?;
     Ok(Json(CommonResult::success(Some(res))))
 }
 
@@ -165,7 +175,8 @@ async fn remove_token(
     Path(key_id): Path<i64>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     state
-        .monorepo()
+        .services()
+        .user()
         .delete_user_token(user.username, key_id)
         .await?;
     Ok(Json(CommonResult::success(None)))
@@ -184,7 +195,11 @@ async fn list_token(
     user: LoginUser,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<Vec<ListToken>>>, ApiError> {
-    let data = state.monorepo().list_user_tokens(user.username).await?;
+    let data = state
+        .services()
+        .user()
+        .list_user_tokens(user.username)
+        .await?;
     Ok(Json(CommonResult::success(Some(data))))
 }
 
@@ -199,7 +214,11 @@ async fn list_notification_types(
     _user: LoginUser,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<Vec<NotificationEventTypeInfo>>>, ApiError> {
-    let types = state.monorepo().list_notification_event_types().await?;
+    let types = state
+        .services()
+        .user()
+        .list_notification_event_types()
+        .await?;
 
     Ok(Json(CommonResult::success(Some(types))))
 }
@@ -216,7 +235,8 @@ async fn get_notification_config(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<UserNotificationConfig>>, ApiError> {
     let config = state
-        .monorepo()
+        .services()
+        .user()
         .get_user_notification_config(&user.username, &user.email)
         .await?;
 
@@ -237,7 +257,8 @@ async fn update_notification_config(
     Json(payload): Json<UpdateUserNotificationConfig>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     state
-        .monorepo()
+        .services()
+        .user()
         .update_user_notification_config(&user.username, &user.email, payload)
         .await?;
 
@@ -267,7 +288,8 @@ async fn get_cla_sign_status(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<ClaSignStatusRes>>, ApiError> {
     let (cla_signed, cla_signed_at) = state
-        .monorepo()
+        .services()
+        .user()
         .get_or_init_cla_sign_status(&user.username)
         .await?;
 
@@ -293,7 +315,8 @@ async fn change_sign_status(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<ClaSignStatusRes>>, ApiError> {
     let (cla_signed, cla_signed_at) = state
-        .monorepo()
+        .services()
+        .user()
         .change_cla_sign_status(&user.username)
         .await?;
 
@@ -318,7 +341,7 @@ async fn get_cla_content(
     _user: LoginUser,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<ClaContentRes>>, ApiError> {
-    let content = state.monorepo().get_cla_content().await?;
+    let content = state.services().user().get_cla_content().await?;
     Ok(Json(CommonResult::success(Some(ClaContentRes { content }))))
 }
 
@@ -338,7 +361,8 @@ async fn update_cla_content(
     Json(payload): Json<UpdateClaContentPayload>,
 ) -> Result<Json<CommonResult<ClaContentRes>>, ApiError> {
     state
-        .monorepo()
+        .services()
+        .user()
         .update_cla_content(&payload.content)
         .await?;
     Ok(Json(CommonResult::success(Some(ClaContentRes {

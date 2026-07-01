@@ -8,20 +8,20 @@ use jupiter::model::cl_dto::CLDetails;
 
 use crate::{
     application::{
-        api_service::mono::MonoApiService,
+        api_service::mono::ClApplicationService,
         webhook::{WebhookEvent, dispatch_cl_webhook},
     },
     model::change_list::{CLDetailRes, Condition, MergeBoxRes, UpdateClStatusPayload},
 };
 
-impl MonoApiService {
+impl ClApplicationService {
     pub async fn get_cl_details(
         &self,
         link: &str,
         username: String,
     ) -> Result<CLDetailRes, MegaError> {
-        let cl_storage = self.storage.cl_storage();
-        let conversation_storage = self.storage.conversation_storage();
+        let cl_storage = self.storage().cl_service.cl_store();
+        let conversation_storage = self.storage().cl_service.conversation_store();
 
         let (cl, labels) = cl_storage
             .get_cl_labels(link)
@@ -48,7 +48,7 @@ impl MonoApiService {
     }
 
     pub async fn reopen_cl(&self, link: &str, username: &str) -> Result<(), MegaError> {
-        let cl_storage = self.storage.cl_storage();
+        let cl_storage = self.storage().cl_service.cl_store();
         let model = cl_storage
             .get_cl(link)
             .await?
@@ -60,8 +60,9 @@ impl MonoApiService {
 
         let link = model.link.clone();
         cl_storage.reopen_cl(model.clone()).await?;
-        self.storage
-            .conversation_storage()
+        self.storage()
+            .cl_service
+            .conversation_store()
             .add_conversation(
                 &link,
                 username,
@@ -71,13 +72,13 @@ impl MonoApiService {
             .await?;
 
         if let Some(updated_model) = cl_storage.get_cl(&link).await? {
-            dispatch_cl_webhook(&self.storage, WebhookEvent::ClReopened, &updated_model);
+            dispatch_cl_webhook(self.storage(), WebhookEvent::ClReopened, &updated_model);
         }
         Ok(())
     }
 
     pub async fn close_cl(&self, link: &str, username: &str) -> Result<(), MegaError> {
-        let cl_storage = self.storage.cl_storage();
+        let cl_storage = self.storage().cl_service.cl_store();
         let model = cl_storage
             .get_cl(link)
             .await?
@@ -89,8 +90,9 @@ impl MonoApiService {
 
         let link = model.link.clone();
         cl_storage.close_cl(model.clone()).await?;
-        self.storage
-            .conversation_storage()
+        self.storage()
+            .cl_service
+            .conversation_store()
             .add_conversation(
                 &link,
                 username,
@@ -100,13 +102,13 @@ impl MonoApiService {
             .await?;
 
         if let Some(updated_model) = cl_storage.get_cl(&link).await? {
-            dispatch_cl_webhook(&self.storage, WebhookEvent::ClClosed, &updated_model);
+            dispatch_cl_webhook(self.storage(), WebhookEvent::ClClosed, &updated_model);
         }
         Ok(())
     }
 
     pub async fn merge_open_cl(&self, username: &str, link: &str) -> Result<(), MegaError> {
-        let cl_storage = self.storage.cl_storage();
+        let cl_storage = self.storage().cl_service.cl_store();
         let model = cl_storage
             .get_cl(link)
             .await?
@@ -119,14 +121,14 @@ impl MonoApiService {
         if model.status == MergeStatusEnum::Open {
             self.merge_cl(username, model.clone()).await?;
             if let Some(updated_model) = cl_storage.get_cl(link).await? {
-                dispatch_cl_webhook(&self.storage, WebhookEvent::ClMerged, &updated_model);
+                dispatch_cl_webhook(self.storage(), WebhookEvent::ClMerged, &updated_model);
             }
         }
         Ok(())
     }
 
     pub async fn merge_open_cl_no_auth(&self, link: &str) -> Result<(), MegaError> {
-        let cl_storage = self.storage.cl_storage();
+        let cl_storage = self.storage().cl_service.cl_store();
         let model = cl_storage
             .get_cl(link)
             .await?
@@ -141,13 +143,13 @@ impl MonoApiService {
 
         self.merge_cl("system", model.clone()).await?;
         if let Some(updated_model) = cl_storage.get_cl(link).await? {
-            dispatch_cl_webhook(&self.storage, WebhookEvent::ClMerged, &updated_model);
+            dispatch_cl_webhook(self.storage(), WebhookEvent::ClMerged, &updated_model);
         }
         Ok(())
     }
 
     pub async fn get_merge_box(&self, link: &str) -> Result<MergeBoxRes, MegaError> {
-        let cl_storage = self.storage.cl_storage();
+        let cl_storage = self.storage().cl_service.cl_store();
         let cl = cl_storage
             .get_cl(link)
             .await?
@@ -179,7 +181,7 @@ impl MonoApiService {
         content: &str,
     ) -> Result<(), MegaError> {
         let conv_type = if self
-            .storage
+            .storage()
             .reviewer_storage()
             .is_reviewer(link, username)
             .await?
@@ -189,8 +191,9 @@ impl MonoApiService {
             ConvTypeEnum::Comment
         };
 
-        self.storage
-            .conversation_storage()
+        self.storage()
+            .cl_service
+            .conversation_store()
             .add_conversation(link, username, Some(content.to_string()), conv_type)
             .await?;
 
@@ -198,16 +201,20 @@ impl MonoApiService {
             tracing::warn!("failed to enqueue cl comment notifications: {e}");
         }
 
-        if let Some(cl_model) = self.storage.cl_storage().get_cl(link).await? {
-            dispatch_cl_webhook(&self.storage, WebhookEvent::ClCommentCreated, &cl_model);
+        if let Some(cl_model) = self.storage().cl_service.cl_store().get_cl(link).await? {
+            dispatch_cl_webhook(self.storage(), WebhookEvent::ClCommentCreated, &cl_model);
         }
         Ok(())
     }
 
     pub async fn edit_cl_title(&self, link: &str, content: &str) -> Result<(), MegaError> {
-        self.storage.cl_storage().edit_title(link, content).await?;
-        if let Some(cl_model) = self.storage.cl_storage().get_cl(link).await? {
-            dispatch_cl_webhook(&self.storage, WebhookEvent::ClUpdated, &cl_model);
+        self.storage()
+            .cl_service
+            .cl_store()
+            .edit_title(link, content)
+            .await?;
+        if let Some(cl_model) = self.storage().cl_service.cl_store().get_cl(link).await? {
+            dispatch_cl_webhook(self.storage(), WebhookEvent::ClUpdated, &cl_model);
         }
         Ok(())
     }
@@ -218,7 +225,7 @@ impl MonoApiService {
         username: &str,
         payload: &UpdateClStatusPayload,
     ) -> Result<(), MegaError> {
-        let cl_storage = self.storage.cl_storage();
+        let cl_storage = self.storage().cl_service.cl_store();
         let model = cl_storage
             .get_cl(link)
             .await?
@@ -239,8 +246,9 @@ impl MonoApiService {
                 cl_storage
                     .update_cl_status(model.clone(), new_status.clone())
                     .await?;
-                self.storage
-                    .conversation_storage()
+                self.storage()
+                    .cl_service
+                    .conversation_store()
                     .add_conversation(
                         link,
                         username,
@@ -249,15 +257,16 @@ impl MonoApiService {
                     )
                     .await?;
                 if let Some(updated_model) = cl_storage.get_cl(link).await? {
-                    dispatch_cl_webhook(&self.storage, WebhookEvent::ClCreated, &updated_model);
+                    dispatch_cl_webhook(self.storage(), WebhookEvent::ClCreated, &updated_model);
                 }
             }
             (MergeStatusEnum::Open, MergeStatusEnum::Draft) => {
                 cl_storage
                     .update_cl_status(model.clone(), new_status.clone())
                     .await?;
-                self.storage
-                    .conversation_storage()
+                self.storage()
+                    .cl_service
+                    .conversation_store()
                     .add_conversation(
                         link,
                         username,
@@ -266,7 +275,7 @@ impl MonoApiService {
                     )
                     .await?;
                 if let Some(updated_model) = cl_storage.get_cl(link).await? {
-                    dispatch_cl_webhook(&self.storage, WebhookEvent::ClUpdated, &updated_model);
+                    dispatch_cl_webhook(self.storage(), WebhookEvent::ClUpdated, &updated_model);
                 }
             }
             _ => {
@@ -284,8 +293,8 @@ impl MonoApiService {
         link: &str,
     ) -> Result<String, MegaError> {
         let new_head = self.update_branch(username, link).await?;
-        if let Some(cl_model) = self.storage.cl_storage().get_cl(link).await? {
-            dispatch_cl_webhook(&self.storage, WebhookEvent::ClUpdated, &cl_model);
+        if let Some(cl_model) = self.storage().cl_service.cl_store().get_cl(link).await? {
+            dispatch_cl_webhook(self.storage(), WebhookEvent::ClUpdated, &cl_model);
         }
         Ok(new_head)
     }
@@ -294,22 +303,22 @@ impl MonoApiService {
 const EVENT_CL_COMMENT_CREATED: &str = "cl.comment.created";
 
 async fn enqueue_cl_comment_notifications(
-    service: &MonoApiService,
+    service: &ClApplicationService,
     actor_username: &str,
     cl_link: &str,
     comment_text: &str,
 ) -> Result<(), MegaError> {
-    let notif_stg = service.storage.notification_storage();
+    let notif_stg = service.storage().notification_storage();
     ensure_cl_comment_event_type(&notif_stg).await?;
 
-    let cl_stg = service.storage.cl_storage();
+    let cl_stg = service.storage().cl_service.cl_store();
     let cl = cl_stg
         .get_cl(cl_link)
         .await?
         .ok_or_else(|| MegaError::NotFound(format!("CL {cl_link} not found")))?;
 
     let reviewers = service
-        .storage
+        .storage()
         .reviewer_storage()
         .list_reviewers(cl_link)
         .await?;

@@ -21,25 +21,62 @@ use git_internal::{
 };
 use jupiter::{storage::Storage, utils::converter::FromMegaModel};
 
-use super::logic::MonoServiceLogic;
+use super::{context::ServiceContext, logic::MonoServiceLogic};
 use crate::{
-    application::api_service::{ApiHandler, cache::GitObjectCache, tree_ops},
+    application::{
+        api_service::{ApiHandler, cache::GitObjectCache, tree_ops},
+        build_trigger::SharedBuildDispatch,
+    },
     infra::TransportContext,
     model::git::{CreateEntryInfo, CreateEntryResult, EditFilePayload, EditFileResult},
 };
 
+/// Git-domain API service (tags, commits, sync, buck upload, entry edit).
+pub type GitApplicationService = MonoApiService;
+
 #[derive(Clone)]
 pub struct MonoApiService {
-    pub storage: Storage,
-    pub git_object_cache: Arc<GitObjectCache>,
+    ctx: ServiceContext,
 }
 
 impl MonoApiService {
     pub fn new(ctx: TransportContext) -> Self {
         Self {
-            storage: ctx.storage,
-            git_object_cache: ctx.git_object_cache,
+            ctx: ServiceContext::from_transport(ctx),
         }
+    }
+
+    pub fn storage(&self) -> &Storage {
+        self.ctx.storage()
+    }
+
+    pub(crate) fn build_dispatch(&self) -> Option<SharedBuildDispatch> {
+        self.ctx.build_dispatch()
+    }
+
+    pub fn git_object_cache(&self) -> Arc<GitObjectCache> {
+        self.ctx.git_object_cache().clone()
+    }
+
+    pub(crate) async fn trigger_build_for_cl(
+        &self,
+        editor: &crate::application::code_edit::on_edit::OneditCodeEdit,
+        cl: &callisto::mega_cl::Model,
+        username: &str,
+    ) -> Result<(), GitError> {
+        let Some(build_dispatch) = self.build_dispatch() else {
+            return Ok(());
+        };
+        editor
+            .trigger_build_and_check(
+                self.storage().clone(),
+                self.git_object_cache(),
+                build_dispatch,
+                cl,
+                username,
+            )
+            .await?;
+        Ok(())
     }
 }
 
@@ -52,15 +89,15 @@ impl From<TransportContext> for MonoApiService {
 #[async_trait]
 impl ApiHandler for MonoApiService {
     fn get_context(&self) -> Storage {
-        self.storage.clone()
+        self.storage().clone()
     }
 
     fn object_cache(&self) -> &GitObjectCache {
-        &self.git_object_cache
+        self.ctx.git_object_cache()
     }
 
     async fn get_root_commit(&self) -> Result<Commit, MegaError> {
-        let storage = self.storage.mono_storage();
+        let storage = self.storage().mono_storage();
         let refs = storage.get_main_ref("/").await.unwrap().unwrap();
         self.get_commit_by_hash(&refs.ref_commit_hash).await
     }
@@ -84,7 +121,7 @@ impl ApiHandler for MonoApiService {
         let refs = refs.unwrap_or("").trim();
 
         if refs.is_empty() {
-            let storage = self.storage.mono_storage();
+            let storage = self.storage().mono_storage();
             let refs = storage.get_main_ref("/").await.unwrap().unwrap();
             return self.get_tree_by_hash(&refs.ref_tree_hash).await;
         }
@@ -107,7 +144,7 @@ impl ApiHandler for MonoApiService {
 
     async fn get_tree_by_hash(&self, hash: &str) -> Result<Tree, MegaError> {
         let model = self
-            .storage
+            .storage()
             .mono_storage()
             .get_tree_by_hash(hash)
             .await?
@@ -117,7 +154,7 @@ impl ApiHandler for MonoApiService {
 
     async fn get_commit_by_hash(&self, hash: &str) -> Result<Commit, MegaError> {
         let model = self
-            .storage
+            .storage()
             .mono_storage()
             .get_commit_by_hash(hash)
             .await?
@@ -134,7 +171,7 @@ impl ApiHandler for MonoApiService {
             Some(tree) => {
                 let mut item_to_commit = HashMap::new();
 
-                let storage = self.storage.mono_storage();
+                let storage = self.storage().mono_storage();
                 let tree_hashes = tree
                     .tree_items
                     .iter()
@@ -182,7 +219,7 @@ impl ApiHandler for MonoApiService {
 
     async fn get_commits_by_hashes(&self, c_hashes: Vec<String>) -> Result<Vec<Commit>, GitError> {
         let commits = self
-            .storage
+            .storage()
             .mono_storage()
             .get_commits_by_hashes(&c_hashes)
             .await

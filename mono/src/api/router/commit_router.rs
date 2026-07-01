@@ -46,7 +46,7 @@ async fn update_commit_binding(
     Json(request): Json<UpdateCommitBindingRequest>,
 ) -> Result<Json<CommonResult<CommitBindingResponse>>, ApiError> {
     let response = state
-        .monorepo()
+        .git()
         .upsert_commit_binding(&sha, request.username.clone(), request.is_anonymous)
         .await?;
 
@@ -91,12 +91,11 @@ async fn list_commit_history(
         ))
     })?;
 
-    let repo_selector =
-        if let Some(model) = state.monorepo().find_git_repo_like_path(path_str).await? {
-            PathBuf::from(model.repo_path)
-        } else {
-            abs_path.clone()
-        };
+    let repo_selector = if let Some(model) = state.git().find_git_repo_like_path(path_str).await? {
+        PathBuf::from(model.repo_path)
+    } else {
+        abs_path.clone()
+    };
 
     // Create handler using the repository selector (repo root), not the subdirectory.
     let handler = state.api_handler(&repo_selector).await?;

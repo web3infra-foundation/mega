@@ -1,21 +1,23 @@
-//! CLA (Contributor License Agreement) operations for [`MonoApiService`](super::service::MonoApiService).
+//! CLA (Contributor License Agreement) operations for [`UserApplicationService`].
 
 use bytes::Bytes;
 use common::errors::MegaError;
 use futures::{StreamExt, stream};
 use io_orbit::object_storage::{ObjectKey, ObjectMeta, ObjectNamespace};
 
-use crate::{application::api_service::mono::MonoApiService, merge_checker::CheckerRegistry};
+use super::context::UserApplicationService;
+use crate::merge_checker::CheckerRegistry;
 
 const CLA_CONTENT_OBJECT_KEY: &str = "cla/content/current.txt";
 
-impl MonoApiService {
+impl UserApplicationService {
     pub async fn get_or_init_cla_sign_status(
         &self,
         username: &str,
     ) -> Result<(bool, Option<chrono::NaiveDateTime>), MegaError> {
         let model = self
-            .storage
+            .ctx
+            .storage()
             .cla_storage()
             .get_or_create_status(username)
             .await?;
@@ -29,7 +31,8 @@ impl MonoApiService {
         };
 
         let stream = self
-            .storage
+            .ctx
+            .storage()
             .git_service
             .obj_storage
             .inner
@@ -68,7 +71,8 @@ impl MonoApiService {
             ..Default::default()
         };
 
-        self.storage
+        self.ctx
+            .storage()
             .git_service
             .obj_storage
             .inner
@@ -80,15 +84,17 @@ impl MonoApiService {
         &self,
         username: &str,
     ) -> Result<(bool, Option<chrono::NaiveDateTime>), MegaError> {
-        let model = self.storage.cla_storage().sign(username).await?;
+        let model = self.ctx.storage().cla_storage().sign(username).await?;
         self.refresh_checks_for_open_cls_by_author(username).await?;
         Ok((model.cla_signed, model.cla_signed_at))
     }
 
     async fn refresh_checks_for_open_cls_by_author(&self, username: &str) -> Result<(), MegaError> {
         let open_cls = self
-            .storage
-            .cl_storage()
+            .ctx
+            .storage()
+            .cl_service
+            .cl_store()
             .get_open_cls()
             .await?
             .into_iter()
@@ -98,7 +104,8 @@ impl MonoApiService {
             return Ok(());
         }
 
-        let check_reg = CheckerRegistry::new(self.storage.clone().into(), username.to_string());
+        let check_reg =
+            CheckerRegistry::new(self.ctx.storage().clone().into(), username.to_string());
         for cl in open_cls {
             check_reg.run_checks(cl.into()).await?;
         }

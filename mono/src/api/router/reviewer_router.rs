@@ -48,7 +48,8 @@ async fn add_reviewers(
     Json(payload): Json<ReviewerPayload>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     state
-        .monorepo()
+        .services()
+        .reviewer()
         .add_reviewers(&link, payload.reviewer_usernames.clone())
         .await?;
 
@@ -62,7 +63,8 @@ async fn add_reviewers(
 
     for reviewer in payload.reviewer_usernames {
         state
-            .monorepo()
+            .services()
+            .conversation()
             .add_conversation(
                 &link,
                 &user.username,
@@ -97,7 +99,8 @@ async fn remove_reviewers(
     Json(payload): Json<ReviewerPayload>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     state
-        .monorepo()
+        .services()
+        .reviewer()
         .remove_reviewers(&link, &payload.reviewer_usernames)
         .await?;
 
@@ -111,7 +114,8 @@ async fn remove_reviewers(
 
     for reviewer in &payload.reviewer_usernames {
         state
-            .monorepo()
+            .services()
+            .conversation()
             .add_conversation(
                 &link,
                 &user.username,
@@ -139,7 +143,7 @@ async fn list_reviewers(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<ReviewersResponse>>, ApiError> {
-    let reviewers = state.monorepo().list_reviewers(&link).await?;
+    let reviewers = state.services().reviewer().list_reviewers(&link).await?;
 
     Ok(Json(CommonResult::success(Some(reviewers))))
 }
@@ -163,19 +167,27 @@ async fn reviewer_approve(
     state: State<MonoApiServiceState>,
     Json(payload): Json<ChangeReviewerStatePayload>,
 ) -> Result<Json<CommonResult<()>>, ApiError> {
-    if state.monorepo().cl_merge_status(&link).await? == MergeStatus::Draft {
+    if state
+        .services()
+        .conversation()
+        .cl_merge_status(&link)
+        .await?
+        == MergeStatus::Draft
+    {
         return Err(ApiError::from(MegaError::Other(
             ERR_CL_NOT_READY_FOR_REVIEW.to_owned(),
         )));
     }
 
     state
-        .monorepo()
+        .services()
+        .reviewer()
         .reviewer_change_state(&link, &user.username, payload.approved)
         .await?;
 
     state
-        .monorepo()
+        .services()
+        .conversation()
         .add_conversation(
             &link,
             &user.username,
@@ -207,7 +219,11 @@ async fn review_resolve(
     Path(link): Path<String>,
     Json(payload): Json<ChangeReviewStatePayload>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    let res = state.monorepo().is_reviewer(&link, &user.username).await?;
+    let res = state
+        .services()
+        .reviewer()
+        .is_reviewer(&link, &user.username)
+        .await?;
 
     if !res {
         return Err(ApiError::from(MegaError::Other(
@@ -216,12 +232,14 @@ async fn review_resolve(
     }
 
     state
-        .monorepo()
+        .services()
+        .conversation()
         .change_review_state(&link, &payload.conversation_id, payload.resolved)
         .await?;
 
     state
-        .monorepo()
+        .services()
+        .conversation()
         .add_conversation(
             &link,
             &user.username,

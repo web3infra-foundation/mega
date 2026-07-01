@@ -49,7 +49,7 @@ async fn create_trigger(
     state: State<MonoApiServiceState>,
     Json(req): Json<CreateTriggerRequest>,
 ) -> Result<Json<CommonResult<TriggerResponse>>, ApiError> {
-    let service = state.build_trigger_service();
+    let service = state.services().build_trigger();
     let response = service
         .create_manual_trigger(req.repo_path, req.ref_name, req.params, user.username)
         .await?;
@@ -80,7 +80,7 @@ async fn list_triggers(
     state: State<MonoApiServiceState>,
     Json(json): Json<PageParams<ListTriggersParams>>,
 ) -> Result<Json<CommonResult<CommonPage<TriggerResponse>>>, ApiError> {
-    let service = state.build_trigger_service();
+    let service = state.services().build_trigger();
     let (items, total) = service
         .list_triggers(json.additional, json.pagination)
         .await?;
@@ -115,7 +115,7 @@ async fn get_trigger(
     state: State<MonoApiServiceState>,
     Path(id): Path<i64>,
 ) -> Result<Json<CommonResult<TriggerResponse>>, ApiError> {
-    let service = state.build_trigger_service();
+    let service = state.services().build_trigger();
     let response = service.get_trigger(id).await?;
     Ok(Json(CommonResult::success(Some(response))))
 }
@@ -143,7 +143,7 @@ async fn retry_trigger(
     state: State<MonoApiServiceState>,
     Path(id): Path<i64>,
 ) -> Result<Json<CommonResult<TriggerResponse>>, ApiError> {
-    let service = state.build_trigger_service();
+    let service = state.services().build_trigger();
     let response = service.retry_trigger(id, user.username).await?;
     Ok(Json(CommonResult::success(Some(response))))
 }

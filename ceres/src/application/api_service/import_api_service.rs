@@ -43,9 +43,19 @@ use crate::{
 
 #[derive(Clone)]
 pub struct ImportApiService {
-    pub storage: Storage,
-    pub repo: Repo,
-    pub git_object_cache: Arc<GitObjectCache>,
+    storage: Storage,
+    repo: Repo,
+    git_object_cache: Arc<GitObjectCache>,
+}
+
+impl ImportApiService {
+    pub fn new(storage: Storage, repo: Repo, git_object_cache: Arc<GitObjectCache>) -> Self {
+        Self {
+            storage,
+            repo,
+            git_object_cache,
+        }
+    }
 }
 
 #[async_trait]

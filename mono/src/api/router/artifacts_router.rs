@@ -66,7 +66,7 @@ pub async fn discovery(
     State(state): State<MonoApiServiceState>,
     Path(_repo): Path<String>,
 ) -> Result<Json<ArtifactDiscoveryResponse>, ApiError> {
-    Ok(Json(state.artifact_app_service().discovery_response()))
+    Ok(Json(state.services().artifact().discovery_response()))
 }
 
 /// List committed artifact sets for a repo (paginated).
@@ -96,7 +96,8 @@ pub async fn list_artifact_sets(
 ) -> Result<Json<ArtifactListSetsResponse>, ApiError> {
     let repo = decode_path_segment(&repo);
     let body = state
-        .artifact_app_service()
+        .services()
+        .artifact()
         .list_artifact_sets(&repo, &q)
         .await
         .map_err(ApiError::from)?;
@@ -128,7 +129,8 @@ pub async fn get_artifact_set(
     let repo = decode_path_segment(&repo);
     let artifact_set_id = decode_path_segment(&artifact_set_id);
     let body = state
-        .artifact_app_service()
+        .services()
+        .artifact()
         .get_artifact_set_detail(&repo, &artifact_set_id, &q)
         .await
         .map_err(ApiError::from)?;
@@ -161,7 +163,8 @@ pub async fn resolve_artifact_file(
 ) -> Result<Json<ArtifactResolveFileResponse>, ApiError> {
     let repo = decode_path_segment(&repo);
     let body = state
-        .artifact_app_service()
+        .services()
+        .artifact()
         .resolve_artifact_file(&repo, &q)
         .await
         .map_err(ApiError::from)?;
@@ -198,7 +201,7 @@ pub async fn download_object(
 ) -> Result<Response, ApiError> {
     let repo = decode_path_segment(&repo);
     let oid = decode_path_segment(&oid);
-    let svc = &state.artifact_app_service();
+    let svc = &state.services().artifact();
 
     let model = svc
         .artifact_object_model_for_committed_repo_download(&repo, &oid)
@@ -332,7 +335,7 @@ pub async fn head_artifact_object(
 ) -> Result<Response, ApiError> {
     let repo = decode_path_segment(&repo);
     let oid = decode_path_segment(&oid);
-    let svc = &state.artifact_app_service();
+    let svc = &state.services().artifact();
     let model = svc
         .artifact_object_model_for_committed_repo_download(&repo, &oid)
         .await
@@ -372,7 +375,8 @@ pub async fn batch(
     Json(req): Json<ArtifactBatchRequest>,
 ) -> Result<Json<ArtifactBatchResponse>, ApiError> {
     let body = state
-        .artifact_app_service()
+        .services()
+        .artifact()
         .batch_artifacts(&req)
         .await
         .map_err(ApiError::from)?;
@@ -402,7 +406,8 @@ pub async fn commit(
 ) -> Result<Json<ArtifactCommitResponse>, ApiError> {
     let repo = decode_path_segment(&repo);
     let body = state
-        .artifact_app_service()
+        .services()
+        .artifact()
         .commit_artifacts(&repo, &req)
         .await
         .map_err(ApiError::from)?;
@@ -458,7 +463,8 @@ pub async fn upload_object_fallback(
     }
 
     state
-        .artifact_app_service()
+        .services()
+        .artifact()
         .upload_artifact_object_bytes(&oid, body_bytes)
         .await
         .map_err(ApiError::from)?;

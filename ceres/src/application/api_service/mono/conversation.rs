@@ -1,12 +1,12 @@
 use common::errors::MegaError;
 
-use super::service::MonoApiService;
+use super::context::ConversationApplicationService;
 use crate::model::{
     change_list::MergeStatus,
     conversation::{ConvType, ReferenceType},
 };
 
-impl MonoApiService {
+impl ConversationApplicationService {
     pub async fn add_conversation(
         &self,
         link: &str,
@@ -14,8 +14,10 @@ impl MonoApiService {
         comment: Option<String>,
         conv_type: ConvType,
     ) -> Result<i64, MegaError> {
-        self.storage
-            .conversation_storage()
+        self.ctx
+            .storage()
+            .issue_service
+            .conversation_store()
             .add_conversation(link, username, comment, conv_type.into())
             .await
     }
@@ -26,8 +28,10 @@ impl MonoApiService {
         ref_link: &str,
         username: &str,
     ) -> Result<(), MegaError> {
-        self.storage
-            .issue_storage()
+        self.ctx
+            .storage()
+            .issue_service
+            .issue_store()
             .add_reference(source_link, ref_link, ReferenceType::Mention.into())
             .await?;
         self.add_conversation(
@@ -42,8 +46,10 @@ impl MonoApiService {
 
     pub async fn cl_merge_status(&self, link: &str) -> Result<MergeStatus, MegaError> {
         let model = self
-            .storage
-            .cl_storage()
+            .ctx
+            .storage()
+            .cl_service
+            .cl_store()
             .get_cl(link)
             .await?
             .ok_or_else(|| MegaError::NotFound(format!("CL {link} not found")))?;
@@ -57,8 +63,10 @@ impl MonoApiService {
         comment_type: &str,
         username: &str,
     ) -> Result<(), MegaError> {
-        self.storage
-            .conversation_storage()
+        self.ctx
+            .storage()
+            .issue_service
+            .conversation_store()
             .add_reactions(content, comment_id, comment_type, username)
             .await?;
         Ok(())
@@ -69,15 +77,19 @@ impl MonoApiService {
         reaction_id: &str,
         username: &str,
     ) -> Result<(), MegaError> {
-        self.storage
-            .conversation_storage()
+        self.ctx
+            .storage()
+            .issue_service
+            .conversation_store()
             .delete_reaction(reaction_id, username)
             .await
     }
 
     pub async fn remove_conversation(&self, comment_id: i64) -> Result<(), MegaError> {
-        self.storage
-            .conversation_storage()
+        self.ctx
+            .storage()
+            .issue_service
+            .conversation_store()
             .remove_conversation(comment_id)
             .await
     }
@@ -87,8 +99,10 @@ impl MonoApiService {
         comment_id: i64,
         content: Option<String>,
     ) -> Result<(), MegaError> {
-        self.storage
-            .conversation_storage()
+        self.ctx
+            .storage()
+            .issue_service
+            .conversation_store()
             .update_comment(comment_id, content)
             .await
     }
@@ -99,8 +113,10 @@ impl MonoApiService {
         conversation_id: &i64,
         resolved: bool,
     ) -> Result<(), MegaError> {
-        self.storage
-            .conversation_storage()
+        self.ctx
+            .storage()
+            .issue_service
+            .conversation_store()
             .change_review_state(link, conversation_id, resolved)
             .await
     }

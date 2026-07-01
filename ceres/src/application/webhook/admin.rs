@@ -9,11 +9,11 @@ use jupiter::{
 };
 
 use crate::{
-    application::api_service::mono::MonoApiService,
+    application::api_service::mono::WebhookApplicationService,
     model::webhook::{CreateWebhookRequest, WebhookResponse, parse_webhook_event_types},
 };
 
-impl MonoApiService {
+impl WebhookApplicationService {
     pub async fn create_webhook(
         &self,
         payload: CreateWebhookRequest,
@@ -43,7 +43,7 @@ impl MonoApiService {
         };
 
         let created: WebhookWithEventTypes = self
-            .storage
+            .storage()
             .webhook_storage()
             .create_webhook(model, event_types)
             .await?;
@@ -55,7 +55,7 @@ impl MonoApiService {
         pagination: Pagination,
     ) -> Result<(Vec<WebhookResponse>, u64), MegaError> {
         let (webhooks, total) = self
-            .storage
+            .storage()
             .webhook_storage()
             .list_webhooks(pagination)
             .await?;
@@ -63,6 +63,6 @@ impl MonoApiService {
     }
 
     pub async fn delete_webhook(&self, id: i64) -> Result<(), MegaError> {
-        self.storage.webhook_storage().delete_webhook(id).await
+        self.storage().webhook_storage().delete_webhook(id).await
     }
 }

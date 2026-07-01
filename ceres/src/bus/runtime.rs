@@ -3,8 +3,12 @@ use std::sync::Arc;
 use jupiter::storage::Storage;
 
 use super::handler::ApplicationEventHandler;
-use crate::{
-    application::code_edit::post_receive::RuntimeApplicationHandler, infra::cache::GitObjectCache,
+use crate::application::{
+    api_service::{
+        cache::GitObjectCache,
+        mono::{ClApplicationService, MonoApiService},
+    },
+    code_edit::post_receive::RuntimeApplicationHandler,
 };
 
 #[derive(Clone)]
@@ -15,10 +19,14 @@ pub struct TransportRuntime {
 }
 
 impl TransportRuntime {
-    pub fn new(storage: Storage, git_object_cache: Arc<GitObjectCache>) -> Self {
-        let application: Arc<dyn ApplicationEventHandler> = Arc::new(
-            RuntimeApplicationHandler::new(storage.clone(), git_object_cache.clone()),
-        );
+    pub fn new(
+        storage: Storage,
+        git_object_cache: Arc<GitObjectCache>,
+        git: MonoApiService,
+        cl: ClApplicationService,
+    ) -> Self {
+        let application: Arc<dyn ApplicationEventHandler> =
+            Arc::new(RuntimeApplicationHandler::new(git, cl));
         Self {
             storage,
             git_object_cache,

@@ -1,4 +1,4 @@
-//! Diff and patch operations for [`MonoApiService`](super::service::MonoApiService).
+//! Diff and patch operations for [`ClApplicationService`](super::service::ClApplicationService).
 
 use std::{
     collections::{HashMap, HashSet},
@@ -14,7 +14,7 @@ use git_internal::{
 use jupiter::utils::converter::FromMegaModel;
 
 use crate::{
-    application::api_service::{ApiHandler, mono::MonoApiService},
+    application::api_service::{ApiHandler, mono::ClApplicationService},
     diff::tree_diff,
     model::change_list::{ClDiffFile, ClFilesChangedItemSchema},
 };
@@ -33,7 +33,7 @@ struct PagedClDiffItem {
     old_path: Option<String>,
 }
 
-impl MonoApiService {
+impl ClApplicationService {
     /// Fetches the content difference for a merge request, paginated by page_id and page_size.
     /// # Arguments
     /// * `cl_link` - The link to the merge request.
@@ -50,7 +50,7 @@ impl MonoApiService {
         let per_page = page.per_page as usize;
         let page_id = page.page as usize;
 
-        let stg = self.storage.cl_storage();
+        let stg = self.storage().cl_service.cl_store();
         let cl =
             stg.get_cl(cl_link).await.unwrap().ok_or_else(|| {
                 GitError::CustomError(format!("Merge request not found: {cl_link}"))
@@ -196,7 +196,7 @@ impl MonoApiService {
         // Fetch all blobs with better error handling and logging
         let mut failed_hashes = Vec::new();
         for hash in all_hashes {
-            match self.get_raw_blob_by_hash(&hash.to_string()).await {
+            match self.git().get_raw_blob_by_hash(&hash.to_string()).await {
                 Ok(data) => {
                     blob_cache.insert(hash, data);
                 }
@@ -409,8 +409,9 @@ impl MonoApiService {
     ) -> Result<Vec<String>, MegaError> {
         let normalized_prefix = path.map(|prefix| prefix.replace('\\', "/"));
         let cl = self
-            .storage
-            .cl_storage()
+            .storage()
+            .cl_service
+            .cl_store()
             .get_cl(cl_link)
             .await
             .unwrap()
@@ -464,7 +465,7 @@ impl MonoApiService {
         }
 
         for hash in candidate_hashes {
-            match self.get_raw_blob_by_hash(&hash.to_string()).await {
+            match self.git().get_raw_blob_by_hash(&hash.to_string()).await {
                 Ok(data) => {
                     blob_cache.insert(hash, data);
                 }
@@ -486,7 +487,7 @@ impl MonoApiService {
             );
         }
 
-        let rename_config = self.storage.config().monorepo.rename.clone();
+        let rename_config = self.storage().config().monorepo.rename.clone();
         tree_diff::calculate_tree_diff_with_blobs(old_files, new_files, &rename_config, &blob_cache)
     }
 
@@ -495,13 +496,13 @@ impl MonoApiService {
         commit_hash: &str,
     ) -> Result<Vec<(PathBuf, ObjectHash)>, MegaError> {
         let mut res = vec![];
-        let mono_storage = self.storage.mono_storage();
+        let mono_storage = self.storage().mono_storage();
         let commit = mono_storage.get_commit_by_hash(commit_hash).await?;
         if let Some(commit) = commit {
             let tree = mono_storage.get_tree_by_hash(&commit.tree).await?;
             if let Some(tree) = tree {
                 let tree: Tree = Tree::from_mega_model(tree);
-                res = self.traverse_tree(tree).await?;
+                res = self.git_ops().traverse_tree(tree).await?;
             }
         }
         Ok(res)
@@ -546,7 +547,9 @@ mod tests {
     use git_internal::{DiffItem, hash::ObjectHash};
 
     use super::collect_page_blobs;
-    use crate::{application::api_service::mono::MonoApiService, model::change_list::ClDiffFile};
+    use crate::{
+        application::api_service::mono::ClApplicationService, model::change_list::ClDiffFile,
+    };
 
     #[test]
     fn test_paging_calculation_basic() {
@@ -914,7 +917,7 @@ index 1111111..2222222 100644\n\
 -old line\n\
 +new line\n";
 
-        let relocated = MonoApiService::relocate_patch_body(
+        let relocated = ClApplicationService::relocate_patch_body(
             raw_patch,
             Path::new("old/name.txt"),
             Path::new("new/name.txt"),
@@ -940,7 +943,7 @@ index 1111111..2222222 100644\n\
 -let path = \"C:\\\\temp\\\\old\";\n\
 +let path = \"C:\\\\temp\\\\new\";\n";
 
-        let relocated = MonoApiService::relocate_patch_body(
+        let relocated = ClApplicationService::relocate_patch_body(
             raw_patch,
             Path::new("old/name.txt"),
             Path::new("new/name.txt"),
@@ -959,7 +962,7 @@ index 1111111..2222222 100644\n\
             data: "diff --git a/dir\\nested\\file.txt b/dir\\nested\\file.txt\n".to_string(),
         };
 
-        let normalized = MonoApiService::normalize_diff_item(item);
+        let normalized = ClApplicationService::normalize_diff_item(item);
         assert_eq!(normalized.path, "dir/nested/file.txt");
         assert!(
             normalized
@@ -978,7 +981,7 @@ diff --git a/dir\\nested\\file.txt b/dir\\nested\\file.txt\n\
 -let path = \"C:\\\\temp\\\\old\";\n\
 +let path = \"C:\\\\temp\\\\new\";\n";
 
-        let normalized = MonoApiService::normalize_patch_header_paths(raw_patch);
+        let normalized = ClApplicationService::normalize_patch_header_paths(raw_patch);
 
         assert!(normalized.contains("diff --git a/dir/nested/file.txt b/dir/nested/file.txt"));
         assert!(normalized.contains("--- a/dir/nested/file.txt"));

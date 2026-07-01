@@ -5,4 +5,5 @@ mod commands;
 pub mod email;
 pub mod git_protocol;
 pub mod notification;
+pub mod orion_build_dispatch;
 pub mod server;

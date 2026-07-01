@@ -41,7 +41,8 @@ async fn comment_reactions(
     Json(payload): Json<ReactionRequest>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     state
-        .monorepo()
+        .services()
+        .conversation()
         .add_comment_reaction(
             Some(payload.content),
             comment_id,
@@ -70,7 +71,8 @@ async fn delete_comment_reaction(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     state
-        .monorepo()
+        .services()
+        .conversation()
         .delete_comment_reaction(&id, &user.username)
         .await?;
     Ok(Json(CommonResult::success(None)))
@@ -92,7 +94,11 @@ async fn delete_comment(
     Path(comment_id): Path<i64>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    state.monorepo().remove_conversation(comment_id).await?;
+    state
+        .services()
+        .conversation()
+        .remove_conversation(comment_id)
+        .await?;
     Ok(Json(CommonResult::success(None)))
 }
 
@@ -116,7 +122,8 @@ async fn edit_comment(
     Json(payload): Json<ContentPayload>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     state
-        .monorepo()
+        .services()
+        .conversation()
         .update_comment(comment_id, Some(payload.content))
         .await?;
     Ok(Json(CommonResult::success(None)))

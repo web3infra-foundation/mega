@@ -6,24 +6,29 @@ use common::errors::MegaError;
 use jupiter::sea_orm::prelude::DateTimeWithTimeZone;
 
 use crate::{
-    application::api_service::mono::MonoApiService,
+    application::api_service::mono::context::AdminApplicationService,
     model::bots::{
         BotRes, ChangeInstallationStatus, CreateBotTokenResponse, InstallBotReq,
         InstallationTargetType, ListBotTokenItem,
     },
 };
 
-impl MonoApiService {
+impl AdminApplicationService {
     pub async fn get_bot_by_id(
         &self,
         bot_id: i64,
     ) -> Result<Option<callisto::bots::Model>, MegaError> {
-        self.storage.bots_storage().get_bot_by_id(bot_id).await
+        self.ctx
+            .storage()
+            .bots_storage()
+            .get_bot_by_id(bot_id)
+            .await
     }
 
     pub async fn install_bot(&self, bot_id: i64, req: InstallBotReq) -> Result<BotRes, MegaError> {
         let bot = self
-            .storage
+            .ctx
+            .storage()
             .bots_storage()
             .install_bot(
                 bot_id,
@@ -37,7 +42,8 @@ impl MonoApiService {
 
     pub async fn list_installed_bots(&self, bot_id: i64) -> Result<Vec<BotRes>, MegaError> {
         Ok(self
-            .storage
+            .ctx
+            .storage()
             .bots_storage()
             .get_installed_bot_by_id(bot_id)
             .await?
@@ -53,7 +59,8 @@ impl MonoApiService {
         payload: ChangeInstallationStatus,
     ) -> Result<BotRes, MegaError> {
         let model = self
-            .storage
+            .ctx
+            .storage()
             .bots_storage()
             .change_installed_bot_status(
                 bot_id,
@@ -71,7 +78,8 @@ impl MonoApiService {
         target_type: InstallationTargetType,
         installation_id: i64,
     ) -> Result<(), MegaError> {
-        self.storage
+        self.ctx
+            .storage()
             .bots_storage()
             .uninstall_bot(bot_id, target_type.into(), installation_id)
             .await
@@ -84,7 +92,8 @@ impl MonoApiService {
         expires_at: Option<DateTimeWithTimeZone>,
     ) -> Result<CreateBotTokenResponse, MegaError> {
         let (model, token_plain) = self
-            .storage
+            .ctx
+            .storage()
             .bots_storage()
             .generate_bot_token(bot_id, token_name, expires_at)
             .await?;
@@ -98,7 +107,8 @@ impl MonoApiService {
 
     pub async fn list_bot_tokens(&self, bot_id: i64) -> Result<Vec<ListBotTokenItem>, MegaError> {
         Ok(self
-            .storage
+            .ctx
+            .storage()
             .bots_storage()
             .list_bot_tokens(bot_id)
             .await?
@@ -114,14 +124,16 @@ impl MonoApiService {
     }
 
     pub async fn revoke_bot_token(&self, bot_id: i64, token_id: i64) -> Result<(), MegaError> {
-        self.storage
+        self.ctx
+            .storage()
             .bots_storage()
             .revoke_bot_token(bot_id, token_id)
             .await
     }
 
     pub async fn revoke_all_bot_tokens(&self, bot_id: i64) -> Result<(), MegaError> {
-        self.storage
+        self.ctx
+            .storage()
             .bots_storage()
             .revoke_bot_tokens_by_bot(bot_id)
             .await
@@ -135,7 +147,7 @@ impl MonoApiService {
         _resource_id: &str,
         required_permission: PermissionEnum,
     ) -> Result<bool, MegaError> {
-        let bots_storage = self.storage.bots_storage();
+        let bots_storage = self.ctx.storage().bots_storage();
 
         let bot = match bots_storage.get_bot_by_id(bot_id).await? {
             Some(b) => b,

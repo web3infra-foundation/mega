@@ -1,11 +1,12 @@
 use common::errors::MegaError;
 
-use super::service::MonoApiService;
+use super::context::ReviewerApplicationService;
 use crate::model::change_list::{ReviewerInfo, ReviewersResponse};
 
-impl MonoApiService {
+impl ReviewerApplicationService {
     pub async fn add_reviewers(&self, link: &str, reviewers: Vec<String>) -> Result<(), MegaError> {
-        self.storage
+        self.ctx
+            .storage()
             .reviewer_storage()
             .add_reviewers(link, reviewers)
             .await
@@ -16,7 +17,8 @@ impl MonoApiService {
         link: &str,
         reviewers: &[String],
     ) -> Result<(), MegaError> {
-        self.storage
+        self.ctx
+            .storage()
             .reviewer_storage()
             .remove_reviewers(link, reviewers)
             .await
@@ -24,7 +26,8 @@ impl MonoApiService {
 
     pub async fn list_reviewers(&self, link: &str) -> Result<ReviewersResponse, MegaError> {
         let reviewers = self
-            .storage
+            .ctx
+            .storage()
             .reviewer_storage()
             .list_reviewers(link)
             .await?
@@ -44,14 +47,16 @@ impl MonoApiService {
         username: &str,
         approved: bool,
     ) -> Result<(), MegaError> {
-        self.storage
+        self.ctx
+            .storage()
             .reviewer_storage()
             .reviewer_change_state(link, username, approved)
             .await
     }
 
     pub async fn is_reviewer(&self, link: &str, username: &str) -> Result<bool, MegaError> {
-        self.storage
+        self.ctx
+            .storage()
             .reviewer_storage()
             .is_reviewer(link, username)
             .await

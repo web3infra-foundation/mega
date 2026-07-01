@@ -1,12 +1,13 @@
 use common::errors::MegaError;
 
-use super::service::MonoApiService;
+use super::context::NoteApplicationService;
 use crate::model::note::NoteShowResponse;
 
-impl MonoApiService {
+impl NoteApplicationService {
     pub async fn get_note_sync_state(&self, id: i32) -> Result<NoteShowResponse, MegaError> {
         let note = self
-            .storage
+            .ctx
+            .storage()
             .note_storage()
             .get_note_by_id(id.into())
             .await?
@@ -34,7 +35,8 @@ impl MonoApiService {
         description_schema_version: i32,
     ) -> Result<(), MegaError> {
         let note = self
-            .storage
+            .ctx
+            .storage()
             .note_storage()
             .get_note_by_id(id.into())
             .await?
@@ -47,7 +49,8 @@ impl MonoApiService {
             )));
         }
 
-        self.storage
+        self.ctx
+            .storage()
             .note_storage()
             .update_note(
                 id,

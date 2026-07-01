@@ -8,7 +8,12 @@ use http::StatusCode;
 use crate::api::{MonoApiServiceState, error::ApiError, oauth::model::LoginUser};
 
 pub async fn ensure_admin(state: &MonoApiServiceState, user: &LoginUser) -> Result<(), ApiError> {
-    if state.monorepo().check_is_admin(&user.username).await? {
+    if state
+        .services()
+        .admin()
+        .check_is_admin(&user.username)
+        .await?
+    {
         return Ok(());
     }
 
@@ -29,7 +34,8 @@ pub async fn resolve_resource_context(
     resource_id: &str,
 ) -> Result<(ResourceTypeValue, String), ApiError> {
     state
-        .monorepo()
+        .services()
+        .admin()
         .resolve_resource_context(resource_type, resource_id)
         .await
         .map_err(ApiError::from)

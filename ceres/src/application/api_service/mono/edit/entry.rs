@@ -344,7 +344,7 @@ impl MonoApiService {
         let cl_root_path = MonoServiceLogic::subtree_ref_path(parent_path)
             .map_err(|e| GitError::CustomError(e.to_string()))?;
         let build_repo_path = match edit_utils::resolve_build_repo_root(
-            &self.storage,
+            self.storage(),
             &cl_root_path,
         )
         .await
@@ -406,7 +406,7 @@ impl MonoApiService {
             })?;
 
         let src_commit =
-            edit_utils::get_repo_main_latest_commit(&self.storage, &build_repo_path).await?;
+            edit_utils::get_repo_main_latest_commit(self.storage(), &build_repo_path).await?;
         let dst_commit = Commit::from_tree_id(
             target_tree_id,
             vec![
@@ -423,7 +423,7 @@ impl MonoApiService {
             .clone()
             .unwrap_or("Anonymous".to_string());
 
-        self.storage
+        self.storage()
             .mono_service
             .mono_storage
             .save_mega_commits(vec![dst_commit], None)
@@ -440,7 +440,7 @@ impl MonoApiService {
             })
             .collect();
 
-        self.storage
+        self.storage()
             .mono_service
             .mono_storage
             .batch_save_model(save_trees)
@@ -454,11 +454,11 @@ impl MonoApiService {
                 .unwrap_or(MEGA_BRANCH_NAME),
             &src_commit.id.to_string(),
             self,
-            self.storage.mono_storage(),
+            self.storage().mono_storage(),
         );
         let cl = editor
             .find_or_create_cl_for_edit(
-                &self.storage,
+                self.storage(),
                 &editor,
                 payload.mode,
                 &new_commit_id,
@@ -466,7 +466,7 @@ impl MonoApiService {
             )
             .await?;
 
-        self.storage
+        self.storage()
             .mono_service
             .save_blobs(&new_commit_id, vec![new_blob.clone()])
             .await?;
@@ -496,7 +496,7 @@ impl MonoApiService {
         &self,
         entry_info: CreateEntryInfo,
     ) -> Result<CreateEntryResult, GitError> {
-        let storage = self.storage.mono_storage();
+        let storage = self.storage().mono_storage();
         let CreateEntryUpdate {
             update_result,
             blob,
@@ -508,7 +508,7 @@ impl MonoApiService {
         let repo_path_str = MonoServiceLogic::subtree_ref_path(&repo_path)
             .map_err(|e| GitError::CustomError(e.to_string()))?;
         let build_repo_path = match edit_utils::resolve_build_repo_root(
-            &self.storage,
+            self.storage(),
             &repo_path_str,
         )
         .await
@@ -525,7 +525,7 @@ impl MonoApiService {
         };
 
         let src_commit =
-            edit_utils::get_repo_main_latest_commit(&self.storage, &build_repo_path).await?;
+            edit_utils::get_repo_main_latest_commit(self.storage(), &build_repo_path).await?;
         let base_commit = ObjectHash::from_str(&src_commit.id.to_string()).map_err(|e| {
             GitError::CustomError(format!("Invalid commit hash {}: {e}", src_commit.id))
         })?;
@@ -556,7 +556,7 @@ impl MonoApiService {
                 tree_model.into()
             })
             .collect();
-        self.storage
+        self.storage()
             .mono_service
             .save_blobs(&new_commit_id, vec![blob])
             .await?;
@@ -566,7 +566,7 @@ impl MonoApiService {
             .await
             .map_err(|e| GitError::CustomError(e.to_string()))?;
 
-        self.storage
+        self.storage()
             .mono_service
             .mono_storage
             .save_mega_commits(vec![dst_commit], None)
@@ -579,11 +579,11 @@ impl MonoApiService {
                 .unwrap_or(MEGA_BRANCH_NAME),
             &src_commit.id.to_string(),
             self,
-            self.storage.mono_storage(),
+            self.storage().mono_storage(),
         );
         let cl = editor
             .find_or_create_cl_for_edit(
-                &self.storage,
+                self.storage(),
                 &editor,
                 entry_info.mode.clone(),
                 &new_commit_id,

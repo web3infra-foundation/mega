@@ -1,14 +1,12 @@
 use std::path::{Component, Path, PathBuf};
+pub use std::sync::Arc;
 
-pub use api_model::buck2::{status::Status, types::ProjectRelativePath};
+use api_model::buck2::{status::Status, types::ProjectRelativePath};
 use common::errors::MegaError;
 use git_internal::hash::ObjectHash;
 
 use super::changes_port::ChangesPort;
-use crate::{
-    application::{api_service::mono::MonoApiService, build_trigger::TriggerContext},
-    model::change_list::ClDiffFile,
-};
+use crate::{application::build_trigger::TriggerContext, model::change_list::ClDiffFile};
 
 fn is_safe_normalized_path(path: &str) -> bool {
     path.is_empty()
@@ -187,8 +185,8 @@ pub struct ChangesCalculator<P: ChangesPort> {
     port: P,
 }
 
-/// Changes calculator backed by [`MonoApiService`].
-pub type MonoChangesCalculator = ChangesCalculator<MonoApiService>;
+/// Changes calculator backed by a shared [`ChangesPort`].
+pub type MonoChangesCalculator = ChangesCalculator<Arc<dyn ChangesPort>>;
 
 impl<P: ChangesPort> ChangesCalculator<P> {
     pub fn new(port: P) -> Self {

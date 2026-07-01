@@ -5,21 +5,19 @@ use std::{
 
 use axum::extract::FromRef;
 use ceres::{
+    TransportRuntime,
     application::{
         api_service::{
             ApiHandler,
-            cache::GitObjectCache,
             import_api_service::ImportApiService,
             mono::{MonoApiService, MonoAppServices},
         },
-        artifact::ArtifactApplicationService,
-        build_trigger::service::BuildTriggerService,
+        build_trigger::BuildDispatchPort,
     },
-    transport::{ProtocolApiState, protocol::repo::Repo},
+    transport::protocol::repo::Repo,
 };
 use common::errors::MegaError;
 use jupiter::storage::{Storage, user_storage::UserStorage};
-use orion_client::OrionBuildClient;
 use saturn::entitystore::EntityStore;
 use tower_sessions::MemoryStore;
 
@@ -36,31 +34,25 @@ pub mod router;
 #[derive(Clone)]
 pub struct MonoApiServiceState {
     services: MonoAppServices,
-    storage: Storage,
-    git_object_cache: Arc<GitObjectCache>,
     session_store: Option<OAuthApiStore>,
     listen_addr: String,
     entity_store: EntityStore,
-    orion_client: Arc<OrionBuildClient>,
 }
 
 impl MonoApiServiceState {
     pub fn new(
         storage: Storage,
-        git_object_cache: Arc<GitObjectCache>,
+        git_object_cache: Arc<ceres::application::api_service::cache::GitObjectCache>,
+        build_dispatch: Arc<dyn BuildDispatchPort>,
         session_store: Option<OAuthApiStore>,
         listen_addr: String,
         entity_store: EntityStore,
-        orion_client: Arc<OrionBuildClient>,
     ) -> Self {
         Self {
-            services: MonoAppServices::new(storage.clone(), git_object_cache.clone()),
-            storage,
-            git_object_cache,
+            services: MonoAppServices::new(storage, git_object_cache, Some(build_dispatch)),
             session_store,
             listen_addr,
             entity_store,
-            orion_client,
         }
     }
 
@@ -68,32 +60,12 @@ impl MonoApiServiceState {
         &self.listen_addr
     }
 
-    pub(crate) fn lfs_db_storage(&self) -> jupiter::storage::lfs_db_storage::LfsDbStorage {
-        self.storage.lfs_db_storage()
-    }
-
-    pub(crate) fn lfs_service(&self) -> jupiter::service::lfs_service::LfsService {
-        self.storage.lfs_service.clone()
-    }
-
-    pub fn monorepo(&self) -> MonoApiService {
-        self.services.monorepo().clone()
+    pub fn git(&self) -> &MonoApiService {
+        self.services.git()
     }
 
     pub fn services(&self) -> &MonoAppServices {
         &self.services
-    }
-
-    pub fn artifact_app_service(&self) -> ArtifactApplicationService {
-        ArtifactApplicationService::from_storage(&self.storage)
-    }
-
-    pub fn build_trigger_service(&self) -> BuildTriggerService {
-        BuildTriggerService::new(
-            self.storage.clone(),
-            self.git_object_cache.clone(),
-            self.orion_client.clone(),
-        )
     }
 
     pub(crate) async fn api_handler(&self, path: &Path) -> Result<Box<dyn ApiHandler>, MegaError> {
@@ -107,20 +79,21 @@ impl MonoApiServiceState {
             .to_str()
             .ok_or_else(|| MegaError::bad_request("Invalid repository path"))?;
 
-        let import_dir = self.monorepo().import_dir();
+        let monorepo = self.git();
+        let import_dir = monorepo.import_dir();
         if path.starts_with(&import_dir)
             && path != import_dir
-            && let Some(model) = self.monorepo().find_git_repo_like_path(path_str).await?
+            && let Some(model) = monorepo.find_git_repo_like_path(path_str).await?
         {
             let repo: Repo = model.into();
-            return Ok(Box::new(ImportApiService {
-                storage: self.storage.clone(),
+            return Ok(Box::new(ImportApiService::new(
+                monorepo.storage().clone(),
                 repo,
-                git_object_cache: self.git_object_cache.clone(),
-            }));
+                monorepo.git_object_cache(),
+            )));
         }
 
-        Ok(Box::new(self.monorepo()) as Box<dyn ApiHandler>)
+        Ok(Box::new(monorepo.clone()) as Box<dyn ApiHandler>)
     }
 }
 
@@ -138,7 +111,7 @@ impl FromRef<MonoApiServiceState> for OAuthApiStore {
 
 impl FromRef<MonoApiServiceState> for UserStorage {
     fn from_ref(state: &MonoApiServiceState) -> Self {
-        state.storage.user_storage()
+        state.services.storage().user_storage()
     }
 }
 
@@ -148,14 +121,8 @@ impl FromRef<MonoApiServiceState> for EntityStore {
     }
 }
 
-impl From<&MonoApiServiceState> for MonoApiService {
-    fn from(state: &MonoApiServiceState) -> Self {
-        state.monorepo()
-    }
-}
-
-impl FromRef<MonoApiServiceState> for ProtocolApiState {
-    fn from_ref(state: &MonoApiServiceState) -> ProtocolApiState {
-        ProtocolApiState::new(state.storage.clone(), state.git_object_cache.clone())
+impl FromRef<MonoApiServiceState> for TransportRuntime {
+    fn from_ref(state: &MonoApiServiceState) -> TransportRuntime {
+        state.services.transport_runtime().clone()
     }
 }

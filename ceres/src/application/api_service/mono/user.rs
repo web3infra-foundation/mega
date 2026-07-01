@@ -1,6 +1,6 @@
 use common::errors::MegaError;
 
-use super::service::MonoApiService;
+use super::context::UserApplicationService;
 use crate::model::{
     notification::{
         NotificationEventTypeInfo, UpdateUserNotificationConfig, UserNotificationConfig,
@@ -9,7 +9,7 @@ use crate::model::{
     user::{ListSSHKey, ListToken},
 };
 
-impl MonoApiService {
+impl UserApplicationService {
     pub async fn save_ssh_key(
         &self,
         username: String,
@@ -17,37 +17,54 @@ impl MonoApiService {
         ssh_key: &str,
         fingerprint: &str,
     ) -> Result<(), MegaError> {
-        self.storage
+        self.ctx
+            .storage()
             .user_storage()
             .save_ssh_key(username, title, ssh_key, fingerprint)
             .await
     }
 
     pub async fn delete_ssh_key(&self, username: String, key_id: i64) -> Result<(), MegaError> {
-        self.storage
+        self.ctx
+            .storage()
             .user_storage()
             .delete_ssh_key(username, key_id)
             .await
     }
 
     pub async fn list_user_ssh_keys(&self, username: String) -> Result<Vec<ListSSHKey>, MegaError> {
-        let keys = self.storage.user_storage().list_user_ssh(username).await?;
+        let keys = self
+            .ctx
+            .storage()
+            .user_storage()
+            .list_user_ssh(username)
+            .await?;
         Ok(keys.into_iter().map(|k| k.into()).collect())
     }
 
     pub async fn generate_user_token(&self, username: String) -> Result<String, MegaError> {
-        self.storage.user_storage().generate_token(username).await
+        self.ctx
+            .storage()
+            .user_storage()
+            .generate_token(username)
+            .await
     }
 
     pub async fn delete_user_token(&self, username: String, key_id: i64) -> Result<(), MegaError> {
-        self.storage
+        self.ctx
+            .storage()
             .user_storage()
             .delete_token(username, key_id)
             .await
     }
 
     pub async fn list_user_tokens(&self, username: String) -> Result<Vec<ListToken>, MegaError> {
-        let tokens = self.storage.user_storage().list_token(username).await?;
+        let tokens = self
+            .ctx
+            .storage()
+            .user_storage()
+            .list_token(username)
+            .await?;
         Ok(tokens.into_iter().map(|t| t.into()).collect())
     }
 
@@ -55,7 +72,8 @@ impl MonoApiService {
         &self,
     ) -> Result<Vec<NotificationEventTypeInfo>, MegaError> {
         Ok(self
-            .storage
+            .ctx
+            .storage()
             .notification_storage()
             .list_event_types()
             .await?
@@ -75,7 +93,7 @@ impl MonoApiService {
         username: &str,
         email: &str,
     ) -> Result<UserNotificationConfig, MegaError> {
-        let stg = self.storage.notification_storage();
+        let stg = self.ctx.storage().notification_storage();
         stg.upsert_user_settings(username, email).await?;
 
         let settings = stg
@@ -107,7 +125,7 @@ impl MonoApiService {
         email: &str,
         payload: UpdateUserNotificationConfig,
     ) -> Result<(), MegaError> {
-        let stg = self.storage.notification_storage();
+        let stg = self.ctx.storage().notification_storage();
         stg.upsert_user_settings(username, email).await?;
 
         if let Some(enabled) = payload.enabled {
@@ -129,6 +147,10 @@ impl MonoApiService {
         &self,
         token: &str,
     ) -> Result<Option<(callisto::bots::Model, callisto::bot_tokens::Model)>, MegaError> {
-        self.storage.bots_storage().find_bot_by_token(token).await
+        self.ctx
+            .storage()
+            .bots_storage()
+            .find_bot_by_token(token)
+            .await
     }
 }

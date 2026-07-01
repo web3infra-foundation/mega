@@ -1,4 +1,4 @@
-//! Merge queue background processor for [`MonoApiService`](super::service::MonoApiService).
+//! Merge queue background processor for [`ClApplicationService`](super::service::ClApplicationService).
 
 use std::time::Duration;
 
@@ -7,14 +7,14 @@ use common::errors::MegaError;
 use tracing;
 
 use crate::{
-    application::api_service::mono::MonoApiService,
+    application::api_service::mono::ClApplicationService,
     model::merge_queue::{
         AddToQueueResponse, QueueItem, QueueListResponse, QueueStatsResponse, QueueStatus,
         QueueStatusResponse,
     },
 };
 
-impl MonoApiService {
+impl ClApplicationService {
     // ========== Merge Queue Methods ==========
 
     /// Queue polling interval in seconds when no items are processed
@@ -36,7 +36,12 @@ impl MonoApiService {
     /// * `Err(MegaError)` - If validation fails or database error occurs
     pub async fn add_to_merge_queue(&self, cl_link: String) -> Result<i64, MegaError> {
         // Validate CL exists and is in Open status
-        let cl = self.storage.cl_storage().get_cl(&cl_link).await?;
+        let cl = self
+            .storage()
+            .cl_service
+            .cl_store()
+            .get_cl(&cl_link)
+            .await?;
         let model = cl.ok_or(MegaError::Other("CL not found".to_string()))?;
 
         if model.status != MergeStatusEnum::Open {
@@ -48,7 +53,7 @@ impl MonoApiService {
 
         // Add to queue via jupiter layer service
         let position = self
-            .storage
+            .storage()
             .merge_queue_service
             .add_to_queue(cl_link)
             .await?;
@@ -70,7 +75,7 @@ impl MonoApiService {
     /// * `Err(MegaError)` - If database error occurs
     pub async fn retry_merge_queue_item(&self, cl_link: &str) -> Result<bool, MegaError> {
         let result = self
-            .storage
+            .storage()
             .merge_queue_service
             .retry_queue_item(cl_link)
             .await?;
@@ -90,7 +95,7 @@ impl MonoApiService {
     ) -> Result<AddToQueueResponse, MegaError> {
         let position = self.add_to_merge_queue(cl_link.clone()).await?;
         let display_position = self
-            .storage
+            .storage()
             .merge_queue_service
             .get_display_position_by_position(position)
             .await
@@ -113,14 +118,14 @@ impl MonoApiService {
     }
 
     pub async fn remove_from_merge_queue(&self, cl_link: &str) -> Result<bool, MegaError> {
-        self.storage
+        self.storage()
             .merge_queue_service
             .remove_from_queue(cl_link)
             .await
     }
 
     pub async fn get_merge_queue_list(&self) -> Result<QueueListResponse, MegaError> {
-        let items = self.storage.merge_queue_service.get_queue_list().await?;
+        let items = self.storage().merge_queue_service.get_queue_list().await?;
         Ok(QueueListResponse::from(items))
     }
 
@@ -129,7 +134,7 @@ impl MonoApiService {
         cl_link: &str,
     ) -> Result<QueueStatusResponse, MegaError> {
         let item_model = self
-            .storage
+            .storage()
             .merge_queue_service
             .get_cl_queue_status(cl_link)
             .await?;
@@ -140,7 +145,7 @@ impl MonoApiService {
             match item.status {
                 QueueStatus::Waiting | QueueStatus::Testing | QueueStatus::Merging => {
                     match self
-                        .storage
+                        .storage()
                         .merge_queue_service
                         .get_display_position(&item.cl_link)
                         .await
@@ -167,12 +172,12 @@ impl MonoApiService {
     }
 
     pub async fn get_merge_queue_stats(&self) -> Result<QueueStatsResponse, MegaError> {
-        let stats = self.storage.merge_queue_service.get_queue_stats().await?;
+        let stats = self.storage().merge_queue_service.get_queue_stats().await?;
         Ok(QueueStatsResponse::from(stats))
     }
 
     pub async fn cancel_all_pending_merge_queue(&self) -> Result<(), MegaError> {
-        self.storage
+        self.storage()
             .merge_queue_service
             .cancel_all_pending()
             .await?;
@@ -185,10 +190,10 @@ impl MonoApiService {
     /// The processor automatically stops when no active items remain in queue.
     fn ensure_merge_processor_running(&self) {
         // Get the processor running flag from merge queue service
-        if self.storage.merge_queue_service.try_start_processor() {
+        if self.storage().merge_queue_service.try_start_processor() {
             let service = self.clone();
             tokio::spawn(async move {
-                tracing::info!("Merge queue processor started (from MonoApiService)");
+                tracing::info!("Merge queue processor started (from ClApplicationService)");
                 service.run_merge_processor_loop().await;
             });
         }
@@ -203,7 +208,8 @@ impl MonoApiService {
                 Ok(processed) => {
                     if !processed {
                         // Check if there are active items
-                        if let Ok(stats) = self.storage.merge_queue_service.get_queue_stats().await
+                        if let Ok(stats) =
+                            self.storage().merge_queue_service.get_queue_stats().await
                         {
                             let has_active = stats.waiting_count > 0
                                 || stats.testing_count > 0
@@ -211,7 +217,7 @@ impl MonoApiService {
 
                             if !has_active {
                                 // No active items, stop processor
-                                self.storage.merge_queue_service.stop_processor();
+                                self.storage().merge_queue_service.stop_processor();
                                 tracing::info!("Merge queue processor stopped (no active items)");
                                 break;
                             }
@@ -235,7 +241,7 @@ impl MonoApiService {
     /// * `Ok(false)` - No items to process
     /// * `Err(MegaError)` - System error occurred
     async fn process_next_queue_item(&self) -> Result<bool, MegaError> {
-        let queue_service = &self.storage.merge_queue_service;
+        let queue_service = &self.storage().merge_queue_service;
 
         // Get next waiting item from queue
         let next_item = queue_service.get_next_waiting_item().await?;
@@ -303,12 +309,13 @@ impl MonoApiService {
         &self,
         cl_link: &str,
     ) -> Result<(), (QueueFailureTypeEnum, String)> {
-        let queue_service = &self.storage.merge_queue_service;
+        let queue_service = &self.storage().merge_queue_service;
 
         // Step 1: Validate CL still exists and is not closed
         let cl = self
-            .storage
-            .cl_storage()
+            .storage()
+            .cl_service
+            .cl_store()
             .get_cl(cl_link)
             .await
             .map_err(|e| {

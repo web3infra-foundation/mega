@@ -49,7 +49,8 @@ async fn get_my_permission(
         resolve_resource_context(&state, &resource_type, &resource_id).await?;
 
     let effective = state
-        .monorepo()
+        .services()
+        .admin()
         .get_user_effective_permission(&actor, resource_type_value.into(), &normalized_id)
         .await?;
 

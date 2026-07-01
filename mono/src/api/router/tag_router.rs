@@ -24,7 +24,7 @@ async fn resolve_target_commit_id(
     target_opt: Option<&str>,
 ) -> Result<String, ApiError> {
     Ok(state
-        .monorepo()
+        .git()
         .resolve_target_commit_id(path_context, target_opt)
         .await?)
 }

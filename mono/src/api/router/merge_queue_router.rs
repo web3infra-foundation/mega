@@ -41,7 +41,8 @@ async fn add_to_queue(
     Json(request): Json<AddToQueueRequest>,
 ) -> Result<Json<CommonResult<AddToQueueResponse>>, ApiError> {
     match state
-        .monorepo()
+        .services()
+        .cl()
         .add_to_merge_queue_response(request.cl_link)
         .await
     {
@@ -65,7 +66,12 @@ async fn remove_from_queue(
     state: State<MonoApiServiceState>,
     Path(cl_link): Path<String>,
 ) -> Result<Json<CommonResult<Value>>, ApiError> {
-    match state.monorepo().remove_from_merge_queue(&cl_link).await {
+    match state
+        .services()
+        .cl()
+        .remove_from_merge_queue(&cl_link)
+        .await
+    {
         Ok(true) => Ok(Json(CommonResult::success(Some(json!({
             "success": true,
             "message": "Removed from queue"
@@ -86,7 +92,7 @@ async fn remove_from_queue(
 async fn get_queue_list(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<QueueListResponse>>, ApiError> {
-    let response = state.monorepo().get_merge_queue_list().await?;
+    let response = state.services().cl().get_merge_queue_list().await?;
     Ok(Json(CommonResult::success(Some(response))))
 }
 
@@ -105,7 +111,7 @@ async fn get_cl_queue_status(
     state: State<MonoApiServiceState>,
     Path(cl_link): Path<String>,
 ) -> Result<Json<CommonResult<QueueStatusResponse>>, ApiError> {
-    let response = state.monorepo().get_cl_queue_status(&cl_link).await?;
+    let response = state.services().cl().get_cl_queue_status(&cl_link).await?;
     Ok(Json(CommonResult::success(Some(response))))
 }
 
@@ -126,7 +132,7 @@ async fn retry_queue_item(
     state: State<MonoApiServiceState>,
     Path(cl_link): Path<String>,
 ) -> Result<Json<CommonResult<Value>>, ApiError> {
-    match state.monorepo().retry_merge_queue_item(&cl_link).await {
+    match state.services().cl().retry_merge_queue_item(&cl_link).await {
         Ok(true) => Ok(Json(CommonResult::success(Some(json!({
             "success": true,
             "message": "Item retried"
@@ -150,7 +156,7 @@ async fn retry_queue_item(
 async fn get_queue_stats(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<QueueStatsResponse>>, ApiError> {
-    let response = state.monorepo().get_merge_queue_stats().await?;
+    let response = state.services().cl().get_merge_queue_stats().await?;
     Ok(Json(CommonResult::success(Some(response))))
 }
 
@@ -165,7 +171,11 @@ async fn get_queue_stats(
 async fn cancel_all_pending(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<Value>>, ApiError> {
-    state.monorepo().cancel_all_pending_merge_queue().await?;
+    state
+        .services()
+        .cl()
+        .cancel_all_pending_merge_queue()
+        .await?;
     Ok(Json(CommonResult::success(Some(json!({
         "success": true,
         "message": "All pending items cancelled"

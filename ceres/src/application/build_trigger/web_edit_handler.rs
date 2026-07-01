@@ -3,15 +3,11 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use chrono::Utc;
 use common::errors::MegaError;
-use jupiter::storage::Storage;
 
 use super::changes_calculator::MonoChangesCalculator;
-use crate::application::{
-    api_service::{cache::GitObjectCache, mono::MonoApiService},
-    build_trigger::{
-        BuildTrigger, BuildTriggerPayload, BuildTriggerType, TriggerContext, TriggerHandler,
-        WebEditPayload,
-    },
+use crate::application::build_trigger::{
+    BuildTrigger, BuildTriggerPayload, BuildTriggerType, ChangesPort, TriggerContext,
+    TriggerHandler, WebEditPayload,
 };
 
 fn fallback_cl_link(commit_hash: &str, now_millis: i64) -> String {
@@ -41,12 +37,9 @@ pub struct WebEditHandler {
 }
 
 impl WebEditHandler {
-    pub fn new(storage: Storage, git_object_cache: Arc<GitObjectCache>) -> Self {
+    pub fn new(changes_port: Arc<dyn ChangesPort>) -> Self {
         Self {
-            changes_calculator: MonoChangesCalculator::new(MonoApiService {
-                storage,
-                git_object_cache,
-            }),
+            changes_calculator: MonoChangesCalculator::new(changes_port),
         }
     }
 }

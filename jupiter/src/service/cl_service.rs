@@ -56,4 +56,12 @@ impl CLService {
             .new_cl_draft(path, link, title, base_branch, from_hash, username)
             .await
     }
+
+    pub fn cl_store(&self) -> ClStorage {
+        self.cl_storage.clone()
+    }
+
+    pub fn conversation_store(&self) -> ConversationStorage {
+        self.conversation_storage.clone()
+    }
 }

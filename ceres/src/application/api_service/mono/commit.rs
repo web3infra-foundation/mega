@@ -25,7 +25,7 @@ impl MonoApiService {
             })
         };
 
-        self.storage
+        self.storage()
             .commit_binding_storage()
             .upsert_binding(sha, final_username.clone(), final_username.is_none())
             .await?;
@@ -36,14 +36,14 @@ impl MonoApiService {
     }
 
     pub fn import_dir(&self) -> PathBuf {
-        self.storage.config().monorepo.import_dir.clone()
+        self.storage().config().monorepo.import_dir.clone()
     }
 
     pub async fn find_git_repo_like_path(
         &self,
         path: &str,
     ) -> Result<Option<callisto::git_repo::Model>, MegaError> {
-        self.storage
+        self.storage()
             .git_db_storage()
             .find_git_repo_like_path(path)
             .await
@@ -66,7 +66,7 @@ impl MonoApiService {
             let std_path = StdPath::new(path);
             if std_path.starts_with(&import_dir) && std_path != StdPath::new(&import_dir) {
                 if let Some(repo_model) = self.find_git_repo_like_path(path).await? {
-                    let git = self.storage.git_db_storage();
+                    let git = self.storage().git_db_storage();
                     if let Ok(Some(r)) = git.get_default_ref(repo_model.id).await {
                         return Ok(r.ref_git_id);
                     }
@@ -78,7 +78,7 @@ impl MonoApiService {
                     return Ok("HEAD".to_string());
                 }
             } else {
-                let mono = self.storage.mono_storage();
+                let mono = self.storage().mono_storage();
                 let resolved_path = path_context.unwrap_or("/");
                 if let Ok(Some(r)) = mono.get_main_ref(resolved_path).await {
                     return Ok(r.ref_commit_hash);
@@ -90,7 +90,7 @@ impl MonoApiService {
             }
         }
 
-        let mono = self.storage.mono_storage();
+        let mono = self.storage().mono_storage();
         if let Ok(Some(root_ref)) = mono.get_main_ref("/").await {
             return Ok(root_ref.ref_commit_hash);
         }

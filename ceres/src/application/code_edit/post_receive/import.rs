@@ -17,9 +17,11 @@ use crate::{
     transport::protocol::import_refs::{CommandType, RefCommand},
 };
 
+#[allow(clippy::too_many_arguments)]
 pub async fn dispatch_import_receive_pack_finalized(
     storage: Storage,
-    git_object_cache: Arc<GitObjectCache>,
+    _git_object_cache: Arc<GitObjectCache>,
+    mono_api_service: &MonoApiService,
     repo_path: PathBuf,
     repo_id: i64,
     commands: Vec<RefCommand>,
@@ -31,10 +33,6 @@ pub async fn dispatch_import_receive_pack_finalized(
         None => return Ok(()),
     };
 
-    let mono_api_service = MonoApiService {
-        storage: storage.clone(),
-        git_object_cache,
-    };
     let mono_storage = storage.mono_storage();
 
     let latest_commit: Commit = Commit::from_git_model(
@@ -65,7 +63,7 @@ pub async fn dispatch_import_receive_pack_finalized(
         let expected_tree = root_ref.ref_tree_hash.clone();
         let root_ref_id = root_ref.id;
 
-        let save_trees = tree_ops::search_and_create_tree(&mono_api_service, &repo_path).await?;
+        let save_trees = tree_ops::search_and_create_tree(mono_api_service, &repo_path).await?;
 
         let new_commit = Commit::from_tree_id(
             save_trees

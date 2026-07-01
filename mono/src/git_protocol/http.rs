@@ -8,11 +8,9 @@ use axum::{
 use base64::Engine;
 use bytes::{Bytes, BytesMut};
 use ceres::{
+    TransportRuntime,
     infra::pack_stream::into_pack_byte_stream,
-    transport::{
-        ProtocolApiState,
-        protocol::{PushUserInfo, ServiceType, SmartSession, TransportProtocol, smart},
-    },
+    transport::protocol::{PushUserInfo, ServiceType, SmartSession, TransportProtocol, smart},
 };
 use common::errors::{ProtocolError, mega_to_protocol_error};
 use futures::{TryStreamExt, stream};
@@ -32,7 +30,7 @@ use crate::{
 // where $servicename MUST be the service name the client wishes to contact to complete the operation.
 // The request MUST NOT contain additional query parameters.
 pub async fn git_info_refs(
-    state: &ProtocolApiState,
+    state: &TransportRuntime,
     params: InfoRefsParams,
     repo_path: std::path::PathBuf,
 ) -> Result<Response<Body>, ProtocolError> {
@@ -80,7 +78,7 @@ fn basic_auth_password_from_authorization_value(value: &str) -> Option<String> {
 /// Uses [`crate::api::oauth::login_user_from_mono_access_token`] (same as [`crate::api::oauth::AccessTokenUser`]).
 /// Supports both Bearer tokens and Basic Auth (with token as password).
 async fn git_receive_pack_auth(
-    state: &ProtocolApiState,
+    state: &TransportRuntime,
     pack_protocol: &mut SmartSession,
     headers: &http::HeaderMap,
 ) -> Result<bool, ProtocolError> {
@@ -132,7 +130,7 @@ async fn git_receive_pack_auth(
 ///
 /// Finally, the constructed response with the response body is returned.
 pub async fn git_upload_pack(
-    state: &ProtocolApiState,
+    state: &TransportRuntime,
     req: Request<Body>,
     repo_path: std::path::PathBuf,
 ) -> Result<Response<Body>, ProtocolError> {
@@ -199,7 +197,7 @@ pub async fn git_upload_pack(
 /// - `Response<Body>`: The HTTP response with the result of the receive-pack operation.
 /// - `(StatusCode, String)`: A tuple with an HTTP status code and an error message in case of failure.
 pub async fn git_receive_pack(
-    state: &ProtocolApiState,
+    state: &TransportRuntime,
     req: Request<Body>,
     repo_path: std::path::PathBuf,
 ) -> Result<Response<Body>, ProtocolError> {

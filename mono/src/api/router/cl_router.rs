@@ -63,7 +63,11 @@ async fn reopen_cl(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    state.monorepo().reopen_cl(&link, &user.username).await?;
+    state
+        .services()
+        .cl()
+        .reopen_cl(&link, &user.username)
+        .await?;
     Ok(Json(CommonResult::success(None)))
 }
 
@@ -84,7 +88,11 @@ async fn close_cl(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    state.monorepo().close_cl(&link, &user.username).await?;
+    state
+        .services()
+        .cl()
+        .close_cl(&link, &user.username)
+        .await?;
     Ok(Json(CommonResult::success(None)))
 }
 
@@ -106,7 +114,8 @@ async fn merge(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     state
-        .monorepo()
+        .services()
+        .cl()
         .merge_open_cl(&user.username, &link)
         .await?;
     Ok(Json(CommonResult::success(None)))
@@ -129,7 +138,7 @@ async fn merge_no_auth(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
-    state.monorepo().merge_open_cl_no_auth(&link).await?;
+    state.services().cl().merge_open_cl_no_auth(&link).await?;
     Ok(Json(CommonResult::success(Some(
         "Merge completed successfully".to_string(),
     ))))
@@ -150,7 +159,8 @@ async fn fetch_cl_list(
     Json(json): Json<PageParams<ListPayload>>,
 ) -> Result<Json<CommonResult<CommonPage<ItemRes>>>, ApiError> {
     let res = state
-        .monorepo()
+        .services()
+        .cl()
         .get_cl_list(json.additional, json.pagination)
         .await?;
     Ok(Json(CommonResult::success(Some(res))))
@@ -174,7 +184,8 @@ async fn cl_detail(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<CLDetailRes>>, ApiError> {
     let cl_details = state
-        .monorepo()
+        .services()
+        .cl()
         .get_cl_details(&link, user.username)
         .await?;
     Ok(Json(CommonResult::success(Some(cl_details))))
@@ -196,7 +207,8 @@ async fn cl_mui_tree(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<Vec<MuiTreeNode>>>, ApiError> {
     let files = state
-        .monorepo()
+        .services()
+        .cl()
         .get_sorted_changed_file_list(&link, None)
         .await?;
     let mui_trees = build_forest(files);
@@ -222,7 +234,8 @@ async fn cl_files_changed_by_page(
     Json(json): Json<PageParams<String>>,
 ) -> Result<Json<CommonResult<FilesChangedPage>>, ApiError> {
     let (items, total) = state
-        .monorepo()
+        .services()
+        .cl()
         .paged_content_diff_for_cl(&link, json.pagination)
         .await?;
     let res = CommonResult::success(Some(FilesChangedPage {
@@ -247,12 +260,12 @@ async fn cl_files_list(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<Vec<ClFilesRes>>>, ApiError> {
-    let cl = state.monorepo().get_cl_model(&link).await?;
+    let cl = state.services().cl().get_cl_model(&link).await?;
 
-    let stg = state.monorepo();
-    let old_files = stg.get_commit_blobs(&cl.from_hash).await?;
-    let new_files = stg.get_commit_blobs(&cl.to_hash).await?;
-    let cl_diff_files = stg.cl_files_list(old_files, new_files.clone()).await?; // TODO
+    let cl_svc = state.services().cl();
+    let old_files = cl_svc.get_commit_blobs(&cl.from_hash).await?;
+    let new_files = cl_svc.get_commit_blobs(&cl.to_hash).await?;
+    let cl_diff_files = cl_svc.cl_files_list(old_files, new_files.clone()).await?; // TODO
 
     let res = cl_diff_files
         .into_iter()
@@ -280,7 +293,7 @@ async fn update_branch_status(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<UpdateBranchStatusRes>>, ApiError> {
-    let res = state.monorepo().update_branch_status(&link).await?;
+    let res = state.services().cl().update_branch_status(&link).await?;
     Ok(Json(CommonResult::success(Some(res))))
 }
 
@@ -302,7 +315,8 @@ async fn update_branch(
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     let new_head = state
-        .monorepo()
+        .services()
+        .cl()
         .update_branch_with_webhook(&user.username, &link)
         .await?;
     Ok(Json(CommonResult::success(Some(new_head))))
@@ -324,7 +338,7 @@ async fn merge_box(
     Path(link): Path<String>,
     state: State<MonoApiServiceState>,
 ) -> Result<Json<CommonResult<MergeBoxRes>>, ApiError> {
-    let res = state.monorepo().get_merge_box(&link).await?;
+    let res = state.services().cl().get_merge_box(&link).await?;
     Ok(Json(CommonResult::success(Some(res))))
 }
 
@@ -348,7 +362,8 @@ async fn save_comment(
     Json(payload): Json<ContentPayload>,
 ) -> Result<Json<CommonResult<()>>, ApiError> {
     state
-        .monorepo()
+        .services()
+        .cl()
         .save_cl_comment(&link, &user.username, &payload.content)
         .await?;
     api_common::comment::check_comment_ref(user, state, &payload.content, &link).await
@@ -374,7 +389,8 @@ async fn edit_title(
     Json(payload): Json<ContentPayload>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     state
-        .monorepo()
+        .services()
+        .cl()
         .edit_cl_title(&link, &payload.content)
         .await?;
     Ok(Json(CommonResult::success(None)))
@@ -436,7 +452,8 @@ async fn update_cl_status(
     Json(payload): Json<UpdateClStatusPayload>,
 ) -> Result<Json<CommonResult<String>>, ApiError> {
     state
-        .monorepo()
+        .services()
+        .cl()
         .update_cl_status(&link, &user.username, &payload)
         .await?;
     Ok(Json(CommonResult::success(None)))
